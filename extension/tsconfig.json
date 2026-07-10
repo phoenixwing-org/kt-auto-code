@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "rootDir": "..",
+    "types": ["vscode", "node"]
+  },
+  "include": ["src/**/*.ts", "../src/sourceEncodingScan.ts", "../src/sourceEncodingWalk.ts"]
+}

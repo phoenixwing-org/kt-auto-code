@@ -1,0 +1,110 @@
+{
+  "name": "kt-auto-code",
+  "displayName": "Kt Auto Code",
+  "description": "CAA / MSVC C++ 小工具集合：头文件 ASCII 修正等",
+  "version": "0.1.0",
+  "publisher": "kt",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onView:ktAutoCode.sidebar"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "kt-auto-code",
+          "title": "Kt Auto Code",
+          "icon": "media/kt-auto-code.svg"
+        }
+      ]
+    },
+    "views": {
+      "kt-auto-code": [
+        {
+          "type": "webview",
+          "id": "ktAutoCode.sidebar",
+          "name": "Kt Auto Code"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "ktAutoCode.headerAscii.scan",
+        "title": "头文件 ASCII 修正：扫描",
+        "icon": "$(search)"
+      },
+      {
+        "command": "ktAutoCode.headerAscii.fix",
+        "title": "头文件 ASCII 修正：修复",
+        "icon": "$(wrench)"
+      },
+      {
+        "command": "ktAutoCode.encodingFix.scan",
+        "title": "编码修正：预检",
+        "icon": "$(search)"
+      },
+      {
+        "command": "ktAutoCode.encodingFix.convert",
+        "title": "编码修正：转换",
+        "icon": "$(file-code)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "ktAutoCode.headerAscii.scan",
+          "when": "view == ktAutoCode.sidebar",
+          "group": "navigation@1"
+        },
+        {
+          "command": "ktAutoCode.headerAscii.fix",
+          "when": "view == ktAutoCode.sidebar",
+          "group": "navigation@2"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Kt Auto Code",
+      "properties": {
+        "ktAutoCode.headerAscii.preserveGbk": {
+          "type": "boolean",
+          "default": false,
+          "description": "头文件扫描/修复时保留 GBK 中文注释。默认关闭（纯 ASCII，推荐）。"
+        },
+        "ktAutoCode.headerAscii.stripBom": {
+          "type": "boolean",
+          "default": false,
+          "description": "修复时去除 UTF-8 BOM (EF BB BF)，并将 UTF-16 等转为 UTF-8 无 BOM。未开启时宽字节文件不做字节级修复。"
+        },
+        "ktAutoCode.scope.includeHeaders": {
+          "type": "boolean",
+          "default": true,
+          "description": "扫描范围：头文件 (.h / .hpp …)"
+        },
+        "ktAutoCode.scope.includeSource": {
+          "type": "boolean",
+          "default": true,
+          "description": "扫描范围：源文件 (.cpp / .c …)"
+        },
+        "ktAutoCode.scope.includeMarkdown": {
+          "type": "boolean",
+          "default": true,
+          "description": "扫描范围：.md / .mdx（仅「编码修正」工具）"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.25.0",
+    "@vscode/vsce": "^3.2.1"
+  }
+}

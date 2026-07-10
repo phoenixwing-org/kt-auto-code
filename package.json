@@ -1,0 +1,23 @@
+{
+  "name": "@phoenix/code-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "scan-encoding": "tsx scripts/scan-source-encoding.ts",
+    "fix-encoding": "tsx scripts/scan-source-encoding.ts --fix",
+    "fix-headers": "tsx scripts/scan-source-encoding.ts --fix --headers --ascii",
+    "scan-file-encoding": "tsx scripts/scan-file-encoding.ts",
+    "convert-file-encoding": "tsx scripts/scan-file-encoding.ts --convert",
+    "ext:build": "pnpm -C extension build",
+    "ext:watch": "pnpm -C extension watch",
+    "ext:launch": "node scripts/launch-extension-host.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.3",
+    "typescript": "~5.7.2",
+    "vitest": "^4.1.9"
+  }
+}
