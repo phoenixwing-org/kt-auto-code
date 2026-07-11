@@ -19,14 +19,16 @@ if (!existsSync(resolve(extensionPath, "dist/extension.js"))) {
 }
 
 const args = [`--extensionDevelopmentPath=${extensionPath}`];
+const macCode = "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code";
+const command = process.platform === "darwin" && existsSync(macCode) ? macCode : "code";
 
 console.log("启动 VS Code Extension Development Host …");
 console.log(`  插件: ${extensionPath}`);
-console.log("  工程: 启动后在 Host 窗口选择「最近」或 文件→打开文件夹");
+console.log("  工作区: 空窗口（请选择「最近」或自行打开文件夹）");
 console.log("");
 console.log("提示: 标题须含 [Extension Development Host]。");
 
-const child = spawn("code", args, { detached: true, stdio: "ignore", shell: true });
+const child = spawn(command, args, { detached: true, stdio: "ignore" });
 child.on("error", (err) => {
   console.error("启动失败:", err.message);
   process.exit(1);

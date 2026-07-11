@@ -54,8 +54,8 @@ export function detectFileBom(buf: Uint8Array): FileBomInfo {
 
 export function bomFixTargetLabel(kind: FileBomKind): string {
   if (kind === "none") return "";
-  if (kind === "utf8-bom") return "UTF-8 无 BOM";
-  return "UTF-8 无 BOM（自宽字节解码）";
+  if (kind === "utf8-bom") return "UTF-8";
+  return "UTF-8（自宽字节解码）";
 }
 
 /** 转为 UTF-8 无 BOM；失败返回 undefined */
@@ -108,8 +108,8 @@ export function createBomScanIssue(bom: FileBomInfo): {
     context: `文件含 ${label}`,
     suggestedAscii: target,
     hint: bom.skipByteSanitize
-      ? "宽字节编码文件不可做字节级 ASCII 清理；请勾选「去除 BOM / 转为 UTF-8 无 BOM」"
-      : "可勾选「去除 UTF-8 BOM」转为 UTF-8 无 BOM",
+      ? "宽字节编码文件不可做字节级 ASCII 清理；请勾选「去除 BOM / 转为 UTF-8」"
+      : "可勾选「去除 UTF-8 BOM」转为 UTF-8",
     bomKind: bom.kind,
   };
 }

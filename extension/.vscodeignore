@@ -4,4 +4,5 @@ node_modules/**
 src/**
 esbuild.mjs
 tsconfig.json
+pnpm-lock.yaml
 **/*.map

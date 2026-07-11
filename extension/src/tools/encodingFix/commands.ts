@@ -1,5 +1,4 @@
 import * as vscode from "vscode";
-import { resolveIgnorePatterns } from "../../../../src/dotIgnore.js";
 import {
   countConvertibleRows,
   formatFileEncodingReport,
@@ -12,6 +11,7 @@ import {
 } from "../../../../src/fileEncoding.js";
 import type { EncodingFileResultSummary, ToolRunContext } from "../types.js";
 import { getFileScope, isScopeEmpty, scopeSummary } from "../../scopeOptions.js";
+import { resolveWorkspaceIgnorePatterns } from "../../ignoreConfig.js";
 
 export function reportToEncodingResults(
   report: FileEncodingWalkReport,
@@ -41,7 +41,7 @@ export async function scanEncodings(root: string): Promise<FileEncodingWalkRepor
   return runFileEncodingWalk({
     root,
     scope: getFileScope(),
-    ignorePatterns: resolveIgnorePatterns(root),
+    ignorePatterns: resolveWorkspaceIgnorePatterns(root),
     convert: false,
   });
 }
@@ -65,7 +65,7 @@ export async function convertEncodings(
     return preview;
   }
 
-  let msg = `将把 ${counts.total} 个文件转为 UTF-8 无 BOM：`;
+  let msg = `将把 ${counts.total} 个文件转为 UTF-8：`;
   const parts: string[] = [];
   if (counts.gbk) parts.push(`GBK ${counts.gbk}`);
   if (counts.bom) parts.push(`去 BOM ${counts.bom}`);
@@ -84,7 +84,7 @@ export async function convertEncodings(
   return runFileEncodingWalk({
     root,
     scope: getFileScope(),
-    ignorePatterns: resolveIgnorePatterns(root),
+    ignorePatterns: resolveWorkspaceIgnorePatterns(root),
     convert: true,
   });
 }
@@ -129,7 +129,7 @@ export async function runEncodingFixAction(
         status: "done",
         message:
           report.issueFiles === 0
-            ? `已扫描 ${report.scanned} 个文件，编码均符合 UTF-8 无 BOM。`
+            ? `已扫描 ${report.scanned} 个文件，编码均符合 UTF-8。`
             : `已扫描 ${report.scanned} 个文件，${report.issueFiles} 个不符合期望。`,
         encodingResults: reportToEncodingResults(report),
         scanned: report.scanned,
@@ -158,7 +158,7 @@ export async function runEncodingFixAction(
       const rescan = await scanEncodings(ctx.workspaceRoot);
       ctx.postState({
         status: "done",
-        message: `已转换 ${report.convertedFiles} 个文件为 UTF-8 无 BOM。`,
+        message: `已转换 ${report.convertedFiles} 个文件为 UTF-8。`,
         encodingResults: reportToEncodingResults(rescan),
         scanned: rescan.scanned,
         issueFiles: rescan.issueFiles,
@@ -166,7 +166,7 @@ export async function runEncodingFixAction(
       });
       if (report.convertedFiles > 0) {
         void vscode.window.showInformationMessage(
-          `Kt Auto Code：已转换 ${report.convertedFiles} 个文件为 UTF-8 无 BOM。`,
+          `KT Auto Code：已转换 ${report.convertedFiles} 个文件为 UTF-8。`,
         );
       }
       return;

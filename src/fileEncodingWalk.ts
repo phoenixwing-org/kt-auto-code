@@ -159,7 +159,7 @@ export function formatFileEncodingReport(report: FileEncodingWalkReport, convert
         ? "未扫描到文件（请检查范围勾选或 .phoenix/.ignore）"
         : convert
           ? "无需转换"
-          : "编码均符合 UTF-8 无 BOM 期望";
+          : "编码均符合 UTF-8 期望";
     lines.push(`${report.root}: 已扫描 ${report.scanned} 个文件，${empty}。`);
     return lines.join("\n");
   }
@@ -176,7 +176,7 @@ export function formatFileEncodingReport(report: FileEncodingWalkReport, convert
       lines.push(`  BOM: ${row.bomHex}`);
     }
     lines.push(`  ${row.confidence}`);
-    if (converted) lines.push("  → 已转换为 UTF-8 无 BOM");
+    if (converted) lines.push("  → 已转换为 UTF-8");
   }
 
   if (convert) {

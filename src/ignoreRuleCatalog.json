@@ -1,0 +1,146 @@
+{
+  "version": 5,
+  "rules": [
+    { "id": "caa-tools-data", "value": "ToolsData/", "kind": "directory", "categories": ["caa", "scm", "tool-data", "user-local"], "description": "CAA V5 SCM 与开发工具工作数据目录" },
+    { "id": "caa-objects", "value": "Objects/", "kind": "directory", "categories": ["caa", "mkmk", "build-intermediate", "generated"], "description": "mkmk 构建中间对象目录；按所在位置保存编译结果或框架 Identity Card 生成数据" },
+    { "id": "caa-win-b64", "value": "win_b64/", "kind": "directory", "categories": ["caa", "windows", "x64", "mkmk-os", "build-output"], "description": "CAA V5 Windows 64 位平台输出目录（MkmkOS_VAR）" },
+    { "id": "caa-install-config-win-b64", "value": "Install_config_win_b64/", "kind": "directory", "categories": ["caa", "windows", "x64", "install", "generated", "config"], "description": "CAA V5 Windows 64 位安装配置生成目录" },
+    { "id": "caa-v5-level", "value": "CATIAV5Level.lvl", "kind": "file", "categories": ["caa", "version", "level", "generated"], "description": "CATIA V5 Level（版本级别）标识文件" },
+    { "id": "caa-intel-a", "value": "intel_a/", "kind": "directory", "categories": ["caa", "windows", "x86", "mkmk-os", "build-output"], "description": "CAA V5 Windows 32 位平台输出目录（MkmkOS_VAR）" },
+    { "id": "caa-catenv", "value": "CATEnv/", "kind": "directory", "categories": ["caa", "runtime-environment", "environment", "config"], "description": "CATIA/CAA V5 运行环境定义文件目录" },
+    { "id": "caa-imported-interfaces", "value": "ImportedInterfaces/", "kind": "directory", "categories": ["caa", "mkmk", "interfaces", "interface-map", "generated"], "description": "mkmk 生成的外部接口映射与转接头文件目录" },
+    { "id": "caa-various", "value": "various/", "kind": "directory", "categories": ["caa", "mkmk", "header-list", "build-intermediate", "generated"], "description": "mkmk 生成的接口头文件清单等构建辅助数据目录" },
+    { "id": "caa-protected-generated", "value": "ProtectedGenerated/", "kind": "directory", "categories": ["caa", "mkmk", "protected", "interface-code", "tie", "generated"], "description": "mkmk 默认生成的 Protected 级接口代码目录，包括 TIE 头文件" },
+    { "id": "caa-local-generated", "value": "LocalGenerated/", "kind": "directory", "categories": ["caa", "mkmk", "module-local", "generated-source", "generated"], "description": "mkmk 在模块内生成的本地源码或接口目录，包括语法处理结果" },
+    { "id": "project-error-note", "value": "error.md", "kind": "file", "categories": ["pnx-caa-study", "project-specific", "user-local", "diagnostic"], "description": "PNXCaaStudy 用户本地错误记录" },
+    { "id": "tool-obsidian", "value": ".obsidian/", "kind": "directory", "categories": ["pnx-caa-study", "project-specific", "obsidian", "user-local", "config"], "description": "Obsidian 工作区配置" },
+    { "id": "tool-phoenix", "value": ".phoenix/", "kind": "directory", "categories": ["pnx-caa-study", "project-specific", "phoenix", "user-local", "config"], "description": "Phoenix Wing 工作区配置" },
+
+    { "id": "system-ds-store", "value": ".DS_Store", "kind": "file", "categories": ["common", "macos", "os-metadata", "user-local"], "description": "macOS Finder 元数据文件" },
+    { "id": "project-cache", "value": ".cache/", "kind": "directory", "categories": ["pnx-caa-study", "ktcore", "project-specific", "cache", "user-local"], "description": "KtCore 本地缓存目录" },
+    { "id": "project-wasm", "value": "wasm/", "kind": "directory", "categories": ["pnx-caa-study", "ktcore", "project-specific", "webassembly", "build-output"], "description": "KtCore WebAssembly 构建输出目录" },
+    { "id": "project-bigray", "value": "*.bigray", "kind": "pattern", "categories": ["pnx-caa-study", "ktcore", "project-specific", "generated"], "description": "KtCore 自定义 BigRay 生成文件" },
+    { "id": "project-zip", "value": "*.zip", "kind": "pattern", "categories": ["pnx-caa-study", "ktcore", "project-specific", "archive", "review-required"], "description": "KtCore 本地 ZIP 归档；可能包含应提交资产，启用前需确认" },
+    { "id": "project-ppm", "value": "*.ppm", "kind": "pattern", "categories": ["pnx-caa-study", "ktcore", "project-specific", "image-output", "review-required"], "description": "KtCore PPM 图像输出；启用前需确认是否为生成文件" },
+    { "id": "project-history-obj", "value": "*.history.obj", "kind": "pattern", "categories": ["pnx-caa-study", "ktcore", "project-specific", "history", "generated"], "description": "KtCore 本地历史对象文件" },
+    { "id": "project-output-files", "value": "output/*.*", "kind": "pattern", "categories": ["pnx-caa-study", "ktcore", "project-specific", "build-output"], "description": "KtCore output 目录下的生成文件" },
+    { "id": "project-my-cmake", "value": "my.cmake", "kind": "file", "categories": ["pnx-caa-study", "ktcore", "project-specific", "cmake", "user-local", "config"], "description": "KtCore 用户本地 CMake 配置" },
+    { "id": "project-temp-markdown", "value": "temp.md", "kind": "file", "categories": ["pnx-caa-study", "ktcore", "project-specific", "user-local", "temporary"], "description": "KtCore 用户临时 Markdown 文档" },
+    { "id": "project-batch-script", "value": "*.bat", "kind": "pattern", "categories": ["pnx-caa-study", "template-workspace", "project-specific", "windows", "script", "review-required"], "description": "模板工作区批处理脚本；可能是源码，默认不应忽略" },
+    { "id": "tool-vscode", "value": ".vscode/", "kind": "directory", "categories": ["pnx-caa-study", "template-workspace", "project-specific", "vscode", "config", "review-required"], "description": "VS Code 工作区配置；可能包含共享任务和调试配置，默认不应忽略" },
+
+    { "id": "native-dependency", "value": "*.d", "kind": "pattern", "categories": ["caa", "cpp", "native-build", "dependency", "build-output"], "description": "编译器生成的依赖关系文件" },
+    { "id": "native-slo", "value": "*.slo", "kind": "pattern", "categories": ["caa", "cpp", "native-build", "object", "build-output"], "description": "Libtool PIC 对象文件" },
+    { "id": "native-lo", "value": "*.lo", "kind": "pattern", "categories": ["caa", "cpp", "native-build", "object", "build-output"], "description": "Libtool 对象文件" },
+    { "id": "native-o", "value": "*.o", "kind": "pattern", "categories": ["caa", "cpp", "native-build", "object", "unix", "build-output"], "description": "Unix C/C++ 对象文件" },
+    { "id": "native-gch", "value": "*.gch", "kind": "pattern", "categories": ["caa", "cpp", "native-build", "precompiled-header", "build-output"], "description": "GCC 预编译头文件" },
+    { "id": "native-pch", "value": "*.pch", "kind": "pattern", "categories": ["caa", "cpp", "native-build", "precompiled-header", "build-output"], "description": "预编译头文件" },
+    { "id": "native-so", "value": "*.so", "kind": "pattern", "categories": ["caa", "cpp", "native-build", "dynamic-library", "linux", "build-output"], "description": "Linux 动态库" },
+    { "id": "native-dylib", "value": "*.dylib", "kind": "pattern", "categories": ["caa", "cpp", "native-build", "dynamic-library", "macos", "build-output"], "description": "macOS 动态库" },
+    { "id": "native-dll", "value": "*.dll", "kind": "pattern", "categories": ["caa", "cpp", "native-build", "dynamic-library", "windows", "build-output"], "description": "Windows 动态库" },
+    { "id": "fortran-mod", "value": "*.mod", "kind": "pattern", "categories": ["caa", "fortran", "native-build", "module", "build-output"], "description": "Fortran 模块文件" },
+    { "id": "fortran-smod", "value": "*.smod", "kind": "pattern", "categories": ["caa", "fortran", "native-build", "module", "build-output"], "description": "Fortran 子模块文件" },
+    { "id": "native-lai", "value": "*.lai", "kind": "pattern", "categories": ["caa", "cpp", "native-build", "static-library", "build-output"], "description": "Libtool 静态库元数据" },
+    { "id": "native-la", "value": "*.la", "kind": "pattern", "categories": ["caa", "cpp", "native-build", "static-library", "build-output"], "description": "Libtool 库文件" },
+    { "id": "native-a", "value": "*.a", "kind": "pattern", "categories": ["caa", "cpp", "native-build", "static-library", "unix", "build-output"], "description": "Unix 静态库" },
+    { "id": "native-lib", "value": "*.lib", "kind": "pattern", "categories": ["caa", "cpp", "native-build", "static-library", "windows", "build-output"], "description": "Windows 静态库或导入库" },
+    { "id": "native-exe", "value": "*.exe", "kind": "pattern", "categories": ["caa", "cpp", "native-build", "executable", "windows", "build-output"], "description": "Windows 可执行文件" },
+    { "id": "native-out", "value": "*.out", "kind": "pattern", "categories": ["caa", "cpp", "native-build", "executable", "unix", "build-output"], "description": "Unix 可执行输出" },
+    { "id": "native-app", "value": "*.app", "kind": "pattern", "categories": ["caa", "cpp", "native-build", "executable", "macos", "build-output"], "description": "macOS 应用包或可执行输出" },
+    { "id": "caa-lvl", "value": "*.lvl", "kind": "pattern", "categories": ["caa", "native-build", "version", "generated"], "description": "CAA/CATIA Level 生成文件" },
+
+    { "id": "cpp-build", "value": "build/", "kind": "directory", "categories": ["cpp", "cmake", "build-output"], "description": "CMake 默认构建目录" },
+    { "id": "cpp-build-debug", "value": "build_debug/", "kind": "directory", "categories": ["cpp", "cmake", "build-output", "debug"], "description": "CMake Debug 构建目录" },
+    { "id": "cpp-build-release", "value": "build_release/", "kind": "directory", "categories": ["cpp", "cmake", "build-output", "release"], "description": "CMake Release 构建目录" },
+    { "id": "cpp-cmake-build", "value": "cmake-build-*/", "kind": "directory", "categories": ["cpp", "cmake", "build-output"], "description": "CMake IDE 构建目录" },
+    { "id": "cpp-debug", "value": "Debug/", "kind": "directory", "categories": ["cpp", "msbuild", "build-output", "debug"], "description": "MSBuild Debug 输出目录" },
+    { "id": "cpp-release", "value": "Release/", "kind": "directory", "categories": ["cpp", "msbuild", "build-output", "release"], "description": "MSBuild Release 输出目录" },
+    { "id": "cpp-visual-studio", "value": ".vs/", "kind": "directory", "categories": ["caa", "cpp", "msbuild", "windows", "user-local", "config"], "description": "Visual Studio 本地状态" },
+    { "id": "cpp-object", "value": "*.obj", "kind": "pattern", "categories": ["caa", "cpp", "native-build", "msbuild", "object", "windows", "build-output"], "description": "MSVC 对象文件" },
+    { "id": "cpp-pdb", "value": "*.pdb", "kind": "pattern", "categories": ["cpp", "msbuild", "build-output", "debug"], "description": "MSVC 调试符号文件" },
+
+    { "id": "web-node-modules", "value": "node_modules/", "kind": "directory", "categories": ["web", "node", "dependency", "generated"], "description": "Node 依赖目录" },
+    { "id": "web-dist", "value": "dist/", "kind": "directory", "categories": ["web", "build-output"], "description": "Web 构建输出" },
+    { "id": "web-next", "value": ".next/", "kind": "directory", "categories": ["web", "next", "build-output", "cache"], "description": "Next.js 构建与缓存" },
+    { "id": "web-nuxt", "value": ".nuxt/", "kind": "directory", "categories": ["web", "nuxt", "build-output", "cache"], "description": "Nuxt 构建与缓存" },
+    { "id": "web-vite", "value": ".vite/", "kind": "directory", "categories": ["web", "vite", "cache"], "description": "Vite 缓存" },
+    { "id": "web-turbo", "value": ".turbo/", "kind": "directory", "categories": ["web", "turbo", "cache"], "description": "Turborepo 缓存" },
+    { "id": "web-coverage", "value": "coverage/", "kind": "directory", "categories": ["web", "test", "build-output"], "description": "测试覆盖率输出" }
+  ],
+  "groups": [
+    {
+      "id": "caa-platform",
+      "title": "CAA 平台输出",
+      "description": "Windows 32/64 位平台输出、安装配置和 Level 标识",
+      "ruleIds": ["caa-intel-a", "caa-win-b64", "caa-install-config-win-b64", "caa-v5-level"]
+    },
+    {
+      "id": "caa-mkmk",
+      "title": "CAA mkmk 中间目录",
+      "description": "SCM 数据、环境、接口映射、头文件清单和构建对象",
+      "ruleIds": ["caa-tools-data", "caa-objects", "caa-catenv", "caa-imported-interfaces", "caa-various"]
+    },
+    {
+      "id": "caa-generated",
+      "title": "CAA 生成接口",
+      "description": "mkmk 生成的 Protected 与 Local 接口/源码",
+      "ruleIds": ["caa-protected-generated", "caa-local-generated"]
+    },
+    {
+      "id": "native-object",
+      "title": "原生对象与预编译头",
+      "description": "依赖、对象文件和预编译头",
+      "ruleIds": ["native-dependency", "native-slo", "native-lo", "native-o", "cpp-object", "native-gch", "native-pch"]
+    },
+    {
+      "id": "native-library",
+      "title": "原生库与 Fortran 模块",
+      "description": "动态库、静态库和 Fortran 模块产物",
+      "ruleIds": ["native-so", "native-dylib", "native-dll", "fortran-mod", "fortran-smod", "native-lai", "native-la", "native-a", "native-lib"]
+    },
+    {
+      "id": "native-executable",
+      "title": "可执行与 Level 产物",
+      "description": "各平台可执行文件和 CAA Level 生成文件",
+      "ruleIds": ["native-exe", "native-out", "native-app", "caa-lvl"]
+    },
+    {
+      "id": "cpp-cmake",
+      "title": "C++ / CMake 构建目录",
+      "description": "CMake、MSBuild 和 Visual Studio 本地构建输出",
+      "ruleIds": ["cpp-build", "cpp-build-debug", "cpp-build-release", "cpp-cmake-build", "cpp-debug", "cpp-release", "cpp-visual-studio", "cpp-pdb"]
+    },
+    {
+      "id": "web-node",
+      "title": "Web / Node 依赖",
+      "description": "Node 依赖目录",
+      "ruleIds": ["web-node-modules"]
+    },
+    {
+      "id": "web-output",
+      "title": "Web 构建与缓存",
+      "description": "Web 框架构建输出、缓存和覆盖率",
+      "ruleIds": ["web-dist", "web-next", "web-nuxt", "web-vite", "web-turbo", "web-coverage"]
+    },
+    {
+      "id": "local-tools",
+      "title": "本地工具配置",
+      "description": "操作系统和本地工具产生的配置",
+      "ruleIds": ["system-ds-store", "tool-obsidian", "tool-phoenix"]
+    },
+    {
+      "id": "pnx-project",
+      "title": "PNXCaaStudy 项目特有",
+      "description": "KtCore 和 PNXCaaStudy 的本地生成物",
+      "includeCategories": ["pnx-caa-study"],
+      "excludeCategories": ["review-required"]
+    },
+    {
+      "id": "review-required",
+      "title": "需确认规则",
+      "description": "可能命中源码或应提交资产，必须逐条确认",
+      "includeCategories": ["review-required"],
+      "reviewRequired": true
+    }
+  ]
+}

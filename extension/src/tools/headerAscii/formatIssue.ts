@@ -36,7 +36,7 @@ export function formatIssueTransform(issue: SourceEncodingIssue): {
   const hex = `0x${issue.byte.toString(16).padStart(2, "0").toUpperCase()}`;
 
   if (issue.kind === "file_bom") {
-    const target = issue.suggestedAscii || "UTF-8 无 BOM";
+    const target = issue.suggestedAscii || "UTF-8";
     const label = issue.hint?.includes("UTF-8 BOM")
       ? "UTF-8 BOM (EF BB BF)"
       : issue.hint?.includes("宽字节")

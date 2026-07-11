@@ -1,8 +1,9 @@
 {
   "name": "kt-auto-code",
-  "displayName": "Kt Auto Code",
-  "description": "CAA / MSVC C++ 小工具集合：头文件 ASCII 修正等",
+  "displayName": "KT Auto Code",
+  "description": "CAA / MSVC C++ 工具：编码修正、转码、Ignore 与工作区搜索替换",
   "version": "0.1.0",
+  "license": "Apache-2.0",
   "publisher": "kt",
   "private": true,
   "engines": {
@@ -16,7 +17,7 @@
       "activitybar": [
         {
           "id": "kt-auto-code",
-          "title": "Kt Auto Code",
+          "title": "KT Auto Code",
           "icon": "media/kt-auto-code.svg"
         }
       ]
@@ -26,7 +27,7 @@
         {
           "type": "webview",
           "id": "ktAutoCode.sidebar",
-          "name": "Kt Auto Code"
+          "name": "KT Auto Code"
         }
       ]
     },
@@ -50,6 +51,21 @@
         "command": "ktAutoCode.encodingFix.convert",
         "title": "编码修正：转换",
         "icon": "$(file-code)"
+      },
+      {
+        "command": "ktAutoCode.ignore.open",
+        "title": "KT Auto Code：打开忽略设置",
+        "icon": "$(exclude)"
+      },
+      {
+        "command": "ktAutoCode.ignore.sync",
+        "title": "KT Auto Code：从 .gitignore 同步",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "ktAutoCode.searchReplace.open",
+        "title": "KT Auto Code：搜索替换",
+        "icon": "$(replace-all)"
       }
     ],
     "menus": {
@@ -67,7 +83,7 @@
       ]
     },
     "configuration": {
-      "title": "Kt Auto Code",
+      "title": "KT Auto Code",
       "properties": {
         "ktAutoCode.headerAscii.preserveGbk": {
           "type": "boolean",
@@ -77,7 +93,7 @@
         "ktAutoCode.headerAscii.stripBom": {
           "type": "boolean",
           "default": false,
-          "description": "修复时去除 UTF-8 BOM (EF BB BF)，并将 UTF-16 等转为 UTF-8 无 BOM。未开启时宽字节文件不做字节级修复。"
+          "description": "修复时去除 UTF-8 BOM (EF BB BF)，并将 UTF-16 等转为 UTF-8。未开启时宽字节文件不做字节级修复。"
         },
         "ktAutoCode.scope.includeHeaders": {
           "type": "boolean",
@@ -93,6 +109,13 @@
           "type": "boolean",
           "default": true,
           "description": "扫描范围：.md / .mdx（仅「编码修正」工具）"
+        },
+        "ktAutoCode.sidebar.toolPickerStyle": {
+          "type": "string",
+          "enum": ["ribbon", "compact"],
+          "enumDescriptions": ["大图标 Ribbon，可点击切换工具", "紧凑图标 Tab"],
+          "default": "ribbon",
+          "description": "Side Bar 顶部工具切换器样式。"
         }
       }
     }

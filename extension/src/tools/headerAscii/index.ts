@@ -2,13 +2,14 @@ import * as vscode from "vscode";
 import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
 import { openIssueFile, runHeaderAsciiAction } from "./commands.js";
 import { setPreserveGbk, setStripBom } from "./options.js";
+import { HeaderAsciiPanel } from "../../workbench/headerAsciiPanel.js";
 
 export const headerAsciiTool: KtTool = {
   id: "headerAscii",
   title: "头文件 ASCII",
   description:
-    "CAA 头文件应仅含 ASCII：不宜 UTF-8，GBK 中文在本机虽合法，跨国协作仍易因代码页不同出错。本工具扫描并修正头文件中的弯引号、GBK 注释等多字节内容。",
-  icon: "symbol-string",
+    "预检并修正头文件中的弯引号、GBK 注释和其他非 ASCII 内容。",
+  icon: "media/tools/header-ascii.svg",
 
   getPanelModel(): ToolPanelModel {
     return {
@@ -27,7 +28,7 @@ export const headerAsciiTool: KtTool = {
       if (!ctx) {
         return;
       }
-      void runHeaderAsciiAction(action, ctx);
+      void runWithResults(action, ctx);
     };
 
     context.subscriptions.push(
@@ -46,7 +47,7 @@ export const headerAsciiTool: KtTool = {
       return;
     }
     if (message.type === "run" && message.toolId === this.id) {
-      await runHeaderAsciiAction(message.action, ctx);
+      await runWithResults(message.action, ctx);
       return;
     }
     if (message.type === "openIssue" && message.toolId === this.id) {
@@ -55,9 +56,23 @@ export const headerAsciiTool: KtTool = {
   },
 
   async runAction(action: string, ctx: ToolRunContext): Promise<void> {
-    await runHeaderAsciiAction(action, ctx);
+    await runWithResults(action, ctx);
   },
 };
+
+async function runWithResults(action: string, ctx: ToolRunContext): Promise<void> {
+  if (action !== "scan") {
+    await runHeaderAsciiAction(action, ctx);
+    return;
+  }
+  await runHeaderAsciiAction(action, {
+    ...ctx,
+    postState: (state) => {
+      ctx.postState(state);
+      HeaderAsciiPanel.show(state);
+    },
+  });
+}
 
 let runContextFactory: (() => ToolRunContext | undefined) | undefined;
 

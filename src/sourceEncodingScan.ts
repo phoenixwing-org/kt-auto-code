@@ -436,7 +436,7 @@ function encodeGbk(text: string): Uint8Array {
   try {
     const nodeUtil = (globalThis as typeof globalThis & { Buffer?: typeof Buffer }).Buffer;
     if (nodeUtil) {
-      return new Uint8Array(nodeUtil.from(text, "gbk"));
+      return new Uint8Array(nodeUtil.from(text, "gbk" as BufferEncoding));
     }
   } catch {
     /* fall through */

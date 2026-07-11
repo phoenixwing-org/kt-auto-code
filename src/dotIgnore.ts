@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 /** 工作区下 Phoenix 配置目录 */
@@ -23,8 +23,10 @@ export interface IgnoreConfigInfo {
 }
 
 const SYNC_HEADER =
-  "# Synced from .gitignore by Kt Auto Code\n"
+  "# Synced from .gitignore by KT Auto Code\n"
   + "# 扫描跳过规则；目录以 / 结尾，支持 * 与 **\n\n";
+
+const ignorePatternCache = new Map<string, { mtimeMs: number; size: number; patterns: string[] }>();
 
 /** 若不存在 `.phoenix/.ignore`，从 `.gitignore` 同步（或创建空文件） */
 export function ensurePhoenixIgnore(root: string): IgnoreConfigInfo {
@@ -34,13 +36,15 @@ export function ensurePhoenixIgnore(root: string): IgnoreConfigInfo {
     const gitFile = gitIgnoreFile(root);
     if (existsSync(gitFile)) {
       writeFileSync(file, SYNC_HEADER + readFileSync(gitFile, "utf8"), "utf8");
+      ignorePatternCache.delete(file);
       return buildIgnoreConfigInfo(root, true);
     }
     writeFileSync(
       file,
-      "# Kt Auto Code scan ignore rules\n# 可手动添加，或点击「从 .gitignore 同步」\n\n",
+      "# KT Auto Code scan ignore rules\n# 可手动添加，或点击「从 .gitignore 同步」\n\n",
       "utf8",
     );
+    ignorePatternCache.delete(file);
     return buildIgnoreConfigInfo(root, false);
   }
   return buildIgnoreConfigInfo(root, false);
@@ -57,6 +61,7 @@ export function syncPhoenixIgnoreFromGit(root: string): IgnoreConfigInfo {
   }
   mkdirSync(join(root, PHOENIX_CONFIG_DIR), { recursive: true });
   writeFileSync(phoenixIgnoreFile(root), SYNC_HEADER + readFileSync(gitFile, "utf8"), "utf8");
+  ignorePatternCache.delete(phoenixIgnoreFile(root));
   return buildIgnoreConfigInfo(root, true);
 }
 
@@ -89,6 +94,17 @@ export function resolveIgnorePatterns(root: string): string[] {
   return loadDotIgnore(root);
 }
 
+export function parseDotIgnoreText(text: string): string[] {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"));
+}
+
+export function invalidateDotIgnoreCache(root: string): void {
+  ignorePatternCache.delete(phoenixIgnoreFile(root));
+}
+
 /** 读取工作区 `.phoenix/.ignore` 中的规则（类似 .gitignore 子集） */
 export function loadDotIgnore(root: string): string[] {
   const file = phoenixIgnoreFile(root);
@@ -96,11 +112,16 @@ export function loadDotIgnore(root: string): string[] {
     return [];
   }
   try {
-    return readFileSync(file, "utf8")
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0 && !line.startsWith("#"));
+    const stat = statSync(file);
+    const cached = ignorePatternCache.get(file);
+    if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+      return [...cached.patterns];
+    }
+    const patterns = parseDotIgnoreText(readFileSync(file, "utf8"));
+    ignorePatternCache.set(file, { mtimeMs: stat.mtimeMs, size: stat.size, patterns });
+    return [...patterns];
   } catch {
+    ignorePatternCache.delete(file);
     return [];
   }
 }
@@ -118,8 +139,23 @@ function globToRegExp(pattern: string): RegExp {
     .replace(/[.+^${}()|[\]\\]/g, "\\$&")
     .replace(/\*\*/g, "{{GLOBSTAR}}")
     .replace(/\*/g, "[^/]*")
+    .replace(/\?/g, "[^/]")
     .replace(/\{\{GLOBSTAR\}\}/g, ".*");
   return new RegExp(`^${escaped}$`);
+}
+
+function hasGlob(value: string): boolean {
+  return value.includes("*") || value.includes("?");
+}
+
+function matchesDirectoryRule(relativePath: string, dirPattern: string): boolean {
+  if (!hasGlob(dirPattern)) {
+    return relativePath === dirPattern
+      || relativePath.startsWith(`${dirPattern}/`)
+      || relativePath.split("/").includes(dirPattern);
+  }
+  const matcher = globToRegExp(dirPattern);
+  return relativePath.split("/").some((part) => matcher.test(part));
 }
 
 /** 相对路径是否命中 `.ignore` 规则 */
@@ -136,13 +172,13 @@ export function isIgnoredPath(relativePath: string, patterns: string[]): boolean
 
     if (pattern.endsWith("/")) {
       const dir = pattern.slice(0, -1);
-      if (norm === dir || norm.startsWith(`${dir}/`) || norm.split("/").includes(dir)) {
+      if (matchesDirectoryRule(norm, dir)) {
         return true;
       }
       continue;
     }
 
-    if (pattern.includes("*") || pattern.includes("?")) {
+    if (hasGlob(pattern)) {
       if (globToRegExp(pattern).test(norm) || globToRegExp(pattern).test(base)) {
         return true;
       }
@@ -162,7 +198,7 @@ export function shouldSkipDirName(dirName: string, patterns: string[]): boolean 
     const pattern = normalizePath(raw);
     if (!pattern.endsWith("/")) continue;
     const dir = pattern.slice(0, -1);
-    if (dirName === dir || dir.endsWith(`/${dirName}`)) {
+    if (hasGlob(dir) ? globToRegExp(dir).test(dirName) : dirName === dir || dir.endsWith(`/${dirName}`)) {
       return true;
     }
   }

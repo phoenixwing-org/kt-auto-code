@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { resolveIgnorePatterns } from "../../../../src/dotIgnore.js";
+import { relative } from "node:path";
 import {
   formatWorkspaceReport,
   runWorkspaceEncodingScan,
@@ -9,6 +9,7 @@ import type { FileResultSummary, ToolRunContext } from "../types.js";
 import { dedupeIssuesByOffset, formatIssueTransform } from "./formatIssue.js";
 import { getModeLabel, getPreserveGbk, getStripBom, isAsciiOnly } from "./options.js";
 import { getFileScope, isScopeEmpty, scopeSummary } from "../../scopeOptions.js";
+import { resolveWorkspaceIgnorePatterns } from "../../ignoreConfig.js";
 
 function walkOptions(root: string, fix: boolean) {
   const scope = getFileScope();
@@ -17,7 +18,7 @@ function walkOptions(root: string, fix: boolean) {
     asciiOnly: isAsciiOnly(),
     stripBom: getStripBom(),
     scope: { ...scope, includeMarkdown: false },
-    ignorePatterns: resolveIgnorePatterns(root),
+    ignorePatterns: resolveWorkspaceIgnorePatterns(root),
   };
 }
 
@@ -32,7 +33,7 @@ export async function fixHeaders(root: string): Promise<WorkspaceReport | undefi
     ? "将把弯引号等问题字节替换为 ASCII 标点，GBK 中文将保留。"
     : "将把弯引号、GBK 中文等非 ASCII 内容替换为空格或 ASCII 标点。";
   if (stripBom) {
-    msg += " 已勾选去除 BOM：UTF-8 BOM、UTF-16 等将转为 UTF-8 无 BOM。";
+    msg += " 已勾选去除 BOM：UTF-8 BOM、UTF-16 等将转为 UTF-8。";
   } else {
     msg += " 含 UTF-16 等宽字节 BOM 的文件将跳过字节级修复。";
   }
@@ -49,6 +50,7 @@ export function reportToResults(report: WorkspaceReport): FileResultSummary[] {
     const unique = dedupeIssuesByOffset(r.issues);
     return {
       file: r.filePath.replace(/\\/g, "/").split("/").pop() ?? r.filePath,
+      relativePath: relative(report.root, r.filePath).replace(/\\/g, "/"),
       fullPath: r.filePath,
       issueCount: unique.length,
       topLine: unique[0]?.line ?? 1,
@@ -140,7 +142,7 @@ export async function runHeaderAsciiAction(
       });
       if (report.fixedFiles > 0) {
         void vscode.window.showInformationMessage(
-          `Kt Auto Code：已修复 ${report.fixedFiles} 个头文件。`,
+          `KT Auto Code：已修复 ${report.fixedFiles} 个头文件。`,
         );
       }
       return;

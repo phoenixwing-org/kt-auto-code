@@ -1,4 +1,15 @@
 import type * as vscode from "vscode";
+import type {
+  KtcAssociatedRelationKind,
+  KtcAssociatedRulePreset,
+  KtcReplacementRuleDraft,
+} from "../../../src/associatedReplacementRules.js";
+import type {
+  KtcSearchReplaceProfile,
+  KtcSearchReplaceProfileDraft,
+  KtcSearchReplaceProfileSummary,
+} from "../../../src/searchReplaceProfiles.js";
+import type { KtcSearchReplaceRequest } from "../../../src/searchReplaceContracts.js";
 
 /** Webview → Extension */
 export type WebviewInboundMessage =
@@ -9,6 +20,49 @@ export type WebviewInboundMessage =
   | { type: "openEncodingFile"; toolId: string; file: string }
   | { type: "openIgnoreFile" }
   | { type: "syncIgnoreFromGit" }
+  | { type: "applyIgnorePreset"; presetId: "caa" | "cpp" | "web"; action: "append" | "remove" }
+  | { type: "analyzeIgnore" }
+  | { type: "saveSearchReplaceProfile"; toolId: "codeRename"; draft: KtcSearchReplaceProfileDraft }
+  | { type: "loadSearchReplaceProfile"; toolId: "codeRename"; id: string }
+  | {
+      type: "deriveAssociatedRules";
+      toolId: "codeRename";
+      search: string;
+      replace: string;
+      sourcePrefix: string;
+      targetPrefix: string;
+      preset: KtcAssociatedRulePreset;
+      existingRules: KtcReplacementRuleDraft[];
+    }
+  | {
+      type: "chooseCaaRules";
+      toolId: "codeRename";
+      search: string;
+      replace: string;
+      sourcePrefix: string;
+      targetPrefix: string;
+      existingRules: KtcReplacementRuleDraft[];
+    }
+  | {
+      type: "chooseAssociatedRule";
+      toolId: "codeRename";
+      parentRule: KtcReplacementRuleDraft;
+      sourcePrefix: string;
+      targetPrefix: string;
+      existingRules: KtcReplacementRuleDraft[];
+    }
+  | {
+      type: "searchReplace";
+      toolId: "codeRename";
+      action: "preview" | "apply";
+      payload: KtcSearchReplaceRequest;
+    }
+  | {
+      type: "createRootRenameTodo";
+      toolId: "codeRename";
+      currentName: string;
+      suggestedName: string;
+    }
   | { type: "setOption"; toolId: string; key: "preserveGbk" | "stripBom" | "includeHeaders" | "includeSource" | "includeMarkdown"; value: boolean };
 
 /** Extension → Webview */
@@ -21,11 +75,21 @@ export type WebviewOutboundMessage =
       scope: { includeHeaders: boolean; includeSource: boolean; includeMarkdown: boolean };
       ignoreConfig?: IgnoreConfigSummary;
       toolOptions: Record<string, ToolOptionsState>;
+      sidebarStyle: "ribbon" | "compact";
+      searchReplaceProfiles: readonly KtcSearchReplaceProfileSummary[];
+      searchReplaceProfileError?: string;
     }
   | { type: "workspace"; label: string }
   | { type: "scope"; scope: { includeHeaders: boolean; includeSource: boolean; includeMarkdown: boolean } }
   | { type: "ignoreConfig"; ignoreConfig?: IgnoreConfigSummary }
   | { type: "options"; toolId: string; options: ToolOptionsState }
+  | { type: "sidebarStyle"; style: "ribbon" | "compact" }
+  | {
+      type: "searchReplaceProfiles";
+      profiles: readonly KtcSearchReplaceProfileSummary[];
+      selectedProfile?: KtcSearchReplaceProfile;
+      error?: string;
+    }
   | { type: "state"; toolId: string; state: ToolUiState };
 
 export interface ToolOptionsState {
@@ -63,6 +127,8 @@ export interface EncodingFileResultSummary {
 export interface ToolUiState {
   status: "idle" | "running" | "done" | "error";
   message?: string;
+  rootRenameSuggestion?: { currentName: string; suggestedName: string };
+  associatedRules?: readonly KtcReplacementRuleDraft[];
   results?: FileResultSummary[];
   encodingResults?: EncodingFileResultSummary[];
   scanned?: number;
@@ -72,6 +138,7 @@ export interface ToolUiState {
 
 export interface FileResultSummary {
   file: string;
+  relativePath?: string;
   fullPath: string;
   issueCount: number;
   topLine: number;

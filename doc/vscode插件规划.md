@@ -1,8 +1,8 @@
-# VS Code 插件规划 — Kt Auto Code
+# VS Code 插件规划 — KT Auto Code
 
 > 仓库：`kt-auto-code`  
 > 定位：**一套面向 CAA / MSVC C++ 工作流的小工具集合**，统一入口在 Activity Bar + Primary Side Bar。  
-> 首期工具：**头文件 ASCII 修正**（`headerAscii`）。  
+> 当前工具：**头文件 ASCII 修正、文件转码、Ignore 设置、工作区搜索替换**。
 > 核心逻辑复用现有 `src/sourceEncodingScan.ts`、`src/sourceEncodingWalk.ts`。
 
 ---
@@ -12,11 +12,11 @@
 
 | 项                | 说明                                                            |
 | ---------------- | ------------------------------------------------------------- |
-| **Display Name** | Kt Auto Code                                                  |
+| **Display Name** | KT Auto Code                                                  |
 | **Extension ID** | `kt.kt-auto-code`（publisher 待定）                               |
 | **宿主**           | VS Code ≥ 1.85；Cursor 同 API，F5 调试方式一致                         |
 | **首期用户**         | CAA / MSVC + CP936 环境下的 C++ 开发者                               |
-| **形态**           | 一个 Activity Bar 品牌入口 + Side Bar 内**多个可切换的小工具**（首期 1 个，后续按需追加） |
+| **形态**           | 一个 Activity Bar 品牌入口 + Side Bar 内四个小工具 + 右侧复杂 Workbench |
 
 
 ### 1.1 为什么要做「头文件 ASCII 修正」
@@ -47,6 +47,8 @@ CAA / 达索生态下的 C++ 工程有明确的编码约束：
 | ------ | ------------- | ------------ | ------------------------------------------------- |
 | **首期** | `headerAscii` | 头文件 ASCII 修正 | 扫描 / 修复 `.h` 等头文件中的问题字节（本文详述） |
 | **规划** | `encodingFix` | **编码修正** | 整文件编码检测；GBK→UTF-8 等；见 [编码修正.md](./编码修正.md) |
+| **已实现** | `ignoreSettings` | **Ignore 设置** | 打开、同步并共享 `.phoenix/.ignore` |
+| **已实现** | `codeRename` | **搜索替换** | Side Bar 配置搜索/替换与范围，右侧主视图展示文本/文件名/文件夹名预览 |
 | 待定     | `sourceAscii` | 源文件 ASCII 修正 | 扩展到头文件 + `.cpp` 等（复用同一 core，`headersOnly: false`） |
 | 待定     | `…`           | …            | 其它 CAA 小工具（命名规范、模板生成等）各自独立模块                      |
 
@@ -115,7 +117,10 @@ export function activate(context: vscode.ExtensionContext) {
     tool.registerCommands(context);
   }
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider("ktAutoCode.sidebar", sidebarProvider),
+    vscode.window.registerWebviewViewProvider("ktAutoCode.tools", toolsViewProvider),
+    vscode.window.registerWebviewViewProvider("ktAutoCode.properties", propertiesViewProvider),
+    vscode.window.registerTreeDataProvider("ktAutoCode.results", resultsTreeProvider),
+    vscode.window.registerTreeDataProvider("ktAutoCode.tasks", tasksTreeProvider),
   );
 }
 ```
@@ -137,32 +142,58 @@ ktAutoCode.{toolId}.{action}
 
 `package.json` 的 `commands` / `menus` 可由构建脚本从 `tools/*/manifest.json` 合并生成（Phase 2），首期手写 `headerAscii` 两条即可。
 
-### 2.3 Side Bar UI：单 Webview + 工具切换
+### 2.3 Side Bar UI：原生可伸缩 Blocks
 
-**一个** `WebviewView`（`ktAutoCode.sidebar`），内部用选项卡或左侧图标列表切换工具，而不是每个工具占一个 Activity Bar 图标（避免图标栏拥挤）。
+Side Bar 采用 VS Code 原生的“同一 View Container 下多个 View”结构，效果参考内置源代码管理：多个块纵向排列，用户可独立折叠、展开、调整高度和重新排序。不要在单个 Webview 内用 CSS 模拟整套手风琴。
+
+三个首期 Feature、SVG 图标、共享 Ignore Service 和 MVC 迁移步骤详见[Side Bar 界面改进计划](./侧边栏界面改进计划.md)。
 
 ```text
-┌─ Kt Auto Code ─────────────────────────────┐
-│ [🅰 头文件 ASCII] [ 源文件 … ] [ + 预留 ] │  ← 工具切换（首期仅第一项可点）
+┌─ KT Auto Code ─────────────────────────────┐
+│ ▼ 工具                         [刷新] […]  │  ← Vue WebviewView
+│   [头文件 ASCII] [编码修正]                │
+│   [预检] [修复/转换] [打开工作台]           │
 ├────────────────────────────────────────────┤
-│ 头文件 ASCII 修正                           │
-│ 消除头文件中误粘贴弯引号等问题字节，避免     │
-│ 跨国代码页差异与 MSVC C4819。               │
-│ ─────────────────────────────────────────  │
-│ 范围：C++ 头文件 (.h/.hpp/…)               │
-│ 工作区：MyCaaModule                        │
-│                                            │
-│ [ 扫描 ]  [ 修复 ]                         │
-│                                            │
-│ 结果                                       │
-│  MultiCharSample.h  L18  ×2               │
-│  Other.h            L12   ×1               │
+│ ▼ 属性                                  […]│  ← 紧凑 Vue WebviewView
+│   范围、保留 GBK、去 BOM、显示详细          │
+├────────────────────────────────────────────┤
+│ ▼ 结果                              12  […]│  ← 原生 TreeView
+│   MultiCharSample.h                 ×2     │
+│   Other.h                           ×1     │
+├────────────────────────────────────────────┤
+│ ▶ 任务与日志                         1  […]│  ← 原生 TreeView；按需展开
 └────────────────────────────────────────────┘
 ```
 
-**View Title 工具栏**（`menus.view/title`）：可为**当前选中的工具**显示快捷按钮（扫描、修复），图标用 VS Code codicon（`$(search)`、`$(wrench)`），与 Webview 内按钮调用同一命令。
+初始 View 划分：
 
-Webview ↔ Extension 消息协议（固定外壳，工具只填 payload）：
+| View ID | 标题 | 实现 | 职责 |
+| --- | --- | --- | --- |
+| `ktAutoCode.tools` | 工具 | Vue `WebviewView` | 第一块；工具 Tab、主要按钮、状态摘要、打开右侧工作台 |
+| `ktAutoCode.properties` | 属性 | Vue `WebviewView` | 当前工具的紧凑属性、范围和选项 |
+| `ktAutoCode.results` | 结果 | 原生 `TreeView` | 文件/问题层级、数量 badge、点击定位、查看全部 |
+| `ktAutoCode.tasks` | 任务与日志 | 原生 `TreeView`，必要时再升级 Webview | 运行中任务、最近任务、日志入口和取消操作 |
+
+`tools` 与 `properties` 可以加载同一份 Side Bar Vue bundle，由初始化数据中的 `viewKind` 决定根组件，避免生成两套代码。它们运行在不同 iframe 中，运行时内存仍各自独立，因此 Vue Webview Block 原则上不超过两个；展示型列表优先使用原生 `TreeView`。
+
+每个 Block 的标题操作使用 `menus.view/title`，条目操作使用 `menus.view/item/context`，图标使用 codicon，并通过 `when` 条件根据当前工具和状态显示。块的折叠、尺寸和顺序交给 VS Code 管理，不在 Pinia 中重复保存。
+
+`package.json` 贡献结构（概念）：
+
+```json
+{
+  "views": {
+    "kt-auto-code": [
+      { "type": "webview", "id": "ktAutoCode.tools", "name": "工具" },
+      { "type": "webview", "id": "ktAutoCode.properties", "name": "属性" },
+      { "id": "ktAutoCode.results", "name": "结果" },
+      { "id": "ktAutoCode.tasks", "name": "任务与日志" }
+    ]
+  }
+}
+```
+
+Webview / TreeView ↔ Extension 消息协议使用同一个 Controller 和状态模型；Webview 消息固定外壳，工具只填 payload：
 
 ```typescript
 // Webview → Extension
@@ -177,10 +208,39 @@ Webview ↔ Extension 消息协议（固定外壳，工具只填 payload）：
 
 
 
-### 2.4 Activity Bar
+### 2.4 右侧复杂工作台
+
+复杂工具采用类似 Git Graph 的编辑区体验：由命令或 Side Bar 条目打开 `WebviewPanel`，显示在编辑器区域，可占用完整宽度，也可与源码分栏。
+
+| 区域 | VS Code 容器 | 适合内容 |
+| --- | --- | --- |
+| 左侧轻量界面 | 多个原生 View | 工具入口、属性、范围、运行按钮、进度摘要、最近问题 |
+| 右侧复杂界面 | `WebviewPanel` | 大结果表、筛选与排序、差异预览、批量选择、日志、任务历史、复杂编辑器 |
+
+Side Bar 的“查看全部”或结果条目可打开/激活对应 Panel。Panel 由 Extension Host 统一管理实例，避免同一工具无意打开多个重复工作台；确实需要多实例的工具再通过 `contextKey` 区分。
+
+左右两种 View 使用 Vue 3，但采用不同壳层：
+
+- Side Bar 的工具和属性 View 使用紧凑布局，可复用属性 Schema、简单对话框和状态组件；外层 Block 由 VS Code 原生 View 提供。
+- 右侧 Panel 可复用 `PnwPageHeader`、`PnwWorkbenchTabBar`、`PnwShellLogPanel`、`PnwAsyncProgressOverlay`、可调表格和工作台引擎。
+- Ribbon 只在右侧确有多组复杂命令时使用，不放进窄 Side Bar。
+
+### 2.4.1 前端架构决策
+
+本项目确定采用以下组合：
+
+```text
+Extension Host：无 Vue、无 Element Plus
+Side Bar：Vue 3 + 轻量 phoenix-wing 组件
+Workbench：Vue 3 + phoenix-wing，按需使用少量 Element Plus
+```
+
+Vue 3 是正式 View 技术栈；Pinia 按实际共享状态需要引入，不作为强制依赖。Element Plus 不得全量注册或全量导入 CSS，只允许进入确实使用它的 Webview bundle。详细约束以[前端开发规则](./前端开发规则.md)为准。
+
+### 2.5 Activity Bar
 
 - **一个**品牌图标：`media/kt-auto-code.svg`
-- **Tooltip**：`Kt Auto Code`
+- **Tooltip**：`KT Auto Code`
 - 不在 Activity Bar 为每个小工具单独加图标；小工具图标仅出现在 Side Bar 内选项卡或 View Title（`when` 子句绑定 `ktAutoCode.activeTool == headerAscii` 等 context，Phase 2）。
 
 ---
@@ -200,12 +260,14 @@ kt-auto-code/
 ├── extension/
 │   ├── package.json
 │   ├── src/
-│   │   ├── extension.ts              # activate：registry + WebviewView
+│   │   ├── extension.ts              # activate：registry + 多 View providers
 │   │   ├── workspace.ts              # workspaceFolders[0].uri.fsPath
-│   │   ├── output.ts                 # 统一 OutputChannel「Kt Auto Code」
+│   │   ├── output.ts                 # 统一 OutputChannel「KT Auto Code」
 │   │   ├── sidebar/
-│   │   │   ├── sidebarViewProvider.ts
-│   │   │   └── panelHtml.ts          # 壳 HTML + CSP + 工具选项卡槽位
+│   │   │   ├── toolsViewProvider.ts
+│   │   │   ├── propertiesViewProvider.ts
+│   │   │   ├── resultsTreeProvider.ts
+│   │   │   └── tasksTreeProvider.ts
 │   │   └── tools/
 │   │       ├── types.ts              # KtTool、ToolMessage
 │   │       ├── registry.ts
@@ -238,6 +300,132 @@ kt-auto-code/
 3. 在 `package.json` 增加 `ktAutoCode.{toolId}.*` 命令与可选 `view/title` 菜单
 4. 在 `media/tools/` 放图标（可选）
 5. 若需新算法，逻辑放 `src/`，extension 只做壳
+
+---
+
+## 3.1 `phoenix-wing` 复用与 MVC 分离计划
+
+根项目已安装 `phoenix-wing@0.1.4`，其源码仓库位于同级目录 `../phoenix-wing`。该包同时包含纯 TypeScript 工具、Vue 3 / Pinia composable、Element Plus 组件和数据库适配器。本项目当前的 Webview 是原生 HTML/CSS/JavaScript，计划迁移为 Vue 3；迁移期间仍应按依赖边界选择性复用，不能把整个根入口引入 Extension Host。
+
+### 3.1.1 调查结论
+
+| `phoenix-wing` API | 当前适配度 | 在本项目中的用途 | 处理决定 |
+| --- | --- | --- | --- |
+| `pnwScheduleDebounced` | 高 | Webview 搜索、筛选、连续配置写入的防抖 | 第一批复用；由适配层统一导出 |
+| `pnwComputeProgressPercent` | 中 | 大工程扫描改为异步后，计算多阶段总进度 | 暂缓；先给 core 增加进度回调 |
+| `pnwIsTerminal`、`pnwFilterActiveTasks`、`pnwSortTasksByTime` | 中 | 统一扫描/转换任务状态 | 暂缓；现有 `PnwTaskKind` 仍绑定 FCStd、单测、xref，需先泛化 |
+| `pnwFormatDuration`、耗时统计函数 | 中 | 扫描耗时、剩余时间与性能诊断 | 有异步进度模型后复用 |
+| `pnwBindPointerDrag` | 中 | 将来为结果区/详情区增加可调分隔条 | 有对应 UI 后按需引入 |
+| `pnwProp*` 属性 Schema | 高 | 描述 Side Bar 工具属性和配置 | Vue 迁移后用于左侧属性区；通过 Controller 写 VS Code 配置 |
+| `pnwCreateWorkbench`、Workbench Tab | 中 | 右侧复杂工具的多页/多结果工作台 | 仅用于右侧 `WebviewPanel`，不进入窄 Side Bar |
+| Ribbon、Side Dock、日志面板 | 中 | 右侧复杂命令、布局和日志 | 按复杂工具需要选择性接入 |
+| `usePnwAsyncTaskStore`、`PnwAsyncProgressOverlay` | 中 | 任务界面和进度浮层 | Store 只投影视图状态；Extension Host 仍是任务权威来源 |
+| `pnwColorScheme` | 低 | 明暗主题 | VS Code CSS variables 已覆盖，不重复管理主题 |
+| `pnwBrowserStorage` | 低 | 清理浏览器缓存 | Webview 使用 `vscode.getState/setState`，且函数会清理宽泛前缀，不采用 |
+| `pnwDbAdapter` | 无 | SQLite 数据持久化 | 当前项目无数据库需求，不引入 WASM 依赖 |
+
+### 3.1.2 发布包约束
+
+本次同时检查了 npm 安装包、同级源码仓库及 `phoenix-open-issue`、`phoenix-desk-tools` 两个消费项目，并做了实际导入验证：
+
+1. `import { ... } from "phoenix-wing"` 会加载根入口中导出的 Vue composable；当前未安装 `vue`，运行时会报 `Cannot find module 'vue'`。
+2. `phoenix-wing/utils/pnwScheduleDebounced` 会被 exports 映射到一个不存在的无扩展名文件。
+3. `phoenix-wing/utils/pnwScheduleDebounced.ts` 在当前 `tsx` 环境可用，但直接依赖包内 `.ts` 源文件不是理想的长期发布契约。
+4. `phoenix-wing` README 引用的 `doc/` 没有包含在 npm 包的 `files` 中，消费项目只能看到 README 与源码。
+5. 源码仓库的 `tsconfig.json` 配置了 `dist` 和声明文件，但实际设置为 `noEmit: true`，`package.json` 也没有 build 脚本；当前发布方式是直接发布 `src/`，并非编译后的 JS + `.d.ts`。
+6. 两个现有消费项目本身已经安装 Vue，因此根入口可工作；服务端数据库代码则采用 `phoenix-wing/db/pnwDbAdapter` 子路径。这些用例不能消除本项目缺少 Vue 时的根入口问题。
+
+因此第一阶段不允许业务模块直接从包根入口导入。先建立单一适配点，例如：
+
+```text
+extension/src/shared/phoenixWing.ts
+  └── phoenix-wing/utils/pnwScheduleDebounced.ts
+```
+
+适配层负责隔离导入路径，并为以后升级到稳定的 `.js` exports 留出一个修改点。正式接入前还应：
+
+- 在干净安装环境验证 `pnpm install`、扩展 esbuild 和 VSIX 打包。
+- 明确依赖归属；若仅扩展使用，应在 `extension/package.json` 声明，而不是只依赖根目录的提升结果。
+- 优先推动 `phoenix-wing` 发布编译后的 JS 和 `.d.ts`，提供不触发 Vue 加载的 `phoenix-wing/core` 或稳定 `utils/*` exports；Vue 壳层继续从独立入口导出。
+- 为纯工具子路径增加消费端导入测试，防止 exports 再次指向不存在的文件。
+
+同级仓库适合做开发期联调。可按 `../phoenix-wing/doc/本地验证方法.md` 的既有约定，通过 `pnpm-workspace.yaml` 临时纳入 `../phoenix-wing`；联调完成后仍应切回 npm 版本，验证发布包而非只验证源码软链接。这里的 pnpm workspace 只解决**开发依赖链接**，与插件运行时操作哪个 VS Code 工作目录无关。
+
+建议在 `phoenix-wing` 上游先完成以下最小封装，再由本项目稳定消费：
+
+```text
+phoenix-wing
+├── core               # 零 Vue/DOM 依赖的纯函数入口
+├── vue                # composable、Pinia 和 Vue 组件入口
+└── db                 # 可选 SQLite 适配入口
+```
+
+其中异步任务模块还应增加通用任务工厂，允许消费方传入 `kind` 和步骤列表；当前固定的 `PnwTaskKind` 与 `PNW_SCAN_STEP_LABELS` 不应泄漏到 KT Auto Code 的 Model。
+
+### 3.1.3 MVC 目标结构
+
+`phoenix-wing` 只提供可复用的基础函数，不代替本项目自己的 MVC 边界。目标依赖方向如下：
+
+```text
+View（Vue Side Bar + Vue Workbench Panel）
+  ↓ 用户消息 / 可序列化 ViewModel
+Controller（Sidebar + Workbench + Tool Controller）
+  ↓ 用例调用
+Model（src 核心 + extension 状态/配置）
+```
+
+| 层 | 目标职责 | 现有代码迁移方向 |
+| --- | --- | --- |
+| Model | 编码扫描、转换、工具状态、配置值；不依赖 DOM | 保留根 `src/`；新增纯 `ToolStateStore` / ViewModel 类型 |
+| Controller | 消息校验、用例编排、确认框、状态转换、调用 Model | 将 `SidebarViewProvider.onMessage` 和各工具 `commands.ts` 的编排拆到 controller；增加 Workbench Panel controller |
+| View | Vue 根据 ViewModel 渲染，收集用户操作并发送消息；不调用扫描逻辑 | 将 `panelHtml.ts` 中内联实现迁入 Side Bar Vue 入口；复杂结果进入独立 Workbench Vue 入口 |
+
+Extension Host 是跨视图状态的唯一权威来源。Side Bar 与右侧 Panel 都通过消息订阅同一个 `ToolStateStore`；Pinia 只保存展开、筛选、选中行、列宽等 View 本地状态，不单独持有扫描任务真相。
+
+建议目录：
+
+```text
+extension/src/
+├── controllers/
+│   ├── sidebarController.ts
+│   ├── workbenchController.ts
+│   └── toolController.ts
+├── models/
+│   ├── toolStateStore.ts
+│   └── viewModels.ts
+├── shared/
+│   └── phoenixWing.ts
+├── sidebar/
+│   ├── toolsViewProvider.ts         # 第一块：工具 Tab 和主操作
+│   ├── propertiesViewProvider.ts    # 第二块：当前工具属性
+│   ├── resultsTreeProvider.ts       # 第三块：原生结果树
+│   └── tasksTreeProvider.ts         # 第四块：任务与日志树
+└── workbench/
+    └── workbenchPanelManager.ts     # 创建、复用、销毁右侧 WebviewPanel
+
+extension/webview/src/
+├── shared/                           # 消息协议、ViewModel、共享 Vue 组件
+├── sidebar/
+│   ├── main.ts                       # 同一 bundle，按 viewKind 启动
+│   ├── ToolsView.vue
+│   └── PropertiesView.vue
+└── workbench/
+    ├── main.ts
+    └── App.vue                       # 复杂结果与工作台
+```
+
+### 3.1.4 实施顺序
+
+- [ ] **A0. 上游包边界**：在同级 `phoenix-wing` 增加 build、稳定的纯工具 exports 和消费端导入测试，发布包含 JS + `.d.ts` 的新版本。
+- [ ] **A1. 本项目适配层**：增加 `shared/phoenixWing.ts`；只接入 `pnwScheduleDebounced`，开发期可用同级 workspace 联调，随后切回 npm 版本完成单测、esbuild 和 VSIX 验证。
+- [ ] **B. Model**：从 `SidebarViewProvider` 抽出 `ToolStateStore` 和可序列化 ViewModel，不改变现有消息协议。
+- [ ] **C. Controller**：抽出消息路由和工具执行编排；拆成 Tools/Properties Webview provider 与 Results/Tasks Tree provider；增加右侧 Panel 生命周期管理。
+- [ ] **D. Vue View**：建立共享 Side Bar bundle 与 Workbench Vue 入口；Side Bar bundle 按 `viewKind` 渲染工具或属性，结果和任务保持原生 TreeView。
+- [ ] **E. 异步扫描**：core 增加进度回调和取消信号，再评估复用 `pnwComputeProgressPercent` 等纯函数。
+- [ ] **F. Phoenix UI 接入**：Side Bar 只接紧凑组件；复杂组件接入右侧 Workbench；按 VS Code 主题变量校准 Element Plus 和 `phoenix-wing` 样式。
+- [ ] **G. 体积基线**：输出 Host、Side Bar、Workbench、共享 vendor 与 VSIX 的 raw/gzip 大小，建立后续 CI 预算。
+
+验收原则：每一步保持 CLI 核心 API 不变，插件扫描结果与 CLI 一致；View 不导入根 `src/`，Model 不依赖 `vscode` 或 DOM，所有跨 Webview 边界的数据均可序列化；左右视图同时打开时状态一致，关闭或重开 Panel 不丢失 Host 中的任务状态。
 
 ---
 
@@ -298,7 +486,7 @@ export async function fixHeaders(root: string) {
 }
 ```
 
-**工作区根目录**：`vscode.workspace.workspaceFolders?.[0]?.uri.fsPath`；多根工作区 Phase 2。
+**工作区根目录**：直接使用 `vscode.workspace.workspaceFolders?.[0]?.uri.fsPath`。不迁移 desk-tools 的工作区选择器、最近工作区、服务端 workspace prefs 或 workset scope；首期明确支持单文件夹工作区。
 
 ---
 
@@ -308,21 +496,27 @@ export async function fixHeaders(root: string) {
 
 ```json
 {
-  "activationEvents": ["onView:ktAutoCode.sidebar"],
+  "activationEvents": [
+    "onView:ktAutoCode.tools",
+    "onView:ktAutoCode.properties",
+    "onView:ktAutoCode.results",
+    "onView:ktAutoCode.tasks"
+  ],
   "contributes": {
     "viewsContainers": {
       "activitybar": [{
         "id": "kt-auto-code",
-        "title": "Kt Auto Code",
+        "title": "KT Auto Code",
         "icon": "media/kt-auto-code.svg"
       }]
     },
     "views": {
-      "kt-auto-code": [{
-        "type": "webview",
-        "id": "ktAutoCode.sidebar",
-        "name": "Kt Auto Code"
-      }]
+      "kt-auto-code": [
+        { "type": "webview", "id": "ktAutoCode.tools", "name": "工具" },
+        { "type": "webview", "id": "ktAutoCode.properties", "name": "属性" },
+        { "id": "ktAutoCode.results", "name": "结果" },
+        { "id": "ktAutoCode.tasks", "name": "任务与日志" }
+      ]
     },
     "commands": [
       {
@@ -340,12 +534,12 @@ export async function fixHeaders(root: string) {
       "view/title": [
         {
           "command": "ktAutoCode.headerAscii.scan",
-          "when": "view == ktAutoCode.sidebar",
+          "when": "view == ktAutoCode.tools",
           "group": "navigation@1"
         },
         {
           "command": "ktAutoCode.headerAscii.fix",
-          "when": "view == ktAutoCode.sidebar",
+          "when": "view == ktAutoCode.tools",
           "group": "navigation@2"
         }
       ]
@@ -369,7 +563,7 @@ VS Code 扩展的标准调试方式完全适用于 Cursor。
 1. `extension/.vscode/launch.json`：`extensionDevelopmentPath` 指向 `extension/`
 2. **F5** → 新窗口 **[Extension Development Host]**
 3. 打开 `tests/fixtures/multiChar` 或真实 CAA 工程
-4. Activity Bar 点 Kt Auto Code → Side Bar 选「头文件 ASCII 修正」→ 扫描 / 修复
+4. Activity Bar 点 KT Auto Code → Side Bar 选「头文件 ASCII 修正」→ 扫描 / 修复
 
 
 
@@ -409,7 +603,7 @@ pnpm fix-headers tests/fixtures/multiChar
 
 - [ ] 新建 `extension/package.json`、`esbuild`、`F5` 可启动  
 - [ ] `tools/types.ts`、`tools/registry.ts`、`sidebar/` 壳（空选项卡 + 消息协议）  
-- [ ] Activity Bar 图标可见；Webview 能列出已注册工具（首期一条）  
+- [ ] Activity Bar 图标可见；Webview 能列出四个已注册工具
 - [ ] `launch.json` + `tasks.json` + `pnpm -C extension watch`  
 
 
@@ -426,7 +620,7 @@ pnpm fix-headers tests/fixtures/multiChar
 
 ### Phase 2 — 体验与第二工具试点
 
-- [ ] 多工作区文件夹选择  
+- [ ] 明确单文件夹工作区状态；未打开文件夹时给出提示，多根工作区暂不建立业务选择器
 - [ ] `headerAscii` 严格 ASCII 模式  
 - [ ] Problems Diagnostic、保存时可选扫描  
 - [ ] 试点第二个工具 `sourceAscii`（验证 registry 扩展流程）  
@@ -450,12 +644,12 @@ pnpm fix-headers tests/fixtures/multiChar
 | 字段                 | 示例                          |
 | ------------------ | --------------------------- |
 | `name`             | `kt-auto-code`              |
-| `displayName`      | `Kt Auto Code`              |
+| `displayName`      | `KT Auto Code`              |
 | `publisher`        | `kt`                        |
 | `engines.vscode`   | `^1.85.0`                   |
 | `categories`       | `["Other"]`                 |
 | `main`             | `./dist/extension.js`       |
-| `activationEvents` | `onView:ktAutoCode.sidebar` |
+| `activationEvents` | `onView:ktAutoCode.tools` 等四个 Side Bar View |
 
 
 ---

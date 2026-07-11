@@ -6,8 +6,8 @@ export const encodingFixTool: KtTool = {
   id: "encodingFix",
   title: "编码修正",
   description:
-    "检测整文件编码（ASCII / GBK / UTF-8 / BOM / UTF-16），默认目标为 UTF-8 无 BOM。支持 GBK→UTF-8、去 BOM、UTF-16→UTF-8；不默认 UTF-8→GBK。",
-  icon: "file-code",
+    "检测文件编码，并将 GBK、UTF-8 BOM 和 UTF-16 转为 UTF-8。",
+  icon: "media/tools/encoding-convert.svg",
 
   getPanelModel(): ToolPanelModel {
     return {

@@ -7,13 +7,10 @@ import { setEncodingFixRunContextFactory } from "../tools/encodingFix/index.js";
 import { getPreserveGbk, getStripBom } from "../tools/headerAscii/options.js";
 import { getFileScope, setFileScopeOption, type ScopeOptionKey } from "../scopeOptions.js";
 import { getWorkspaceLabel, getWorkspaceRoot } from "../workspace.js";
-import {
-  openIgnoreConfigFile,
-  refreshIgnoreConfig,
-  syncIgnoreFromGit,
-} from "../ignoreConfig.js";
 import { getPanelHtml, postToWebview } from "./panelHtml.js";
 import type { ToolOptionsState } from "../tools/types.js";
+import { KtcSearchReplaceProfileController } from "../searchReplaceProfileController.js";
+import { ktcIgnoreController, ktcIsIgnoreMessage } from "../ignoreController.js";
 
 export class SidebarViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "ktAutoCode.sidebar";
@@ -21,6 +18,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
   private activeToolId = "headerAscii";
   private toolStates = new Map<string, ToolUiState>();
+  private readonly searchReplaceProfiles = new KtcSearchReplaceProfileController();
 
   constructor(private readonly extensionUri: vscode.Uri) {
     setHeaderAsciiRunContextFactory(() => this.createRunContext("headerAscii"));
@@ -47,12 +45,13 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   refreshWorkspaceLabel(): void {
     postToWebview(this.view, { type: "workspace", label: getWorkspaceLabel() });
     this.refreshIgnoreConfig();
+    this.refreshSearchReplaceProfiles();
   }
 
   refreshIgnoreConfig(): void {
     postToWebview(this.view, {
       type: "ignoreConfig",
-      ignoreConfig: refreshIgnoreConfig(getWorkspaceRoot()),
+      ignoreConfig: ktcIgnoreController.snapshot(getWorkspaceRoot()),
     });
   }
 
@@ -63,6 +62,23 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
   refreshScope(): void {
     postToWebview(this.view, { type: "scope", scope: getFileScope() });
+  }
+
+  refreshSidebarStyle(): void {
+    postToWebview(this.view, { type: "sidebarStyle", style: this.getSidebarStyle() });
+  }
+
+  refreshSearchReplaceProfiles(): void {
+    postToWebview(this.view, {
+      type: "searchReplaceProfiles",
+      ...this.searchReplaceProfiles.snapshot(getWorkspaceRoot()),
+    });
+  }
+
+  private getSidebarStyle(): "ribbon" | "compact" {
+    return vscode.workspace
+      .getConfiguration("ktAutoCode")
+      .get<"ribbon" | "compact">("sidebar.toolPickerStyle", "ribbon");
   }
 
   private getToolOptions(toolId: string): ToolOptionsState {
@@ -96,11 +112,14 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   private sendInit(): void {
     const tools = getTools().map((t) => {
       const model = t.getPanelModel();
+      const icon = model.summary.icon?.startsWith("media/") && this.view
+        ? this.view.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, model.summary.icon)).toString()
+        : model.summary.icon;
       return {
         id: model.summary.id,
         title: model.summary.title,
         description: model.summary.description,
-        icon: model.summary.icon,
+        icon,
       };
     });
 
@@ -108,14 +127,18 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       this.activeToolId = tools[0]!.id;
     }
 
+    const profileSnapshot = this.searchReplaceProfiles.snapshot(getWorkspaceRoot());
     postToWebview(this.view, {
       type: "init",
       tools,
       activeToolId: this.activeToolId,
       workspaceLabel: getWorkspaceLabel(),
       scope: getFileScope(),
-      ignoreConfig: refreshIgnoreConfig(getWorkspaceRoot()),
+      ignoreConfig: ktcIgnoreController.snapshot(getWorkspaceRoot()),
       toolOptions: this.getAllToolOptions(),
+      sidebarStyle: this.getSidebarStyle(),
+      searchReplaceProfiles: profileSnapshot.profiles,
+      searchReplaceProfileError: profileSnapshot.error,
     });
 
     for (const [toolId, state] of this.toolStates) {
@@ -129,29 +152,37 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    if (message.type === "openIgnoreFile") {
-      const root = getWorkspaceRoot();
-      if (!root) {
-        void vscode.window.showWarningMessage("请先打开工作区文件夹。");
-        return;
-      }
-      await openIgnoreConfigFile(root);
-      this.refreshIgnoreConfig();
+    if (ktcIsIgnoreMessage(message)) {
+      await ktcIgnoreController.handle(message, getWorkspaceRoot(), (summary) => {
+        postToWebview(this.view, { type: "ignoreConfig", ignoreConfig: summary });
+      });
       return;
     }
 
-    if (message.type === "syncIgnoreFromGit") {
+    if (message.type === "saveSearchReplaceProfile" || message.type === "loadSearchReplaceProfile") {
       const root = getWorkspaceRoot();
       if (!root) {
         void vscode.window.showWarningMessage("请先打开工作区文件夹。");
         return;
       }
-      const summary = syncIgnoreFromGit(root);
-      postToWebview(this.view, { type: "ignoreConfig", ignoreConfig: summary });
-      if (!summary.gitIgnoreExists) {
-        void vscode.window.showWarningMessage("工作区无 .gitignore，无法同步。");
-      } else {
-        void vscode.window.showInformationMessage("已从 .gitignore 同步到 .phoenix/.ignore。");
+      try {
+        const snapshot = message.type === "saveSearchReplaceProfile"
+          ? await this.searchReplaceProfiles.save(root, message.draft)
+          : this.searchReplaceProfiles.load(root, message.id);
+        if (snapshot) {
+          postToWebview(this.view, { type: "searchReplaceProfiles", ...snapshot });
+          if (message.type === "saveSearchReplaceProfile" && snapshot.selectedProfile) {
+            void vscode.window.showInformationMessage(`规则档案“${snapshot.selectedProfile.label}”已保存。`);
+          }
+        }
+      } catch (error) {
+        const text = error instanceof Error ? error.message : String(error);
+        void vscode.window.showErrorMessage(text);
+        postToWebview(this.view, {
+          type: "searchReplaceProfiles",
+          profiles: this.searchReplaceProfiles.snapshot(root).profiles,
+          error: text,
+        });
       }
       return;
     }

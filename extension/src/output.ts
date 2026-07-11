@@ -4,7 +4,7 @@ let channel: vscode.OutputChannel | undefined;
 
 export function getOutputChannel(): vscode.OutputChannel {
   if (!channel) {
-    channel = vscode.window.createOutputChannel("Kt Auto Code");
+    channel = vscode.window.createOutputChannel("KT Auto Code");
   }
   return channel;
 }

@@ -214,7 +214,7 @@ export function detectFileEncoding(buf: Uint8Array): DetectedEncodingInfo {
     return {
       detected: "ascii",
       bom,
-      confidence: "全部为 ASCII 字节（0x00–0x7F），等价于 UTF-8 无 BOM",
+      confidence: "全部为 ASCII 字节（0x00–0x7F），符合 UTF-8 目标",
     };
   }
 
@@ -261,14 +261,14 @@ function suggestedActionFor(detected: DetectedEncoding): {
       return { action: "—", status: "ok", convertible: false, needsStrongConfirm: false };
     case "utf8-bom":
       return {
-        action: "去掉 BOM → UTF-8 无 BOM",
+        action: "去掉 BOM → UTF-8",
         status: "mismatch",
         convertible: true,
         needsStrongConfirm: false,
       };
     case "gbk":
       return {
-        action: "GBK → UTF-8 无 BOM",
+        action: "GBK → UTF-8",
         status: "mismatch",
         convertible: true,
         needsStrongConfirm: false,
@@ -276,7 +276,7 @@ function suggestedActionFor(detected: DetectedEncoding): {
     case "utf16-le":
     case "utf16-be":
       return {
-        action: "UTF-16 → UTF-8 无 BOM",
+        action: "UTF-16 → UTF-8",
         status: "mismatch",
         convertible: true,
         needsStrongConfirm: true,
