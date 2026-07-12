@@ -1,5 +1,10 @@
 import * as vscode from "vscode";
 import type { KtcIgnoreGroupRecommendation } from "../../../src/ignoreRecommendation.js";
+import { ktcCreateWebviewSecurity } from "../webviewSupport.js";
+import {
+  ktcIsIgnoreRecommendationPanelMessage,
+  type KtcIgnoreRecommendationPanelMessage,
+} from "./panelMessageGuards.js";
 
 export interface KtcIgnoreRecommendationReport {
   workspace: string;
@@ -7,10 +12,6 @@ export interface KtcIgnoreRecommendationReport {
   catalogError?: string;
   recommendations: readonly KtcIgnoreGroupRecommendation[];
 }
-
-type KtcIgnoreRecommendationPanelMessage =
-  | { type: "ready" }
-  | { type: "applyGroups"; groupIds: string[] };
 
 export class KtcIgnoreRecommendationPanel {
   private static current: KtcIgnoreRecommendationPanel | undefined;
@@ -46,8 +47,8 @@ export class KtcIgnoreRecommendationPanel {
     panel.onDidDispose(() => {
       KtcIgnoreRecommendationPanel.current = undefined;
     });
-    panel.webview.onDidReceiveMessage((message: KtcIgnoreRecommendationPanelMessage) => {
-      void this.onMessage(message);
+    panel.webview.onDidReceiveMessage((message: unknown) => {
+      if (ktcIsIgnoreRecommendationPanelMessage(message)) void this.onMessage(message);
     });
   }
 
@@ -75,12 +76,7 @@ export class KtcIgnoreRecommendationPanel {
 }
 
 function getHtml(webview: vscode.Webview): string {
-  const nonce = getNonce();
-  const csp = [
-    "default-src 'none'",
-    `style-src ${webview.cspSource} 'unsafe-inline'`,
-    `script-src 'nonce-${nonce}'`,
-  ].join("; ");
+  const { nonce, csp } = ktcCreateWebviewSecurity(webview);
   return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="${csp}" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -105,11 +101,4 @@ for(const g of r.recommendations){const row=document.createElement("section");ro
 $("apply").onclick=()=>{const ids=selected();if(!ids.length)return;$("apply").disabled=true;$("status").className="status";$("status").textContent="正在追加所选规则组…";vscode.postMessage({type:"applyGroups",groupIds:ids})};
 window.addEventListener("message",e=>{const m=e.data;if(m.type==="report")render(m.report);else if(m.type==="applied"){$("status").className="status";$("status").textContent=m.message;const applied=new Set(m.groupIds||[]);document.querySelectorAll('input[data-group]').forEach(x=>{x.checked=false;if(applied.has(x.dataset.group))x.disabled=true});updateSelection()}else if(m.type==="applyError"){$("status").className="status error";$("status").textContent=m.message;updateSelection()}});vscode.postMessage({type:"ready"});
 </script></body></html>`;
-}
-
-function getNonce(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let value = "";
-  for (let index = 0; index < 32; index++) value += chars.charAt(Math.floor(Math.random() * chars.length));
-  return value;
 }

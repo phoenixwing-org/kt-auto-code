@@ -1,14 +1,9 @@
 import * as vscode from "vscode";
 import type { ToolSummary, WebviewOutboundMessage } from "../tools/types.js";
+import { ktcCreateWebviewSecurity } from "../webviewSupport.js";
 
 export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string {
-  const nonce = getNonce();
-  const csp = [
-    "default-src 'none'",
-    `img-src ${webview.cspSource} data:`,
-    `style-src ${webview.cspSource} 'unsafe-inline'`,
-    `script-src 'nonce-${nonce}'`,
-  ].join("; ");
+  const { nonce, csp } = ktcCreateWebviewSecurity(webview, { allowImages: true });
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -334,7 +329,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         <label><input id="replace-ignored" type="checkbox" />包含 Ignore</label>
       </div>
       <div class="replace-fields replace-scope">
-        <input id="replace-scope" type="text" spellcheck="false" placeholder="子目录（可选，如 src）" aria-label="搜索子目录" />
+        <input id="replace-scope" type="text" spellcheck="false" placeholder="工作目录（留空为当前工作区）" aria-label="搜索替换工作目录" title="可填工作区内的相对或绝对路径；非根目录本身可参与改名" />
       </div>
       <div class="replace-more-bar">
         <button class="text-button" id="btn-expand-rules" type="button">展开关联规则</button>
@@ -1157,15 +1152,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
   </script>
 </body>
 </html>`;
-}
-
-function getNonce(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let text = "";
-  for (let i = 0; i < 32; i++) {
-    text += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return text;
 }
 
 export function postToWebview(

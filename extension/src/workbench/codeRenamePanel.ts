@@ -1,13 +1,18 @@
 import * as vscode from "vscode";
-import { isAbsolute, relative, sep } from "node:path";
-import type { RenameLevel } from "../../../src/workspaceRename.js";
+import {
+  ktcIsSearchReplacePanelMessage,
+  type KtcSearchReplacePanelMessage,
+} from "../../../src/searchReplaceContracts.js";
 import { getWorkspaceRoot } from "../workspace.js";
-import type { KtcRenameResultViewModel } from "../../../src/renameResultViewModel.js";
+import {
+  ktcPageRenameResultViewModel,
+  type KtcRenameResultViewModel,
+} from "../../../src/renameResultViewModel.js";
 import { resolveWorkspaceIgnorePatterns } from "../ignoreConfig.js";
+import { ktcCreateWebviewSecurity } from "../webviewSupport.js";
+import { ktcOpenWorkspaceResource } from "../workspaceResource.js";
 
-type RenamePanelMessage =
-  | { type: "ready" }
-  | { type: "openPath"; path: string; level: RenameLevel; line?: number };
+const KTC_RENAME_RESULT_PAGE_SIZE = 300;
 
 export class CodeRenamePanel {
   private static current: CodeRenamePanel | undefined;
@@ -41,12 +46,14 @@ export class CodeRenamePanel {
       this.setReady(false);
       CodeRenamePanel.current = undefined;
     });
-    panel.webview.onDidReceiveMessage((message: RenamePanelMessage) => {
-      void this.onMessage(message);
+    panel.webview.onDidReceiveMessage((message: unknown) => {
+      if (ktcIsSearchReplacePanelMessage(message)) void this.onMessage(message);
     });
   }
 
   private ready = false;
+  private latestReport?: KtcRenameResultViewModel;
+  private reportId = 0;
   private readonly readyPromise: Promise<boolean>;
   private resolveReady!: (ready: boolean) => void;
   private readySettled = false;
@@ -72,14 +79,16 @@ export class CodeRenamePanel {
   }
 
   showReport(report: KtcRenameResultViewModel): void {
-    this.post({ type: "report", report });
+    this.latestReport = report;
+    this.reportId++;
+    this.postReportPage(0, true);
   }
 
   showError(message: string): void {
     this.post({ type: "error", message });
   }
 
-  private async onMessage(message: RenamePanelMessage): Promise<void> {
+  private async onMessage(message: KtcSearchReplacePanelMessage): Promise<void> {
     if (message.type === "ready") {
       this.setReady(true);
       const root = getWorkspaceRoot();
@@ -90,35 +99,40 @@ export class CodeRenamePanel {
       });
       return;
     }
+    if (message.type === "loadMore") {
+      if (message.reportId !== this.reportId) return;
+      this.postReportPage(message.offset, false);
+      return;
+    }
     if (message.type === "openPath") {
       const root = getWorkspaceRoot();
-      if (!root || !isInsideRoot(root, message.path)) return;
-      const uri = vscode.Uri.file(message.path);
-      if (message.level === "dir") {
-        await vscode.commands.executeCommand("revealInExplorer", uri);
-        return;
-      }
-      const doc = await vscode.workspace.openTextDocument(uri);
-      const editor = await vscode.window.showTextDocument(doc, { preview: true, viewColumn: vscode.ViewColumn.Active });
-      if (message.line) {
-        const pos = new vscode.Position(Math.max(0, message.line - 1), 0);
-        editor.selection = new vscode.Selection(pos, pos);
-        editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
-      }
+      if (!root) return;
+      await ktcOpenWorkspaceResource({
+        root,
+        target: message.path,
+        kind: message.level === "dir" ? "directory" : "text",
+        line: message.line,
+      });
       return;
     }
 
   }
 
+  private postReportPage(offset: number, reset: boolean): void {
+    if (!this.latestReport) return;
+    const page = ktcPageRenameResultViewModel(
+      this.latestReport,
+      offset,
+      KTC_RENAME_RESULT_PAGE_SIZE,
+    );
+    const payload = { ...page, reportId: this.reportId };
+    this.post(reset ? { type: "report", report: payload } : { type: "reportPage", page: payload });
+  }
+
 }
 
 function getCodeRenameHtml(webview: vscode.Webview): string {
-  const nonce = getNonce();
-  const csp = [
-    "default-src 'none'",
-    `style-src ${webview.cspSource} 'unsafe-inline'`,
-    `script-src 'nonce-${nonce}'`,
-  ].join("; ");
+  const { nonce, csp } = ktcCreateWebviewSecurity(webview);
   return `<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="${csp}" />
@@ -137,25 +151,14 @@ h1{font-size:20px;font-weight:600;margin:0 0 5px}.muted{color:var(--vscode-descr
 <p id="status" class="status">在 Side Bar 设置条件后开始预览。</p><div id="summary" class="summary"></div>
 <div class="table-wrap"><table><thead><tr><th>Source</th><th>类型</th><th>命中</th><th>Target / 位置</th><th>编码与状态</th><th>地址</th></tr></thead><tbody id="rows"></tbody></table><div id="empty" class="empty">尚无预览结果</div><button id="load-more" class="load-more" hidden>继续加载</button></div>
 </main><script nonce="${nonce}">
-const vscode=acquireVsCodeApi();const $=id=>document.getElementById(id);const PAGE_SIZE=300;let hits=[];let visible=0;
+const vscode=acquireVsCodeApi();const $=id=>document.getElementById(id);let reportId=0,loaded=0,total=0,nextOffset=null;
 function esc(v){return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
 function attr(v){return esc(v).replace(/"/g,"&quot;")}
 const levelLabel={dir:"文件夹",file:"文件名",text:"文本"};
 function stat(label,value){return '<div class="stat"><strong>'+value+'</strong><span>'+label+'</span></div>'}
-function appendRows(){const end=Math.min(visible+PAGE_SIZE,hits.length);for(let i=visible;i<end;i++){const h=hits[i],tr=document.createElement("tr");const compact=(h.encodingLabel?h.encodingLabel+" · ":"")+h.statusLabel+(h.detail?" · "+h.detail:"");tr.innerHTML='<td class="path" role="button" tabindex="0" title="'+attr(h.originalFullPath)+'"><span class="path-name">'+esc(h.sourceName)+'</span></td><td><span class="badge">'+esc(levelLabel[h.level]||h.level)+'</span></td><td>'+h.occurrences+'</td><td>'+esc(h.targetOrPositionLabel)+'</td><td class="status detail '+(h.statusLabel==="错误"?'error':'')+'">'+esc(compact)+'</td><td class="address" title="'+attr(h.originalFullPath)+'">'+esc(h.sourceAddress)+'</td>';const detailCell=tr.querySelector(".status");if(h.detail)detailCell.title=h.detail;const pathCell=tr.querySelector(".path"),open=()=>vscode.postMessage({type:"openPath",path:h.openPath,level:h.level,line:h.openLine});pathCell.onclick=open;pathCell.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();open()}};$("rows").appendChild(tr)}visible=end;$("load-more").hidden=visible>=hits.length;if(!$("load-more").hidden)$("load-more").textContent="继续加载（"+visible+" / "+hits.length+"）"}
-$("load-more").onclick=appendRows;
-window.addEventListener("message",e=>{const m=e.data;if(m.type==="init"){$("workspace").textContent=m.workspace||"未打开工作区";$("ignore").textContent="Ignore · "+m.ignoreCount+" 条"}else if(m.type==="running"){$("status").className="status";$("status").textContent=m.apply?"正在执行替换…":"正在生成预览…"}else if(m.type==="error"){$("status").className="status error";$("status").textContent=m.message}else if(m.type==="report"){const r=m.report,s=r.summary,hasErrors=s.errors>0;$("status").className=hasErrors?"status error":"status";$("status").textContent=hasErrors?(r.applied?"写盘完成，但有 "+s.errors+" 个错误，请检查 Git diff。":"预检发现 "+s.errors+" 个冲突或错误，尚未写盘。"):(r.applied?"替换完成，请检查 Git diff。":"预览完成，尚未写盘。");$("summary").innerHTML=stat("命中规则",s.matchedRules+" / "+s.rules)+stat("替换",s.replacements)+stat("文本文件",s.textFiles)+stat("文件名",s.files)+stat("文件夹",s.directories)+stat("跳过",s.skipped)+stat("错误",s.errors);hits=r.rows;visible=0;$("rows").innerHTML="";$("empty").style.display=hits.length?"none":"block";if(!hits.length)$("empty").textContent="没有找到匹配项";appendRows()}});vscode.postMessage({type:"ready"});
+function appendRows(rows){for(const h of rows){const tr=document.createElement("tr");const compact=(h.encodingLabel?h.encodingLabel+" · ":"")+h.statusLabel+(h.detail?" · "+h.detail:"");tr.innerHTML='<td class="path" role="button" tabindex="0" title="'+attr(h.originalFullPath)+'"><span class="path-name">'+esc(h.sourceName)+'</span></td><td><span class="badge">'+esc(levelLabel[h.level]||h.level)+'</span></td><td>'+h.occurrences+'</td><td>'+esc(h.targetOrPositionLabel)+'</td><td class="status detail '+(h.statusLabel==="错误"?'error':'')+'">'+esc(compact)+'</td><td class="address" title="'+attr(h.originalFullPath)+'">'+esc(h.sourceAddress)+'</td>';const detailCell=tr.querySelector(".status");if(h.detail)detailCell.title=h.detail;const pathCell=tr.querySelector(".path"),open=()=>vscode.postMessage({type:"openPath",path:h.openPath,level:h.level,line:h.openLine});pathCell.onclick=open;pathCell.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();open()}};$("rows").appendChild(tr)}}
+function appendPage(page,reset){if(!reset&&(page.reportId!==reportId||page.offset!==loaded))return;if(reset){reportId=page.reportId;loaded=0;total=page.totalRows;$("rows").innerHTML=""}appendRows(page.rows||[]);loaded=page.offset+(page.rows||[]).length;total=page.totalRows;nextOffset=page.nextOffset??null;$("load-more").disabled=false;$("load-more").hidden=nextOffset===null;if(nextOffset!==null)$("load-more").textContent="继续加载（"+loaded+" / "+total+"）"}
+$("load-more").onclick=()=>{if(nextOffset===null)return;$("load-more").disabled=true;vscode.postMessage({type:"loadMore",reportId,offset:nextOffset})};
+window.addEventListener("message",e=>{const m=e.data;if(m.type==="init"){$("workspace").textContent=m.workspace||"未打开工作区";$("ignore").textContent="Ignore · "+m.ignoreCount+" 条"}else if(m.type==="running"){$("status").className="status";$("status").textContent=m.apply?"正在执行替换…":"正在生成预览…"}else if(m.type==="error"){$("status").className="status error";$("status").textContent=m.message}else if(m.type==="report"){const r=m.report,s=r.summary,hasErrors=s.errors>0;$("status").className=hasErrors?"status error":"status";$("status").textContent=hasErrors?(r.applied?"写盘完成，但有 "+s.errors+" 个错误，请检查 Git diff。":"预检发现 "+s.errors+" 个冲突或错误，尚未写盘。"):(r.applied?"替换完成，请检查 Git diff。":"预览完成，尚未写盘。");$("summary").innerHTML=stat("命中规则",s.matchedRules+" / "+s.rules)+stat("替换",s.replacements)+stat("文本文件",s.textFiles)+stat("文件名",s.files)+stat("文件夹",s.directories)+stat("跳过",s.skipped)+stat("错误",s.errors);$("empty").style.display=r.totalRows?"none":"block";if(!r.totalRows)$("empty").textContent="没有找到匹配项";appendPage(r,true)}else if(m.type==="reportPage")appendPage(m.page,false)});vscode.postMessage({type:"ready"});
 </script></body></html>`;
-}
-
-function isInsideRoot(root: string, target: string): boolean {
-  const rel = relative(root, target);
-  return rel === "" || (!rel.startsWith(`..${sep}`) && rel !== ".." && !isAbsolute(rel));
-}
-
-function getNonce(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let value = "";
-  for (let i = 0; i < 32; i++) value += chars.charAt(Math.floor(Math.random() * chars.length));
-  return value;
 }

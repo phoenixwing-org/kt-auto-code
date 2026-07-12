@@ -27,6 +27,13 @@ export interface KtcRenameResultViewModel {
   rows: readonly KtcRenameResultRowViewModel[];
 }
 
+export interface KtcRenameResultPage extends Omit<KtcRenameResultViewModel, "rows"> {
+  rows: readonly KtcRenameResultRowViewModel[];
+  offset: number;
+  totalRows: number;
+  nextOffset?: number;
+}
+
 const KTC_LEVEL_STATUS: Record<string, string> = {
   preview: "预览",
   applied: "已替换",
@@ -72,5 +79,34 @@ export function ktcBuildRenameResultViewModel(report: WorkspaceRenameReport): Kt
         detail: hit.status === "error" || hit.status === "skipped" ? hit.detail : undefined,
       };
     }),
+  };
+}
+
+export function ktcPageRenameResultViewModel(
+  report: KtcRenameResultViewModel,
+  requestedOffset = 0,
+  requestedPageSize = 300,
+): KtcRenameResultPage {
+  const normalizedOffset = Number.isFinite(requestedOffset)
+    ? Math.trunc(requestedOffset)
+    : 0;
+  const normalizedPageSize = Number.isFinite(requestedPageSize)
+    ? Math.trunc(requestedPageSize)
+    : 300;
+  const offset = Math.min(
+    report.rows.length,
+    Math.max(0, normalizedOffset),
+  );
+  const pageSize = Math.min(1_000, Math.max(1, normalizedPageSize));
+  const rows = report.rows.slice(offset, offset + pageSize);
+  const consumed = offset + rows.length;
+  return {
+    root: report.root,
+    applied: report.applied,
+    summary: report.summary,
+    rows,
+    offset,
+    totalRows: report.rows.length,
+    nextOffset: consumed < report.rows.length ? consumed : undefined,
   };
 }

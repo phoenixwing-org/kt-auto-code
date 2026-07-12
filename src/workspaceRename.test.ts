@@ -1,4 +1,12 @@
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -137,6 +145,83 @@ describe("workspaceRename", () => {
     });
     expect(report.hits).toEqual([]);
     expect(readdirSync(root)).toEqual(["OldModule"]);
+  });
+
+  it.each([
+    ["相对路径", (root: string) => "OldModule"],
+    ["绝对路径", (root: string) => join(root, "OldModule")],
+  ])("指定%s工作目录时该目录本身可参与改名", (_label, scopeFor) => {
+    const root = tempRoot();
+    mkdirSync(join(root, "OldModule"));
+    writeFileSync(join(root, "OldModule", "keep.txt"), "content");
+
+    const report = runWorkspaceRename({
+      root,
+      oldName: "Old",
+      newName: "New",
+      levels: ["dir"],
+      scope: scopeFor(root),
+      apply: true,
+    });
+
+    expect(report.summary).toMatchObject({ directories: 1, errors: 0 });
+    expect(report.hits[0]?.relativePath).toBe("OldModule");
+    expect(readFileSync(join(root, "NewModule", "keep.txt"), "utf8")).toBe("content");
+  });
+
+  it("工作目录改名后从新路径继续处理文件名和文本", () => {
+    const root = tempRoot();
+    mkdirSync(join(root, "OldModule"));
+    writeFileSync(join(root, "OldModule", "OldFile.txt"), "OldModule\n");
+
+    const report = runWorkspaceRename({
+      root,
+      oldName: "Old",
+      newName: "New",
+      levels: ["dir", "file", "text"],
+      scope: "OldModule",
+      apply: true,
+    });
+
+    expect(report.summary).toMatchObject({ directories: 1, files: 1, textFiles: 1, errors: 0 });
+    expect(readFileSync(join(root, "NewModule", "NewFile.txt"), "utf8")).toBe("NewModule\n");
+  });
+
+  it("拒绝将工作目录设到当前 VS Code 工作区之外", () => {
+    const root = tempRoot();
+    const outside = tempRoot();
+    expect(() => runWorkspaceRename({
+      root,
+      oldName: "Old",
+      newName: "New",
+      levels: ["dir"],
+      scope: outside,
+    })).toThrow("工作目录必须在当前 VS Code 工作区内");
+  });
+
+  it("工作目录输入不接受单个文件", () => {
+    const root = tempRoot();
+    writeFileSync(join(root, "Old.cpp"), "Old");
+    expect(() => runWorkspaceRename({
+      root,
+      oldName: "Old",
+      newName: "New",
+      levels: ["file"],
+      scope: "Old.cpp",
+    })).toThrow("工作目录必须是文件夹");
+  });
+
+  it("工作目录不能通过符号链接越出工作区", () => {
+    const root = tempRoot();
+    const outside = tempRoot();
+    symlinkSync(outside, join(root, "linked"), process.platform === "win32" ? "junction" : "dir");
+    expect(() => runWorkspaceRename({
+      root,
+      oldName: "Old",
+      newName: "New",
+      levels: ["dir"],
+      scope: "linked",
+    })).toThrow("工作目录不能经过符号链接");
   });
 
   it("替换文件名和文件夹名中的命中片段", () => {

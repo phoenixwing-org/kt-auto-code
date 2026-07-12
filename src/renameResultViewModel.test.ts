@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { ktcBuildRenameResultViewModel } from "./renameResultViewModel.js";
+import {
+  ktcBuildRenameResultViewModel,
+  ktcPageRenameResultViewModel,
+} from "./renameResultViewModel.js";
 import type { WorkspaceRenameReport } from "./workspaceRename.js";
 
 function report(): WorkspaceRenameReport {
@@ -75,5 +78,29 @@ describe("renameResultViewModel", () => {
       plannedFullPath: "/workspace/NewParent/NewFolder",
       openPath: "/workspace/NewParent/NewFolder",
     });
+  });
+
+  it("将大结果分页传给 Webview 而不一次发送全部行", () => {
+    const viewModel = ktcBuildRenameResultViewModel(report());
+    const first = ktcPageRenameResultViewModel(viewModel, 0, 1);
+    const second = ktcPageRenameResultViewModel(viewModel, first.nextOffset, 1);
+
+    expect(first).toMatchObject({ offset: 0, totalRows: 2, nextOffset: 1 });
+    expect(first.rows).toHaveLength(1);
+    expect(second).toMatchObject({ offset: 1, totalRows: 2 });
+    expect(second.rows).toHaveLength(1);
+    expect(second.nextOffset).toBeUndefined();
+  });
+
+  it("分页参数越界时安全截断", () => {
+    const viewModel = ktcBuildRenameResultViewModel(report());
+    expect(ktcPageRenameResultViewModel(viewModel, -10, 0).offset).toBe(0);
+    expect(ktcPageRenameResultViewModel(viewModel, 99, 2)).toMatchObject({
+      offset: 2,
+      rows: [],
+      totalRows: 2,
+    });
+    expect(ktcPageRenameResultViewModel(viewModel, Number.NaN, Number.POSITIVE_INFINITY))
+      .toMatchObject({ offset: 0, totalRows: 2 });
   });
 });

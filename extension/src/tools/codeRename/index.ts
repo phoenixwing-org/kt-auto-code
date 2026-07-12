@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { basename } from "node:path";
+import { basename, resolve } from "node:path";
 import { ktcSuggestNameReplacement } from "../../../../src/replacementRules.js";
 import {
   KTC_CAA_RELATION_KINDS,
@@ -13,6 +13,7 @@ import type {
   KtcReplacementRuleDraft,
 } from "../../../../src/associatedReplacementRules.js";
 import type { KtcSearchReplaceRequest } from "../../../../src/searchReplaceContracts.js";
+import { ktcResolveWorkspaceWorkingDirectory } from "../../../../src/workspaceRename.js";
 import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
 import { KtcSearchReplaceController } from "../../searchReplaceController.js";
 
@@ -177,6 +178,8 @@ export const codeRenameTool: KtTool = {
       const result = await searchReplaceController.run(payload, message.action === "apply");
       if (result === "cancelled") {
         ctx.postState({ status: "idle", message: "已取消替换。", rootRenameSuggestion });
+      } else if (result === "blocked") {
+        ctx.postState({ status: "error", message: "预检发现冲突，未执行任何写盘。", rootRenameSuggestion });
       } else if (result === "error") {
         ctx.postState({ status: "error", message: "搜索替换失败，请查看结果 View。", rootRenameSuggestion });
       } else {
@@ -253,6 +256,7 @@ function getRootRenameSuggestion(
   const rules = payload.rules?.filter((rule) => rule.enabled !== false && rule.search)
     ?? [{ search: payload.oldName, replace: payload.newName }];
   try {
+    if (ktcResolveWorkspaceWorkingDirectory(root, payload.scope) !== resolve(root)) return undefined;
     const suggestion = ktcSuggestNameReplacement(basename(root), rules, payload.preserveCase ?? false);
     return suggestion && {
       currentName: suggestion.currentName,

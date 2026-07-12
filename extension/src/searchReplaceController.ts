@@ -9,6 +9,7 @@ import {
   type WorkspaceRenameOptions,
   type WorkspaceRenameReport,
 } from "../../src/workspaceRename.js";
+import { ktcRunSearchReplaceWorkflow } from "../../src/searchReplaceWorkflow.js";
 import { logOutput } from "./output.js";
 import { CodeRenamePanel } from "./workbench/codeRenamePanel.js";
 import { getWorkspaceRoot } from "./workspace.js";
@@ -42,30 +43,37 @@ export class KtcSearchReplaceController {
         ignorePatterns: resolveWorkspaceIgnorePatterns(root),
         apply: false,
       };
-      if (apply) {
-        panel.showRunning(false);
-        const preflight = runWorkspaceRename(options);
-        logOutput(formatRenameLog(preflight, options));
-        panel.showReport(ktcBuildRenameResultViewModel(preflight));
-        if (preflight.summary.errors > 0) {
-          panel.showError("预检发现目标冲突，未执行任何写盘。");
-          return "error";
-        }
-        if (!await this.confirmWrite(request)) return "cancelled";
+      panel.showRunning(false);
+      const result = await ktcRunSearchReplaceWorkflow(apply, {
+        preview: () => runWorkspaceRename(options),
+        confirm: () => this.confirmWrite(request),
+        apply: () => {
+          panel.showRunning(true);
+          return runWorkspaceRename({ ...options, apply: true });
+        },
+        report: (report) => {
+          this.showReport(panel, report, options);
+        },
+      });
+      if (result === "blocked") {
+        panel.showError("预检发现目标冲突，未执行任何写盘。");
       }
-
-      panel.showRunning(apply);
-      const report = runWorkspaceRename({ ...options, apply });
-      logOutput(formatRenameLog(report, options));
-      panel.showReport(ktcBuildRenameResultViewModel(report));
-      if (apply && (!report.applied || report.summary.errors > 0)) return "error";
-      return "completed";
+      return result;
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
       logOutput(`[搜索替换] ${text}`);
       panel.showError(text);
       return "error";
     }
+  }
+
+  private showReport(
+    panel: CodeRenamePanel,
+    report: WorkspaceRenameReport,
+    options: WorkspaceRenameOptions,
+  ): void {
+    logOutput(formatRenameLog(report, options));
+    panel.showReport(ktcBuildRenameResultViewModel(report));
   }
 
   private async confirmWrite(request: KtcSearchReplaceRequest): Promise<boolean> {

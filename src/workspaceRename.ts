@@ -11,6 +11,7 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } 
 import { isIgnoredPath, loadDotIgnore } from "./dotIgnore.js";
 import { detectFileEncoding, type DetectedEncoding } from "./fileEncoding.js";
 import { DEFAULT_SKIP_DIR_NAMES } from "./scanScope.js";
+import { ktcIsPathInsideWorkspace } from "./workspacePath.js";
 import {
   replaceBufferByRules,
   replaceStringByRules,
@@ -115,19 +116,29 @@ function validateOptions(opts: WorkspaceRenameOptions, rules: readonly ResolvedR
   }
 }
 
-function resolveScope(root: string, scope?: string): string {
-  if (!scope?.trim() || scope === "." || scope === "/") return root;
-  const target = resolve(root, scope.replace(/^[/\\]+/, ""));
-  const rel = relative(root, target);
-  if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
-    throw new Error("扫描范围必须在工作目录内");
+export function ktcResolveWorkspaceWorkingDirectory(root: string, scope?: string): string {
+  const workspaceRoot = resolve(root);
+  const requested = scope?.trim();
+  if (!requested || requested === "." || requested === "/") return workspaceRoot;
+  const target = isAbsolute(requested)
+    ? resolve(requested)
+    : resolve(workspaceRoot, requested.replace(/^[/\\]+/, ""));
+  if (!ktcIsPathInsideWorkspace(workspaceRoot, target)) {
+    throw new Error("工作目录必须在当前 VS Code 工作区内");
   }
-  if (!existsSync(target)) throw new Error(`扫描范围不存在：${scope}`);
+  if (!existsSync(target)) throw new Error(`工作目录不存在：${scope}`);
+  if (!statSync(target).isDirectory()) throw new Error(`工作目录必须是文件夹：${scope}`);
+  let cursor = workspaceRoot;
+  for (const segment of relative(workspaceRoot, target).split(sep).filter(Boolean)) {
+    cursor = join(cursor, segment);
+    if (lstatSync(cursor).isSymbolicLink()) {
+      throw new Error(`工作目录不能经过符号链接：${scope}`);
+    }
+  }
   return target;
 }
 
-function collectEntries(opts: WorkspaceRenameOptions, root: string): WalkEntry[] {
-  const start = resolveScope(root, opts.scope);
+function collectEntries(opts: WorkspaceRenameOptions, root: string, start: string): WalkEntry[] {
   const patterns = [...(opts.ignorePatterns ?? loadDotIgnore(root))];
   const out: WalkEntry[] = [];
 
@@ -458,10 +469,11 @@ export function runWorkspaceRename(opts: WorkspaceRenameOptions): WorkspaceRenam
   }
 
   const hits: WorkspaceRenameHit[] = [];
+  let workingDirectory = ktcResolveWorkspaceWorkingDirectory(root, opts.scope);
 
   for (const level of LEVEL_ORDER) {
     if (!opts.levels.includes(level)) continue;
-    const entries = collectEntries(opts, root);
+    const entries = collectEntries(opts, root, workingDirectory);
     if (level === "text") {
       for (const entry of entries) {
         if (entry.kind !== "file") continue;
@@ -485,13 +497,20 @@ export function runWorkspaceRename(opts: WorkspaceRenameOptions): WorkspaceRenam
     } else {
       const matches = pathMatches(entries, rules, level);
       const conflicts = pathConflictDetails(matches, rules);
-      hits.push(...matches.map((entry) => pathHit(
+      const levelHits = matches.map((entry) => pathHit(
         entry,
         opts,
         rules,
         level,
         conflicts.get(entry.fullPath),
-      )));
+      ));
+      hits.push(...levelHits);
+      if (level === "dir" && opts.apply) {
+        const workingDirectoryHit = levelHits.find((hit) => (
+          hit.originalFullPath === workingDirectory && hit.status === "applied"
+        ));
+        if (workingDirectoryHit) workingDirectory = workingDirectoryHit.fullPath;
+      }
     }
   }
 
