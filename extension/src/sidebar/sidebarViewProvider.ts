@@ -1,7 +1,14 @@
 import * as vscode from "vscode";
+import { existsSync, statSync } from "node:fs";
+import { resolve } from "node:path";
 import { logOutput } from "../output.js";
 import { getTool, getTools } from "../tools/registry.js";
-import type { ToolRunContext, ToolUiState, WebviewInboundMessage } from "../tools/types.js";
+import type {
+  KtcRecentWorkingDirectories,
+  ToolRunContext,
+  ToolUiState,
+  WebviewInboundMessage,
+} from "../tools/types.js";
 import { setHeaderAsciiRunContextFactory } from "../tools/headerAscii/index.js";
 import { setEncodingFixRunContextFactory } from "../tools/encodingFix/index.js";
 import { getPreserveGbk, getStripBom } from "../tools/headerAscii/options.js";
@@ -11,6 +18,12 @@ import { getPanelHtml, postToWebview } from "./panelHtml.js";
 import type { ToolOptionsState } from "../tools/types.js";
 import { KtcSearchReplaceProfileController } from "../searchReplaceProfileController.js";
 import { ktcIgnoreController, ktcIsIgnoreMessage } from "../ignoreController.js";
+import {
+  KtcRecentWorkingDirectoryStore,
+  KtcRecentWorkspaceDirectoryStore,
+} from "../recentWorkingDirectories.js";
+import { ktcClassifyWorkingDirectory } from "../searchReplaceLocation.js";
+import { ktcIsPathInsideWorkspace } from "../../../src/workspacePath.js";
 
 export class SidebarViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "ktAutoCode.sidebar";
@@ -19,8 +32,16 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   private activeToolId = "headerAscii";
   private toolStates = new Map<string, ToolUiState>();
   private readonly searchReplaceProfiles = new KtcSearchReplaceProfileController();
+  private readonly recentExternalDirectories: KtcRecentWorkingDirectoryStore;
+  private readonly recentWorkspaceDirectories: KtcRecentWorkspaceDirectoryStore;
 
-  constructor(private readonly extensionUri: vscode.Uri) {
+  constructor(
+    private readonly extensionUri: vscode.Uri,
+    globalState: vscode.Memento,
+    workspaceState: vscode.Memento,
+  ) {
+    this.recentExternalDirectories = new KtcRecentWorkingDirectoryStore(globalState);
+    this.recentWorkspaceDirectories = new KtcRecentWorkspaceDirectoryStore(workspaceState);
     setHeaderAsciiRunContextFactory(() => this.createRunContext("headerAscii"));
     setEncodingFixRunContextFactory(() => this.createRunContext("encodingFix"));
   }
@@ -137,6 +158,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       ignoreConfig: ktcIgnoreController.snapshot(getWorkspaceRoot()),
       toolOptions: this.getAllToolOptions(),
       sidebarStyle: this.getSidebarStyle(),
+      recentWorkingDirectories: this.getRecentWorkingDirectories(),
       searchReplaceProfiles: profileSnapshot.profiles,
       searchReplaceProfileError: profileSnapshot.error,
     });
@@ -149,6 +171,31 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   private async onMessage(message: WebviewInboundMessage): Promise<void> {
     if (message.type === "ready") {
       this.sendInit();
+      return;
+    }
+
+    if (message.type === "pickSearchReplaceDirectory") {
+      const workspaceRoot = getWorkspaceRoot();
+      const recent = this.getRecentWorkingDirectories();
+      const defaultPath = workspaceRoot && recent.workspace[0]
+        ? resolve(workspaceRoot, recent.workspace[0])
+        : recent.external[0] ?? workspaceRoot;
+      const selected = await vscode.window.showOpenDialog({
+        canSelectFiles: false,
+        canSelectFolders: true,
+        canSelectMany: false,
+        defaultUri: defaultPath ? vscode.Uri.file(defaultPath) : undefined,
+        openLabel: "选择工作目录",
+        title: "选择搜索替换工作目录",
+      });
+      const directory = selected?.[0]?.fsPath;
+      if (!directory) return;
+      await this.rememberWorkingDirectory(directory, true);
+      return;
+    }
+
+    if (message.type === "rememberSearchReplaceDirectory") {
+      await this.rememberWorkingDirectory(message.directory);
       return;
     }
 
@@ -213,6 +260,10 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
+    if (message.type === "searchReplace") {
+      await this.rememberWorkingDirectory(message.payload.scope);
+    }
+
     const tool = getTool(message.toolId);
     if (!tool) {
       return;
@@ -220,5 +271,38 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
     const ctx = this.createRunContext(message.toolId);
     await tool.handleMessage(message, ctx);
+  }
+
+  private async rememberWorkingDirectory(value: string | undefined, select = false): Promise<void> {
+    const requested = value?.trim();
+    if (!requested) return;
+    const workspaceRoot = getWorkspaceRoot();
+    const entry = ktcClassifyWorkingDirectory(workspaceRoot, requested);
+    if (!entry || !existsSync(entry.directory)) return;
+    try {
+      if (!statSync(entry.directory).isDirectory()) return;
+    } catch {
+      return;
+    }
+    if (entry.storage === "workspace" && entry.cacheValue) {
+      await this.recentWorkspaceDirectories.remember(entry.cacheValue);
+    } else if (entry.storage === "global" && entry.cacheValue) {
+      await this.recentExternalDirectories.remember(entry.cacheValue);
+    }
+    postToWebview(this.view, {
+      type: "recentWorkingDirectories",
+      directories: this.getRecentWorkingDirectories(),
+      selected: select ? entry.inputValue : undefined,
+    });
+  }
+
+  private getRecentWorkingDirectories(): KtcRecentWorkingDirectories {
+    const workspaceRoot = getWorkspaceRoot();
+    return {
+      workspace: workspaceRoot ? this.recentWorkspaceDirectories.list() : [],
+      external: this.recentExternalDirectories.list().filter((directory) => (
+        !workspaceRoot || !ktcIsPathInsideWorkspace(workspaceRoot, directory)
+      )),
+    };
   }
 }

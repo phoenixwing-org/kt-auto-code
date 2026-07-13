@@ -33,7 +33,7 @@ VS Code 侧建议维持两个插件：
 
 | 产品 | 主要用户 | 能力范围 | 是否直接访问本地文件 |
 | --- | --- | --- | --- |
-| `kt-auto-code` VS Code 插件 | CAA / C++ 开发者 | 编码治理、源码扫描、Ignore、工作区搜索替换 | 是，当前 VS Code 工作目录 |
+| `kt-auto-code` VS Code 插件 | CAA / C++ 开发者 | 编码治理、源码扫描、Ignore、工作区搜索替换 | 是，当前工作区或用户选择的本地目录 |
 | `phoenix-cad` VS Code 插件 | FreeCAD / CAD 开发者 | FCStd、引用分析、XLink、CAD 改名修正、BOM | 是，当前 VS Code 工作目录 |
 | `phoenix-desk-tools` Tauri | 综合桌面用户 | 同时组合 Code 与 CAD，全功能工作台 | 是，通过 Tauri 文件系统 |
 | `phoenix-desk-tools` Web | 浏览器/服务端用户 | Code 与 CAD 的远程或受限工作流 | 通常否，通过 Server API |
@@ -168,7 +168,7 @@ interface TaskReporter {
 | 端口 | VS Code | Tauri | Web |
 | --- | --- | --- | --- |
 | 文件系统 | `workspace.fs` / Node FS | Tauri FS command | Server API 或 File System Access API |
-| 工作目录 | `workspaceFolders[0]` | 用户打开的项目 | 服务端项目 / 浏览器授权目录 |
+| 工作目录 | 默认 `workspaceFolders[0]`，搜索替换可选本地目录 | 用户打开的项目 | 服务端项目 / 浏览器授权目录 |
 | 设置 | VS Code configuration/state | 配置文件或数据库 | Server prefs / localStorage |
 | 确认 | VS Code modal | Tauri/Vue dialog | Web dialog |
 | 任务 | Extension Host Store | Tauri task manager | Server task / Web stream |

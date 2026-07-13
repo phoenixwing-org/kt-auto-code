@@ -53,6 +53,7 @@ export class CodeRenamePanel {
 
   private ready = false;
   private latestReport?: KtcRenameResultViewModel;
+  private latestIgnoreCount = 0;
   private reportId = 0;
   private readonly readyPromise: Promise<boolean>;
   private resolveReady!: (ready: boolean) => void;
@@ -78,8 +79,9 @@ export class CodeRenamePanel {
     this.post({ type: "running", apply });
   }
 
-  showReport(report: KtcRenameResultViewModel): void {
+  showReport(report: KtcRenameResultViewModel, ignoreCount = 0): void {
     this.latestReport = report;
+    this.latestIgnoreCount = ignoreCount;
     this.reportId++;
     this.postReportPage(0, true);
   }
@@ -105,7 +107,7 @@ export class CodeRenamePanel {
       return;
     }
     if (message.type === "openPath") {
-      const root = getWorkspaceRoot();
+      const root = this.latestReport?.root ?? getWorkspaceRoot();
       if (!root) return;
       await ktcOpenWorkspaceResource({
         root,
@@ -125,7 +127,7 @@ export class CodeRenamePanel {
       offset,
       KTC_RENAME_RESULT_PAGE_SIZE,
     );
-    const payload = { ...page, reportId: this.reportId };
+    const payload = { ...page, reportId: this.reportId, ignoreCount: this.latestIgnoreCount };
     this.post(reset ? { type: "report", report: payload } : { type: "reportPage", page: payload });
   }
 
@@ -159,6 +161,6 @@ function stat(label,value){return '<div class="stat"><strong>'+value+'</strong><
 function appendRows(rows){for(const h of rows){const tr=document.createElement("tr");const compact=(h.encodingLabel?h.encodingLabel+" · ":"")+h.statusLabel+(h.detail?" · "+h.detail:"");tr.innerHTML='<td class="path" role="button" tabindex="0" title="'+attr(h.originalFullPath)+'"><span class="path-name">'+esc(h.sourceName)+'</span></td><td><span class="badge">'+esc(levelLabel[h.level]||h.level)+'</span></td><td>'+h.occurrences+'</td><td>'+esc(h.targetOrPositionLabel)+'</td><td class="status detail '+(h.statusLabel==="错误"?'error':'')+'">'+esc(compact)+'</td><td class="address" title="'+attr(h.originalFullPath)+'">'+esc(h.sourceAddress)+'</td>';const detailCell=tr.querySelector(".status");if(h.detail)detailCell.title=h.detail;const pathCell=tr.querySelector(".path"),open=()=>vscode.postMessage({type:"openPath",path:h.openPath,level:h.level,line:h.openLine});pathCell.onclick=open;pathCell.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();open()}};$("rows").appendChild(tr)}}
 function appendPage(page,reset){if(!reset&&(page.reportId!==reportId||page.offset!==loaded))return;if(reset){reportId=page.reportId;loaded=0;total=page.totalRows;$("rows").innerHTML=""}appendRows(page.rows||[]);loaded=page.offset+(page.rows||[]).length;total=page.totalRows;nextOffset=page.nextOffset??null;$("load-more").disabled=false;$("load-more").hidden=nextOffset===null;if(nextOffset!==null)$("load-more").textContent="继续加载（"+loaded+" / "+total+"）"}
 $("load-more").onclick=()=>{if(nextOffset===null)return;$("load-more").disabled=true;vscode.postMessage({type:"loadMore",reportId,offset:nextOffset})};
-window.addEventListener("message",e=>{const m=e.data;if(m.type==="init"){$("workspace").textContent=m.workspace||"未打开工作区";$("ignore").textContent="Ignore · "+m.ignoreCount+" 条"}else if(m.type==="running"){$("status").className="status";$("status").textContent=m.apply?"正在执行替换…":"正在生成预览…"}else if(m.type==="error"){$("status").className="status error";$("status").textContent=m.message}else if(m.type==="report"){const r=m.report,s=r.summary,hasErrors=s.errors>0;$("status").className=hasErrors?"status error":"status";$("status").textContent=hasErrors?(r.applied?"写盘完成，但有 "+s.errors+" 个错误，请检查 Git diff。":"预检发现 "+s.errors+" 个冲突或错误，尚未写盘。"):(r.applied?"替换完成，请检查 Git diff。":"预览完成，尚未写盘。");$("summary").innerHTML=stat("命中规则",s.matchedRules+" / "+s.rules)+stat("替换",s.replacements)+stat("文本文件",s.textFiles)+stat("文件名",s.files)+stat("文件夹",s.directories)+stat("跳过",s.skipped)+stat("错误",s.errors);$("empty").style.display=r.totalRows?"none":"block";if(!r.totalRows)$("empty").textContent="没有找到匹配项";appendPage(r,true)}else if(m.type==="reportPage")appendPage(m.page,false)});vscode.postMessage({type:"ready"});
+window.addEventListener("message",e=>{const m=e.data;if(m.type==="init"){$("workspace").textContent=m.workspace||"未打开工作区";$("ignore").textContent="Ignore · "+m.ignoreCount+" 条"}else if(m.type==="running"){$("status").className="status";$("status").textContent=m.apply?"正在执行替换…":"正在生成预览…"}else if(m.type==="error"){$("status").className="status error";$("status").textContent=m.message}else if(m.type==="report"){const r=m.report,s=r.summary,hasErrors=s.errors>0;$("workspace").textContent=r.root||"";$("ignore").textContent="Ignore · "+(r.ignoreCount||0)+" 条";$("status").className=hasErrors?"status error":"status";$("status").textContent=hasErrors?(r.applied?"写盘完成，但有 "+s.errors+" 个错误，请检查 Git diff。":"预检发现 "+s.errors+" 个冲突或错误，尚未写盘。"):(r.applied?"替换完成，请检查 Git diff。":"预览完成，尚未写盘。");$("summary").innerHTML=stat("命中规则",s.matchedRules+" / "+s.rules)+stat("替换",s.replacements)+stat("文本文件",s.textFiles)+stat("文件名",s.files)+stat("文件夹",s.directories)+stat("跳过",s.skipped)+stat("错误",s.errors);$("empty").style.display=r.totalRows?"none":"block";if(!r.totalRows)$("empty").textContent="没有找到匹配项";appendPage(r,true)}else if(m.type==="reportPage")appendPage(m.page,false)});vscode.postMessage({type:"ready"});
 </script></body></html>`;
 }

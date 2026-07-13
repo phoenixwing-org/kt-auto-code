@@ -1,9 +1,5 @@
 import type * as vscode from "vscode";
-import type {
-  KtcAssociatedRelationKind,
-  KtcAssociatedRulePreset,
-  KtcReplacementRuleDraft,
-} from "../../../src/associatedReplacementRules.js";
+import type { KtcReplacementRuleDraft } from "../../../src/associatedReplacementRules.js";
 import type {
   KtcSearchReplaceProfile,
   KtcSearchReplaceProfileDraft,
@@ -22,33 +18,26 @@ export type WebviewInboundMessage =
   | { type: "syncIgnoreFromGit" }
   | { type: "applyIgnorePreset"; presetId: "caa" | "cpp" | "web"; action: "append" | "remove" }
   | { type: "analyzeIgnore" }
+  | { type: "pickSearchReplaceDirectory"; toolId: "codeRename" }
+  | { type: "rememberSearchReplaceDirectory"; toolId: "codeRename"; directory: string }
   | { type: "saveSearchReplaceProfile"; toolId: "codeRename"; draft: KtcSearchReplaceProfileDraft }
   | { type: "loadSearchReplaceProfile"; toolId: "codeRename"; id: string }
   | {
-      type: "deriveAssociatedRules";
+      type: "requestAssociatedRuleCandidates";
       toolId: "codeRename";
+      mode: KtcAssociatedRulePickerMode;
       search: string;
       replace: string;
       sourcePrefix: string;
       targetPrefix: string;
-      preset: KtcAssociatedRulePreset;
+      parentRule?: KtcReplacementRuleDraft;
       existingRules: KtcReplacementRuleDraft[];
     }
   | {
-      type: "chooseCaaRules";
+      type: "appendAssociatedRules";
       toolId: "codeRename";
-      search: string;
-      replace: string;
-      sourcePrefix: string;
-      targetPrefix: string;
-      existingRules: KtcReplacementRuleDraft[];
-    }
-  | {
-      type: "chooseAssociatedRule";
-      toolId: "codeRename";
-      parentRule: KtcReplacementRuleDraft;
-      sourcePrefix: string;
-      targetPrefix: string;
+      primarySearch: string;
+      rules: KtcReplacementRuleDraft[];
       existingRules: KtcReplacementRuleDraft[];
     }
   | {
@@ -76,6 +65,7 @@ export type WebviewOutboundMessage =
       ignoreConfig?: IgnoreConfigSummary;
       toolOptions: Record<string, ToolOptionsState>;
       sidebarStyle: "ribbon" | "compact";
+      recentWorkingDirectories: KtcRecentWorkingDirectories;
       searchReplaceProfiles: readonly KtcSearchReplaceProfileSummary[];
       searchReplaceProfileError?: string;
     }
@@ -84,6 +74,7 @@ export type WebviewOutboundMessage =
   | { type: "ignoreConfig"; ignoreConfig?: IgnoreConfigSummary }
   | { type: "options"; toolId: string; options: ToolOptionsState }
   | { type: "sidebarStyle"; style: "ribbon" | "compact" }
+  | { type: "recentWorkingDirectories"; directories: KtcRecentWorkingDirectories; selected?: string }
   | {
       type: "searchReplaceProfiles";
       profiles: readonly KtcSearchReplaceProfileSummary[];
@@ -112,6 +103,25 @@ export interface ToolSummary {
   icon?: string;
 }
 
+export interface KtcRecentWorkingDirectories {
+  workspace: readonly string[];
+  external: readonly string[];
+}
+
+export type KtcAssociatedRulePickerMode = "custom" | "common" | "caa" | "row";
+
+export interface KtcAssociatedRulePickerCandidate {
+  id: string;
+  label: string;
+  rule: KtcReplacementRuleDraft;
+  checked: boolean;
+}
+
+export interface KtcAssociatedRulePickerState {
+  title: string;
+  candidates: readonly KtcAssociatedRulePickerCandidate[];
+}
+
 export interface EncodingFileResultSummary {
   file: string;
   relativePath: string;
@@ -129,6 +139,7 @@ export interface ToolUiState {
   message?: string;
   rootRenameSuggestion?: { currentName: string; suggestedName: string };
   associatedRules?: readonly KtcReplacementRuleDraft[];
+  associatedRulePicker?: KtcAssociatedRulePickerState;
   results?: FileResultSummary[];
   encodingResults?: EncodingFileResultSummary[];
   scanned?: number;

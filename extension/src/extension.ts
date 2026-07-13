@@ -16,7 +16,7 @@ export function activate(context: vscode.ExtensionContext): void {
   registerTool(ignoreSettingsTool);
   registerTool(codeRenameTool);
 
-  sidebarProvider = new SidebarViewProvider(context.extensionUri);
+  sidebarProvider = new SidebarViewProvider(context.extensionUri, context.globalState, context.workspaceState);
 
   for (const tool of getTools()) {
     tool.registerCommands(context);

@@ -486,7 +486,7 @@ export async function fixHeaders(root: string) {
 }
 ```
 
-**工作区根目录**：直接使用 `vscode.workspace.workspaceFolders?.[0]?.uri.fsPath`。不迁移 desk-tools 的工作区选择器、最近工作区、服务端 workspace prefs 或 workset scope；首期明确支持单文件夹工作区。
+**工作区根目录**：一般功能直接使用 `vscode.workspace.workspaceFolders?.[0]?.uri.fsPath`。搜索替换额外提供轻量本地目录选择和最近目录，不迁移 desk-tools 的服务端 workspace prefs 或 workset scope；工作区外目录作为独立扫描根。
 
 ---
 

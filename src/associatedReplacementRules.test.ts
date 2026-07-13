@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   KTC_CAA_RELATION_KINDS,
+  ktcAppendAssociatedReplacementRuleDrafts,
   ktcMergeAssociatedReplacementRules,
   ktcSplitNameTokens,
   ktcSuggestAssociatedReplacementRule,
+  ktcSuggestAssociatedReplacementRuleCandidates,
   ktcSuggestAssociatedReplacementRules,
 } from "./associatedReplacementRules.js";
 
@@ -114,6 +116,40 @@ describe("associatedReplacementRules", () => {
       search: "PNXETemplateFeature",
       replace: "PNXECurveDivision",
     });
+  });
+
+  it("候选规则保留不同目标方案并隐藏已经存在的搜索词", () => {
+    const rules = ktcSuggestAssociatedReplacementRuleCandidates({
+      relationKinds: ["spaced", "prefix", ...KTC_CAA_RELATION_KINDS],
+      parent: { id: "primary", search: "AutoCode", replace: "TomBuild" },
+      sourcePrefix: "KTC",
+      targetPrefix: "KTC",
+      existingSearches: ["KTCIAutoCode"],
+    });
+
+    expect(rules.some((rule) => rule.search === "KTCIAutoCode")).toBe(false);
+    expect(rules.filter((rule) => rule.search === "KTCEAutoCode")).toHaveLength(2);
+    expect(rules.map((rule) => rule.relationKind)).toEqual([
+      "spaced",
+      "prefix",
+      "caa-e",
+      "caa-e-full",
+    ]);
+  });
+
+  it("追加选中规则时保留旧规则并忽略重复和空搜索词", () => {
+    const existing = [
+      { id: "spaced", search: "Auto Code", replace: "Tom Build", source: "generated" as const },
+      { id: "manual", search: "Auto_Code", replace: "Tom_Build", source: "user" as const },
+    ];
+    const appended = ktcAppendAssociatedReplacementRuleDrafts([
+      { id: "duplicate", search: "Auto Code", replace: "Other", source: "generated" },
+      { id: "primary-copy", search: "AutoCode", replace: "Other", source: "user" },
+      { id: "empty", search: "", replace: "Ignored", source: "user" },
+      { id: "new", search: "KTCIAutoCode", replace: "KTCITomBuild", source: "generated" },
+    ], existing, ["AutoCode"]);
+
+    expect(appended.map((rule) => rule.id)).toEqual(["spaced", "manual", "new"]);
   });
 
   it("不写死 AutoCode 或 CAA I/E 规则", () => {

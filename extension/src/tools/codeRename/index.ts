@@ -2,54 +2,21 @@ import * as vscode from "vscode";
 import { basename, resolve } from "node:path";
 import { ktcSuggestNameReplacement } from "../../../../src/replacementRules.js";
 import {
-  KTC_CAA_RELATION_KINDS,
+  ktcAppendAssociatedReplacementRuleDrafts,
   ktcMergeAssociatedReplacementRules,
-  ktcSuggestAssociatedReplacementRule,
-  ktcSuggestAssociatedReplacementRules,
-} from "../../../../src/associatedReplacementRules.js";
-import type {
-  KtcAssociatedRelationKind,
-  KtcAssociatedRulePreset,
-  KtcReplacementRuleDraft,
 } from "../../../../src/associatedReplacementRules.js";
 import type { KtcSearchReplaceRequest } from "../../../../src/searchReplaceContracts.js";
 import { ktcResolveWorkspaceWorkingDirectory } from "../../../../src/workspaceRename.js";
 import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
 import { KtcSearchReplaceController } from "../../searchReplaceController.js";
+import { ktcCreateAssociatedRulePicker } from "./associatedRulePicker.js";
 
 let searchReplaceController: KtcSearchReplaceController | undefined;
 
-const associatedRuleItems: readonly (vscode.QuickPickItem & { relationKind: KtcAssociatedRelationKind })[] = [
-  { label: "空格写法", description: "CaaStudy → Caa Study", relationKind: "spaced" },
-  { label: "前缀替换", description: "使用源前缀和目标前缀", relationKind: "prefix" },
-  { label: "CAA I（完整名称）", description: "I 后使用完整目标名称", relationKind: "caa-i-full" },
-  { label: "CAA E（完整名称）", description: "E 后使用完整目标名称", relationKind: "caa-e-full" },
-  { label: "CAA I（末词段）", description: "保留源名称前段，只替换末词段", relationKind: "caa-i" },
-  { label: "CAA E（末词段）", description: "保留源名称前段，只替换末词段", relationKind: "caa-e" },
-];
-
-const caaPresetItems: readonly (vscode.QuickPickItem & { preset: "caa-full" | "caa-tail" })[] = [
-  {
-    label: "完整名称 I/E",
-    description: "常规 CAA 重命名",
-    detail: "PNXITemplateFeature → PNXICurveDivision",
-    preset: "caa-full",
-  },
-  {
-    label: "仅替换末词段 I/E",
-    description: "保留源名称前段",
-    detail: "KTCIAutoCode → KTCIAutoBuild",
-    preset: "caa-tail",
-  },
-];
-
-interface AssociatedRuleGenerationRequest {
-  search: string;
-  replace: string;
-  sourcePrefix: string;
-  targetPrefix: string;
-  existingRules: readonly KtcReplacementRuleDraft[];
-}
+type AssociatedRuleCandidateRequest = Extract<
+  WebviewInboundMessage,
+  { type: "requestAssociatedRuleCandidates" }
+>;
 
 export const codeRenameTool: KtTool = {
   id: "codeRename",
@@ -74,59 +41,23 @@ export const codeRenameTool: KtTool = {
   },
 
   async handleMessage(message: WebviewInboundMessage, ctx: ToolRunContext): Promise<void> {
-    if (message.type === "deriveAssociatedRules" && message.toolId === this.id) {
-      if (!message.search.trim() || !message.replace.trim()) {
-        ctx.postState({ status: "error", message: "请先填写母规则的搜索和替换内容。" });
-        return;
-      }
-      postAssociatedRulePreset(ctx, message, message.preset);
+    if (message.type === "requestAssociatedRuleCandidates" && message.toolId === this.id) {
+      postAssociatedRulePicker(ctx, message);
       return;
     }
 
-    if (message.type === "chooseCaaRules" && message.toolId === this.id) {
-      if (!message.search.trim() || !message.replace.trim()) {
-        ctx.postState({ status: "error", message: "请先填写母规则的搜索和替换内容。" });
-        return;
-      }
-      const selected = await vscode.window.showQuickPick(caaPresetItems, {
-        placeHolder: "选择 CAA I/E 关联方式",
-      });
-      if (!selected) return;
-      postAssociatedRulePreset(ctx, message, selected.preset);
-      return;
-    }
-
-    if (message.type === "chooseAssociatedRule" && message.toolId === this.id) {
-      const existingSearches = new Set(message.existingRules.map((rule) => rule.search));
-      const availableItems = associatedRuleItems
-        .map((item) => ({
-          ...item,
-          rule: ktcSuggestAssociatedReplacementRule(
-            item.relationKind,
-            message.parentRule,
-            message.sourcePrefix,
-            message.targetPrefix,
-          ),
-        }))
-        .filter((item) => item.rule !== undefined && !existingSearches.has(item.rule.search));
-      if (availableItems.length === 0) {
-        ctx.postState({ status: "error", message: "当前行没有尚未添加的关联形式。" });
-        return;
-      }
-      const selected = await vscode.window.showQuickPick(availableItems, {
-        placeHolder: "添加一种关联规则",
-      });
-      if (!selected) return;
-      const rule = selected.rule;
-      if (!rule) return;
-      const associatedRules = ktcMergeAssociatedReplacementRules(
-        [rule],
+    if (message.type === "appendAssociatedRules" && message.toolId === this.id) {
+      const associatedRules = ktcAppendAssociatedReplacementRuleDrafts(
+        message.rules,
         message.existingRules,
-        [],
+        [message.primarySearch],
       );
+      const addedCount = associatedRules.length - message.existingRules.length;
       ctx.postState({
-        status: "done",
-        message: `已添加“${selected.label}”。`,
+        status: addedCount > 0 ? "done" : "idle",
+        message: addedCount > 0
+          ? `已添加 ${addedCount} 条关联规则。`
+          : "所选规则已存在，未重复添加。",
         associatedRules,
       });
       return;
@@ -201,39 +132,15 @@ export const codeRenameTool: KtTool = {
   },
 };
 
-function postAssociatedRulePreset(
+function postAssociatedRulePicker(
   ctx: ToolRunContext,
-  request: AssociatedRuleGenerationRequest,
-  preset: KtcAssociatedRulePreset,
+  request: AssociatedRuleCandidateRequest,
 ): void {
-  const suggestion = ktcSuggestAssociatedReplacementRules(
-    request.search,
-    request.replace,
-    request.sourcePrefix,
-    request.targetPrefix,
-    preset,
-  );
-  const replacedKinds: readonly KtcAssociatedRelationKind[] = preset === "common"
-    ? ["spaced", "prefix"]
-    : KTC_CAA_RELATION_KINDS;
-  const associatedRules = ktcMergeAssociatedReplacementRules(
-    suggestion.rules,
-    request.existingRules,
-    replacedKinds,
-  );
-  const presetLabel = preset === "common"
-    ? "常用"
-    : preset === "caa-full"
-      ? "CAA 完整名称"
-      : "CAA 末词段";
+  const picker = ktcCreateAssociatedRulePicker(request);
   ctx.postState({
-    status: suggestion.rules.length > 0 ? "done" : "error",
-    message: suggestion.rules.length > 0
-      ? `已生成 ${suggestion.rules.length} 条${presetLabel}规则。`
-      : preset === "common"
-        ? "当前名称没有可生成的常用关联形式。"
-        : "CAA I/E 规则需要源前缀和至少两个源名称词段。",
-    associatedRules,
+    status: "idle",
+    message: picker.candidates.length > 0 ? "请选择要添加的关联规则。" : "没有新的推荐，可填写自定义规则。",
+    associatedRulePicker: picker,
   });
 }
 

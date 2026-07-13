@@ -1,4 +1,4 @@
-import * as vscode from "vscode";
+import type * as vscode from "vscode";
 import type { ToolSummary, WebviewOutboundMessage } from "../tools/types.js";
 import { ktcCreateWebviewSecurity } from "../webviewSupport.js";
 
@@ -123,6 +123,23 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .replace-options { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 9px 0; }
     .replace-options label { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; }
     .replace-scope { margin-top: 6px; }
+    .working-directory { grid-template-columns: minmax(0, 1fr) 30px; }
+    .working-directory input { min-width: 0; }
+    .folder-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      border: 1px solid var(--vscode-button-secondaryBackground, var(--vscode-panel-border));
+      border-radius: 2px;
+      color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+      background: var(--vscode-button-secondaryBackground, transparent);
+      cursor: pointer;
+    }
+    .folder-button:hover { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-toolbar-hoverBackground)); }
+    .folder-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     .replace-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 9px; }
     .root-rename-hint {
       margin: 7px 0 0;
@@ -158,6 +175,83 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .rule-row button:hover { background: var(--vscode-list-hoverBackground); }
     .rule-row button:disabled { opacity: 0.45; cursor: default; }
     .rule-tools { display: flex; flex-wrap: wrap; gap: 5px 12px; margin-top: 6px; }
+    .rule-picker-dialog {
+      width: min(430px, calc(100vw - 20px));
+      max-height: calc(100vh - 24px);
+      padding: 0;
+      border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+      border-radius: 4px;
+      color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+      background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background));
+      box-shadow: 0 8px 24px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.35));
+    }
+    .rule-picker-dialog::backdrop { background: rgba(0, 0, 0, 0.38); }
+    .rule-picker-shell { display: flex; flex-direction: column; max-height: calc(100vh - 26px); }
+    .rule-picker-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 38px;
+      padding: 6px 10px 6px 12px;
+      border-bottom: 1px solid var(--vscode-panel-border);
+    }
+    .rule-picker-header strong { font-size: 12px; font-weight: 600; }
+    .rule-picker-close {
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      border: 0;
+      color: var(--vscode-foreground);
+      background: transparent;
+      cursor: pointer;
+      font-size: 17px;
+    }
+    .rule-picker-close:hover { background: var(--vscode-toolbar-hoverBackground); }
+    .rule-picker-list { overflow: auto; padding: 6px 12px 2px; }
+    .rule-picker-empty { margin: 7px 0; color: var(--vscode-descriptionForeground); font-size: 11px; }
+    .rule-picker-row {
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr);
+      gap: 7px;
+      align-items: start;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--vscode-panel-border);
+    }
+    .rule-picker-row > input[type="checkbox"] { margin-top: 3px; }
+    .rule-picker-label { margin-bottom: 4px; color: var(--vscode-descriptionForeground); font-size: 10px; }
+    .rule-picker-values {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      gap: 5px;
+      align-items: center;
+    }
+    .rule-picker-values code {
+      overflow: hidden;
+      padding: 3px 5px;
+      color: var(--vscode-input-foreground);
+      background: var(--vscode-textCodeBlock-background);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .rule-picker-values input {
+      min-width: 0;
+      height: 27px;
+      padding: 3px 6px;
+      border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+      border-radius: 2px;
+      outline: none;
+      color: var(--vscode-input-foreground);
+      background: var(--vscode-input-background);
+      font-family: var(--vscode-editor-font-family);
+    }
+    .rule-picker-values input:focus { border-color: var(--vscode-focusBorder); }
+    .rule-picker-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+      padding: 8px 12px;
+      border-top: 1px solid var(--vscode-panel-border);
+    }
     @media (max-width: 320px) {
       .profile-row, .prefix-fields { grid-template-columns: minmax(0, 1fr); }
       .profile-row button { justify-self: start; }
@@ -166,6 +260,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       .rule-row > input[type="checkbox"] { grid-row: 1 / span 2; }
       .rule-row > input:not([type="checkbox"]) { grid-column: 2; }
       .rule-actions { grid-column: 3; grid-row: 1 / span 2; }
+      .rule-picker-values { grid-template-columns: minmax(0, 1fr); }
+      .rule-picker-values .prefix-arrow { display: none; }
       body .preset-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
       body .preset-row select { grid-column: 1 / -1; }
     }
@@ -328,8 +424,12 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         <label><input id="replace-dir" type="checkbox" />文件夹名</label>
         <label><input id="replace-ignored" type="checkbox" />包含 Ignore</label>
       </div>
-      <div class="replace-fields replace-scope">
-        <input id="replace-scope" type="text" spellcheck="false" placeholder="工作目录（留空为当前工作区）" aria-label="搜索替换工作目录" title="可填工作区内的相对或绝对路径；非根目录本身可参与改名" />
+      <div class="replace-fields replace-scope working-directory">
+        <input id="replace-scope" type="text" list="recent-working-directories" spellcheck="false" placeholder="工作目录（留空为当前工作区）" aria-label="搜索替换工作目录" title="可填相对路径或任意绝对目录；留空使用当前工作区" />
+        <datalist id="recent-working-directories"></datalist>
+        <button class="folder-button" id="btn-pick-working-directory" type="button" title="选择工作目录" aria-label="选择工作目录">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.82 1.2A2 2 0 0 0 12.1 6H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z"/><path d="M2 10h20"/></svg>
+        </button>
       </div>
       <div class="replace-more-bar">
         <button class="text-button" id="btn-expand-rules" type="button">展开关联规则</button>
@@ -351,7 +451,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         <div class="rule-tools">
           <button class="text-button" id="btn-add-rule" type="button">+ 自定义规则</button>
           <button class="text-button" id="btn-common-rules" type="button">常用规则</button>
-          <button class="text-button" id="btn-caa-rules" type="button">CAA 规则 ▾</button>
+          <button class="text-button" id="btn-caa-rules" type="button">CAA 规则</button>
         </div>
       </div>
       <div class="replace-actions">
@@ -428,6 +528,19 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     <ul class="results" id="results"></ul>
     <p class="empty" id="empty-hint">点击「预检」查看头文件中的问题字节。</p>
   </div>
+  <dialog class="rule-picker-dialog" id="rule-picker" aria-labelledby="rule-picker-title">
+    <div class="rule-picker-shell">
+      <div class="rule-picker-header">
+        <strong id="rule-picker-title">添加关联规则</strong>
+        <button class="rule-picker-close" id="rule-picker-close" type="button" title="关闭" aria-label="关闭">×</button>
+      </div>
+      <div class="rule-picker-list" id="rule-picker-list"></div>
+      <div class="rule-picker-footer">
+        <button class="action secondary" id="rule-picker-cancel" type="button">取消</button>
+        <button class="action" id="rule-picker-confirm" type="button">添加</button>
+      </div>
+    </div>
+  </dialog>
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
     const saved = vscode.getState() || {};
@@ -443,10 +556,16 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       showDetails: !!saved.showDetails,
       showEncDetails: !!saved.showEncDetails,
       sidebarStyle: "ribbon",
+      recentWorkingDirectories: { workspace: [], external: [] },
       searchReplaceProfiles: [],
       searchReplaceProfileError: "",
       replace: Object.assign({ search: "", with: "", text: true, file: false, dir: false, ignored: false, scope: "", expanded: false, sourcePrefix: legacyPrefix, targetPrefix: legacyPrefix, preserveCase: false, extraRules: [], profileId: "" }, savedReplace),
     };
+    state.replace.extraRules = (state.replace.extraRules || []).filter((rule) => (
+      (rule.search || "").trim() || (rule.replace || "").trim()
+    ));
+    state.replace.scope = "";
+    let activeRulePicker = null;
 
     const els = {
       tabs: document.getElementById("tabs"),
@@ -460,6 +579,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       replaceDir: document.getElementById("replace-dir"),
       replaceIgnored: document.getElementById("replace-ignored"),
       replaceScope: document.getElementById("replace-scope"),
+      recentWorkingDirectories: document.getElementById("recent-working-directories"),
+      btnPickWorkingDirectory: document.getElementById("btn-pick-working-directory"),
       btnExpandRules: document.getElementById("btn-expand-rules"),
       multiRules: document.getElementById("multi-rules"),
       replaceProfile: document.getElementById("replace-profile"),
@@ -471,6 +592,12 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       btnAddRule: document.getElementById("btn-add-rule"),
       btnCommonRules: document.getElementById("btn-common-rules"),
       btnCaaRules: document.getElementById("btn-caa-rules"),
+      rulePicker: document.getElementById("rule-picker"),
+      rulePickerTitle: document.getElementById("rule-picker-title"),
+      rulePickerList: document.getElementById("rule-picker-list"),
+      rulePickerClose: document.getElementById("rule-picker-close"),
+      rulePickerCancel: document.getElementById("rule-picker-cancel"),
+      rulePickerConfirm: document.getElementById("rule-picker-confirm"),
       replacePreview: document.getElementById("btn-replace-preview"),
       replaceApply: document.getElementById("btn-replace-apply"),
       rootRenameHint: document.getElementById("root-rename-hint"),
@@ -680,6 +807,99 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.btnAnalyzeIgnore.disabled = false;
     }
 
+    function updateRulePickerConfirm() {
+      const selected = els.rulePickerList.querySelectorAll("[data-rule-index]:checked").length > 0;
+      const customEnabled = els.rulePickerList.querySelector("[data-custom-enabled]");
+      const customSearch = els.rulePickerList.querySelector("[data-custom-search]");
+      els.rulePickerConfirm.disabled = !selected
+        && !(customEnabled?.checked && customSearch?.value.trim());
+    }
+
+    function closeRulePicker() {
+      if (els.rulePicker.open) els.rulePicker.close();
+      activeRulePicker = null;
+      els.rulePickerList.innerHTML = "";
+    }
+
+    function openRulePicker(picker) {
+      activeRulePicker = picker;
+      els.rulePickerTitle.textContent = picker.title || "添加关联规则";
+      els.rulePickerList.innerHTML = "";
+      if (!picker.candidates.length) {
+        const empty = document.createElement("p");
+        empty.className = "rule-picker-empty";
+        empty.textContent = "没有新的推荐规则。";
+        els.rulePickerList.appendChild(empty);
+      }
+      picker.candidates.forEach((candidate, index) => {
+        const row = document.createElement("label");
+        row.className = "rule-picker-row";
+        const checked = document.createElement("input");
+        checked.type = "checkbox";
+        checked.checked = !!candidate.checked;
+        checked.dataset.ruleIndex = String(index);
+        checked.onchange = updateRulePickerConfirm;
+        const content = document.createElement("div");
+        const label = document.createElement("div");
+        label.className = "rule-picker-label";
+        label.textContent = candidate.label;
+        const values = document.createElement("div");
+        values.className = "rule-picker-values";
+        const search = document.createElement("code");
+        search.textContent = candidate.rule.search;
+        search.title = candidate.rule.search;
+        const arrow = document.createElement("span");
+        arrow.className = "prefix-arrow";
+        arrow.textContent = "→";
+        const replace = document.createElement("code");
+        replace.textContent = candidate.rule.replace;
+        replace.title = candidate.rule.replace;
+        values.append(search, arrow, replace);
+        content.append(label, values);
+        row.append(checked, content);
+        els.rulePickerList.appendChild(row);
+      });
+
+      const customRow = document.createElement("div");
+      customRow.className = "rule-picker-row";
+      const customEnabled = document.createElement("input");
+      customEnabled.type = "checkbox";
+      customEnabled.dataset.customEnabled = "true";
+      const customContent = document.createElement("div");
+      const customLabel = document.createElement("div");
+      customLabel.className = "rule-picker-label";
+      customLabel.textContent = "自定义规则";
+      const customValues = document.createElement("div");
+      customValues.className = "rule-picker-values";
+      const customSearch = document.createElement("input");
+      customSearch.placeholder = "Source";
+      customSearch.setAttribute("aria-label", "自定义规则 Source");
+      customSearch.dataset.customSearch = "true";
+      const customArrow = document.createElement("span");
+      customArrow.className = "prefix-arrow";
+      customArrow.textContent = "→";
+      const customReplace = document.createElement("input");
+      customReplace.placeholder = "Target";
+      customReplace.setAttribute("aria-label", "自定义规则 Target");
+      customReplace.dataset.customReplace = "true";
+      const updateCustom = () => {
+        if (customSearch.value.trim()) customEnabled.checked = true;
+        updateRulePickerConfirm();
+      };
+      customEnabled.onchange = updateRulePickerConfirm;
+      customSearch.oninput = updateCustom;
+      customReplace.oninput = updateCustom;
+      customSearch.onkeydown = stopTextInputEnter;
+      customReplace.onkeydown = stopTextInputEnter;
+      customValues.append(customSearch, customArrow, customReplace);
+      customContent.append(customLabel, customValues);
+      customRow.append(customEnabled, customContent);
+      els.rulePickerList.appendChild(customRow);
+      updateRulePickerConfirm();
+      if (!els.rulePicker.open) els.rulePicker.showModal();
+      if (picker.candidates.length === 0) customSearch.focus();
+    }
+
     function renderExtraRules() {
       els.multiRules.hidden = !state.replace.expanded;
       els.btnExpandRules.textContent = state.replace.expanded ? "收起关联规则" : "展开关联规则";
@@ -731,17 +951,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         up.onclick = () => { state.replace.extraRules.splice(index - 1, 0, state.replace.extraRules.splice(index, 1)[0]); saveReplaceState(); renderExtraRules(); };
         down.onclick = () => { state.replace.extraRules.splice(index + 1, 0, state.replace.extraRules.splice(index, 1)[0]); saveReplaceState(); renderExtraRules(); };
         remove.onclick = () => { state.replace.extraRules.splice(index, 1); saveReplaceState(); renderExtraRules(); };
-        addRelation.onclick = () => {
-          saveReplaceState();
-          vscode.postMessage({
-            type: "chooseAssociatedRule",
-            toolId: "codeRename",
-            parentRule: { ...rule },
-            sourcePrefix: state.replace.sourcePrefix,
-            targetPrefix: state.replace.targetPrefix,
-            existingRules: state.replace.extraRules,
-          });
-        };
+        addRelation.onclick = () => requestAssociatedRulePicker("row", { ...rule });
         actions.append(up, down, remove, addRelation);
         row.append(enabled, search, replace, actions);
         els.extraRules.appendChild(row);
@@ -766,6 +976,22 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         : "";
       els.replaceProfile.disabled = !!state.searchReplaceProfileError || state.searchReplaceProfiles.length === 0;
       els.replaceProfile.title = state.searchReplaceProfileError || "填入已保存的工作区规则";
+    }
+
+    function renderRecentWorkingDirectories() {
+      els.recentWorkingDirectories.innerHTML = "";
+      const appendOption = (directory, label) => {
+        const option = document.createElement("option");
+        option.value = directory;
+        option.label = label;
+        els.recentWorkingDirectories.appendChild(option);
+      };
+      for (const directory of state.recentWorkingDirectories.workspace || []) {
+        appendOption(directory, "当前工作区 · " + directory);
+      }
+      for (const directory of state.recentWorkingDirectories.external || []) {
+        appendOption(directory, "外部 · " + directory);
+      }
     }
 
     function render() {
@@ -821,6 +1047,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         els.replaceDir.checked = state.replace.dir;
         els.replaceIgnored.checked = state.replace.ignored;
         els.replaceScope.value = state.replace.scope;
+        renderRecentWorkingDirectories();
         renderExtraRules();
         els.replacePreview.disabled = running;
         els.replaceApply.disabled = running;
@@ -962,11 +1189,25 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       renderExtraRules();
     };
     els.preserveCase.onchange = saveReplaceState;
-    els.btnAddRule.onclick = () => {
-      state.replace.extraRules.push({ id: "extra-" + Date.now(), search: "", replace: "", enabled: true, source: "user", relationKind: "custom" });
+    function requestAssociatedRulePicker(mode, parentRule) {
       saveReplaceState();
-      renderExtraRules();
-    };
+      vscode.postMessage({
+        type: "requestAssociatedRuleCandidates",
+        toolId: "codeRename",
+        mode,
+        search: state.replace.search,
+        replace: state.replace.with,
+        sourcePrefix: state.replace.sourcePrefix,
+        targetPrefix: state.replace.targetPrefix,
+        parentRule,
+        existingRules: state.replace.extraRules,
+      });
+    }
+    els.btnAddRule.onclick = () => requestAssociatedRulePicker("custom");
+    els.btnPickWorkingDirectory.onclick = () => vscode.postMessage({
+      type: "pickSearchReplaceDirectory",
+      toolId: "codeRename",
+    });
     els.replaceProfile.onchange = () => {
       if (!els.replaceProfile.value) return;
       vscode.postMessage({
@@ -997,31 +1238,42 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         },
       });
     };
-    function generateAssociatedRules(preset) {
-      saveReplaceState();
+    els.btnCommonRules.onclick = () => requestAssociatedRulePicker("common");
+    els.btnCaaRules.onclick = () => requestAssociatedRulePicker("caa");
+    els.rulePickerClose.onclick = closeRulePicker;
+    els.rulePickerCancel.onclick = closeRulePicker;
+    els.rulePicker.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      closeRulePicker();
+    });
+    els.rulePickerConfirm.onclick = () => {
+      if (!activeRulePicker) return;
+      const selectedRules = [];
+      for (const input of els.rulePickerList.querySelectorAll("[data-rule-index]:checked")) {
+        const candidate = activeRulePicker.candidates[Number(input.dataset.ruleIndex)];
+        if (candidate) selectedRules.push(candidate.rule);
+      }
+      const customEnabled = els.rulePickerList.querySelector("[data-custom-enabled]");
+      const customSearch = els.rulePickerList.querySelector("[data-custom-search]");
+      const customReplace = els.rulePickerList.querySelector("[data-custom-replace]");
+      if (customEnabled?.checked && customSearch?.value.trim()) {
+        selectedRules.push({
+          id: "custom-" + Date.now(),
+          search: customSearch.value,
+          replace: customReplace?.value || "",
+          enabled: true,
+          source: "user",
+          relationKind: "custom",
+        });
+      }
       vscode.postMessage({
-        type: "deriveAssociatedRules",
+        type: "appendAssociatedRules",
         toolId: "codeRename",
-        search: state.replace.search,
-        replace: state.replace.with,
-        sourcePrefix: state.replace.sourcePrefix,
-        targetPrefix: state.replace.targetPrefix,
-        preset,
+        primarySearch: state.replace.search,
+        rules: selectedRules,
         existingRules: state.replace.extraRules,
       });
-    }
-    els.btnCommonRules.onclick = () => generateAssociatedRules("common");
-    els.btnCaaRules.onclick = () => {
-      saveReplaceState();
-      vscode.postMessage({
-        type: "chooseCaaRules",
-        toolId: "codeRename",
-        search: state.replace.search,
-        replace: state.replace.with,
-        sourcePrefix: state.replace.sourcePrefix,
-        targetPrefix: state.replace.targetPrefix,
-        existingRules: state.replace.extraRules,
-      });
+      closeRulePicker();
     };
     function clearGeneratedRulesAndSave() {
       const retained = state.replace.extraRules.filter((rule) => rule.source !== "generated");
@@ -1040,6 +1292,16 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     els.replaceSourcePrefix.oninput = clearGeneratedRulesAndSave;
     els.replaceTargetPrefix.oninput = clearGeneratedRulesAndSave;
     els.replaceScope.oninput = saveReplaceState;
+    els.replaceScope.onchange = () => {
+      saveReplaceState();
+      if (els.replaceScope.value.trim()) {
+        vscode.postMessage({
+          type: "rememberSearchReplaceDirectory",
+          toolId: "codeRename",
+          directory: els.replaceScope.value,
+        });
+      }
+    };
     for (const input of [els.replaceText, els.replaceFile, els.replaceDir, els.replaceIgnored]) {
       input.onchange = saveReplaceState;
     }
@@ -1096,6 +1358,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         state.scope = msg.scope || state.scope;
         state.ignoreConfig = msg.ignoreConfig || null;
         state.sidebarStyle = msg.sidebarStyle || "ribbon";
+        state.recentWorkingDirectories = msg.recentWorkingDirectories || { workspace: [], external: [] };
         state.searchReplaceProfiles = msg.searchReplaceProfiles || [];
         state.searchReplaceProfileError = msg.searchReplaceProfileError || "";
         els.workspace.textContent = msg.workspaceLabel;
@@ -1114,6 +1377,14 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       } else if (msg.type === "sidebarStyle") {
         state.sidebarStyle = msg.style || "ribbon";
         render();
+      } else if (msg.type === "recentWorkingDirectories") {
+        state.recentWorkingDirectories = msg.directories || { workspace: [], external: [] };
+        renderRecentWorkingDirectories();
+        if (typeof msg.selected === "string") {
+          state.replace.scope = msg.selected;
+          els.replaceScope.value = msg.selected;
+          saveReplaceState();
+        }
       } else if (msg.type === "searchReplaceProfiles") {
         state.searchReplaceProfiles = msg.profiles || [];
         state.searchReplaceProfileError = msg.error || "";
@@ -1139,12 +1410,14 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         }
         render();
       } else if (msg.type === "state") {
+        const associatedRulePicker = msg.toolId === "codeRename" ? msg.state.associatedRulePicker : null;
         if (msg.toolId === "codeRename" && msg.state.associatedRules) {
           state.replace.extraRules = [...msg.state.associatedRules];
           vscode.setState({ showDetails: state.showDetails, showEncDetails: state.showEncDetails, replace: state.replace });
         }
         state.toolStates[msg.toolId] = msg.state;
         render();
+        if (associatedRulePicker) openRulePicker(associatedRulePicker);
       }
     });
 

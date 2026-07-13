@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { ktcBuildRenameResultViewModel } from "../../src/renameResultViewModel.js";
+import { loadDotIgnore } from "../../src/dotIgnore.js";
 import type {
   KtcSearchReplaceRequest,
   KtcSearchReplaceRunResult,
@@ -14,6 +15,7 @@ import { logOutput } from "./output.js";
 import { CodeRenamePanel } from "./workbench/codeRenamePanel.js";
 import { getWorkspaceRoot } from "./workspace.js";
 import { resolveWorkspaceIgnorePatterns } from "./ignoreConfig.js";
+import { ktcResolveSearchReplaceLocation } from "./searchReplaceLocation.js";
 
 export class KtcSearchReplaceController {
   constructor(private readonly extensionUri: vscode.Uri) {}
@@ -25,22 +27,21 @@ export class KtcSearchReplaceController {
   async run(request: KtcSearchReplaceRequest, apply: boolean): Promise<KtcSearchReplaceRunResult> {
     const panel = await CodeRenamePanel.show(this.extensionUri);
     if (!panel) return "error";
-    const root = getWorkspaceRoot();
-    if (!root) {
-      panel.showError("请先打开一个工作区文件夹。");
-      return "error";
-    }
     try {
+      const workspaceRoot = getWorkspaceRoot();
+      const location = ktcResolveSearchReplaceLocation(workspaceRoot, request.scope);
       const options: WorkspaceRenameOptions = {
-        root,
+        root: location.root,
         oldName: request.oldName,
         newName: request.newName,
         rules: request.rules,
         preserveCase: request.preserveCase,
         levels: request.levels,
-        scope: request.scope?.trim(),
+        scope: location.scope,
         includeIgnored: request.includeIgnored ?? false,
-        ignorePatterns: resolveWorkspaceIgnorePatterns(root),
+        ignorePatterns: location.usesCurrentWorkspace && workspaceRoot
+          ? resolveWorkspaceIgnorePatterns(workspaceRoot)
+          : loadDotIgnore(location.root),
         apply: false,
       };
       panel.showRunning(false);
@@ -73,14 +74,15 @@ export class KtcSearchReplaceController {
     options: WorkspaceRenameOptions,
   ): void {
     logOutput(formatRenameLog(report, options));
-    panel.showReport(ktcBuildRenameResultViewModel(report));
+    panel.showReport(ktcBuildRenameResultViewModel(report), options.ignorePatterns?.length ?? 0);
   }
 
   private async confirmWrite(request: KtcSearchReplaceRequest): Promise<boolean> {
+    const workingDirectory = request.scope?.trim() || "当前 VS Code 工作区";
     const answer = await vscode.window.showWarningMessage(
       request.rules && request.rules.length > 1
-        ? `将写盘执行 ${request.rules.length} 条搜索替换规则。\n\n建议先预览并提交 Git。`
-        : `将写盘执行搜索替换：\n${request.oldName} → ${request.newName}\n\n建议先预览并提交 Git。`,
+        ? `将写盘执行 ${request.rules.length} 条搜索替换规则。\n工作目录：${workingDirectory}\n\n建议先预览并提交 Git。`
+        : `将写盘执行搜索替换：\n${request.oldName} → ${request.newName}\n工作目录：${workingDirectory}\n\n建议先预览并提交 Git。`,
       { modal: true },
       "执行替换",
     );

@@ -41,6 +41,14 @@ export interface KtcAssociatedRuleSuggestion {
   rules: readonly KtcAssociatedReplacementRule[];
 }
 
+export interface KtcAssociatedRuleCandidateOptions {
+  relationKinds: readonly KtcAssociatedRelationKind[];
+  parent: Pick<KtcReplacementRuleDraft, "id" | "search" | "replace" | "relationKind">;
+  sourcePrefix?: string;
+  targetPrefix?: string;
+  existingSearches?: readonly string[];
+}
+
 const legacyTemplateRules = new Map<string, Pick<ReplacementRule, "search" | "replace">>([
   ["ktce", { search: "KTCEAutoCode", replace: "KTCEAutoBuild" }],
   ["ktc", { search: "KTCAutoCode", replace: "KTCTomBuild" }],
@@ -139,6 +147,46 @@ export function ktcSuggestAssociatedReplacementRule(
     replace: derivedReplace,
     enabled: true,
   };
+}
+
+export function ktcSuggestAssociatedReplacementRuleCandidates(
+  options: KtcAssociatedRuleCandidateOptions,
+): readonly KtcAssociatedReplacementRule[] {
+  const existingSearches = new Set(options.existingSearches?.filter(Boolean) ?? []);
+  return options.relationKinds
+    .map((relationKind) => ktcSuggestAssociatedReplacementRule(
+      relationKind,
+      options.parent,
+      options.sourcePrefix,
+      options.targetPrefix ?? options.sourcePrefix,
+    ))
+    .filter((rule): rule is KtcAssociatedReplacementRule => (
+      rule !== undefined && !existingSearches.has(rule.search)
+    ));
+}
+
+export function ktcAppendAssociatedReplacementRuleDrafts(
+  additions: readonly KtcReplacementRuleDraft[],
+  existing: readonly KtcReplacementRuleDraft[],
+  reservedSearches: readonly string[] = [],
+): readonly KtcReplacementRuleDraft[] {
+  const result = existing.map((rule) => ({ ...rule }));
+  const searches = new Set([
+    ...reservedSearches.filter(Boolean),
+    ...existing.map((rule) => rule.search).filter(Boolean),
+  ]);
+  for (const [index, addition] of additions.entries()) {
+    if (addition.search.trim() === "" || searches.has(addition.search)) continue;
+    searches.add(addition.search);
+    result.push({
+      ...addition,
+      id: addition.id || `associated-custom-${result.length + index + 1}`,
+      enabled: addition.enabled !== false,
+      source: addition.source ?? "user",
+      relationKind: addition.relationKind ?? "custom",
+    });
+  }
+  return result;
 }
 
 /**
