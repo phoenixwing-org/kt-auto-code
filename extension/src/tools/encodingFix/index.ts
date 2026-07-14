@@ -1,6 +1,10 @@
 import * as vscode from "vscode";
 import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
 import { openEncodingFile, runEncodingFixAction } from "./commands.js";
+import { KtcEncodingResultView } from "../../workbench/encodingResultView.js";
+
+let encodingResultView: KtcEncodingResultView | undefined;
+export function registerEncodingResultView(context: vscode.ExtensionContext): void { encodingResultView = new KtcEncodingResultView(context); context.subscriptions.push(encodingResultView); }
 
 export const encodingFixTool: KtTool = {
   id: "encodingFix",
@@ -24,18 +28,19 @@ export const encodingFixTool: KtTool = {
     const makeHandler = (action: string) => () => {
       const ctx = getRunContext();
       if (!ctx) return;
-      void runEncodingFixAction(action, ctx);
+      void runWithResults(action, ctx);
     };
 
     context.subscriptions.push(
       vscode.commands.registerCommand("ktAutoCode.encodingFix.scan", makeHandler("scan")),
       vscode.commands.registerCommand("ktAutoCode.encodingFix.convert", makeHandler("convert")),
+      vscode.commands.registerCommand("ktAutoCode.encodingFix.openFile", openEncodingFile),
     );
   },
 
   async handleMessage(message: WebviewInboundMessage, ctx: ToolRunContext): Promise<void> {
     if (message.type === "run" && message.toolId === this.id) {
-      await runEncodingFixAction(message.action, ctx);
+      await runWithResults(message.action, ctx);
       return;
     }
     if (message.type === "openEncodingFile" && message.toolId === this.id) {
@@ -44,9 +49,11 @@ export const encodingFixTool: KtTool = {
   },
 
   async runAction(action: string, ctx: ToolRunContext): Promise<void> {
-    await runEncodingFixAction(action, ctx);
+    await runWithResults(action, ctx);
   },
 };
+
+async function runWithResults(action: string, ctx: ToolRunContext): Promise<void> { await runEncodingFixAction(action, { ...ctx, postState: (state) => { ctx.postState(state); if (state.status === "done" && state.encodingResults) encodingResultView?.show(state.encodingResults); } }); }
 
 let runContextFactory: (() => ToolRunContext | undefined) | undefined;
 

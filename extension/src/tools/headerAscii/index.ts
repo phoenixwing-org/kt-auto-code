@@ -2,7 +2,13 @@ import * as vscode from "vscode";
 import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
 import { openIssueFile, runHeaderAsciiAction } from "./commands.js";
 import { setPreserveGbk, setStripBom } from "./options.js";
-import { HeaderAsciiPanel } from "../../workbench/headerAsciiPanel.js";
+import { KtcHeaderAsciiResultView } from "../../workbench/headerAsciiResultView.js";
+
+let headerAsciiResultView: KtcHeaderAsciiResultView | undefined;
+export function registerHeaderAsciiResultView(context: vscode.ExtensionContext): void {
+  headerAsciiResultView = new KtcHeaderAsciiResultView(context);
+  context.subscriptions.push(headerAsciiResultView);
+}
 
 export const headerAsciiTool: KtTool = {
   id: "headerAscii",
@@ -34,6 +40,7 @@ export const headerAsciiTool: KtTool = {
     context.subscriptions.push(
       vscode.commands.registerCommand("ktAutoCode.headerAscii.scan", makeHandler("scan")),
       vscode.commands.registerCommand("ktAutoCode.headerAscii.fix", makeHandler("fix")),
+      vscode.commands.registerCommand("ktAutoCode.headerAscii.openIssue", openIssueFile),
     );
   },
 
@@ -65,7 +72,7 @@ async function runWithResults(action: string, ctx: ToolRunContext): Promise<void
     ...ctx,
     postState: (state) => {
       ctx.postState(state);
-      HeaderAsciiPanel.show(state);
+      if (state.status === "done" && state.results) headerAsciiResultView?.show(state.results);
     },
   });
 }

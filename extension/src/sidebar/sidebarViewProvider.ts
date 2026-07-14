@@ -11,6 +11,8 @@ import type {
 } from "../tools/types.js";
 import { setHeaderAsciiRunContextFactory } from "../tools/headerAscii/index.js";
 import { setEncodingFixRunContextFactory } from "../tools/encodingFix/index.js";
+import { setUuidReplaceRunContextFactory } from "../tools/uuidReplace/index.js";
+import { setCaaDialogRunContextFactory } from "../tools/caaDialog/index.js";
 import { getPreserveGbk, getStripBom } from "../tools/headerAscii/options.js";
 import { getFileScope, setFileScopeOption, type ScopeOptionKey } from "../scopeOptions.js";
 import { getWorkspaceLabel, getWorkspaceRoot } from "../workspace.js";
@@ -44,6 +46,8 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     this.recentWorkspaceDirectories = new KtcRecentWorkspaceDirectoryStore(workspaceState);
     setHeaderAsciiRunContextFactory(() => this.createRunContext("headerAscii"));
     setEncodingFixRunContextFactory(() => this.createRunContext("encodingFix"));
+    setUuidReplaceRunContextFactory(() => this.createRunContext("uuidReplace"));
+    setCaaDialogRunContextFactory(() => this.createRunContext("caaDialog"));
   }
 
   resolveWebviewView(
@@ -246,6 +250,15 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     if (message.type === "selectTool") {
       this.activeToolId = message.toolId;
       this.sendInit();
+      const showResultCommand = {
+        headerAscii: "ktAutoCode.headerAsciiResult.show",
+        encodingFix: "ktAutoCode.encodingResult.show",
+        codeRename: "ktAutoCode.codeRenameResult.show",
+        reorderMembers: "ktAutoCode.reorderMembers.showResults",
+        uuidReplace: "ktAutoCode.uuidReplace.showResults",
+        caaDialog: "ktAutoCode.caaDialog.showResults",
+      }[message.toolId];
+      if (showResultCommand) await vscode.commands.executeCommand(showResultCommand);
       return;
     }
 

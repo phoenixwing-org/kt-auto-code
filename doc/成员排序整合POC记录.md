@@ -6,7 +6,7 @@
 
 - `extension/src/tools/reorderMembers/` 只负责 VS Code Host 适配：工作区扫描、UTF-8/UTF-8 BOM/GBK 字节读写、写前指纹检查和会话级还原。
 - 排序只调用 `phoenix-wing/code-core` 的 `pnwReorderCppText` 与 `pnwReorderHeaderText`；不复制 DeskTools 或 Python 算法。
-- 结果位于编辑区 View：默认只显示有变更文件，用户勾选后确认写盘。
+- 结果位于 VS Code 底部 Panel 的原生“成员排序”视图：默认只显示有变更文件，用户勾选后确认写盘；工具栏可按需显示无变更文件。
 - 写盘后仅更新缓存表格状态；Git 差异由用户按需点击已写盘行打开，不批量弹出 Diff，也不创建 `untitled` 文档。
 - ↶ 还原恢复本次排序前的原始字节；若写盘后文件被外部修改，则拒绝覆盖。
 

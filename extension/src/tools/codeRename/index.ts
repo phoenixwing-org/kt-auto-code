@@ -9,9 +9,12 @@ import type { KtcSearchReplaceRequest } from "../../../../src/searchReplaceContr
 import { ktcResolveWorkspaceWorkingDirectory } from "../../../../src/workspaceRename.js";
 import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
 import { KtcSearchReplaceController } from "../../searchReplaceController.js";
+import { KtcCodeRenameResultView } from "../../workbench/codeRenameResultView.js";
 import { ktcCreateAssociatedRulePicker } from "./associatedRulePicker.js";
 
 let searchReplaceController: KtcSearchReplaceController | undefined;
+let codeRenameResultView: KtcCodeRenameResultView | undefined;
+export function registerCodeRenameResultView(context: vscode.ExtensionContext): void { codeRenameResultView = new KtcCodeRenameResultView(context); context.subscriptions.push(codeRenameResultView); }
 
 type AssociatedRuleCandidateRequest = Extract<
   WebviewInboundMessage,
@@ -29,7 +32,7 @@ export const codeRenameTool: KtTool = {
   },
 
   registerCommands(context: vscode.ExtensionContext): void {
-    searchReplaceController = new KtcSearchReplaceController(context.extensionUri);
+    searchReplaceController = new KtcSearchReplaceController(() => codeRenameResultView);
     context.subscriptions.push(
       vscode.commands.registerCommand("ktAutoCode.codeRename.open", () => {
         searchReplaceController?.open();
