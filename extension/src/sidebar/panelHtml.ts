@@ -183,7 +183,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     }
     .folder-button:hover { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-toolbar-hoverBackground)); }
     .folder-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-    .replace-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 9px; }
+    .replace-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0 0 9px; }
     .root-rename-hint {
       margin: 7px 0 0;
       padding: 5px 7px;
@@ -458,7 +458,15 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     </div>
     <p class="desc" id="tool-desc"></p>
     <p class="meta" id="workspace-meta">工作区：<strong id="workspace-label">—</strong></p>
+    <div class="actions" id="general-actions">
+      <button class="action secondary" id="btn-scan">预检</button>
+      <button class="action" id="btn-fix">修复</button>
+    </div>
     <section class="replace-block" id="replace-block" hidden>
+      <div class="replace-actions">
+        <button class="action secondary" id="btn-replace-preview" type="button">预览</button>
+        <button class="action" id="btn-replace-apply" type="button">替换</button>
+      </div>
       <div class="replace-fields">
         <input id="replace-search" type="text" spellcheck="false" placeholder="搜索" aria-label="搜索内容" />
         <input id="replace-with" type="text" spellcheck="false" placeholder="替换" aria-label="替换内容" />
@@ -507,10 +515,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
           <button class="text-button" id="btn-common-rules" type="button">常用规则</button>
           <button class="text-button" id="btn-caa-rules" type="button">CAA 规则</button>
         </div>
-      </div>
-      <div class="replace-actions">
-        <button class="action secondary" id="btn-replace-preview" type="button">预览</button>
-        <button class="action" id="btn-replace-apply" type="button">替换</button>
       </div>
       <p class="root-rename-hint" id="root-rename-hint" hidden>
         <span id="root-rename-message"></span><button class="text-button" id="btn-create-root-todo" type="button">创建 TODO</button>
@@ -578,10 +582,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         <input type="checkbox" id="opt-show-details" />
         <span id="opt-show-details-label">显示详细（原字符 → 修正为）</span>
       </label>
-    </div>
-    <div class="actions" id="general-actions">
-      <button class="action secondary" id="btn-scan">预检</button>
-      <button class="action" id="btn-fix">修复</button>
     </div>
     <p class="status" id="status"></p>
     <div class="results-title" id="results-title">预检结果</div>
@@ -1119,7 +1119,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.btnScan.disabled = running;
       els.btnFix.disabled = running;
       els.btnScan.textContent = rename ? "打开主视图" : (ignore ? "打开规则" : (uuid ? "扫描 UUID" : (caaDialog ? "扫描 CATDlg" : "预检")));
-      els.btnFix.textContent = enc ? "转换" : (ignore ? "从 .gitignore 同步" : (uuid ? "选择并替换" : (caaDialog ? "选择文件" : "修复")));
+      els.btnFix.textContent = enc ? "转换" : (ignore ? "从 .gitignore 同步" : (uuid ? "选择并替换" : (caaDialog ? "CAA 设置" : "修复")));
       els.btnFix.style.display = rename ? "none" : "inline-block";
 
       els.targetHint.hidden = !enc;
@@ -1179,13 +1179,13 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.status.textContent = ts.message || "";
       els.status.className = "status" + (ts.status === "error" ? " error" : "");
       els.status.hidden = ignore || reorder;
-      els.resultsTitle.hidden = header || rename || ignore || reorder;
-      els.results.hidden = header || rename || ignore || reorder;
+      els.resultsTitle.hidden = header || rename || ignore || reorder || uuid || caaDialog;
+      els.results.hidden = header || rename || ignore || reorder || uuid || caaDialog;
       els.results.innerHTML = "";
 
       if (header || rename) {
         els.empty.style.display = "none";
-      } else if (ignore || reorder) {
+      } else if (ignore || reorder || uuid || caaDialog) {
         els.empty.style.display = "none";
       } else if (enc) {
         renderEncodingResults(ts, !!state.showEncDetails);

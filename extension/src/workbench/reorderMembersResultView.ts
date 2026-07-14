@@ -1,6 +1,7 @@
 import { basename, dirname } from "node:path";
 import * as vscode from "vscode";
 import { pnwGroupFileResults } from "phoenix-wing/code-core";
+import { ktcActivateResultAccordion, ktcRegisterResultAccordion } from "./resultAccordion.js";
 
 export type KtcReorderPreviewRow = {
   readonly uri: vscode.Uri;
@@ -8,7 +9,7 @@ export type KtcReorderPreviewRow = {
   readonly kind: "header" | "source";
   readonly encoding: "UTF-8" | "UTF-8 BOM" | "GBK" | "未知";
   readonly changed: boolean;
-  state: "unchanged" | "pending" | "applied" | "blocked" | "reverted";
+  state: "unchanged" | "pending" | "cancelled" | "applied" | "blocked" | "reverted";
   readonly warnings: readonly string[];
 };
 
@@ -24,6 +25,7 @@ export interface KtcReorderRevertResult {
 
 export interface KtcReorderMembersResultActions {
   openFile(uri: string): Promise<void>;
+  previewDiff(uri: string): Promise<void>;
   openGitDiff(uri: string): Promise<void>;
   revert(uri: string): Promise<KtcReorderRevertResult>;
   apply(uriStrings: readonly string[]): Promise<KtcReorderApplyResult>;
@@ -53,6 +55,7 @@ export class KtcReorderMembersResultView implements vscode.TreeDataProvider<KtcR
   private actions: KtcReorderMembersResultActions | undefined;
   private scanned = 0;
   private showUnchanged = false;
+  private rootExpanded = true;
   private readonly treeView: vscode.TreeView<KtcReorderTreeNode>;
 
   readonly onDidChangeTreeData = this.changeEmitter.event;
@@ -65,8 +68,18 @@ export class KtcReorderMembersResultView implements vscode.TreeDataProvider<KtcR
     });
     context.subscriptions.push(
       this.treeView,
+      ktcRegisterResultAccordion(VIEW_ID, this),
       vscode.commands.registerCommand("ktAutoCode.reorderMembers.openFile", (node: KtcReorderTreeNode) => {
         if (node?.type === "file") void this.actions?.openFile(node.row.uri.toString());
+      }),
+      vscode.commands.registerCommand("ktAutoCode.reorderMembers.previewDiff", (node: KtcReorderTreeNode) => {
+        if (node?.type === "file" && node.row.state === "pending") void this.actions?.previewDiff(node.row.uri.toString());
+      }),
+      vscode.commands.registerCommand("ktAutoCode.reorderMembers.cancelCandidate", (node: KtcReorderTreeNode) => {
+        if (node?.type === "file" && node.row.state === "pending") this.cancel(rowOrUndefined(node));
+      }),
+      vscode.commands.registerCommand("ktAutoCode.reorderMembers.applyCandidate", (node: KtcReorderTreeNode) => {
+        if (node?.type === "file" && node.row.state === "pending") void this.applyUris([node.row.uri.toString()]);
       }),
       vscode.commands.registerCommand("ktAutoCode.reorderMembers.openGitDiff", (node: KtcReorderTreeNode) => {
         if (node?.type === "file" && node.row.state === "applied") void this.actions?.openGitDiff(node.row.uri.toString());
@@ -75,17 +88,30 @@ export class KtcReorderMembersResultView implements vscode.TreeDataProvider<KtcR
         if (node?.type === "file") void this.revert(node.row);
       }),
       vscode.commands.registerCommand("ktAutoCode.reorderMembers.applySelected", () => { void this.applySelected(); }),
+      vscode.commands.registerCommand("ktAutoCode.reorderMembers.showResults", () => { void this.showResults(); }),
+      vscode.commands.registerCommand("ktAutoCode.reorderMembers.closeResults", () => { void this.closeResults(); }),
       vscode.commands.registerCommand("ktAutoCode.reorderMembers.toggleUnchanged", () => {
         this.showUnchanged = !this.showUnchanged;
         this.refresh();
       }),
       this.treeView.onDidChangeCheckboxState(({ items }) => {
         for (const [node, state] of items) {
-          if (node.type !== "file" || node.row.state !== "pending") continue;
-          if (state === vscode.TreeItemCheckboxState.Checked) this.selected.add(node.row.uri.toString());
-          else this.selected.delete(node.row.uri.toString());
+          const checked = state === vscode.TreeItemCheckboxState.Checked;
+          if (node.type === "group" && node.id === "changed") {
+            for (const row of node.rows) if (row.state === "pending") this.setSelected(row.uri.toString(), checked);
+          }
+          if (node.type === "file" && node.row.state === "pending") this.setSelected(node.row.uri.toString(), checked);
         }
-        this.updateContext();
+        this.refresh();
+      }),
+      this.treeView.onDidExpandElement(({ element }) => {
+        if (element.type === "group" && element.id === "changed") {
+          this.rootExpanded = true;
+          ktcActivateResultAccordion(VIEW_ID);
+        }
+      }),
+      this.treeView.onDidCollapseElement(({ element }) => {
+        if (element.type === "group" && element.id === "changed") this.rootExpanded = false;
       }),
     );
     this.updateContext();
@@ -97,21 +123,28 @@ export class KtcReorderMembersResultView implements vscode.TreeDataProvider<KtcR
     this.actions = actions;
     this.selected.clear();
     this.runtimeWarnings.clear();
+    this.rootExpanded = true;
     for (const row of rows) if (row.changed && row.state === "pending") this.selected.add(row.uri.toString());
     this.refresh();
-    void vscode.commands.executeCommand("workbench.view.extension.ktAutoCode.results");
+    void this.activateResult();
   }
 
   getTreeItem(node: KtcReorderTreeNode): vscode.TreeItem {
     if (node.type === "group") {
       const changed = node.id === "changed";
       const item = new vscode.TreeItem(
-        `${changed ? "变更文件" : "无变更文件"} · ${node.rows.length} 个`,
-        changed ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed,
+        `${changed ? "待写盘" : "无变更文件"} · ${node.rows.length} 个`,
+        changed && this.rootExpanded ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed,
       );
       item.iconPath = new vscode.ThemeIcon(changed ? "files" : "folder");
       item.contextValue = `ktAutoCode.reorder.${node.id}`;
       item.description = changed ? `扫描 ${this.scanned} 个` : "按文件名排序";
+      if (changed) {
+        const pending = node.rows.filter((row) => row.state === "pending");
+        item.checkboxState = pending.length > 0 && pending.every((row) => this.selected.has(row.uri.toString()))
+          ? vscode.TreeItemCheckboxState.Checked
+          : vscode.TreeItemCheckboxState.Unchecked;
+      }
       return item;
     }
     const { row } = node;
@@ -131,11 +164,25 @@ export class KtcReorderMembersResultView implements vscode.TreeDataProvider<KtcR
   getChildren(node?: KtcReorderTreeNode): KtcReorderTreeNode[] {
     if (node?.type === "group") return node.rows.map((row) => ({ type: "file", row }));
     if (node?.type === "file") return [];
+    const activeRows = this.rows.filter((row) => row.state !== "cancelled");
     return pnwGroupFileResults(
-      this.rows.map((row) => ({ row, relativePath: row.relativePath, changed: row.changed || row.state === "blocked" })),
+      activeRows.map((row) => ({ row, relativePath: row.relativePath, changed: row.changed || row.state === "blocked" })),
       { sortMode: "filename" },
     ).filter((group) => group.id === "changed" || this.showUnchanged)
       .map((group) => ({ type: "group", id: group.id, rows: group.items.map((item) => item.row) }));
+  }
+
+  getParent(node: KtcReorderTreeNode): KtcReorderTreeNode | undefined {
+    if (node.type === "group") return undefined;
+    return this.getChildren().find((candidate): candidate is KtcReorderGroupNode =>
+      candidate.type === "group" && candidate.rows.some((row) => row.uri.toString() === node.row.uri.toString()),
+    );
+  }
+
+  collapseForAccordion(): void {
+    if (!this.rootExpanded) return;
+    this.rootExpanded = false;
+    this.changeEmitter.fire(undefined);
   }
 
   dispose(): void {
@@ -143,12 +190,16 @@ export class KtcReorderMembersResultView implements vscode.TreeDataProvider<KtcR
   }
 
   private async applySelected(): Promise<void> {
-    if (!this.actions) return;
     const uris = [...this.selected];
     if (!uris.length) {
       void vscode.window.showInformationMessage("请先勾选待写盘的文件。");
       return;
     }
+    await this.applyUris(uris);
+  }
+
+  private async applyUris(uris: readonly string[]): Promise<void> {
+    if (!this.actions) return;
     try {
       const result = await this.actions.apply(uris);
       this.applyUpdates(result);
@@ -179,9 +230,47 @@ export class KtcReorderMembersResultView implements vscode.TreeDataProvider<KtcR
     this.refresh();
   }
 
+  private cancel(row: KtcReorderPreviewRow | undefined): void {
+    if (!row) return;
+    row.state = "cancelled";
+    this.selected.delete(row.uri.toString());
+    this.refresh();
+  }
+
   private refresh(): void {
     this.changeEmitter.fire(undefined);
     this.updateContext();
+  }
+
+  private setSelected(uri: string, selected: boolean): void {
+    if (selected) this.selected.add(uri);
+    else this.selected.delete(uri);
+  }
+
+  private async focusResults(): Promise<void> {
+    try {
+      await vscode.commands.executeCommand("workbench.view.extension.kt-auto-code");
+    } catch (error) {
+      void vscode.window.showWarningMessage(`无法自动显示“成员排序”结果：${error instanceof Error ? error.message : "请从命令面板运行‘KT Auto Code：显示成员排序结果’"}`);
+    }
+  }
+
+  private async closeResults(): Promise<void> {
+    await vscode.commands.executeCommand("setContext", "ktAutoCode.reorderHasResults", false);
+  }
+
+  private async showResults(): Promise<void> {
+    if (!this.actions) return;
+    this.rootExpanded = true;
+    await this.activateResult();
+  }
+
+  private async activateResult(): Promise<void> {
+    ktcActivateResultAccordion(VIEW_ID);
+    await vscode.commands.executeCommand("setContext", "ktAutoCode.reorderHasResults", true);
+    await this.focusResults();
+    const changed = this.getChildren().find((node): node is KtcReorderGroupNode => node.type === "group" && node.id === "changed");
+    if (changed) await this.treeView.reveal(changed, { select: false, focus: true, expand: true });
   }
 
   private updateContext(): void {
@@ -202,9 +291,14 @@ export class KtcReorderMembersResultView implements vscode.TreeDataProvider<KtcR
 function ktcStatusLabel(state: KtcReorderPreviewRow["state"]): string {
   switch (state) {
     case "pending": return "待写盘";
+    case "cancelled": return "已取消";
     case "applied": return "已写盘";
     case "reverted": return "已还原";
     case "blocked": return "未写入";
     default: return "无变更";
   }
+}
+
+function rowOrUndefined(node: KtcReorderTreeNode): KtcReorderPreviewRow | undefined {
+  return node.type === "file" ? node.row : undefined;
 }

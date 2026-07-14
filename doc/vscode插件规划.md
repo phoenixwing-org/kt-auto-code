@@ -119,7 +119,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider("ktAutoCode.tools", toolsViewProvider),
     vscode.window.registerWebviewViewProvider("ktAutoCode.properties", propertiesViewProvider),
-    vscode.window.registerTreeDataProvider("ktAutoCode.results", resultsTreeProvider),
+    vscode.window.registerTreeDataProvider("ktAutoCode-results", resultsTreeProvider),
     vscode.window.registerTreeDataProvider("ktAutoCode.tasks", tasksTreeProvider),
   );
 }
@@ -171,7 +171,7 @@ Side Bar 采用 VS Code 原生的“同一 View Container 下多个 View”结�
 | --- | --- | --- | --- |
 | `ktAutoCode.tools` | 工具 | Vue `WebviewView` | 第一块；工具 Tab、主要按钮、状态摘要、打开右侧工作台 |
 | `ktAutoCode.properties` | 属性 | Vue `WebviewView` | 当前工具的紧凑属性、范围和选项 |
-| `ktAutoCode.results` | 结果 | 原生 `TreeView` | 文件/问题层级、数量 badge、点击定位、查看全部 |
+| `ktAutoCode-results` | 结果容器 | 原生 `TreeView` | 文件/问题层级、数量 badge、点击定位、查看全部 |
 | `ktAutoCode.tasks` | 任务与日志 | 原生 `TreeView`，必要时再升级 Webview | 运行中任务、最近任务、日志入口和取消操作 |
 
 `tools` 与 `properties` 可以加载同一份 Side Bar Vue bundle，由初始化数据中的 `viewKind` 决定根组件，避免生成两套代码。它们运行在不同 iframe 中，运行时内存仍各自独立，因此 Vue Webview Block 原则上不超过两个；展示型列表优先使用原生 `TreeView`。
@@ -186,7 +186,7 @@ Side Bar 采用 VS Code 原生的“同一 View Container 下多个 View”结�
     "kt-auto-code": [
       { "type": "webview", "id": "ktAutoCode.tools", "name": "工具" },
       { "type": "webview", "id": "ktAutoCode.properties", "name": "属性" },
-      { "id": "ktAutoCode.results", "name": "结果" },
+      { "id": "ktAutoCode-results", "name": "结果" },
       { "id": "ktAutoCode.tasks", "name": "任务与日志" }
     ]
   }
@@ -499,7 +499,7 @@ export async function fixHeaders(root: string) {
   "activationEvents": [
     "onView:ktAutoCode.tools",
     "onView:ktAutoCode.properties",
-    "onView:ktAutoCode.results",
+    "onView:ktAutoCode-results",
     "onView:ktAutoCode.tasks"
   ],
   "contributes": {
@@ -514,7 +514,7 @@ export async function fixHeaders(root: string) {
       "kt-auto-code": [
         { "type": "webview", "id": "ktAutoCode.tools", "name": "工具" },
         { "type": "webview", "id": "ktAutoCode.properties", "name": "属性" },
-        { "id": "ktAutoCode.results", "name": "结果" },
+        { "id": "ktAutoCode-results", "name": "结果" },
         { "id": "ktAutoCode.tasks", "name": "任务与日志" }
       ]
     },

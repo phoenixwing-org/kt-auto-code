@@ -3,7 +3,7 @@
   "displayName": "KT Auto Code",
   "description": "CAA / MSVC C++ 工具：编码修正、转码、Ignore、搜索替换与成员排序",
   "author": "上海锟钛",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "license": "Apache-2.0",
   "publisher": "kuntai",
   "private": true,
@@ -44,13 +44,6 @@
           "title": "KT Auto Code",
           "icon": "media/kt-auto-code.svg"
         }
-      ],
-      "panel": [
-        {
-          "id": "ktAutoCode.results",
-          "title": "KT Auto Code",
-          "icon": "media/kt-auto-code.svg"
-        }
       ]
     },
     "views": {
@@ -59,12 +52,36 @@
           "type": "webview",
           "id": "ktAutoCode.sidebar",
           "name": "KT Auto Code"
-        }
-      ],
-      "ktAutoCode.results": [
+        },
         {
           "id": "ktAutoCode.reorderResults",
-          "name": "成员排序"
+          "name": "成员排序",
+          "when": "ktAutoCode.reorderHasResults"
+        },
+        {
+          "id": "ktAutoCode.uuidResults",
+          "name": "UUID 替换",
+          "when": "ktAutoCode.uuidHasResults"
+        },
+        {
+          "id": "ktAutoCode.caaDialogResults",
+          "name": "CAA 对话框",
+          "when": "ktAutoCode.caaHasResults"
+        },
+        {
+          "id": "ktAutoCode.headerAsciiResults",
+          "name": "头文件 ASCII 修正",
+          "when": "ktAutoCode.headerAsciiHasResults"
+        },
+        {
+          "id": "ktAutoCode.encodingResults",
+          "name": "编码修正",
+          "when": "ktAutoCode.encodingHasResults"
+        },
+        {
+          "id": "ktAutoCode.codeRenameResults",
+          "name": "搜索替换",
+          "when": "ktAutoCode.codeRenameHasResults"
         }
       ]
     },
@@ -80,6 +97,26 @@
         "icon": "$(wrench)"
       },
       {
+        "command": "ktAutoCode.headerAsciiResult.open",
+        "title": "打开 ASCII 问题文件",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "ktAutoCode.headerAsciiResult.fix",
+        "title": "修复 ASCII 问题文件",
+        "icon": "$(wrench)"
+      },
+      {
+        "command": "ktAutoCode.headerAsciiResult.close",
+        "title": "关闭头文件 ASCII 结果",
+        "icon": "$(close)"
+      },
+      {
+        "command": "ktAutoCode.headerAsciiResult.show",
+        "title": "KT Auto Code：显示头文件 ASCII 结果",
+        "icon": "$(list-tree)"
+      },
+      {
         "command": "ktAutoCode.encodingFix.scan",
         "title": "编码修正：预检",
         "icon": "$(search)"
@@ -88,6 +125,26 @@
         "command": "ktAutoCode.encodingFix.convert",
         "title": "编码修正：转换",
         "icon": "$(file-code)"
+      },
+      {
+        "command": "ktAutoCode.encodingResult.open",
+        "title": "打开编码文件",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "ktAutoCode.encodingResult.convert",
+        "title": "转换编码文件",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "ktAutoCode.encodingResult.close",
+        "title": "关闭编码结果",
+        "icon": "$(close)"
+      },
+      {
+        "command": "ktAutoCode.encodingResult.show",
+        "title": "KT Auto Code：显示编码结果",
+        "icon": "$(list-tree)"
       },
       {
         "command": "ktAutoCode.ignore.open",
@@ -110,9 +167,44 @@
         "icon": "$(search)"
       },
       {
+        "command": "ktAutoCode.codeRenameResult.open",
+        "title": "打开搜索替换结果",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "ktAutoCode.codeRenameResult.close",
+        "title": "关闭搜索替换结果",
+        "icon": "$(close)"
+      },
+      {
+        "command": "ktAutoCode.codeRenameResult.show",
+        "title": "KT Auto Code：显示搜索替换结果",
+        "icon": "$(list-tree)"
+      },
+      {
         "command": "ktAutoCode.reorderMembers.preview",
         "title": "KT Auto Code：C++ 成员排序预览",
         "icon": "$(list-ordered)"
+      },
+      {
+        "command": "ktAutoCode.reorderMembers.showResults",
+        "title": "KT Auto Code：显示成员排序结果",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "ktAutoCode.uuidReplace.showResults",
+        "title": "KT Auto Code：显示 UUID 替换结果",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "ktAutoCode.caaDialog.showResults",
+        "title": "KT Auto Code：显示 CAA 对话框结果",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "ktAutoCode.reorderMembers.closeResults",
+        "title": "关闭成员排序结果",
+        "icon": "$(close)"
       },
       {
         "command": "ktAutoCode.uuidReplace.scan",
@@ -131,13 +223,33 @@
       },
       {
         "command": "ktAutoCode.caaDialog.selectFiles",
-        "title": "KT Auto Code：选择 CAA 对话框文件",
-        "icon": "$(checklist)"
+        "title": "KT Auto Code：显示 CAA 对话框列表",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "ktAutoCode.caa.openSettings",
+        "title": "KT Auto Code：打开设置",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "ktAutoCode.caaDialog.openFile",
+        "title": "打开 CAA 对话框文件",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "ktAutoCode.caa.openExternalEditor",
+        "title": "在外部编辑器中打开 CAA 对话框",
+        "icon": "$(link-external)"
       },
       {
         "command": "ktAutoCode.reorderMembers.applySelected",
         "title": "应用所选排序",
-        "icon": "$(check)"
+        "icon": "$(list-ordered)"
+      },
+      {
+        "command": "ktAutoCode.reorderMembers.applyCandidate",
+        "title": "应用此文件的成员排序",
+        "icon": "$(list-ordered)"
       },
       {
         "command": "ktAutoCode.reorderMembers.toggleUnchanged",
@@ -150,6 +262,16 @@
         "icon": "$(go-to-file)"
       },
       {
+        "command": "ktAutoCode.reorderMembers.previewDiff",
+        "title": "查看成员排序预览差异",
+        "icon": "$(compare-changes)"
+      },
+      {
+        "command": "ktAutoCode.reorderMembers.cancelCandidate",
+        "title": "取消本次排序候选",
+        "icon": "$(close)"
+      },
+      {
         "command": "ktAutoCode.reorderMembers.openGitDiff",
         "title": "在 Git 中查看差异",
         "icon": "$(compare-changes)"
@@ -158,6 +280,41 @@
         "command": "ktAutoCode.reorderMembers.revert",
         "title": "还原本次排序",
         "icon": "$(discard)"
+      },
+      {
+        "command": "ktAutoCode.uuidReplace.applySelected",
+        "title": "应用所选 UUID 替换",
+        "icon": "$(replace-all)"
+      },
+      {
+        "command": "ktAutoCode.uuidReplace.applyCandidate",
+        "title": "应用此文件的 UUID 替换",
+        "icon": "$(replace-all)"
+      },
+      {
+        "command": "ktAutoCode.uuidReplace.openFile",
+        "title": "打开 UUID 命中文件",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "ktAutoCode.uuidReplace.openGitDiff",
+        "title": "在 Git 中查看 UUID 差异",
+        "icon": "$(compare-changes)"
+      },
+      {
+        "command": "ktAutoCode.uuidReplace.cancelCandidate",
+        "title": "取消本次 UUID 候选",
+        "icon": "$(close)"
+      },
+      {
+        "command": "ktAutoCode.uuidReplace.closeResults",
+        "title": "关闭 UUID 替换结果",
+        "icon": "$(close)"
+      },
+      {
+        "command": "ktAutoCode.caaDialog.closeResults",
+        "title": "关闭 CAA 对话框结果",
+        "icon": "$(close)"
       },
       {
         "command": "ktAutoCode.sidebar.toggleStyle",
@@ -178,6 +335,11 @@
           "group": "navigation@2"
         },
         {
+          "command": "ktAutoCode.caa.openSettings",
+          "when": "view == ktAutoCode.sidebar",
+          "group": "navigation@3"
+        },
+        {
           "command": "ktAutoCode.reorderMembers.applySelected",
           "when": "view == ktAutoCode.reorderResults && ktAutoCode.reorderHasSelection",
           "group": "navigation@1"
@@ -186,6 +348,51 @@
           "command": "ktAutoCode.reorderMembers.toggleUnchanged",
           "when": "view == ktAutoCode.reorderResults",
           "group": "navigation@2"
+        },
+        {
+          "command": "ktAutoCode.reorderMembers.closeResults",
+          "when": "view == ktAutoCode.reorderResults",
+          "group": "navigation@9"
+        },
+        {
+          "command": "ktAutoCode.uuidReplace.applySelected",
+          "when": "view == ktAutoCode.uuidResults && ktAutoCode.uuidHasSelection",
+          "group": "navigation@1"
+        },
+        {
+          "command": "ktAutoCode.headerAsciiResult.fix",
+          "when": "view == ktAutoCode.headerAsciiResults",
+          "group": "navigation@1"
+        },
+        {
+          "command": "ktAutoCode.headerAsciiResult.close",
+          "when": "view == ktAutoCode.headerAsciiResults",
+          "group": "navigation@9"
+        },
+        {
+          "command": "ktAutoCode.encodingResult.convert",
+          "when": "view == ktAutoCode.encodingResults",
+          "group": "navigation@1"
+        },
+        {
+          "command": "ktAutoCode.encodingResult.close",
+          "when": "view == ktAutoCode.encodingResults",
+          "group": "navigation@9"
+        },
+        {
+          "command": "ktAutoCode.codeRenameResult.close",
+          "when": "view == ktAutoCode.codeRenameResults",
+          "group": "navigation@9"
+        },
+        {
+          "command": "ktAutoCode.uuidReplace.closeResults",
+          "when": "view == ktAutoCode.uuidResults",
+          "group": "navigation@9"
+        },
+        {
+          "command": "ktAutoCode.caaDialog.closeResults",
+          "when": "view == ktAutoCode.caaDialogResults",
+          "group": "navigation@9"
         }
       ],
       "view/item/context": [
@@ -195,14 +402,124 @@
           "group": "inline@1"
         },
         {
+          "command": "ktAutoCode.headerAsciiResult.open",
+          "when": "view == ktAutoCode.headerAsciiResults && viewItem == ktAutoCode.headerAscii.file",
+          "group": "inline@1"
+        },
+        {
+          "command": "ktAutoCode.headerAsciiResult.fix",
+          "when": "view == ktAutoCode.headerAsciiResults && viewItem == ktAutoCode.headerAscii.group",
+          "group": "inline@1"
+        },
+        {
+          "command": "ktAutoCode.headerAsciiResult.close",
+          "when": "view == ktAutoCode.headerAsciiResults && viewItem == ktAutoCode.headerAscii.group",
+          "group": "inline@9"
+        },
+        {
+          "command": "ktAutoCode.encodingResult.open",
+          "when": "view == ktAutoCode.encodingResults && viewItem == ktAutoCode.encoding.file",
+          "group": "inline@1"
+        },
+        {
+          "command": "ktAutoCode.encodingResult.convert",
+          "when": "view == ktAutoCode.encodingResults && viewItem == ktAutoCode.encoding.group",
+          "group": "inline@1"
+        },
+        {
+          "command": "ktAutoCode.encodingResult.close",
+          "when": "view == ktAutoCode.encodingResults && viewItem == ktAutoCode.encoding.group",
+          "group": "inline@9"
+        },
+        {
+          "command": "ktAutoCode.codeRenameResult.open",
+          "when": "view == ktAutoCode.codeRenameResults && viewItem == ktAutoCode.codeRename.file",
+          "group": "inline@1"
+        },
+        {
+          "command": "ktAutoCode.codeRenameResult.close",
+          "when": "view == ktAutoCode.codeRenameResults && viewItem == ktAutoCode.codeRename.group",
+          "group": "inline@9"
+        },
+        {
+          "command": "ktAutoCode.reorderMembers.applySelected",
+          "when": "view == ktAutoCode.reorderResults && viewItem == ktAutoCode.reorder.changed && ktAutoCode.reorderHasSelection",
+          "group": "inline@1"
+        },
+        {
+          "command": "ktAutoCode.reorderMembers.closeResults",
+          "when": "view == ktAutoCode.reorderResults && viewItem == ktAutoCode.reorder.changed",
+          "group": "inline@9"
+        },
+        {
           "command": "ktAutoCode.reorderMembers.openGitDiff",
           "when": "view == ktAutoCode.reorderResults && viewItem == ktAutoCode.reorder.applied",
           "group": "inline@2"
         },
         {
+          "command": "ktAutoCode.reorderMembers.previewDiff",
+          "when": "view == ktAutoCode.reorderResults && viewItem == ktAutoCode.reorder.pending",
+          "group": "inline@3"
+        },
+        {
+          "command": "ktAutoCode.reorderMembers.applyCandidate",
+          "when": "view == ktAutoCode.reorderResults && viewItem == ktAutoCode.reorder.pending",
+          "group": "inline@2"
+        },
+        {
+          "command": "ktAutoCode.reorderMembers.cancelCandidate",
+          "when": "view == ktAutoCode.reorderResults && viewItem == ktAutoCode.reorder.pending",
+          "group": "inline@4"
+        },
+        {
           "command": "ktAutoCode.reorderMembers.revert",
           "when": "view == ktAutoCode.reorderResults && viewItem == ktAutoCode.reorder.applied",
           "group": "inline@3"
+        },
+        {
+          "command": "ktAutoCode.uuidReplace.openFile",
+          "when": "view == ktAutoCode.uuidResults && viewItem =~ /ktAutoCode\\.uuid\\.(pending|applied|blocked)/",
+          "group": "inline@1"
+        },
+        {
+          "command": "ktAutoCode.uuidReplace.applySelected",
+          "when": "view == ktAutoCode.uuidResults && viewItem == ktAutoCode.uuid.group.pending && ktAutoCode.uuidHasSelection",
+          "group": "inline@1"
+        },
+        {
+          "command": "ktAutoCode.uuidReplace.closeResults",
+          "when": "view == ktAutoCode.uuidResults && viewItem == ktAutoCode.uuid.group.pending",
+          "group": "inline@9"
+        },
+        {
+          "command": "ktAutoCode.uuidReplace.openGitDiff",
+          "when": "view == ktAutoCode.uuidResults && viewItem == ktAutoCode.uuid.applied",
+          "group": "inline@2"
+        },
+        {
+          "command": "ktAutoCode.uuidReplace.applyCandidate",
+          "when": "view == ktAutoCode.uuidResults && viewItem == ktAutoCode.uuid.pending",
+          "group": "inline@2"
+        },
+        {
+          "command": "ktAutoCode.uuidReplace.cancelCandidate",
+          "when": "view == ktAutoCode.uuidResults && viewItem == ktAutoCode.uuid.pending",
+          "group": "inline@3"
+        },
+        {
+          "command": "ktAutoCode.caaDialog.openFile",
+          "when": "view == ktAutoCode.caaDialogResults && viewItem == ktAutoCode.caa.file",
+          "group": "inline@1"
+        },
+        {
+          "command": "ktAutoCode.caa.openExternalEditor",
+          "when": "view == ktAutoCode.caaDialogResults && viewItem == ktAutoCode.caa.file",
+          "group": "inline@2"
+        },
+        {
+          "command": "ktAutoCode.caaDialog.closeResults",
+          "when": "view == ktAutoCode.caaDialogResults && viewItem == ktAutoCode.caa.group",
+          "group": "inline@9"
         }
       ]
     },
@@ -240,6 +557,43 @@
           "enumDescriptions": ["大图标 Ribbon，可点击切换工具", "紧凑图标 Tab"],
           "default": "ribbon",
           "description": "Side Bar 顶部工具切换器样式。"
+        },
+        "ktAutoCode.caa.externalEditor.command": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "CAA 外部编辑器命令或可执行文件路径。仅在用户点击 CATDlg 行的“打开外部编辑器”图标时启动。macOS 可配置 open，Windows 可配置编辑器 .exe。"
+        },
+        "ktAutoCode.caa.externalEditor.args": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["${file}"],
+          "scope": "resource",
+          "description": "CAA 外部编辑器参数；仅允许普通参数及 ${file}、${workspace} 占位符。不会经 shell 执行。"
+        },
+        "ktAutoCode.environment.rootDir": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "全局工程环境的工作区覆盖：ROOT_DIR。留空时读取继承的系统环境变量。"
+        },
+        "ktAutoCode.environment.rootDir3rdParty": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "全局工程环境的工作区覆盖：ROOT_DIR_3rdParty。留空时读取继承的系统环境变量。"
+        },
+        "ktAutoCode.environment.rootDirCore": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "全局工程环境的工作区覆盖：ROOT_DIR_CORE。留空时读取继承的系统环境变量。"
+        },
+        "ktAutoCode.environment.mkVersion": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "全局工程环境的工作区覆盖：CAA_MK_VERSION，例如 19。留空时读取系统值；两者皆无时设置状态会建议 19。"
         }
       }
     }

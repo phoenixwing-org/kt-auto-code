@@ -12,21 +12,18 @@ import {
 } from "../../src/workspaceRename.js";
 import { ktcRunSearchReplaceWorkflow } from "../../src/searchReplaceWorkflow.js";
 import { logOutput } from "./output.js";
-import { CodeRenamePanel } from "./workbench/codeRenamePanel.js";
+import type { KtcCodeRenameResultView } from "./workbench/codeRenameResultView.js";
+import { ktcOpenWorkspaceResource } from "./workspaceResource.js";
 import { getWorkspaceRoot } from "./workspace.js";
 import { resolveWorkspaceIgnorePatterns } from "./ignoreConfig.js";
 import { ktcResolveSearchReplaceLocation } from "./searchReplaceLocation.js";
 
 export class KtcSearchReplaceController {
-  constructor(private readonly extensionUri: vscode.Uri) {}
+  constructor(private readonly resultView: () => KtcCodeRenameResultView | undefined) {}
 
-  open(): void {
-    CodeRenamePanel.open(this.extensionUri);
-  }
+  open(): void { void vscode.commands.executeCommand("ktAutoCode.codeRenameResult.show"); }
 
   async run(request: KtcSearchReplaceRequest, apply: boolean): Promise<KtcSearchReplaceRunResult> {
-    const panel = await CodeRenamePanel.show(this.extensionUri);
-    if (!panel) return "error";
     try {
       const workspaceRoot = getWorkspaceRoot();
       const location = ktcResolveSearchReplaceLocation(workspaceRoot, request.scope);
@@ -45,37 +42,33 @@ export class KtcSearchReplaceController {
           : loadDotIgnore(location.root),
         apply: false,
       };
-      panel.showRunning(false);
       const result = await ktcRunSearchReplaceWorkflow(apply, {
         preview: () => runWorkspaceRename(options),
         confirm: () => this.confirmWrite(request),
-        apply: () => {
-          panel.showRunning(true);
-          return runWorkspaceRename({ ...options, apply: true });
-        },
+        apply: () => runWorkspaceRename({ ...options, apply: true }),
         report: (report) => {
-          this.showReport(panel, report, options);
+          this.showReport(report, options);
         },
       });
-      if (result === "blocked") {
-        panel.showError("预检发现目标冲突，未执行任何写盘。");
-      }
+      if (result === "blocked") void vscode.window.showWarningMessage("预检发现目标冲突，未执行任何写盘。");
       return result;
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
       logOutput(`[搜索替换] ${text}`);
-      panel.showError(text);
+      void vscode.window.showErrorMessage(text);
       return "error";
     }
   }
 
   private showReport(
-    panel: CodeRenamePanel,
     report: WorkspaceRenameReport,
     options: WorkspaceRenameOptions,
   ): void {
     logOutput(formatRenameLog(report, options));
-    panel.showReport(ktcBuildRenameResultViewModel(report), options.ignorePatterns?.length ?? 0);
+    const model = ktcBuildRenameResultViewModel(report);
+    this.resultView()?.show(model, async (row) => {
+      await ktcOpenWorkspaceResource({ root: model.root, target: row.openPath, kind: row.level === "dir" ? "directory" : "text", line: row.openLine });
+    });
   }
 
   private async confirmWrite(request: KtcSearchReplaceRequest): Promise<boolean> {

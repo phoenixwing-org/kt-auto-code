@@ -4,6 +4,7 @@
 | --- | --- |
 | [下一阶段实施计划.md](./下一阶段实施计划.md) | **近期主计划**：Extension Host 确认流程、主题验收与 TODO |
 | [0.3.0-功能计划.md](./0.3.0-功能计划.md) | **0.3.0 主计划**：成员排序 Panel、Code、UUID/CAA、工作集与环境变量 |
+| [0.3.0-ExtensionHost人工验收清单.md](./0.3.0-ExtensionHost人工验收清单.md) | 原生 Panel、UUID、CAA 文件选择的 F5 图形化验收步骤 |
 | [Phoenix三形态产品架构计划.md](./Phoenix三形态产品架构计划.md) | **总纲**：VS Code 双插件、Tauri/Web、共享 core、设置与发布路线图 |
 | [项目调查.md](./项目调查.md) | **建议先读**：项目定位、实际实现、架构、当前状态与行为边界 |
 | [PNXCaaStudy-Ignore规则总结.md](./PNXCaaStudy-Ignore规则总结.md) | PNXCaaStudy 多级 Ignore 样例、CAA 基线与项目特有规则边界 |
@@ -18,6 +19,8 @@
 | [文件克隆与改名计划.md](./文件克隆与改名计划.md) | 保留源文件的批量克隆、改名与副本内部替换功能规划 |
 | [跨产品共享算法与UI适配计划.md](./跨产品共享算法与UI适配计划.md) | phoenix-desk-tools 与 KT Auto Code 共享函数排序、CAA 核心及双端 UI 适配路线 |
 | [CAA对话框-DeskTools交接契约.md](./CAA对话框-DeskTools交接契约.md) | `.CATDlg` 文件选择与 Desk Tools v1 数据交接边界 |
+| [DeskTools-Code共享提取审计.md](./DeskTools-Code共享提取审计.md) | Desk Code 与 Wing/KT 的匹配矩阵、缺口、小时级整改目标与 kt-cad 名称线索 |
+| [catdlg-core-迁入准备清单.md](./catdlg-core-迁入准备清单.md) | CAA CATDlg/NLS 纯核心迁入 Wing 的入口、依赖、兼容 facade、fixture 与验收顺序 |
 | [三库共享整改执行计划.md](./三库共享整改执行计划.md) | 本仓库接入共享 core、编辑区预览与 Apache-2.0/权利人一致性任务 |
 | [成员排序整合POC记录.md](./成员排序整合POC记录.md) | VS Code 成员排序接入边界；算法规范统一在 phoenix-wing |
 | [源文件编码扫描.md](./源文件编码扫描.md) | CLI、字节级扫描；**字符修正映射表**（CP1252 / NBSP / 全角标点）见该文 §字符修正映射表 |

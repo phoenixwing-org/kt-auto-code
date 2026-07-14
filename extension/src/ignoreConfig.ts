@@ -19,6 +19,9 @@ import {
 } from "../../src/ignorePresets.js";
 import type { IgnoreConfigSummary } from "./tools/types.js";
 
+/** 工具自身的会话、规则和工作集绝不应成为待处理源文件。 */
+const BUILT_IN_IGNORE_PATTERNS = [".phoenix/"];
+
 export function toIgnoreSummary(root: string, info: IgnoreConfigInfo): IgnoreConfigSummary {
   return {
     relativePath: `${".phoenix"}/.ignore`,
@@ -38,7 +41,8 @@ export function refreshIgnoreConfig(root: string | undefined): IgnoreConfigSumma
 
 export function resolveWorkspaceIgnorePatterns(root: string): string[] {
   const openDocument = findOpenIgnoreDocument(root);
-  return openDocument ? parseDotIgnoreText(openDocument.getText()) : resolveIgnorePatterns(root);
+  const configured = openDocument ? parseDotIgnoreText(openDocument.getText()) : resolveIgnorePatterns(root);
+  return [...new Set([...BUILT_IN_IGNORE_PATTERNS, ...configured])];
 }
 
 export function invalidateWorkspaceIgnorePatterns(root: string): void {

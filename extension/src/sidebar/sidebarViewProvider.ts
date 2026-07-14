@@ -250,6 +250,15 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     if (message.type === "selectTool") {
       this.activeToolId = message.toolId;
       this.sendInit();
+      const showResultCommand = {
+        headerAscii: "ktAutoCode.headerAsciiResult.show",
+        encodingFix: "ktAutoCode.encodingResult.show",
+        codeRename: "ktAutoCode.codeRenameResult.show",
+        reorderMembers: "ktAutoCode.reorderMembers.showResults",
+        uuidReplace: "ktAutoCode.uuidReplace.showResults",
+        caaDialog: "ktAutoCode.caaDialog.showResults",
+      }[message.toolId];
+      if (showResultCommand) await vscode.commands.executeCommand(showResultCommand);
       return;
     }
 

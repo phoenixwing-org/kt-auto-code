@@ -1,21 +1,30 @@
 import * as vscode from "vscode";
 import iconv from "iconv-lite";
-import { relative } from "node:path";
+import { basename, relative } from "node:path";
 import { pnwReorderCppText, pnwReorderHeaderText } from "phoenix-wing/code-core";
+import { isIgnoredPath } from "../../../../src/dotIgnore.js";
 import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
+import { resolveWorkspaceIgnorePatterns } from "../../ignoreConfig.js";
 import { KtcReorderMembersResultView, type KtcReorderPreviewRow, type KtcReorderApplyResult, type KtcReorderMembersResultActions, type KtcReorderRevertResult } from "../../workbench/reorderMembersResultView.js";
 
 const INCLUDE = "**/*.{h,hpp,hh,cc,cpp,cxx}";
-const EXCLUDE = "**/{.git,node_modules,dist,build,out,target}/**";
+const EXCLUDE = "**/{.git,.phoenix,node_modules,dist,build,out,target}/**";
 const BOM = Uint8Array.from([0xef, 0xbb, 0xbf]);
+const PREVIEW_SCHEME = "kt-auto-code-reorder-preview";
 type Encoding = "utf8" | "gbk";
 type Snapshot = KtcReorderPreviewRow & { raw: Uint8Array; after: string; encodingKind: Encoding; bom: boolean };
 
 let reorderMembersResultView: KtcReorderMembersResultView | undefined;
+const previewContents = new Map<string, string>();
 
 export function registerReorderMembersResultView(context: vscode.ExtensionContext): void {
   reorderMembersResultView = new KtcReorderMembersResultView(context);
-  context.subscriptions.push(reorderMembersResultView);
+  context.subscriptions.push(
+    reorderMembersResultView,
+    vscode.workspace.registerTextDocumentContentProvider(PREVIEW_SCHEME, {
+      provideTextDocumentContent: (uri) => previewContents.get(uri.toString()) ?? "",
+    }),
+  );
 }
 
 export const reorderMembersTool: KtTool = {
@@ -30,11 +39,16 @@ async function runPreview(ctx: ToolRunContext): Promise<void> {
   if (!ctx.workspaceRoot) { ctx.postState({ status: "error", message: "请先打开工作区。" }); return; }
   ctx.postState({ status: "running", message: "正在生成 C++ 成员排序预览…" });
   const root = vscode.Uri.file(ctx.workspaceRoot);
-  const candidates = (await vscode.workspace.findFiles(new vscode.RelativePattern(root, INCLUDE), EXCLUDE)).map(uri => ({ file: uri.fsPath, relativePath: relative(ctx.workspaceRoot!, uri.fsPath).replace(/\\/g, "/"), kind: /\.(?:h|hpp|hh)$/i.test(uri.fsPath) ? "header" as const : "source" as const })).sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+  const ignorePatterns = resolveWorkspaceIgnorePatterns(ctx.workspaceRoot);
+  const candidates = (await vscode.workspace.findFiles(new vscode.RelativePattern(root, INCLUDE), EXCLUDE))
+    .filter((uri) => !isIgnoredPath(relative(ctx.workspaceRoot!, uri.fsPath).replace(/\\/g, "/"), ignorePatterns))
+    .map(uri => ({ file: uri.fsPath, relativePath: relative(ctx.workspaceRoot!, uri.fsPath).replace(/\\/g, "/"), kind: /\.(?:h|hpp|hh)$/i.test(uri.fsPath) ? "header" as const : "source" as const }))
+    .sort((a, b) => a.relativePath.localeCompare(b.relativePath));
   const snapshots = await Promise.all(candidates.map(previewFile));
   const byUri = new Map(snapshots.map(row => [row.uri.toString(), row]));
   const actions: KtcReorderMembersResultActions = {
     openFile: async uri => { const row = byUri.get(uri); if (row) await vscode.window.showTextDocument(row.uri, { preview: true }); },
+    previewDiff: async uri => { const row = byUri.get(uri); if (row) await openPreviewDiff(row); },
     openGitDiff: async uri => {
       const row = byUri.get(uri);
       if (!row || !await openGitChanges([row], ctx)) void vscode.window.showWarningMessage("无法打开 VS Code Git 变更，请在源代码管理中查看。");
@@ -44,7 +58,7 @@ async function runPreview(ctx: ToolRunContext): Promise<void> {
   };
   reorderMembersResultView?.show(snapshots, candidates.length, actions);
   const changed = snapshots.filter(row => row.changed).length;
-  ctx.postState({ status: "done", message: `已扫描 ${candidates.length} 个 C++ 文件，其中 ${changed} 个可排序；请在底部“成员排序”结果视图中预览、勾选并确认写回。`, scanned: candidates.length });
+  ctx.postState({ status: "done", message: `已扫描 ${candidates.length} 个 C++ 文件，其中 ${changed} 个可排序；请在 Primary Sidebar 下方的“成员排序”结果视图中预览、勾选并确认写回。`, scanned: candidates.length });
   ctx.log(`[成员排序] 扫描 ${candidates.length} 个文件；${changed} 个有变更。`);
 }
 
@@ -75,6 +89,19 @@ function encode(row: Snapshot): Uint8Array {
   const out = Buffer.from(row.after, "utf8"); return row.bom ? Buffer.concat([Buffer.from(BOM), out]) : out;
 }
 function equal(a: Uint8Array, b: Uint8Array): boolean { return a.length === b.length && a.every((v, i) => v === b[i]); }
+
+async function openPreviewDiff(row: Snapshot): Promise<void> {
+  if (row.state !== "pending") return;
+  const previewUri = row.uri.with({ scheme: PREVIEW_SCHEME, authority: "preview" });
+  previewContents.set(previewUri.toString(), row.after);
+  await vscode.commands.executeCommand(
+    "vscode.diff",
+    row.uri,
+    previewUri,
+    `${basename(row.relativePath)}（成员排序预览）`,
+    { preview: true },
+  );
+}
 
 async function revertSnapshot(uri: string, rows: ReadonlyMap<string, Snapshot>, ctx: ToolRunContext): Promise<KtcReorderRevertResult> {
   const row = rows.get(uri);
@@ -113,7 +140,7 @@ async function applySnapshots(uris: readonly string[], rows: ReadonlyMap<string,
   const applied: Snapshot[] = []; const rejected: string[] = [];
   const updates: Array<{ uri: string; state: "applied" | "blocked"; warning?: string }> = [];
   for (const row of selected) try { if (!equal(await vscode.workspace.fs.readFile(row.uri), row.raw)) { const warning = "文件已被外部修改，未写入"; row.state = "blocked"; rejected.push(`${row.relativePath}（文件已变化）`); updates.push({ uri: row.uri.toString(), state: "blocked", warning }); continue; } await vscode.workspace.fs.writeFile(row.uri, encode(row)); row.state = "applied"; applied.push(row); updates.push({ uri: row.uri.toString(), state: "applied" }); } catch (error) { const warning = error instanceof Error ? error.message : "写入失败"; row.state = "blocked"; rejected.push(`${row.relativePath}（${warning}）`); updates.push({ uri: row.uri.toString(), state: "blocked", warning }); }
-  const message = rejected.length ? `已写入 ${applied.length} 个文件；未写入 ${rejected.length} 个：${rejected.join("；")}` : `已写入 ${applied.length} 个文件；可在表格的操作列按需预览 Git 差异。`;
+  const message = rejected.length ? `已写入 ${applied.length} 个文件；未写入 ${rejected.length} 个：${rejected.join("；")}` : `已写入 ${applied.length} 个文件；可在结果行按需查看 Git 差异。`;
   ctx.log(`[成员排序应用] ${message}`); ctx.postState({ status: rejected.length ? "error" : "done", message }); void vscode.window.showInformationMessage(message);
   return { updates };
 }

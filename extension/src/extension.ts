@@ -2,19 +2,24 @@ import * as vscode from "vscode";
 import { dirname } from "node:path";
 import { SidebarViewProvider } from "./sidebar/sidebarViewProvider.js";
 import { registerTool, getTools } from "./tools/registry.js";
-import { headerAsciiTool } from "./tools/headerAscii/index.js";
-import { encodingFixTool } from "./tools/encodingFix/index.js";
-import { codeRenameTool } from "./tools/codeRename/index.js";
+import { headerAsciiTool, registerHeaderAsciiResultView } from "./tools/headerAscii/index.js";
+import { encodingFixTool, registerEncodingResultView } from "./tools/encodingFix/index.js";
+import { codeRenameTool, registerCodeRenameResultView } from "./tools/codeRename/index.js";
 import { registerReorderMembersResultView, reorderMembersTool } from "./tools/reorderMembers/index.js";
 import { ignoreSettingsTool } from "./tools/ignoreSettings/index.js";
-import { uuidReplaceTool } from "./tools/uuidReplace/index.js";
-import { caaDialogTool } from "./tools/caaDialog/index.js";
+import { registerUuidReplacementResultView, uuidReplaceTool } from "./tools/uuidReplace/index.js";
+import { caaDialogTool, registerCaaDialogResultView } from "./tools/caaDialog/index.js";
 import { invalidateWorkspaceIgnorePatterns } from "./ignoreConfig.js";
 
 let sidebarProvider: SidebarViewProvider | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
+  registerHeaderAsciiResultView(context);
+  registerEncodingResultView(context);
+  registerCodeRenameResultView(context);
   registerReorderMembersResultView(context);
+  registerUuidReplacementResultView(context);
+  registerCaaDialogResultView(context);
   registerTool(headerAsciiTool);
   registerTool(encodingFixTool);
   registerTool(ignoreSettingsTool);
