@@ -5,18 +5,23 @@ import { registerTool, getTools } from "./tools/registry.js";
 import { headerAsciiTool } from "./tools/headerAscii/index.js";
 import { encodingFixTool } from "./tools/encodingFix/index.js";
 import { codeRenameTool } from "./tools/codeRename/index.js";
-import { reorderMembersTool } from "./tools/reorderMembers/index.js";
+import { registerReorderMembersResultView, reorderMembersTool } from "./tools/reorderMembers/index.js";
 import { ignoreSettingsTool } from "./tools/ignoreSettings/index.js";
+import { uuidReplaceTool } from "./tools/uuidReplace/index.js";
+import { caaDialogTool } from "./tools/caaDialog/index.js";
 import { invalidateWorkspaceIgnorePatterns } from "./ignoreConfig.js";
 
 let sidebarProvider: SidebarViewProvider | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
+  registerReorderMembersResultView(context);
   registerTool(headerAsciiTool);
   registerTool(encodingFixTool);
   registerTool(ignoreSettingsTool);
   registerTool(codeRenameTool);
   registerTool(reorderMembersTool);
+  registerTool(uuidReplaceTool);
+  registerTool(caaDialogTool);
 
   sidebarProvider = new SidebarViewProvider(context.extensionUri, context.globalState, context.workspaceState);
 

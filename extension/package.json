@@ -44,6 +44,13 @@
           "title": "KT Auto Code",
           "icon": "media/kt-auto-code.svg"
         }
+      ],
+      "panel": [
+        {
+          "id": "ktAutoCode.results",
+          "title": "KT Auto Code",
+          "icon": "media/kt-auto-code.svg"
+        }
       ]
     },
     "views": {
@@ -52,6 +59,12 @@
           "type": "webview",
           "id": "ktAutoCode.sidebar",
           "name": "KT Auto Code"
+        }
+      ],
+      "ktAutoCode.results": [
+        {
+          "id": "ktAutoCode.reorderResults",
+          "name": "成员排序"
         }
       ]
     },
@@ -102,6 +115,51 @@
         "icon": "$(list-ordered)"
       },
       {
+        "command": "ktAutoCode.uuidReplace.scan",
+        "title": "KT Auto Code：扫描 UUID",
+        "icon": "$(search)"
+      },
+      {
+        "command": "ktAutoCode.uuidReplace.apply",
+        "title": "KT Auto Code：应用 UUID 替换",
+        "icon": "$(replace-all)"
+      },
+      {
+        "command": "ktAutoCode.caaDialog.scan",
+        "title": "KT Auto Code：扫描 CAA 对话框",
+        "icon": "$(search)"
+      },
+      {
+        "command": "ktAutoCode.caaDialog.selectFiles",
+        "title": "KT Auto Code：选择 CAA 对话框文件",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "ktAutoCode.reorderMembers.applySelected",
+        "title": "应用所选排序",
+        "icon": "$(check)"
+      },
+      {
+        "command": "ktAutoCode.reorderMembers.toggleUnchanged",
+        "title": "显示/隐藏无变更文件",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "ktAutoCode.reorderMembers.openFile",
+        "title": "打开文件",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "ktAutoCode.reorderMembers.openGitDiff",
+        "title": "在 Git 中查看差异",
+        "icon": "$(compare-changes)"
+      },
+      {
+        "command": "ktAutoCode.reorderMembers.revert",
+        "title": "还原本次排序",
+        "icon": "$(discard)"
+      },
+      {
         "command": "ktAutoCode.sidebar.toggleStyle",
         "title": "KT Auto Code：切换 Ribbon / 小图标",
         "icon": "$(layout)"
@@ -118,6 +176,33 @@
           "command": "ktAutoCode.sidebar.toggleStyle",
           "when": "view == ktAutoCode.sidebar",
           "group": "navigation@2"
+        },
+        {
+          "command": "ktAutoCode.reorderMembers.applySelected",
+          "when": "view == ktAutoCode.reorderResults && ktAutoCode.reorderHasSelection",
+          "group": "navigation@1"
+        },
+        {
+          "command": "ktAutoCode.reorderMembers.toggleUnchanged",
+          "when": "view == ktAutoCode.reorderResults",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "ktAutoCode.reorderMembers.openFile",
+          "when": "view == ktAutoCode.reorderResults && viewItem =~ /ktAutoCode\\.reorder\\.(pending|unchanged|applied|blocked|reverted)/",
+          "group": "inline@1"
+        },
+        {
+          "command": "ktAutoCode.reorderMembers.openGitDiff",
+          "when": "view == ktAutoCode.reorderResults && viewItem == ktAutoCode.reorder.applied",
+          "group": "inline@2"
+        },
+        {
+          "command": "ktAutoCode.reorderMembers.revert",
+          "when": "view == ktAutoCode.reorderResults && viewItem == ktAutoCode.reorder.applied",
+          "group": "inline@3"
         }
       ]
     },

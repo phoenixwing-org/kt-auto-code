@@ -3,13 +3,20 @@ import iconv from "iconv-lite";
 import { relative } from "node:path";
 import { pnwReorderCppText, pnwReorderHeaderText } from "phoenix-wing/code-core";
 import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
-import { ReorderMembersPanel, type KtcReorderPreviewRow, type KtcReorderApplyResult, type KtcReorderMembersPanelActions, type KtcReorderRevertResult } from "../../workbench/reorderMembersPanel.js";
+import { KtcReorderMembersResultView, type KtcReorderPreviewRow, type KtcReorderApplyResult, type KtcReorderMembersResultActions, type KtcReorderRevertResult } from "../../workbench/reorderMembersResultView.js";
 
 const INCLUDE = "**/*.{h,hpp,hh,cc,cpp,cxx}";
 const EXCLUDE = "**/{.git,node_modules,dist,build,out,target}/**";
 const BOM = Uint8Array.from([0xef, 0xbb, 0xbf]);
 type Encoding = "utf8" | "gbk";
 type Snapshot = KtcReorderPreviewRow & { raw: Uint8Array; after: string; encodingKind: Encoding; bom: boolean };
+
+let reorderMembersResultView: KtcReorderMembersResultView | undefined;
+
+export function registerReorderMembersResultView(context: vscode.ExtensionContext): void {
+  reorderMembersResultView = new KtcReorderMembersResultView(context);
+  context.subscriptions.push(reorderMembersResultView);
+}
 
 export const reorderMembersTool: KtTool = {
   id: "reorderMembers", title: "C++ 成员排序", description: "扫描、预览、确认写回 C++ 成员排序。", icon: "media/tools/member-sort.svg",
@@ -26,7 +33,7 @@ async function runPreview(ctx: ToolRunContext): Promise<void> {
   const candidates = (await vscode.workspace.findFiles(new vscode.RelativePattern(root, INCLUDE), EXCLUDE)).map(uri => ({ file: uri.fsPath, relativePath: relative(ctx.workspaceRoot!, uri.fsPath).replace(/\\/g, "/"), kind: /\.(?:h|hpp|hh)$/i.test(uri.fsPath) ? "header" as const : "source" as const })).sort((a, b) => a.relativePath.localeCompare(b.relativePath));
   const snapshots = await Promise.all(candidates.map(previewFile));
   const byUri = new Map(snapshots.map(row => [row.uri.toString(), row]));
-  const actions: KtcReorderMembersPanelActions = {
+  const actions: KtcReorderMembersResultActions = {
     openFile: async uri => { const row = byUri.get(uri); if (row) await vscode.window.showTextDocument(row.uri, { preview: true }); },
     openGitDiff: async uri => {
       const row = byUri.get(uri);
@@ -35,9 +42,9 @@ async function runPreview(ctx: ToolRunContext): Promise<void> {
     revert: async uri => revertSnapshot(uri, byUri, ctx),
     apply: async uris => applySnapshots(uris, byUri, ctx),
   };
-  ReorderMembersPanel.show(snapshots, candidates.length, actions);
+  reorderMembersResultView?.show(snapshots, candidates.length, actions);
   const changed = snapshots.filter(row => row.changed).length;
-  ctx.postState({ status: "done", message: `已扫描 ${candidates.length} 个 C++ 文件，其中 ${changed} 个可排序；请在编辑区 View 中预览、勾选并确认写回。`, scanned: candidates.length });
+  ctx.postState({ status: "done", message: `已扫描 ${candidates.length} 个 C++ 文件，其中 ${changed} 个可排序；请在底部“成员排序”结果视图中预览、勾选并确认写回。`, scanned: candidates.length });
   ctx.log(`[成员排序] 扫描 ${candidates.length} 个文件；${changed} 个有变更。`);
 }
 
@@ -47,8 +54,11 @@ async function previewFile(candidate: { file: string; relativePath: string; kind
   try { raw = await vscode.workspace.fs.readFile(uri); } catch (error) { return failed(uri, candidate, `无法读取：${error instanceof Error ? error.message : "未知错误"}`); }
   const decoded = decode(raw);
   if (!decoded) return failed(uri, candidate, "无法识别文件编码，仅支持 UTF-8 / UTF-8 BOM / GBK");
-  const result = candidate.kind === "header" ? pnwReorderHeaderText(decoded.text) : pnwReorderCppText(decoded.text, candidate.relativePath.replace(/^.*\//, "").replace(/\.[^.]+$/, ""));
-  return { uri, relativePath: candidate.relativePath, kind: candidate.kind, encoding: decoded.encoding === "gbk" ? "GBK" : decoded.bom ? "UTF-8 BOM" : "UTF-8", changed: result.changed, state: result.changed ? "pending" : "unchanged", warnings: candidate.kind === "header" ? result.warnings : [], raw, after: result.text, encodingKind: decoded.encoding, bom: decoded.bom };
+  const result = candidate.kind === "header"
+    ? pnwReorderHeaderText(decoded.text)
+    : pnwReorderCppText(decoded.text, candidate.relativePath.replace(/^.*\//, "").replace(/\.[^.]+$/, ""));
+  const warnings = candidate.kind === "header" ? (result as ReturnType<typeof pnwReorderHeaderText>).warnings : [];
+  return { uri, relativePath: candidate.relativePath, kind: candidate.kind, encoding: decoded.encoding === "gbk" ? "GBK" : decoded.bom ? "UTF-8 BOM" : "UTF-8", changed: result.changed, state: result.changed ? "pending" : "unchanged", warnings, raw, after: result.text, encodingKind: decoded.encoding, bom: decoded.bom };
 }
 
 function failed(uri: vscode.Uri, candidate: { relativePath: string; kind: "header" | "source" }, warning: string): Snapshot { return { uri, relativePath: candidate.relativePath, kind: candidate.kind, encoding: "未知", changed: false, state: "blocked", warnings: [warning], raw: new Uint8Array(), after: "", encodingKind: "utf8", bom: false }; }
@@ -101,7 +111,7 @@ async function applySnapshots(uris: readonly string[], rows: ReadonlyMap<string,
   if (!selected.length) return { updates: [] };
   if (await vscode.window.showWarningMessage(`将写入 ${selected.length} 个成员排序变更。`, { modal: true }, "应用排序") !== "应用排序") return { updates: [] };
   const applied: Snapshot[] = []; const rejected: string[] = [];
-  const updates: KtcReorderApplyResult["updates"] = [];
+  const updates: Array<{ uri: string; state: "applied" | "blocked"; warning?: string }> = [];
   for (const row of selected) try { if (!equal(await vscode.workspace.fs.readFile(row.uri), row.raw)) { const warning = "文件已被外部修改，未写入"; row.state = "blocked"; rejected.push(`${row.relativePath}（文件已变化）`); updates.push({ uri: row.uri.toString(), state: "blocked", warning }); continue; } await vscode.workspace.fs.writeFile(row.uri, encode(row)); row.state = "applied"; applied.push(row); updates.push({ uri: row.uri.toString(), state: "applied" }); } catch (error) { const warning = error instanceof Error ? error.message : "写入失败"; row.state = "blocked"; rejected.push(`${row.relativePath}（${warning}）`); updates.push({ uri: row.uri.toString(), state: "blocked", warning }); }
   const message = rejected.length ? `已写入 ${applied.length} 个文件；未写入 ${rejected.length} 个：${rejected.join("；")}` : `已写入 ${applied.length} 个文件；可在表格的操作列按需预览 Git 差异。`;
   ctx.log(`[成员排序应用] ${message}`); ctx.postState({ status: rejected.length ? "error" : "done", message }); void vscode.window.showInformationMessage(message);

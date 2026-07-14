@@ -518,8 +518,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     </section>
     <section class="reorder-block" id="reorder-block" hidden>
       <h2>C++ 成员排序</h2>
-      <p class="reorder-summary">扫描工作区后在编辑区 View 中预览、勾选并确认写回。</p>
-      <button class="action" id="btn-reorder-preview" type="button">扫描并打开 View</button>
+      <p class="reorder-summary">扫描后在底部“成员排序”结果中预览、勾选并确认写回。</p>
+      <button class="action" id="btn-reorder-preview" type="button">扫描并打开结果</button>
       <p class="status" id="reorder-status"></p>
     </section>
     <div class="scope-block" id="scope-block">
@@ -727,6 +727,14 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
 
     function isIgnoreTool() {
       return state.activeToolId === "ignoreSettings";
+    }
+
+    function isUuidTool() {
+      return state.activeToolId === "uuidReplace";
+    }
+
+    function isCaaDialogTool() {
+      return state.activeToolId === "caaDialog";
     }
 
     function updateOptHint() {
@@ -1085,7 +1093,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
           btn.appendChild(icon);
         }
         const label = document.createElement("span");
-        const shortTitles = { headerAscii: "头文件", encodingFix: "编码", ignoreSettings: "忽略", codeRename: "替换", reorderMembers: "排序" };
+        const shortTitles = { headerAscii: "头文件", encodingFix: "编码", ignoreSettings: "忽略", codeRename: "替换", reorderMembers: "排序", uuidReplace: "UUID", caaDialog: "CAA" };
         label.textContent = shortTitles[t.id] || t.title;
         btn.appendChild(label);
         btn.title = t.title;
@@ -1101,6 +1109,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       const rename = isCodeRenameTool();
       const reorder = isReorderMembersTool();
       const ignore = isIgnoreTool();
+      const uuid = isUuidTool();
+      const caaDialog = isCaaDialogTool();
       els.desc.hidden = ignore;
       els.replaceBlock.hidden = !rename;
       els.reorderBlock.hidden = !reorder;
@@ -1108,12 +1118,12 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.ignoreBlock.hidden = !ignore;
       els.btnScan.disabled = running;
       els.btnFix.disabled = running;
-      els.btnScan.textContent = rename ? "打开主视图" : (ignore ? "打开规则" : "预检");
-      els.btnFix.textContent = enc ? "转换" : (ignore ? "从 .gitignore 同步" : "修复");
+      els.btnScan.textContent = rename ? "打开主视图" : (ignore ? "打开规则" : (uuid ? "扫描 UUID" : (caaDialog ? "扫描 CATDlg" : "预检")));
+      els.btnFix.textContent = enc ? "转换" : (ignore ? "从 .gitignore 同步" : (uuid ? "选择并替换" : (caaDialog ? "选择文件" : "修复")));
       els.btnFix.style.display = rename ? "none" : "inline-block";
 
       els.targetHint.hidden = !enc;
-      els.scopeBlock.hidden = rename || ignore || reorder;
+      els.scopeBlock.hidden = rename || ignore || reorder || uuid || caaDialog;
 
       if (reorder) {
         els.reorderStatus.textContent = ts.message || "";
@@ -1152,7 +1162,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
 
       renderIgnoreConfig();
 
-      els.optionsPanel.hidden = rename || ignore || reorder;
+      els.optionsPanel.hidden = rename || ignore || reorder || uuid || caaDialog;
       els.headerOptions.hidden = enc;
       els.encodingOptions.hidden = !enc;
       els.showDetailsWrap.hidden = true;

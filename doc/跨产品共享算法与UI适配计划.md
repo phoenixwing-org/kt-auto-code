@@ -3,6 +3,18 @@
 > 状态：历史路线记录；成员排序已迁入 `phoenix-wing/code-core`。算法语义、锁定规则与回归契约以 [phoenix-wing · C++成员排序算法规范](../../phoenix-wing/doc/C++成员排序算法规范.md) 为准，本文件不再维护规则副本。<br>
 > 目标：函数排序、CAA 对话框等能力由一套无 UI 的核心代码提供给 `phoenix-desk-tools` 与 VS Code 插件；两端只保留宿主适配和界面代码。
 
+## 0.1 当前迁移盘点（2026-07）
+
+| 能力 | 当前结论 | phoenix-wing 归属 | 下一步 |
+| --- | --- | --- | --- |
+| C++ 成员排序 | 已共用 `code-core`；插件用原生底部结果 View，Desk 保留 Vue 页面 | `phoenix-wing/code-core` | 两端继续只修共享算法；结果 UI 不互相复制 |
+| 文件结果分组/排序 | 已抽为无 VS Code/Vue 依赖的纯函数 | `phoenix-wing/code-core` | 搜索替换、编码修正、克隆等模块验证后复用 |
+| UUID | Desk 已支持虚线/花括号 UUID、GUID32、CAA GUID、两种生成策略；插件当前 P0 只支持虚线 UUID 的“同值映射” | `code-core` 中的识别、归一化、格式保持与替换；宿主扫描/编码/写盘留在各端 | 先将 Desk UUID 的格式 parser 拆为纯函数并以 fixture 对齐，不能把 `pdtCodeService` 的 Node FS 直接搬入 Wing |
+| CAA `.CATDlg` | Desk 的 `catdlg-core` 是唯一解析/emit/patch 实现；插件仅扫描、选择和交接 | 未来 `phoenix-wing/catdlg-core`，保留 browser 与 Node/VS Code adapter 边界 | 先迁纯 core 与 fixture；再实现 Desk bridge，禁止插件重写编辑器 |
+| CAA/NLS “翻译” | 不是通用机器翻译模块，而是 `.CATNls` locale、key、补齐和写回流程 | 随 `catdlg-core` 迁移 | 不单独迁一份翻译 UI 或把 Vue NLS 编辑器放进 VSIX |
+
+“其他能力都移过来”的执行规则：仅迁移纯算法、数据协议、校验和 fixture；Vue 页面、Node 文件服务、VS Code 命令和 Tauri 生命周期保留在各自宿主。这样 AI 读取本计划时可以按“核心 → adapter → UI”定位，不会误把 Desk 页面复制进插件。
+
 ## 0. 关联仓库位置
 
 本项目默认与相关 Git 仓库放在同一个上一级目录下（不记录具体用户目录）：
