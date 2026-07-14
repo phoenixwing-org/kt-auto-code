@@ -38,11 +38,13 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     }
     .tabs.ribbon {
       display: grid;
-      grid-template-columns: repeat(4, minmax(54px, 1fr));
-      gap: 1px;
+      grid-template-columns: repeat(auto-fill, 60px);
+      justify-content: start;
+      gap: 4px;
       padding: 4px 0 9px;
     }
     .tab {
+      position: relative;
       display: inline-flex;
       align-items: center;
       gap: 5px;
@@ -54,6 +56,30 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       cursor: pointer;
       font-size: 12px;
     }
+    .tab[data-tooltip]::after {
+      position: absolute;
+      z-index: 20;
+      top: calc(100% + 5px);
+      left: 50%;
+      width: max-content;
+      max-width: min(240px, calc(100vw - 24px));
+      padding: 4px 7px;
+      border: 1px solid var(--vscode-editorHoverWidget-border, var(--vscode-panel-border));
+      border-radius: 3px;
+      color: var(--vscode-editorHoverWidget-foreground, var(--vscode-foreground));
+      background: var(--vscode-editorHoverWidget-background, var(--vscode-sideBar-background));
+      box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, .25));
+      content: attr(data-tooltip);
+      font-size: 11px;
+      line-height: 1.35;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(-50%);
+      transition: opacity .1s ease;
+      white-space: nowrap;
+    }
+    .tab[data-tooltip]:hover::after,
+    .tab[data-tooltip]:focus-visible::after { opacity: 1; }
     .tab.active {
       background: var(--vscode-button-secondaryBackground);
       border-color: var(--vscode-button-border);
@@ -68,6 +94,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       border-radius: 2px;
       line-height: 1.1;
       text-align: center;
+      width: 60px;
     }
     .tabs.ribbon .tab > span:last-child {
       display: -webkit-box;
@@ -83,9 +110,21 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       border-color: var(--vscode-focusBorder);
     }
     .tabs.ribbon .tool-icon { width: 24px; height: 24px; flex-basis: 24px; }
-    @media (max-width: 230px) {
-      .tabs.ribbon { grid-template-columns: repeat(2, minmax(70px, 1fr)); }
+    .tabs.compact {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, 42px);
+      justify-content: start;
+      align-items: start;
+      gap: 2px;
     }
+    .tabs.compact .tab {
+      width: 42px;
+      height: 38px;
+      justify-content: center;
+      padding: 5px;
+    }
+    .tabs.compact .tab > span:last-child { display: none; }
+    .tabs.compact .tool-icon { width: 24px; height: 24px; flex: 0 0 24px; }
     .tab:disabled { opacity: 0.45; cursor: default; }
     .tool-icon {
       width: 15px;
@@ -100,6 +139,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       font-weight: 600;
       margin: 0 0 6px;
     }
+    .title-row { display: none; }
+    .title-row h2 { margin-bottom: 6px; }
     .desc {
       font-size: 12px;
       line-height: 1.4;
@@ -107,6 +148,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       margin-bottom: 12px;
     }
     .replace-block { margin: 10px 0 12px; }
+    .reorder-block { margin: 10px 0 12px; padding: 9px; border: 1px solid var(--vscode-panel-border); border-radius: 3px; }
+    .reorder-summary { color: var(--vscode-descriptionForeground); font-size: 11px; line-height: 1.4; margin: 6px 0; }
+    .reorder-list { max-height: 150px; overflow: auto; margin: 7px 0 0; padding-left: 18px; font-size: 11px; }
+    .reorder-list li { margin: 2px 0; }
     .replace-fields { display: grid; gap: 5px; }
     .replace-fields input[type="text"] {
       width: 100%;
@@ -410,7 +455,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
 <body>
   <div class="wrap">
     <div class="tabs" id="tabs"></div>
-    <h2 id="tool-title">KT Auto Code</h2>
+    <div class="title-row">
+      <h2 id="tool-title">KT Auto Code</h2>
+    </div>
     <p class="desc" id="tool-desc"></p>
     <p class="meta" id="workspace-meta">工作区：<strong id="workspace-label">—</strong></p>
     <section class="replace-block" id="replace-block" hidden>
@@ -423,6 +470,16 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         <label><input id="replace-file" type="checkbox" />文件名</label>
         <label><input id="replace-dir" type="checkbox" />文件夹名</label>
         <label><input id="replace-ignored" type="checkbox" />包含 Ignore</label>
+        <label title="仅原文件为 ASCII 且目标含非 ASCII 字符时使用">
+          默认编码
+          <select id="replace-default-encoding" aria-label="ASCII 文件目标默认编码">
+            <option value="utf8">UTF-8</option>
+            <option value="gbk">GBK（本地）</option>
+          </select>
+        </label>
+        <label class="disabled" title="自动匹配大小写待后续测试开放">
+          <input id="replace-preserve-case" type="checkbox" disabled />自动匹配大小写（待测试开放）
+        </label>
       </div>
       <div class="replace-fields replace-scope working-directory">
         <input id="replace-scope" type="text" list="recent-working-directories" spellcheck="false" placeholder="工作目录（留空为当前工作区）" aria-label="搜索替换工作目录" title="可填相对路径或任意绝对目录；留空使用当前工作区" />
@@ -446,7 +503,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
           <span class="prefix-arrow">→</span>
           <input id="replace-target-prefix" type="text" spellcheck="false" placeholder="目标前缀，如 KTM" aria-label="目标名称前缀" />
         </div>
-        <label><input id="replace-preserve-case" type="checkbox" />保持大小写（自动全大写）</label>
         <div id="extra-rules"></div>
         <div class="rule-tools">
           <button class="text-button" id="btn-add-rule" type="button">+ 自定义规则</button>
@@ -461,6 +517,13 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       <p class="root-rename-hint" id="root-rename-hint" hidden>
         <span id="root-rename-message"></span><button class="text-button" id="btn-create-root-todo" type="button">创建 TODO</button>
       </p>
+    </section>
+    <section class="reorder-block" id="reorder-block" hidden>
+      <h2>成员排序 · POC</h2>
+      <p class="reorder-summary">先扫描工作区中的 .h / .hpp / .cpp 文件；排序引擎将从 phoenix-desk-tools master 的迁移后实现接入。</p>
+      <button class="action" id="btn-reorder-preview" type="button">扫描 C++ 文件</button>
+      <p class="status" id="reorder-status"></p>
+      <ul class="reorder-list" id="reorder-list"></ul>
     </section>
     <div class="scope-block" id="scope-block">
       <div class="scope-title">范围</div>
@@ -559,12 +622,14 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       recentWorkingDirectories: { workspace: [], external: [] },
       searchReplaceProfiles: [],
       searchReplaceProfileError: "",
-      replace: Object.assign({ search: "", with: "", text: true, file: false, dir: false, ignored: false, scope: "", expanded: false, sourcePrefix: legacyPrefix, targetPrefix: legacyPrefix, preserveCase: false, extraRules: [], profileId: "" }, savedReplace),
+      replace: Object.assign({ search: "", with: "", text: true, file: false, dir: false, ignored: false, scope: "", expanded: false, sourcePrefix: legacyPrefix, targetPrefix: legacyPrefix, defaultEncoding: "utf8", preserveCase: false, extraRules: [], profileId: "" }, savedReplace),
     };
     state.replace.extraRules = (state.replace.extraRules || []).filter((rule) => (
       (rule.search || "").trim() || (rule.replace || "").trim()
     ));
     state.replace.scope = "";
+    state.replace.defaultEncoding = state.replace.defaultEncoding === "gbk" ? "gbk" : "utf8";
+    state.replace.preserveCase = false;
     let activeRulePicker = null;
 
     const els = {
@@ -572,6 +637,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       title: document.getElementById("tool-title"),
       desc: document.getElementById("tool-desc"),
       replaceBlock: document.getElementById("replace-block"),
+      reorderBlock: document.getElementById("reorder-block"),
+      btnReorderPreview: document.getElementById("btn-reorder-preview"),
+      reorderStatus: document.getElementById("reorder-status"),
+      reorderList: document.getElementById("reorder-list"),
       replaceSearch: document.getElementById("replace-search"),
       replaceWith: document.getElementById("replace-with"),
       replaceText: document.getElementById("replace-text"),
@@ -587,6 +656,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       btnSaveProfile: document.getElementById("btn-save-profile"),
       replaceSourcePrefix: document.getElementById("replace-source-prefix"),
       replaceTargetPrefix: document.getElementById("replace-target-prefix"),
+      defaultEncoding: document.getElementById("replace-default-encoding"),
       preserveCase: document.getElementById("replace-preserve-case"),
       extraRules: document.getElementById("extra-rules"),
       btnAddRule: document.getElementById("btn-add-rule"),
@@ -653,6 +723,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
 
     function isCodeRenameTool() {
       return state.activeToolId === "codeRename";
+    }
+
+    function isReorderMembersTool() {
+      return state.activeToolId === "reorderMembers";
     }
 
     function isIgnoreTool() {
@@ -905,7 +979,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.btnExpandRules.textContent = state.replace.expanded ? "收起关联规则" : "展开关联规则";
       els.replaceSourcePrefix.value = state.replace.sourcePrefix || "";
       els.replaceTargetPrefix.value = state.replace.targetPrefix || "";
-      els.preserveCase.checked = !!state.replace.preserveCase;
+      els.defaultEncoding.value = state.replace.defaultEncoding;
+      els.preserveCase.checked = false;
       renderSearchReplaceProfiles();
       els.extraRules.innerHTML = "";
       state.replace.extraRules.forEach((rule, index) => {
@@ -1014,9 +1089,12 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
           btn.appendChild(icon);
         }
         const label = document.createElement("span");
-        label.textContent = t.title;
+        const shortTitles = { headerAscii: "头文件", encodingFix: "编码", ignoreSettings: "忽略", codeRename: "替换", reorderMembers: "排序" };
+        label.textContent = shortTitles[t.id] || t.title;
         btn.appendChild(label);
         btn.title = t.title;
+        btn.dataset.tooltip = t.title;
+        btn.setAttribute("aria-label", t.title);
         btn.onclick = () => vscode.postMessage({ type: "selectTool", toolId: t.id });
         els.tabs.appendChild(btn);
       }
@@ -1025,10 +1103,12 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       const enc = isEncodingTool();
       const header = isHeaderAsciiTool();
       const rename = isCodeRenameTool();
+      const reorder = isReorderMembersTool();
       const ignore = isIgnoreTool();
       els.desc.hidden = ignore;
       els.replaceBlock.hidden = !rename;
-      els.generalActions.hidden = rename || ignore;
+      els.reorderBlock.hidden = !reorder;
+      els.generalActions.hidden = rename || ignore || reorder;
       els.ignoreBlock.hidden = !ignore;
       els.btnScan.disabled = running;
       els.btnFix.disabled = running;
@@ -1037,7 +1117,19 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.btnFix.style.display = rename ? "none" : "inline-block";
 
       els.targetHint.hidden = !enc;
-      els.scopeBlock.hidden = rename || ignore;
+      els.scopeBlock.hidden = rename || ignore || reorder;
+
+      if (reorder) {
+        els.reorderStatus.textContent = ts.message || "";
+        els.reorderStatus.className = "status" + (ts.status === "error" ? " error" : "");
+        els.btnReorderPreview.disabled = running;
+        els.reorderList.innerHTML = "";
+        for (const item of ts.reorderCandidates || []) {
+          const li = document.createElement("li");
+          li.textContent = item.relativePath + " (" + item.kind + ")";
+          els.reorderList.appendChild(li);
+        }
+      }
 
       if (rename) {
         els.replaceSearch.value = state.replace.search;
@@ -1070,7 +1162,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
 
       renderIgnoreConfig();
 
-      els.optionsPanel.hidden = rename || ignore;
+      els.optionsPanel.hidden = rename || ignore || reorder;
       els.headerOptions.hidden = enc;
       els.encodingOptions.hidden = !enc;
       els.showDetailsWrap.hidden = true;
@@ -1087,13 +1179,13 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.status.textContent = ts.message || "";
       els.status.className = "status" + (ts.status === "error" ? " error" : "");
       els.status.hidden = ignore;
-      els.resultsTitle.hidden = header || rename || ignore;
-      els.results.hidden = header || rename || ignore;
+      els.resultsTitle.hidden = header || rename || ignore || reorder;
+      els.results.hidden = header || rename || ignore || reorder;
       els.results.innerHTML = "";
 
       if (header || rename) {
         els.empty.style.display = "none";
-      } else if (ignore) {
+      } else if (ignore || reorder) {
         els.empty.style.display = "none";
       } else if (enc) {
         renderEncodingResults(ts, !!state.showEncDetails);
@@ -1109,6 +1201,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     els.btnScan.onclick = () => {
       if (isIgnoreTool()) vscode.postMessage({ type: "openIgnoreFile" });
       else vscode.postMessage({ type: "run", toolId: state.activeToolId, action: isCodeRenameTool() ? "open" : "scan" });
+    };
+    els.btnReorderPreview.onclick = () => {
+      vscode.postMessage({ type: "run", toolId: "reorderMembers", action: "preview" });
     };
     els.btnFix.onclick = () => {
       if (isIgnoreTool()) vscode.postMessage({ type: "syncIgnoreFromGit" });
@@ -1131,7 +1226,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         expanded: state.replace.expanded,
         sourcePrefix: els.replaceSourcePrefix.value,
         targetPrefix: els.replaceTargetPrefix.value,
-        preserveCase: els.preserveCase.checked,
+        defaultEncoding: els.defaultEncoding.value === "gbk" ? "gbk" : "utf8",
+        preserveCase: false,
         extraRules: state.replace.extraRules,
         profileId: state.replace.profileId || "",
       };
@@ -1151,9 +1247,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     function runSearchReplace(action) {
       saveReplaceState();
       const levels = [];
-      if (state.replace.dir) levels.push("dir");
-      if (state.replace.file) levels.push("file");
       if (state.replace.text) levels.push("text");
+      if (state.replace.file) levels.push("file");
+      if (state.replace.dir) levels.push("dir");
       const rules = [{ id: "primary", search: state.replace.search, replace: state.replace.with, enabled: true }, ...state.replace.extraRules]
         .filter((rule) => rule.enabled !== false && rule.search.length > 0);
       vscode.postMessage({
@@ -1165,6 +1261,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
           newName: state.replace.with,
           rules,
           preserveCase: state.replace.preserveCase,
+          defaultEncoding: state.replace.defaultEncoding,
           levels,
           scope: state.replace.scope,
           includeIgnored: state.replace.ignored,
@@ -1188,7 +1285,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       saveReplaceState();
       renderExtraRules();
     };
-    els.preserveCase.onchange = saveReplaceState;
+    els.defaultEncoding.onchange = saveReplaceState;
     function requestAssociatedRulePicker(mode, parentRule) {
       saveReplaceState();
       vscode.postMessage({
@@ -1228,7 +1325,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
           targetPrefix: state.replace.targetPrefix,
           associatedRules: state.replace.extraRules,
           options: {
-            preserveCase: state.replace.preserveCase,
+            preserveCase: false,
             text: state.replace.text,
             file: state.replace.file,
             dir: state.replace.dir,
@@ -1377,6 +1474,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       } else if (msg.type === "sidebarStyle") {
         state.sidebarStyle = msg.style || "ribbon";
         render();
+      } else if (msg.type === "requestSearchReplacePreview") {
+        state.activeToolId = "codeRename";
+        render();
+        runSearchReplace("preview");
       } else if (msg.type === "recentWorkingDirectories") {
         state.recentWorkingDirectories = msg.directories || { workspace: [], external: [] };
         renderRecentWorkingDirectories();
@@ -1396,7 +1497,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
             with: profile.replace,
             sourcePrefix: profile.sourcePrefix,
             targetPrefix: profile.targetPrefix,
-            preserveCase: profile.options.preserveCase,
+            preserveCase: false,
             text: profile.options.text,
             file: profile.options.file,
             dir: profile.options.dir,

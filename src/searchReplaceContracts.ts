@@ -5,6 +5,7 @@ export interface KtcSearchReplaceRequest {
   oldName: string;
   newName: string;
   rules?: readonly KtcReplacementRuleDraft[];
+  defaultEncoding?: "utf8" | "gbk";
   preserveCase?: boolean;
   levels: readonly RenameLevel[];
   scope?: string;

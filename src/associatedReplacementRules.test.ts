@@ -32,9 +32,12 @@ describe("associatedReplacementRules", () => {
     ]);
   });
 
-  it("空前缀不生成前缀规则", () => {
+  it("任一前缀为空时不生成前缀规则", () => {
     const result = ktcSuggestAssociatedReplacementRules("CaaStudy", "TomBuild");
     expect(result.rules.map((rule) => rule.relationKind)).toEqual(["spaced"]);
+
+    const withoutTargetPrefix = ktcSuggestAssociatedReplacementRules("CaaStudy", "TomBuild", "KTC", "");
+    expect(withoutTargetPrefix.rules.map((rule) => rule.relationKind)).toEqual(["spaced"]);
   });
 
   it("源前缀和目标前缀可以分别设置", () => {
@@ -52,6 +55,13 @@ describe("associatedReplacementRules", () => {
       ["caa-i", "KTCIAutoCode", "KTCIAutoBuild"],
       ["caa-e", "KTCEAutoCode", "KTCEAutoBuild"],
     ]);
+  });
+
+  it("任一前缀为空时不生成 CAA 前缀组合规则", () => {
+    expect(ktcSuggestAssociatedReplacementRules("KevinCode", "TomBuild", "KTC", "", "caa-tail").rules)
+      .toEqual([]);
+    expect(ktcSuggestAssociatedReplacementRules("KevinCode", "TomBuild", "", "KTM", "caa-full").rules)
+      .toEqual([]);
   });
 
   it("CAA 完整名称模式符合真实 PNX I/E 命名", () => {

@@ -1,3 +1,14 @@
+/*
+ * Copyright 2024-2026 Shanghai Kuntai Co.
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The rename algorithm was derived from a 2024 Shanghai Kuntai Windows
+ * application (C++, Qt, and .NET) and redesigned for this VS Code extension.
+ * Software Copyright Registration No.: 2024SR1374380
+ */
+
+import iconv from "iconv-lite";
+
 export interface ReplacementRule {
   id?: string;
   search: string;
@@ -135,6 +146,17 @@ interface ByteRule {
   replace: Buffer;
 }
 
+export type ReplacementTextEncoding = "utf8" | "ascii" | "gbk";
+
+function encodeReplacementText(value: string, encoding: ReplacementTextEncoding): Buffer {
+  if (encoding !== "gbk") return Buffer.from(value, encoding);
+  const encoded = iconv.encode(value, "gbk");
+  if (iconv.decode(encoded, "gbk") !== value) {
+    throw new Error(`目标文本无法按 GBK 编码：${value}`);
+  }
+  return encoded;
+}
+
 function winningByteRule(bytes: Buffer, offset: number, rules: readonly ByteRule[]): ByteRule | undefined {
   let winner: ByteRule | undefined;
   for (const rule of rules) {
@@ -148,12 +170,12 @@ function winningByteRule(bytes: Buffer, offset: number, rules: readonly ByteRule
 export function replaceBufferByRules(
   bytes: Buffer,
   rules: readonly ResolvedReplacementRule[],
-  encoding: "utf8" | "ascii",
+  encoding: ReplacementTextEncoding,
 ): { output: Buffer; offsets: number[]; matches: RuleMatchSummary[] } {
   const byteRules: ByteRule[] = rules.map((rule) => ({
     rule,
-    search: Buffer.from(rule.search, encoding),
-    replace: Buffer.from(rule.replace, encoding),
+    search: encodeReplacementText(rule.search, encoding),
+    replace: encodeReplacementText(rule.replace, encoding),
   }));
   const chunks: Buffer[] = [];
   const offsets: number[] = [];

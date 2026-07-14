@@ -1,3 +1,12 @@
+/*
+ * Copyright 2024-2026 Shanghai Kuntai Co.
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The associated-replacement algorithm was derived from a 2024 Shanghai Kuntai
+ * Windows application (C++, Qt, and .NET) and redesigned for this VS Code extension.
+ * Software Copyright Registration No.: 2024SR1374380
+ */
+
 import type { ReplacementRule } from "./replacementRules.js";
 
 export type KtcAssociatedRelationKind =
@@ -111,14 +120,16 @@ export function ktcSuggestAssociatedReplacementRule(
     derivedSearch = searchTokens.join(" ");
     derivedReplace = replaceTokens.join(" ");
   } else if (relationKind === "prefix") {
-    if (sourcePrefix === "") return undefined;
-    if (search.startsWith(sourcePrefix) && (targetPrefix === "" || replace.startsWith(targetPrefix))) {
+    if (sourcePrefix === "" || targetPrefix === "") return undefined;
+    if (search.startsWith(sourcePrefix) && replace.startsWith(targetPrefix)) {
       return undefined;
     }
     derivedSearch = `${sourcePrefix}${search}`;
     derivedReplace = `${targetPrefix}${replace}`;
   } else {
-    if (sourcePrefix === "" || searchTokens.length < 2 || replaceTokens.length < 1) return undefined;
+    if (sourcePrefix === "" || targetPrefix === "" || searchTokens.length < 2 || replaceTokens.length < 1) {
+      return undefined;
+    }
     if (parent.relationKind?.startsWith("caa-")) return undefined;
     const infix = relationKind === "caa-i" || relationKind === "caa-i-full" ? "I" : "E";
     const fullName = relationKind === "caa-i-full" || relationKind === "caa-e-full";

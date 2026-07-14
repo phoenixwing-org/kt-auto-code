@@ -89,6 +89,12 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     postToWebview(this.view, { type: "sidebarStyle", style: this.getSidebarStyle() });
   }
 
+  requestSearchReplacePreview(): void {
+    this.activeToolId = "codeRename";
+    this.sendInit();
+    postToWebview(this.view, { type: "requestSearchReplacePreview" });
+  }
+
   refreshSearchReplaceProfiles(): void {
     postToWebview(this.view, {
       type: "searchReplaceProfiles",
@@ -164,7 +170,10 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     });
 
     for (const [toolId, state] of this.toolStates) {
-      postToWebview(this.view, { type: "state", toolId, state });
+      // The rule picker is a one-time UI request, not durable tool state. Replaying
+      // it after switching tools would reopen the modal without a user action.
+      const { associatedRulePicker: _associatedRulePicker, ...replayableState } = state;
+      postToWebview(this.view, { type: "state", toolId, state: replayableState });
     }
   }
 

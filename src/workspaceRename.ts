@@ -17,6 +17,7 @@ import {
   replaceStringByRules,
   resolveReplacementRules,
   type ReplacementRule,
+  type ReplacementTextEncoding,
   type ResolvedReplacementRule,
   type RuleMatchSummary,
 } from "./replacementRules.js";
@@ -28,6 +29,8 @@ export interface WorkspaceRenameOptions {
   oldName?: string;
   newName?: string;
   rules?: readonly ReplacementRule[];
+  /** Used only when an ASCII source file receives a non-ASCII replacement. */
+  defaultEncoding?: "utf8" | "gbk";
   preserveCase?: boolean;
   levels: readonly RenameLevel[];
   scope?: string;
@@ -76,7 +79,9 @@ interface WalkEntry {
   kind: "dir" | "file";
 }
 
-const LEVEL_ORDER: readonly RenameLevel[] = ["dir", "file", "text"];
+// Preserve the original desktop tool workflow: update file content first,
+// then rename files, and finally rename directories.
+const LEVEL_ORDER: readonly RenameLevel[] = ["text", "file", "dir"];
 const BINARY_PROBE_BYTES = 8192;
 const TEMP_RENAME_SUFFIX = ".__kt_rename_tmp__";
 const BINARY_EXTENSIONS = new Set([
@@ -96,10 +101,14 @@ function normalizeRelativePath(value: string): string {
 
 function rulesForOptions(opts: WorkspaceRenameOptions): ResolvedReplacementRule[] {
   const source = opts.rules ?? [{ search: opts.oldName ?? "", replace: opts.newName ?? "" }];
-  return resolveReplacementRules(source, opts.preserveCase ?? false);
+  // Automatic case expansion remains disabled until its matching rules are validated.
+  return resolveReplacementRules(source, false);
 }
 
 function validateOptions(opts: WorkspaceRenameOptions, rules: readonly ResolvedReplacementRule[]): void {
+  if (opts.defaultEncoding !== undefined && opts.defaultEncoding !== "utf8" && opts.defaultEncoding !== "gbk") {
+    throw new Error("默认编码只支持 UTF-8 或 GBK");
+  }
   if (rules.some((rule) => !rule.replace) && opts.levels.some((level) => level !== "text")) {
     throw new Error("替换内容不能为空：文件名或文件夹名不能为空");
   }
@@ -208,13 +217,15 @@ function linesForOffsets(bytes: Buffer, offsets: readonly number[]): number[] {
 function textRuleEncoding(
   encoding: DetectedEncoding,
   rules: readonly ResolvedReplacementRule[],
-): "utf8" | "ascii" | undefined {
-  if (encoding === "ascii" || encoding === "utf8" || encoding === "utf8-bom") {
+  defaultEncoding: "utf8" | "gbk",
+): ReplacementTextEncoding | undefined {
+  if (encoding === "ascii") {
+    return rules.some((rule) => !asciiOnly(rule.replace)) ? defaultEncoding : "ascii";
+  }
+  if (encoding === "utf8" || encoding === "utf8-bom") {
     return "utf8";
   }
-  if (encoding === "gbk" && rules.every((rule) => asciiOnly(rule.search) && asciiOnly(rule.replace))) {
-    return "ascii";
-  }
+  if (encoding === "gbk") return "gbk";
   return undefined;
 }
 
@@ -227,10 +238,11 @@ function scanTextEntry(
   const bytes = readFileSync(entry.fullPath);
   if (!isProbablyText(entry.fullPath, bytes)) return undefined;
   const detected = detectFileEncoding(bytes).detected;
-  const ruleEncoding = textRuleEncoding(detected, rules);
+  const defaultEncoding = opts.defaultEncoding ?? "utf8";
+  const ruleEncoding = textRuleEncoding(detected, rules, defaultEncoding);
   if (!ruleEncoding) {
     return detected === "utf16-le" || detected === "utf16-be" || detected === "utf32-le"
-      || detected === "utf32-be" || detected === "unknown" || detected === "gbk"
+      || detected === "utf32-be" || detected === "unknown"
       ? {
           id: `text:${entry.relativePath}`,
           relativePath: entry.relativePath,
@@ -241,9 +253,7 @@ function scanTextEntry(
           occurrences: 0,
           detectedEncoding: detected,
           status: "skipped",
-          detail: detected === "gbk"
-            ? "GBK 文件首版只支持 ASCII 旧名/新名，以保证原始中文字节不变"
-            : `暂不对 ${detected} 文件做文本替换`,
+          detail: `暂不对 ${detected} 文件做文本替换`,
         }
       : undefined;
   }
@@ -260,7 +270,9 @@ function scanTextEntry(
     lines: linesForOffsets(bytes, replaced.offsets),
     detectedEncoding: detected,
     status: apply ? "applied" : "preview",
-    detail: "按检测编码生成字节序列后精确替换；保留其余字节、BOM 和换行",
+    detail: detected === "ascii" && ruleEncoding !== "ascii"
+      ? `原文件为 ASCII 且目标含双字节字符，按默认 ${ruleEncoding === "gbk" ? "GBK" : "UTF-8"} 编码写入；保留其余字节和换行`
+      : "按检测编码生成字节序列后精确替换；保留其余字节、BOM 和换行",
     ruleMatches: replaced.matches,
   };
   if (apply) writeFileSync(entry.fullPath, replaced.output);

@@ -22,7 +22,7 @@ export const codeRenameTool: KtTool = {
   id: "codeRename",
   title: "搜索替换",
   description: "预览并替换工作区中的文本、文件名和文件夹名。",
-  icon: "media/tools/code-rename.svg",
+  icon: "media/tools/search-replace.svg",
 
   getPanelModel(): ToolPanelModel {
     return { summary: { id: this.id, title: this.title, description: this.description, icon: this.icon } };
@@ -164,7 +164,7 @@ function getRootRenameSuggestion(
     ?? [{ search: payload.oldName, replace: payload.newName }];
   try {
     if (ktcResolveWorkspaceWorkingDirectory(root, payload.scope) !== resolve(root)) return undefined;
-    const suggestion = ktcSuggestNameReplacement(basename(root), rules, payload.preserveCase ?? false);
+    const suggestion = ktcSuggestNameReplacement(basename(root), rules, false);
     return suggestion && {
       currentName: suggestion.currentName,
       suggestedName: suggestion.suggestedName,

@@ -2,6 +2,8 @@
 
 面向 **CAA / MSVC C++** 的小工具集合：核心在 `src/`，通过 **CLI** 或 **VS Code / Cursor 插件** 使用。
 
+源码仓库：[PhoenixWing321/kt-auto-code](https://gitee.com/PhoenixWing321/kt-auto-code)。
+
 当前插件提供 **头文件编码修正、文件转码、Ignore 设置、工作区搜索替换**。Ignore 支持 CAA/C++/Web 受管预设、工作区规则扩展和按证据分析推荐，确认后只修改未保存的文本缓冲区，其他工具会立即共用该草稿；搜索替换支持有序关联规则、动态拆词、源/目标双前缀、CAA I/E、全大写派生、可选本地工作目录、分层最近目录和显式保存的工作区规则档案。写盘前会检查已存在目标和多源同目标冲突，详细结果在当前编辑分栏的 View 中展示。
 
 ## 快速开始
@@ -34,6 +36,7 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 | [编码修正](doc/编码修正.md) | 整文件编码检测与转换（`encodingFix`） |
 | [vscode插件规划](doc/vscode插件规划.md) | 插件架构、多工具扩展 |
 | [开发与测试](doc/开发与测试.md) | F5、测试、选项与检查清单 |
+| [VS Code 插件发布](doc/VS%20Code%20插件发布.md) | Marketplace 发布流程、上架检查清单与版权说明 |
 
 ## 常用命令
 
@@ -56,6 +59,14 @@ tests/fixtures/
 doc/           # 中文文档
 ```
 
-## 许可证
+## 版权、技术来源与许可证
 
-本项目使用 [Apache License 2.0](LICENSE)。
+KT Auto Code 由上海锟钛开发，面向 CAA / MSVC C++ 工作流提供编码治理、Ignore 配置和工作区搜索替换能力。
+
+名称替换与关联替换算法源自上海锟钛于 2024 年开发的 Windows 应用程序（采用 C++、Qt 与 .NET 技术），并针对 VS Code 插件场景进行了重新设计和实现。
+
+- 软件著作权登记号：`2024SR1374380`
+- Copyright © 2024–2026 上海锟钛。
+- 本项目使用 [Apache License 2.0](LICENSE) 开源。
+
+完整的中英文版权声明及 Marketplace 发布信息见 [VS Code 插件发布文档](doc/VS%20Code%20插件发布.md)。

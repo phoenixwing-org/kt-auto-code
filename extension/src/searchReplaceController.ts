@@ -35,6 +35,7 @@ export class KtcSearchReplaceController {
         oldName: request.oldName,
         newName: request.newName,
         rules: request.rules,
+        defaultEncoding: request.defaultEncoding,
         preserveCase: request.preserveCase,
         levels: request.levels,
         scope: location.scope,

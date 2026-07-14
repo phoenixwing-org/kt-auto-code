@@ -4,12 +4,33 @@
   "description": "CAA / MSVC C++ 工具：编码修正、转码、Ignore 与工作区搜索替换",
   "version": "0.1.0",
   "license": "Apache-2.0",
-  "publisher": "kt",
+  "publisher": "kuntai",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://gitee.com/PhoenixWing321/kt-auto-code.git"
+  },
+  "homepage": "https://gitee.com/PhoenixWing321/kt-auto-code",
+  "bugs": {
+    "url": "https://gitee.com/PhoenixWing321/kt-auto-code/issues"
+  },
+  "keywords": [
+    "CAA",
+    "CATIA",
+    "MSVC",
+    "C++",
+    "encoding",
+    "refactor",
+    "search replace"
+  ],
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Other"],
+  "categories": ["Other", "Programming Languages", "Formatters"],
+  "galleryBanner": {
+    "color": "#1F4E79",
+    "theme": "dark"
+  },
   "activationEvents": ["onView:ktAutoCode.sidebar"],
   "main": "./dist/extension.js",
   "contributes": {
@@ -66,17 +87,32 @@
         "command": "ktAutoCode.searchReplace.open",
         "title": "KT Auto Code：搜索替换",
         "icon": "$(replace-all)"
+      },
+      {
+        "command": "ktAutoCode.searchReplace.preview",
+        "title": "KT Auto Code：搜索替换预览",
+        "icon": "$(search)"
+      },
+      {
+        "command": "ktAutoCode.reorderMembers.preview",
+        "title": "KT Auto Code：C++ 成员排序（POC）",
+        "icon": "$(list-ordered)"
+      },
+      {
+        "command": "ktAutoCode.sidebar.toggleStyle",
+        "title": "KT Auto Code：切换 Ribbon / 小图标",
+        "icon": "$(layout)"
       }
     ],
     "menus": {
       "view/title": [
         {
-          "command": "ktAutoCode.headerAscii.scan",
+          "command": "ktAutoCode.searchReplace.preview",
           "when": "view == ktAutoCode.sidebar",
           "group": "navigation@1"
         },
         {
-          "command": "ktAutoCode.headerAscii.fix",
+          "command": "ktAutoCode.sidebar.toggleStyle",
           "when": "view == ktAutoCode.sidebar",
           "group": "navigation@2"
         }
@@ -123,7 +159,7 @@
   "scripts": {
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
-    "package": "vsce package --no-dependencies"
+    "package": "vsce package --no-dependencies --baseContentUrl https://gitee.com/PhoenixWing321/kt-auto-code/blob/master/extension --baseImagesUrl https://gitee.com/PhoenixWing321/kt-auto-code/raw/master/extension"
   },
   "devDependencies": {
     "@types/vscode": "^1.85.0",

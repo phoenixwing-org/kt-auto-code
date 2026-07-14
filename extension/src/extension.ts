@@ -5,6 +5,7 @@ import { registerTool, getTools } from "./tools/registry.js";
 import { headerAsciiTool } from "./tools/headerAscii/index.js";
 import { encodingFixTool } from "./tools/encodingFix/index.js";
 import { codeRenameTool } from "./tools/codeRename/index.js";
+import { reorderMembersTool } from "./tools/reorderMembers/index.js";
 import { ignoreSettingsTool } from "./tools/ignoreSettings/index.js";
 import { invalidateWorkspaceIgnorePatterns } from "./ignoreConfig.js";
 
@@ -15,12 +16,28 @@ export function activate(context: vscode.ExtensionContext): void {
   registerTool(encodingFixTool);
   registerTool(ignoreSettingsTool);
   registerTool(codeRenameTool);
+  registerTool(reorderMembersTool);
 
   sidebarProvider = new SidebarViewProvider(context.extensionUri, context.globalState, context.workspaceState);
 
   for (const tool of getTools()) {
     tool.registerCommands(context);
   }
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("ktAutoCode.sidebar.toggleStyle", async () => {
+      const config = vscode.workspace.getConfiguration("ktAutoCode");
+      const current = config.get<"ribbon" | "compact">("sidebar.toolPickerStyle", "ribbon");
+      await config.update(
+        "sidebar.toolPickerStyle",
+        current === "ribbon" ? "compact" : "ribbon",
+        vscode.ConfigurationTarget.Global,
+      );
+    }),
+    vscode.commands.registerCommand("ktAutoCode.searchReplace.preview", () => {
+      sidebarProvider?.requestSearchReplacePreview();
+    }),
+  );
 
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(

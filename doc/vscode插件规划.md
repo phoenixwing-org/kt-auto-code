@@ -13,7 +13,7 @@
 | 项                | 说明                                                            |
 | ---------------- | ------------------------------------------------------------- |
 | **Display Name** | KT Auto Code                                                  |
-| **Extension ID** | `kt.kt-auto-code`（publisher 待定）                               |
+| **Extension ID** | `kuntai.kt-auto-code`                                             |
 | **宿主**           | VS Code ≥ 1.85；Cursor 同 API，F5 调试方式一致                         |
 | **首期用户**         | CAA / MSVC + CP936 环境下的 C++ 开发者                               |
 | **形态**           | 一个 Activity Bar 品牌入口 + Side Bar 内四个小工具 + 右侧复杂 Workbench |
@@ -645,7 +645,7 @@ pnpm fix-headers tests/fixtures/multiChar
 | ------------------ | --------------------------- |
 | `name`             | `kt-auto-code`              |
 | `displayName`      | `KT Auto Code`              |
-| `publisher`        | `kt`                        |
+| `publisher`        | `kuntai`                    |
 | `engines.vscode`   | `^1.85.0`                   |
 | `categories`       | `["Other"]`                 |
 | `main`             | `./dist/extension.js`       |

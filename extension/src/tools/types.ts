@@ -74,6 +74,7 @@ export type WebviewOutboundMessage =
   | { type: "ignoreConfig"; ignoreConfig?: IgnoreConfigSummary }
   | { type: "options"; toolId: string; options: ToolOptionsState }
   | { type: "sidebarStyle"; style: "ribbon" | "compact" }
+  | { type: "requestSearchReplacePreview" }
   | { type: "recentWorkingDirectories"; directories: KtcRecentWorkingDirectories; selected?: string }
   | {
       type: "searchReplaceProfiles";
@@ -145,6 +146,7 @@ export interface ToolUiState {
   scanned?: number;
   issueFiles?: number;
   fixedFiles?: number;
+  reorderCandidates?: readonly { file: string; relativePath: string; kind: "header" | "source" }[];
 }
 
 export interface FileResultSummary {

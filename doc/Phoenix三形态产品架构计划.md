@@ -420,7 +420,7 @@ Code/CAD 之间若需协作，由上层应用编排，不建立相互依赖。�
 
 ### 12.1 品牌与共享图标决策
 
-- VS Code 可见名称固定为 **KT Auto Code**，中文说明使用“KT 自动代码工具”；包名 `kt-auto-code`，命令和设置前缀 `ktAutoCode`，扩展 ID 为 `kt.kt-auto-code`。
+- VS Code 可见名称固定为 **KT Auto Code**，中文说明使用“KT 自动代码工具”；包名 `kt-auto-code`，命令和设置前缀 `ktAutoCode`，扩展 ID 为 `kuntai.kt-auto-code`。
 - VS Code、Tauri 和 Web 共用的品牌/通用工具 SVG 最终以 `phoenix-wing` 的稳定 assets 子入口为单一来源；领域专用图标仍归 Code/CAD 模块管理。
 - 共享 SVG 使用统一 `20 × 20`/`24 × 24` viewBox、`currentColor`、无渐变和无宿主 CSS 依赖；各宿主只做颜色与尺寸适配。
 - 在 `phoenix-wing` 发布稳定 assets exports 前，`kt-auto-code/extension/media` 保留可发布副本，不在运行时跨仓库读取文件。

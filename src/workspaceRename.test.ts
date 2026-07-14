@@ -9,6 +9,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import iconv from "iconv-lite";
 import { afterEach, describe, expect, it } from "vitest";
 import { detectFileEncoding } from "./fileEncoding.js";
 import { runWorkspaceRename } from "./workspaceRename.js";
@@ -20,6 +21,10 @@ function tempRoot(): string {
   const root = mkdtempSync(join(tmpdir(), "kt-rename-"));
   tempDirectories.push(root);
   return root;
+}
+
+function reportLevels(report: ReturnType<typeof runWorkspaceRename>): string[] {
+  return report.hits.map((hit) => hit.level);
 }
 
 afterEach(() => {
@@ -95,15 +100,19 @@ describe("workspaceRename", () => {
     expect(result.hits.map((hit) => hit.relativePath)).toEqual(["keep.cpp"]);
   });
 
-  it("按文件夹、文件名、文本顺序批量处理，并使用改名后的路径", () => {
+  it("按文本、文件名、文件夹顺序批量处理", () => {
     const root = tempRoot();
     mkdirSync(join(root, "OldPkg"));
     writeFileSync(join(root, "OldPkg", "OldPkg.cpp"), "OldPkg\n");
-    runWorkspaceRename({
+    const options = {
       root,
       oldName: "OldPkg",
       newName: "NewPkg",
       levels: ["dir", "file", "text"],
+    };
+    expect(reportLevels(runWorkspaceRename(options))).toEqual(["text", "file", "dir"]);
+    runWorkspaceRename({
+      ...options,
       apply: true,
     });
     expect(readdirSync(root)).toContain("NewPkg");
@@ -169,7 +178,7 @@ describe("workspaceRename", () => {
     expect(readFileSync(join(root, "NewModule", "keep.txt"), "utf8")).toBe("content");
   });
 
-  it("工作目录改名后从新路径继续处理文件名和文本", () => {
+  it("按旧版顺序在工作目录改名前完成文本和文件名处理", () => {
     const root = tempRoot();
     mkdirSync(join(root, "OldModule"));
     writeFileSync(join(root, "OldModule", "OldFile.txt"), "OldModule\n");
@@ -262,12 +271,54 @@ describe("workspaceRename", () => {
         { search: "KTCAutoCode", replace: "KTCTomBuild" },
         { search: "AutoCode", replace: "TomBuild" },
       ],
-      preserveCase: true,
       levels: ["dir", "file", "text"],
       apply: true,
     });
     const output = join(root, "KTCIAutoBuildModule", "KTCEAutoBuild.cpp");
-    expect(readFileSync(output, "utf8")).toBe("KTCTomBuild TomBuild KTCIAUTOBUILD\n");
+    expect(readFileSync(output, "utf8")).toBe("KTCTomBuild TomBuild KTCIAUTOCODE\n");
+  });
+
+  it.each([
+    ["utf8", "utf8"],
+    ["gbk", "gbk"],
+  ] as const)("ASCII 文件替换为双字节目标时使用选择的默认%s编码", (defaultEncoding, expectedEncoding) => {
+    const root = tempRoot();
+    const file = join(root, "ascii.txt");
+    writeFileSync(file, "AutoCode\r\n", "ascii");
+
+    runWorkspaceRename({
+      root,
+      oldName: "AutoCode",
+      newName: "自动代码",
+      defaultEncoding,
+      levels: ["text"],
+      apply: true,
+    });
+
+    const output = readFileSync(file);
+    expect(detectFileEncoding(output).detected).toBe(expectedEncoding);
+    expect(output).toEqual(defaultEncoding === "gbk"
+      ? iconv.encode("自动代码\r\n", "gbk")
+      : Buffer.from("自动代码\r\n", "utf8"));
+  });
+
+  it("GBK 文件替换为双字节目标时保持 GBK，不使用默认编码", () => {
+    const root = tempRoot();
+    const file = join(root, "legacy.txt");
+    writeFileSync(file, iconv.encode("旧名\r\n", "gbk"));
+
+    runWorkspaceRename({
+      root,
+      oldName: "旧名",
+      newName: "新名",
+      defaultEncoding: "utf8",
+      levels: ["text"],
+      apply: true,
+    });
+
+    const output = readFileSync(file);
+    expect(detectFileEncoding(output).detected).toBe("gbk");
+    expect(output).toEqual(iconv.encode("新名\r\n", "gbk"));
   });
 
   it("GBK 文件执行多条 ASCII 规则时保留中文与 CRLF", () => {
@@ -308,7 +359,7 @@ describe("workspaceRename", () => {
     };
     const preview = runWorkspaceRename(options);
     expect(preview.summary.errors).toBe(1);
-    expect(preview.hits[0]).toMatchObject({
+    expect(preview.hits.find((hit) => hit.level === "file")).toMatchObject({
       status: "error",
       detail: "目标已存在：New.cpp",
     });
@@ -378,7 +429,7 @@ describe("workspaceRename", () => {
     expect(readFileSync(join(root, "oldModule", "keep.txt"), "utf8")).toBe("content");
   });
 
-  it("跳过无法安全应用非 ASCII 规则的 GBK 文件并计入摘要", () => {
+  it("GBK 文件可按原编码应用双字节规则", () => {
     const root = tempRoot();
     const file = join(root, "legacy.txt");
     const source = Buffer.from([0xb2, 0xe2, 0xca, 0xd4]);
@@ -392,8 +443,8 @@ describe("workspaceRename", () => {
       apply: true,
     });
 
-    expect(result.summary.skipped).toBe(1);
-    expect(result.hits[0]).toMatchObject({ status: "skipped", detectedEncoding: "gbk" });
-    expect(readFileSync(file)).toEqual(source);
+    expect(result.summary.textFiles).toBe(1);
+    expect(result.hits[0]).toMatchObject({ status: "applied", detectedEncoding: "gbk" });
+    expect(readFileSync(file)).toEqual(iconv.encode("新名", "gbk"));
   });
 });

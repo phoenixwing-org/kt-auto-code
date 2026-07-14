@@ -35,7 +35,7 @@ afterEach(() => {
 });
 
 describe("search replace write acceptance", () => {
-  it("从工作区档案加载规则后按目录、文件和文本顺序写盘且保持编码", () => {
+  it("从工作区档案加载规则后按文本、文件和目录顺序写盘且保持编码", () => {
     const container = mkdtempSync(join(tmpdir(), "ktc-write-acceptance-"));
     tempDirectories.push(container);
     const root = join(container, "KTCAutoCodeWorkspace");
