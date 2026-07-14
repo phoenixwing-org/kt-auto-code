@@ -3,6 +3,7 @@
 | 文档 | 说明 |
 | --- | --- |
 | [下一阶段实施计划.md](./下一阶段实施计划.md) | **近期主计划**：Extension Host 确认流程、主题验收与 TODO |
+| [0.3.0-功能计划.md](./0.3.0-功能计划.md) | **0.3.0 主计划**：成员排序 Panel、Code、UUID/CAA、工作集与环境变量 |
 | [Phoenix三形态产品架构计划.md](./Phoenix三形态产品架构计划.md) | **总纲**：VS Code 双插件、Tauri/Web、共享 core、设置与发布路线图 |
 | [项目调查.md](./项目调查.md) | **建议先读**：项目定位、实际实现、架构、当前状态与行为边界 |
 | [PNXCaaStudy-Ignore规则总结.md](./PNXCaaStudy-Ignore规则总结.md) | PNXCaaStudy 多级 Ignore 样例、CAA 基线与项目特有规则边界 |
