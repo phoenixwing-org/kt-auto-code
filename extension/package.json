@@ -2,7 +2,8 @@
   "name": "kt-auto-code",
   "displayName": "KT Auto Code",
   "description": "CAA / MSVC C++ 工具：编码修正、转码、Ignore 与工作区搜索替换",
-  "version": "0.1.0",
+  "author": "上海锟钛",
+  "version": "0.1.1",
   "license": "Apache-2.0",
   "publisher": "kuntai",
   "private": true,
@@ -33,6 +34,7 @@
   },
   "activationEvents": ["onView:ktAutoCode.sidebar"],
   "main": "./dist/extension.js",
+  "icon": "media/cn.kt.doc.AutoCode.Color.128.png",
   "contributes": {
     "viewsContainers": {
       "activitybar": [

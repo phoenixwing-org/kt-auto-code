@@ -61,7 +61,7 @@ pnpm -C extension exec vsce publish
 - 更新或创建 `extension/CHANGELOG.md`，说明本次变更。
 - 执行构建与测试，并安装 VSIX 完成一次本地验证。
 - 检查 README：功能简介、使用方法、截图、隐私说明和支持渠道应准确可用。
-- 为扩展提供至少 `128 × 128` 的 PNG 图标，并在扩展清单中配置 `icon`。普通 SVG 不能作为 Marketplace 扩展图标。
+- Marketplace 图标位于 `extension/media/cn.kt.doc.AutoCode.Color.128.png`（128 × 128 PNG），由扩展清单顶层字段 `"icon": "media/cn.kt.doc.AutoCode.Color.128.png"` 声明；Activity Bar 的 `kt-auto-code.svg` 不是 Marketplace 图标。替换图标后必须递增 `version`、重新打包 VSIX，再上传新包。
 - 补齐 `repository`、`homepage`、`bugs`、`keywords` 和合适的 `categories` 等上架元数据。
 - 确认 README 与 CHANGELOG 使用的远程图片均为 HTTPS 地址。
 - 确认许可证、版权声明和第三方通知随发布包一同保留。
