@@ -146,7 +146,6 @@ export interface ToolUiState {
   scanned?: number;
   issueFiles?: number;
   fixedFiles?: number;
-  reorderCandidates?: readonly { file: string; relativePath: string; kind: "header" | "source" }[];
 }
 
 export interface FileResultSummary {

@@ -6,7 +6,7 @@ import {
   DEFAULT_FILE_SCOPE,
   extensionsForEncodingScan,
   type FileScopeOptions,
-} from "./scanScope.js";
+} from "./workspace/scanScope.js";
 import {
   convertFileToUtf8NoBom,
   detectFileEncoding,

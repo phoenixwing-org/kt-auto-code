@@ -61,10 +61,6 @@ export const headerAsciiTool: KtTool = {
 };
 
 async function runWithResults(action: string, ctx: ToolRunContext): Promise<void> {
-  if (action !== "scan") {
-    await runHeaderAsciiAction(action, ctx);
-    return;
-  }
   await runHeaderAsciiAction(action, {
     ...ctx,
     postState: (state) => {

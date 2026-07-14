@@ -7,6 +7,8 @@ import {
 describe("panelMessageGuards", () => {
   it.each([
     { type: "ready" },
+    { type: "run", action: "scan" },
+    { type: "run", action: "fix" },
     { type: "openIssue", file: "/workspace/a.h", line: 3 },
   ])("接受有效头文件 View 消息：%j", (message) => {
     expect(ktcIsHeaderAsciiPanelMessage(message)).toBe(true);
@@ -16,6 +18,7 @@ describe("panelMessageGuards", () => {
     { type: "openIssue", file: "", line: 3 },
     { type: "openIssue", file: "/workspace/a.h", line: 0 },
     { type: "openIssue", file: "/workspace/a.h", line: 1.5 },
+    { type: "run", action: "apply" },
   ])("拒绝非法头文件 View 消息：%j", (message) => {
     expect(ktcIsHeaderAsciiPanelMessage(message)).toBe(false);
   });

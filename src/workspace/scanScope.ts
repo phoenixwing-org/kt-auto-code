@@ -1,6 +1,6 @@
 import { readdirSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { isIgnoredPath, shouldSkipDirName } from "./dotIgnore.js";
+import { isIgnoredPath, shouldSkipDirName } from "../dotIgnore.js";
 
 export const HEADER_EXTENSIONS = new Set([
   ".h", ".hh", ".hpp", ".hxx", ".inl",

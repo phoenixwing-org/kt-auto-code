@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { FileScopeOptions } from "../../src/scanScope.js";
+import type { FileScopeOptions } from "../../src/workspace/scanScope.js";
 
 const CONFIG_SECTION = "ktAutoCode";
 const KEY_HEADERS = "scope.includeHeaders";

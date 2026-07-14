@@ -9,7 +9,7 @@ import {
   CPP_SOURCE_EXTENSIONS,
   SOURCE_EXTENSIONS,
   type FileScopeOptions,
-} from "./scanScope.js";
+} from "./workspace/scanScope.js";
 import {
   convertToUtf8NoBom,
   createBomScanIssue,

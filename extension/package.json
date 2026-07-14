@@ -1,9 +1,9 @@
 {
   "name": "kt-auto-code",
   "displayName": "KT Auto Code",
-  "description": "CAA / MSVC C++ 工具：编码修正、转码、Ignore 与工作区搜索替换",
+  "description": "CAA / MSVC C++ 工具：编码修正、转码、Ignore、搜索替换与成员排序",
   "author": "上海锟钛",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "license": "Apache-2.0",
   "publisher": "kuntai",
   "private": true,
@@ -22,7 +22,8 @@
     "C++",
     "encoding",
     "refactor",
-    "search replace"
+    "search replace",
+    "member sort"
   ],
   "engines": {
     "vscode": "^1.85.0"
@@ -97,7 +98,7 @@
       },
       {
         "command": "ktAutoCode.reorderMembers.preview",
-        "title": "KT Auto Code：C++ 成员排序（POC）",
+        "title": "KT Auto Code：C++ 成员排序预览",
         "icon": "$(list-ordered)"
       },
       {
@@ -162,6 +163,10 @@
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "package": "vsce package --no-dependencies --baseContentUrl https://gitee.com/PhoenixWing321/kt-auto-code/blob/master/extension --baseImagesUrl https://gitee.com/PhoenixWing321/kt-auto-code/raw/master/extension"
+  },
+  "dependencies": {
+    "iconv-lite": "0.6.3",
+    "phoenix-wing": "link:../../phoenix-wing"
   },
   "devDependencies": {
     "@types/vscode": "^1.85.0",

@@ -1,5 +1,6 @@
 export type KtcHeaderAsciiPanelMessage =
   | { type: "ready" }
+  | { type: "run"; action: "scan" | "fix" }
   | { type: "openIssue"; file: string; line: number };
 
 export type KtcIgnoreRecommendationPanelMessage =
@@ -12,6 +13,7 @@ export function ktcIsHeaderAsciiPanelMessage(
   const message = asMessage(value);
   if (!message) return false;
   if (message.type === "ready") return true;
+  if (message.type === "run") return message.action === "scan" || message.action === "fix";
   return message.type === "openIssue"
     && typeof message.file === "string"
     && message.file.length > 0

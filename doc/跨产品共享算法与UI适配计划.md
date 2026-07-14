@@ -1,6 +1,6 @@
 # phoenix-desk-tools 与 KT Auto Code 共享算法、双端 UI 适配计划
 
-> 状态：规划中，不在本计划阶段直接改写现有实现。<br>
+> 状态：历史路线记录；成员排序已迁入 `phoenix-wing/code-core`。算法语义、锁定规则与回归契约以 [phoenix-wing · C++成员排序算法规范](../../phoenix-wing/doc/C++成员排序算法规范.md) 为准，本文件不再维护规则副本。<br>
 > 目标：函数排序、CAA 对话框等能力由一套无 UI 的核心代码提供给 `phoenix-desk-tools` 与 VS Code 插件；两端只保留宿主适配和界面代码。
 
 ## 0. 关联仓库位置

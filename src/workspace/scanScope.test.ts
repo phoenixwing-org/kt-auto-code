@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, it, expect } from "vitest";
 import { collectScopedFiles, extensionsForByteScan } from "./scanScope.js";
-import { loadDotIgnore } from "./dotIgnore.js";
+import { loadDotIgnore } from "../dotIgnore.js";
 
 describe("scanScope", () => {
   it("按范围收集并尊重 .phoenix/.ignore", () => {

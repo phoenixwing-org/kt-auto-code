@@ -23,7 +23,7 @@ import {
   KtcRecentWorkspaceDirectoryStore,
 } from "../recentWorkingDirectories.js";
 import { ktcClassifyWorkingDirectory } from "../searchReplaceLocation.js";
-import { ktcIsPathInsideWorkspace } from "../../../src/workspacePath.js";
+import { ktcIsPathInsideWorkspace } from "../../../src/workspace/workspacePath.js";
 
 export class SidebarViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "ktAutoCode.sidebar";

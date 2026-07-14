@@ -10,8 +10,8 @@ import {
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { isIgnoredPath, loadDotIgnore } from "./dotIgnore.js";
 import { detectFileEncoding, type DetectedEncoding } from "./fileEncoding.js";
-import { DEFAULT_SKIP_DIR_NAMES } from "./scanScope.js";
-import { ktcIsPathInsideWorkspace } from "./workspacePath.js";
+import { DEFAULT_SKIP_DIR_NAMES } from "./workspace/scanScope.js";
+import { ktcIsPathInsideWorkspace } from "./workspace/workspacePath.js";
 import {
   replaceBufferByRules,
   replaceStringByRules,

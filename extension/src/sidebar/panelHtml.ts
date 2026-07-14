@@ -150,8 +150,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .replace-block { margin: 10px 0 12px; }
     .reorder-block { margin: 10px 0 12px; padding: 9px; border: 1px solid var(--vscode-panel-border); border-radius: 3px; }
     .reorder-summary { color: var(--vscode-descriptionForeground); font-size: 11px; line-height: 1.4; margin: 6px 0; }
-    .reorder-list { max-height: 150px; overflow: auto; margin: 7px 0 0; padding-left: 18px; font-size: 11px; }
-    .reorder-list li { margin: 2px 0; }
     .replace-fields { display: grid; gap: 5px; }
     .replace-fields input[type="text"] {
       width: 100%;
@@ -519,11 +517,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       </p>
     </section>
     <section class="reorder-block" id="reorder-block" hidden>
-      <h2>成员排序 · POC</h2>
-      <p class="reorder-summary">先扫描工作区中的 .h / .hpp / .cpp 文件；排序引擎将从 phoenix-desk-tools master 的迁移后实现接入。</p>
-      <button class="action" id="btn-reorder-preview" type="button">扫描 C++ 文件</button>
+      <h2>C++ 成员排序</h2>
+      <p class="reorder-summary">扫描工作区后在编辑区 View 中预览、勾选并确认写回。</p>
+      <button class="action" id="btn-reorder-preview" type="button">扫描并打开 View</button>
       <p class="status" id="reorder-status"></p>
-      <ul class="reorder-list" id="reorder-list"></ul>
     </section>
     <div class="scope-block" id="scope-block">
       <div class="scope-title">范围</div>
@@ -640,7 +637,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       reorderBlock: document.getElementById("reorder-block"),
       btnReorderPreview: document.getElementById("btn-reorder-preview"),
       reorderStatus: document.getElementById("reorder-status"),
-      reorderList: document.getElementById("reorder-list"),
       replaceSearch: document.getElementById("replace-search"),
       replaceWith: document.getElementById("replace-with"),
       replaceText: document.getElementById("replace-text"),
@@ -1123,12 +1119,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         els.reorderStatus.textContent = ts.message || "";
         els.reorderStatus.className = "status" + (ts.status === "error" ? " error" : "");
         els.btnReorderPreview.disabled = running;
-        els.reorderList.innerHTML = "";
-        for (const item of ts.reorderCandidates || []) {
-          const li = document.createElement("li");
-          li.textContent = item.relativePath + " (" + item.kind + ")";
-          els.reorderList.appendChild(li);
-        }
       }
 
       if (rename) {
@@ -1178,7 +1168,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
 
       els.status.textContent = ts.message || "";
       els.status.className = "status" + (ts.status === "error" ? " error" : "");
-      els.status.hidden = ignore;
+      els.status.hidden = ignore || reorder;
       els.resultsTitle.hidden = header || rename || ignore || reorder;
       els.results.hidden = header || rename || ignore || reorder;
       els.results.innerHTML = "";

@@ -1,5 +1,5 @@
 import { isAbsolute, relative, resolve } from "node:path";
-import { ktcIsPathInsideWorkspace } from "../../src/workspacePath.js";
+import { ktcIsPathInsideWorkspace } from "../../src/workspace/workspacePath.js";
 
 export interface KtcSearchReplaceLocation {
   root: string;

@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { ktcIsPathInsideWorkspace } from "../../src/workspacePath.js";
+import { ktcIsPathInsideWorkspace } from "../../src/workspace/workspacePath.js";
 
 export interface KtcOpenWorkspaceResourceRequest {
   root: string;
