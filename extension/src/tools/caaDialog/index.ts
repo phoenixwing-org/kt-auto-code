@@ -2,10 +2,12 @@ import { relative } from "node:path";
 import * as vscode from "vscode";
 import { pnwIsCaaDialogHandoff, type PnwCaaDialogHandoff } from "phoenix-wing/code-core";
 import { isIgnoredPath } from "../../../../src/dotIgnore.js";
-import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
-import { ktcOpenCaaInExternalEditor, ktcOpenCaaSettings, ktcReadCaaSettingsStatus } from "../../caaSettings.js";
+import type { CaaDialogFileResultSummary, KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
+import { ktcProbeDeskTools } from "../../caaDeskBridge.js";
+import { ktcOpenCaaInExternalEditor, ktcOpenCaaSettings, ktcReadCaaExternalEditor } from "../../caaSettings.js";
+import { ktcReadProjectEnvironmentStatus } from "../../projectEnvironment.js";
 import { resolveWorkspaceIgnorePatterns } from "../../ignoreConfig.js";
-import { KtcCaaDialogResultView } from "../../workbench/caaDialogResultView.js";
+import { ktcAddResultFilesToWorkset, ktcFileInWorkspaceScope, ktcResolveWorkspaceFileScope } from "../../worksets.js";
 
 const VIEW_ID = "ktAutoCode.caaDialog.getHandoff";
 const INCLUDE = "**/*.{CATDlg,catdlg}";
@@ -22,12 +24,6 @@ export type KtcCaaDialogHandoff = PnwCaaDialogHandoff;
 
 let session: KtcCaaDialogSession | undefined;
 let runContextFactory: (() => ToolRunContext | undefined) | undefined;
-let caaDialogResultView: KtcCaaDialogResultView | undefined;
-
-export function registerCaaDialogResultView(context: vscode.ExtensionContext): void {
-  caaDialogResultView = new KtcCaaDialogResultView(context);
-  context.subscriptions.push(caaDialogResultView);
-}
 
 export const caaDialogTool: KtTool = {
   id: "caaDialog",
@@ -36,26 +32,44 @@ export const caaDialogTool: KtTool = {
   icon: "media/tools/code-rename.svg",
   getPanelModel(): ToolPanelModel { return { summary: { id: this.id, title: this.title, description: this.description, icon: this.icon } }; },
   registerCommands(context): void {
-    const invoke = (action: "scan" | "settings") => () => {
+    const invoke = (action: "scan" | "settings") => async () => {
+      await vscode.commands.executeCommand("ktAutoCode.tool.show", this.id);
       const ctx = runContextFactory?.();
-      if (ctx) void runCaaDialogAction(action, ctx);
+      if (ctx) await runCaaDialogAction(action, ctx);
     };
     context.subscriptions.push(
       vscode.commands.registerCommand("ktAutoCode.caaDialog.scan", invoke("scan")),
       vscode.commands.registerCommand("ktAutoCode.caaDialog.selectFiles", invoke("scan")),
       vscode.commands.registerCommand("ktAutoCode.caa.openSettings", invoke("settings")),
       vscode.commands.registerCommand(VIEW_ID, () => getHandoff()),
+      vscode.commands.registerCommand("ktAutoCode.caaDialog.addToWorkset", () => { void addCaaResultsToWorkset(); }),
     );
   },
   async handleMessage(message: WebviewInboundMessage, ctx: ToolRunContext): Promise<void> {
-    if (message.type === "run" && message.toolId === this.id) await runCaaDialogAction(message.action === "fix" ? "settings" : "scan", ctx);
+    if (message.type === "run" && message.toolId === this.id) {
+      if (message.action === "addToWorkset") await addCaaResultsToWorkset();
+      else if (message.action === "checkConnection") await checkDeskConnection(ctx);
+      else await runCaaDialogAction(message.action === "fix" ? "settings" : "scan", ctx);
+    }
     if (message.type === "openIssue" && message.toolId === this.id) await openFile(message.file);
+    if (message.type === "caaDialogAction" && message.toolId === this.id) await runCaaFileAction(message.action, message.uri, ctx);
   },
-  async runAction(action: string, ctx: ToolRunContext): Promise<void> { await runCaaDialogAction(action === "fix" ? "settings" : "scan", ctx); },
+  async runAction(action: string, ctx: ToolRunContext): Promise<void> {
+    if (action === "addToWorkset") await addCaaResultsToWorkset();
+    else if (action === "checkConnection") await checkDeskConnection(ctx);
+    else await runCaaDialogAction(action === "fix" ? "settings" : "scan", ctx);
+  },
 };
 
 export function setCaaDialogRunContextFactory(factory: () => ToolRunContext | undefined): void {
   runContextFactory = factory;
+}
+
+async function addCaaResultsToWorkset(): Promise<void> {
+  const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+  if (!root || session?.workspaceUri !== root.toString() || !session.files.length) { void vscode.window.showInformationMessage("请先在当前工作区生成 CAA 对话框结果。"); return; }
+  try { await ktcAddResultFilesToWorkset(root, session.files.map((file) => file.relativePath), "CAA 对话框"); }
+  catch (error) { void vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error)); }
 }
 
 export function getHandoff(): KtcCaaDialogHandoff | undefined {
@@ -77,32 +91,98 @@ async function scan(ctx: ToolRunContext): Promise<void> {
   if (!ctx.workspaceRoot) { ctx.postState({ status: "error", message: "请先打开工作区。" }); return; }
   ctx.postState({ status: "running", message: "正在定位 .CATDlg 文件…" });
   const root = vscode.Uri.file(ctx.workspaceRoot);
+  let scope;
+  try { scope = await ktcResolveWorkspaceFileScope(root, ctx.workspaceFileScopeId); }
+  catch (error) { ctx.postState({ status: "error", message: error instanceof Error ? error.message : String(error) }); return; }
   const ignorePatterns = resolveWorkspaceIgnorePatterns(ctx.workspaceRoot);
   const files = (await vscode.workspace.findFiles(new vscode.RelativePattern(root, INCLUDE), EXCLUDE))
+    .filter((uri) => ktcFileInWorkspaceScope(uri, scope))
     .filter((uri) => !isIgnoredPath(relative(ctx.workspaceRoot!, uri.fsPath).replace(/\\/g, "/"), ignorePatterns))
     .map((uri) => ({ uri, relativePath: relative(ctx.workspaceRoot!, uri.fsPath).replace(/\\/g, "/") }))
     .sort((left, right) => left.relativePath.localeCompare(right.relativePath));
   session = { workspaceUri: root.toString(), files, selected: [] };
-  caaDialogResultView?.show(files, {
-    openFile,
-    openExternalEditor: async (uri) => {
-      const selected = session?.files.find((file) => file.uri.toString() === uri);
-      await ktcOpenCaaInExternalEditor(vscode.Uri.parse(uri), ctx.workspaceRoot);
-      if (session && selected) session.selected = [selected];
-    },
-  });
-  const settings = ktcReadCaaSettingsStatus();
-  const message = `已定位 ${files.length} 个 .CATDlg 文件；请在 Primary Sidebar 的“CAA 对话框”列表中按需打开外部编辑器。工程环境：${settings.text}${settings.complete ? "" : "（必填根目录未完整设定）"}`;
-  ctx.postState({ status: "done", message, scanned: files.length, issueFiles: files.length });
+  const settings = await ktcReadProjectEnvironmentStatus();
+  const message = `范围“${scope.label}”已定位 ${files.length} 个 .CATDlg 文件；请在当前 Block 中按需打开文件或外部编辑器。工程环境：${settings.text}${settings.complete ? "" : "（必填根目录未完整设定）"}`;
+  ctx.postState({ status: "done", message, scanned: files.length, issueFiles: files.length, caaDialogResults: caaResultRows(), caaSettingsText: settings.text });
   ctx.log(`[CAA 对话框] ${message}`);
+  await checkDeskConnection(ctx);
+}
+
+async function checkDeskConnection(ctx: ToolRunContext): Promise<void> {
+  const editor = ktcReadCaaExternalEditor();
+  const checkedAt = new Date().toISOString();
+  if (editor.command) {
+    ctx.postState({
+      status: "idle",
+      caaDeskConnection: { status: "custom-command", text: "使用自定义外部编辑器命令（不探测 Desk Tools）", checkedAt },
+    });
+    return;
+  }
+  if (!editor.endpoint) {
+    ctx.postState({
+      status: "idle",
+      caaDeskConnection: { status: "incompatible", text: "尚未配置 Desk Tools 接口", checkedAt },
+    });
+    return;
+  }
+  ctx.postState({ status: "idle", caaDeskConnection: { status: "checking", text: "正在检测 Desk Tools…", endpoint: editor.endpoint, checkedAt } });
+  const connection = await ktcProbeDeskTools(editor.endpoint);
+  ctx.postState({ status: "idle", caaDeskConnection: { ...connection, checkedAt: new Date().toISOString() } });
 }
 
 async function openSettings(ctx: ToolRunContext): Promise<void> {
   await ktcOpenCaaSettings();
-  const settings = ktcReadCaaSettingsStatus();
-  ctx.postState({ status: "done", message: `已打开 CAA 设置。当前环境：${settings.text}` });
+  const settings = await ktcReadProjectEnvironmentStatus();
+  ctx.postState({ status: "done", message: `已打开 CAA 设置。当前环境：${settings.text}`, caaSettingsText: settings.text });
 }
 
 async function openFile(file: string): Promise<void> {
   await vscode.window.showTextDocument(vscode.Uri.parse(file), { preview: true });
+}
+
+function caaResultRows(): CaaDialogFileResultSummary[] {
+  const selected = new Set(session?.selected.map((file) => file.uri.toString()) ?? []);
+  return (session?.files ?? []).map((file) => ({
+    uri: file.uri.toString(),
+    relativePath: file.relativePath,
+    selected: selected.has(file.uri.toString()),
+  }));
+}
+
+async function runCaaFileAction(
+  action: "open" | "openExternal",
+  uri: string,
+  ctx: ToolRunContext,
+): Promise<void> {
+  const selected = session?.files.find((file) => file.uri.toString() === uri);
+  if (!ctx.workspaceRoot || !session || !selected || session.workspaceUri !== vscode.Uri.file(ctx.workspaceRoot).toString()) {
+    ctx.postState({ status: "error", message: "CAA 对话框结果已失效，请重新扫描。" });
+    return;
+  }
+  try {
+    if (action === "open") await openFile(uri);
+    else {
+      const transport = await ktcOpenCaaInExternalEditor(selected.uri, ctx.workspaceRoot);
+      session.selected = [selected];
+      const checkedAt = new Date().toISOString();
+      ctx.postState({
+        status: "done",
+        message: transport === "desk-tools" ? `Desk Tools 已接受 ${selected.relativePath}` : `已交给外部编辑器：${selected.relativePath}`,
+        caaDialogResults: caaResultRows(),
+        caaDeskConnection: transport === "desk-tools"
+          ? { status: "online", text: "Desk Tools 已连接", endpoint: ktcReadCaaExternalEditor().endpoint, checkedAt }
+          : { status: "custom-command", text: "使用自定义外部编辑器命令", checkedAt },
+      });
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    ctx.postState({
+      status: "error",
+      message,
+      caaDialogResults: caaResultRows(),
+      ...(message.startsWith("无法连接 Desk Tools") ? {
+        caaDeskConnection: { status: "offline" as const, text: "Desk Tools 未启动或不可连接", endpoint: ktcReadCaaExternalEditor().endpoint, checkedAt: new Date().toISOString() },
+      } : {}),
+    });
+  }
 }

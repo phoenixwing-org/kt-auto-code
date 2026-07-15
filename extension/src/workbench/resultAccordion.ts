@@ -18,6 +18,11 @@ export function ktcRegisterResultAccordion(
 }
 
 export function ktcActivateResultAccordion(id: string): void {
+  const mode = vscode.workspace.getConfiguration("ktAutoCode").get<"exclusive" | "multiple">(
+    "sidebar.blockExpansionMode",
+    "exclusive",
+  );
+  if (mode === "multiple") return;
   for (const [candidateId, participant] of participants) {
     if (candidateId !== id) participant.collapseForAccordion();
   }

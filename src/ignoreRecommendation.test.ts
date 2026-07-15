@@ -64,4 +64,28 @@ describe("ignoreRecommendation", () => {
     expect(risky?.blockedRules.map((item) => item.rule.value)).toEqual(expect.arrayContaining(["*.bat", ".vscode/"]));
     expect(risky?.suggestedRules.map((rule) => rule.value)).not.toEqual(expect.arrayContaining(["*.bat", ".vscode/"]));
   });
+
+  it("补充 Desk Tools 顶层进程目录建议但不重复目录规则", () => {
+    const recommendations = ktcAnalyzeIgnoreRecommendations({
+      paths: ["build-local/", "build-fast/", "bin/", "dist/", "src/bin/"],
+      trackedPaths: [],
+      existingPatterns: [],
+    });
+    const processDirectories = recommendations.find((item) => item.groupId === "process-directories");
+    expect(processDirectories?.suggestedRules.map((rule) => rule.value)).toEqual(["bin/", "build-*/"]);
+    expect(processDirectories?.suggestedRules.map((rule) => rule.value)).not.toContain("dist/");
+    expect(processDirectories?.defaultSelected).toBe(true);
+  });
+
+  it("顶层进程目录含 Git 跟踪文件时阻断建议", () => {
+    const recommendations = ktcAnalyzeIgnoreRecommendations({
+      paths: ["out/", "out/generated.cpp"],
+      trackedPaths: ["out/generated.cpp"],
+      existingPatterns: [],
+    });
+    const processDirectories = recommendations.find((item) => item.groupId === "process-directories");
+    expect(processDirectories?.suggestedRules).toHaveLength(0);
+    expect(processDirectories?.blockedRules[0]?.rule.value).toBe("out/");
+    expect(processDirectories?.defaultSelected).toBe(false);
+  });
 });

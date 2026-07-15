@@ -12,6 +12,8 @@ import {
 import type { EncodingFileResultSummary, ToolRunContext } from "../types.js";
 import { getFileScope, isScopeEmpty, scopeSummary } from "../../scopeOptions.js";
 import { resolveWorkspaceIgnorePatterns } from "../../ignoreConfig.js";
+import { ktcResolveWorkspaceFileScope, type KtcWorkspaceFileScope } from "../../worksets.js";
+import { ktcClearEditorMatchHighlights } from "../../workbench/editorMatchHighlight.js";
 
 export function reportToEncodingResults(
   report: FileEncodingWalkReport,
@@ -37,31 +39,24 @@ export function logEncodingReport(
   log(formatFileEncodingReport(report, convert));
 }
 
-export async function scanEncodings(root: string): Promise<FileEncodingWalkReport> {
+export async function scanEncodings(root: string, workspaceScope?: KtcWorkspaceFileScope): Promise<FileEncodingWalkReport> {
   return runFileEncodingWalk({
     root,
     scope: getFileScope(),
     ignorePatterns: resolveWorkspaceIgnorePatterns(root),
+    includePaths: workspaceScope?.relativeFiles,
     convert: false,
   });
 }
 
 export async function convertEncodings(
   root: string,
+  workspaceScope?: KtcWorkspaceFileScope,
 ): Promise<FileEncodingWalkReport | undefined> {
-  const preview = await scanEncodings(root);
+  const preview = await scanEncodings(root, workspaceScope);
   const counts = countConvertibleRows(preview.results);
 
   if (counts.total === 0) {
-    const unsupported = preview.results.filter((r) => r.row.status === "unsupported").length;
-    if (unsupported > 0) {
-      const ok = await vscode.window.showWarningMessage(
-        `发现 ${unsupported} 个无法自动转换的文件（如 UTF-32 / unknown），仅可报告。是否查看预检结果？`,
-        { modal: true },
-        "确定",
-      );
-      if (ok !== "确定") return undefined;
-    }
     return preview;
   }
 
@@ -85,6 +80,7 @@ export async function convertEncodings(
     root,
     scope: getFileScope(),
     ignorePatterns: resolveWorkspaceIgnorePatterns(root),
+    includePaths: workspaceScope?.relativeFiles,
     convert: true,
   });
 }
@@ -92,7 +88,8 @@ export async function convertEncodings(
 export async function openEncodingFile(fullPath: string): Promise<void> {
   const uri = vscode.Uri.file(fullPath);
   const doc = await vscode.workspace.openTextDocument(uri);
-  await vscode.window.showTextDocument(doc, { preview: true });
+  const editor = await vscode.window.showTextDocument(doc, { preview: true });
+  ktcClearEditorMatchHighlights(editor);
 }
 
 export async function runEncodingFixAction(
@@ -122,8 +119,15 @@ export async function runEncodingFixAction(
   });
 
   try {
+    const workspaceScope = await ktcResolveWorkspaceFileScope(vscode.Uri.file(ctx.workspaceRoot), ctx.workspaceFileScopeId);
+    ctx.postState({
+      status: "running",
+      message: action === "convert"
+        ? `正在转换（${workspaceScope.label}；${scopeSummary(scope)}）…`
+        : `正在预检编码（${workspaceScope.label}；${scopeSummary(scope)}）…`,
+    });
     if (action === "scan") {
-      const report = await scanEncodings(ctx.workspaceRoot);
+      const report = await scanEncodings(ctx.workspaceRoot, workspaceScope);
       logEncodingReport(report, false, ctx.log);
       ctx.postState({
         status: "done",
@@ -139,7 +143,7 @@ export async function runEncodingFixAction(
     }
 
     if (action === "convert") {
-      const report = await convertEncodings(ctx.workspaceRoot);
+      const report = await convertEncodings(ctx.workspaceRoot, workspaceScope);
       if (!report) {
         ctx.postState({ status: "idle", message: "已取消转换。" });
         return;
@@ -155,7 +159,7 @@ export async function runEncodingFixAction(
         return;
       }
       logEncodingReport(report, true, ctx.log);
-      const rescan = await scanEncodings(ctx.workspaceRoot);
+      const rescan = await scanEncodings(ctx.workspaceRoot, workspaceScope);
       ctx.postState({
         status: "done",
         message: `已转换 ${report.convertedFiles} 个文件为 UTF-8。`,
@@ -164,11 +168,6 @@ export async function runEncodingFixAction(
         issueFiles: rescan.issueFiles,
         fixedFiles: report.convertedFiles,
       });
-      if (report.convertedFiles > 0) {
-        void vscode.window.showInformationMessage(
-          `KT Auto Code：已转换 ${report.convertedFiles} 个文件为 UTF-8。`,
-        );
-      }
       return;
     }
 

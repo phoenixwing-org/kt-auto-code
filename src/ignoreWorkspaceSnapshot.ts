@@ -12,9 +12,14 @@ export interface KtcIgnoreWorkspaceSnapshotOptions {
 
 const KTC_ANALYSIS_NO_DESCEND_DIRS = new Set([
   ".git", ".hg", ".svn", "node_modules",
-  "build", "build_debug", "build_release", "Debug", "Release",
+  "build", "build_debug", "build_release", "debug", "release", "Debug", "Release",
+  "out", "bin", "obj", "dist", ".cache", "_build",
   "intel_a", "win_b64", "Objects", "ToolsData",
 ]);
+
+function isAnalysisProcessDirectory(name: string): boolean {
+  return KTC_ANALYSIS_NO_DESCEND_DIRS.has(name) || /^(?:build-|cmake-build-)/i.test(name);
+}
 
 function normalizeRelative(root: string, path: string, directory: boolean): string {
   const value = relative(root, path).replace(/\\/g, "/");
@@ -70,7 +75,7 @@ export function ktcCollectIgnoreWorkspaceSnapshot(
       }
       if (entry.isDirectory()) {
         paths.push(normalizeRelative(root, fullPath, true));
-        if (!KTC_ANALYSIS_NO_DESCEND_DIRS.has(entry.name) && !entry.name.startsWith(".")) {
+        if (!isAnalysisProcessDirectory(entry.name) && !entry.name.startsWith(".")) {
           walk(fullPath, depth + 1);
         }
       } else if (entry.isFile()) {

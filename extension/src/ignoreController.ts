@@ -1,4 +1,3 @@
-import * as vscode from "vscode";
 import {
   appendIgnorePresetToDocument,
   mergeGitIgnoreIntoDocument,
@@ -8,18 +7,22 @@ import {
 } from "./ignoreConfig.js";
 import { KtcIgnoreRecommendationController } from "./ignoreRecommendationController.js";
 import type { IgnoreConfigSummary, WebviewInboundMessage } from "./tools/types.js";
+import type { KtcIgnoreRecommendationReport } from "./ignoreRecommendationTypes.js";
 
 type KtcIgnoreMessageType =
   | "openIgnoreFile"
   | "syncIgnoreFromGit"
   | "applyIgnorePreset"
-  | "analyzeIgnore";
+  | "analyzeIgnore"
+  | "applyIgnoreRecommendations";
 
 export type KtcIgnoreMessage = Extract<WebviewInboundMessage, { type: KtcIgnoreMessageType }>;
 
 export interface KtcIgnoreControllerResult {
   summary?: IgnoreConfigSummary;
   error?: string;
+  message?: string;
+  recommendations?: KtcIgnoreRecommendationReport;
 }
 
 const ignoreMessageTypes = new Set<KtcIgnoreMessageType>([
@@ -27,6 +30,7 @@ const ignoreMessageTypes = new Set<KtcIgnoreMessageType>([
   "syncIgnoreFromGit",
   "applyIgnorePreset",
   "analyzeIgnore",
+  "applyIgnoreRecommendations",
 ]);
 
 export function ktcIsIgnoreMessage(message: WebviewInboundMessage): message is KtcIgnoreMessage {
@@ -35,6 +39,7 @@ export function ktcIsIgnoreMessage(message: WebviewInboundMessage): message is K
 
 export class KtcIgnoreController {
   private readonly recommendations = new KtcIgnoreRecommendationController();
+  private activeRecommendations: { root: string; report: ReturnType<KtcIgnoreRecommendationController["createReport"]> } | undefined;
 
   snapshot(root: string | undefined): IgnoreConfigSummary | undefined {
     return refreshIgnoreConfig(root);
@@ -57,8 +62,20 @@ export class KtcIgnoreController {
         summary = message.action === "append"
           ? await appendIgnorePresetToDocument(root, message.presetId)
           : await removeIgnorePresetFromDocument(root, message.presetId);
+      } else if (message.type === "analyzeIgnore") {
+        const report = this.recommendations.createReport(root);
+        this.activeRecommendations = { root, report };
+        return {
+          recommendations: report,
+          message: report.recommendations.length
+            ? `分析完成：${report.recommendations.length} 个推荐组，请在当前 Block 中勾选后追加。`
+            : "分析完成：没有可追加的推荐规则。",
+        };
       } else {
-        await this.recommendations.analyze(root, onSummary);
+        const active = this.activeRecommendations;
+        if (!active || active.root !== root) throw new Error("Ignore 推荐结果已失效，请重新分析。");
+        const messageText = await this.recommendations.apply(root, active.report, message.groupIds, onSummary);
+        return { recommendations: active.report, message: messageText };
       }
       if (summary) onSummary(summary);
       return { summary };
@@ -67,9 +84,7 @@ export class KtcIgnoreController {
     }
   }
 
-  private fail(text: string, warning = false): KtcIgnoreControllerResult {
-    if (warning) void vscode.window.showWarningMessage(text);
-    else void vscode.window.showErrorMessage(text);
+  private fail(text: string, _warning = false): KtcIgnoreControllerResult {
     return { error: text };
   }
 }

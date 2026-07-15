@@ -1,14 +1,8 @@
 import * as vscode from "vscode";
-import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
+import type { FileResultSummary, KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
 import { openIssueFile, runHeaderAsciiAction } from "./commands.js";
 import { setPreserveGbk, setStripBom } from "./options.js";
-import { KtcHeaderAsciiResultView } from "../../workbench/headerAsciiResultView.js";
-
-let headerAsciiResultView: KtcHeaderAsciiResultView | undefined;
-export function registerHeaderAsciiResultView(context: vscode.ExtensionContext): void {
-  headerAsciiResultView = new KtcHeaderAsciiResultView(context);
-  context.subscriptions.push(headerAsciiResultView);
-}
+let latestHeaderResults: readonly FileResultSummary[] = [];
 
 export const headerAsciiTool: KtTool = {
   id: "headerAscii",
@@ -29,18 +23,23 @@ export const headerAsciiTool: KtTool = {
   },
 
   registerCommands(context: vscode.ExtensionContext): void {
-    const makeHandler = (action: string) => () => {
+    const makeHandler = (action: string) => async () => {
+      await vscode.commands.executeCommand("ktAutoCode.tool.show", this.id);
       const ctx = getRunContext();
       if (!ctx) {
         return;
       }
-      void runWithResults(action, ctx);
+      await runWithResults(action, ctx);
     };
 
     context.subscriptions.push(
       vscode.commands.registerCommand("ktAutoCode.headerAscii.scan", makeHandler("scan")),
       vscode.commands.registerCommand("ktAutoCode.headerAscii.fix", makeHandler("fix")),
-      vscode.commands.registerCommand("ktAutoCode.headerAscii.openIssue", openIssueFile),
+      vscode.commands.registerCommand("ktAutoCode.headerAscii.openIssue", (
+        fullPath: string,
+        line: number,
+        issues?: readonly FileResultSummary["issues"][number][],
+      ) => openIssueFile(fullPath, line, issues ?? issuesForFile(fullPath))),
     );
   },
 
@@ -58,7 +57,7 @@ export const headerAsciiTool: KtTool = {
       return;
     }
     if (message.type === "openIssue" && message.toolId === this.id) {
-      await openIssueFile(message.file, message.line);
+      await openIssueFile(message.file, message.line, issuesForFile(message.file));
     }
   },
 
@@ -72,9 +71,15 @@ async function runWithResults(action: string, ctx: ToolRunContext): Promise<void
     ...ctx,
     postState: (state) => {
       ctx.postState(state);
-      if (state.status === "done" && state.results) headerAsciiResultView?.show(state.results);
+      if (state.status === "done" && state.results) {
+        latestHeaderResults = state.results;
+      }
     },
   });
+}
+
+function issuesForFile(fullPath: string): readonly FileResultSummary["issues"][number][] {
+  return latestHeaderResults.find((row) => row.fullPath === fullPath)?.issues ?? [];
 }
 
 let runContextFactory: (() => ToolRunContext | undefined) | undefined;

@@ -39,6 +39,8 @@ export interface KtcIgnoreGroupRecommendation {
   blockedRules: readonly KtcBlockedIgnoreRule[];
 }
 
+const PROCESS_DIRECTORY_NAMES = new Set(["build", "debug", "release", "out", "bin", "obj", "dist", ".cache", "_build"]);
+
 interface EvidenceSeed {
   confidence: KtcIgnoreRecommendationConfidence;
   evidence: KtcIgnoreRecommendationEvidence;
@@ -123,6 +125,70 @@ function hasEquivalentExistingPattern(rule: KtcIgnoreRuleDefinition, patterns: R
   return patterns.has(withoutSlash) || patterns.has(`${withoutSlash}/`);
 }
 
+function topLevelProcessDirectory(path: string): string | undefined {
+  const normalized = normalizePath(path);
+  if (!normalized.endsWith("/") || normalized.slice(0, -1).includes("/")) return undefined;
+  const name = normalized.slice(0, -1);
+  const lower = name.toLowerCase();
+  return PROCESS_DIRECTORY_NAMES.has(lower) || /^build-/i.test(name) || /^cmake-build-/i.test(name) ? name : undefined;
+}
+
+function processDirectoryPattern(name: string): string {
+  if (/^cmake-build-/i.test(name)) return "cmake-build-*/";
+  if (/^build-/i.test(name)) return "build-*/";
+  return `${name}/`;
+}
+
+function buildProcessDirectoryRecommendation(
+  snapshot: KtcIgnoreWorkspaceSnapshot,
+  catalog: KtcIgnoreRuleCatalogDocument,
+): KtcIgnoreGroupRecommendation | undefined {
+  const existingPatterns = new Set(snapshot.existingPatterns.map((pattern) => normalizePath(pattern.trim())).filter(Boolean));
+  const catalogValues = new Set(catalog.rules.map((rule) => normalizePath(rule.value)));
+  const pathsByPattern = new Map<string, string[]>();
+  for (const path of snapshot.paths) {
+    const name = topLevelProcessDirectory(path);
+    if (!name || isIgnoredPath(path, [...snapshot.existingPatterns])) continue;
+    const pattern = processDirectoryPattern(name);
+    if (catalogValues.has(normalizePath(pattern))) continue;
+    const paths = pathsByPattern.get(pattern) ?? [];
+    paths.push(path);
+    pathsByPattern.set(pattern, paths);
+  }
+  if (pathsByPattern.size === 0) return undefined;
+
+  const rules: KtcIgnoreRuleDefinition[] = [...pathsByPattern.keys()].sort().map((value, index) => ({
+    id: `process-directory-${index + 1}`,
+    value,
+    kind: "directory",
+    categories: ["build-output", "process-directory"],
+    description: "Desk Tools 进程目录启发式识别出的顶层构建或缓存目录",
+  }));
+  const existingRules = rules.filter((rule) => hasEquivalentExistingPattern(rule, existingPatterns));
+  const candidateRules = rules.filter((rule) => !hasEquivalentExistingPattern(rule, existingPatterns));
+  const blockedRules = candidateRules
+    .map((rule) => ({ rule, trackedPaths: ruleMatchesPaths(rule, snapshot.trackedPaths).slice(0, 5) }))
+    .filter((item) => item.trackedPaths.length > 0);
+  const blockedIds = new Set(blockedRules.map((item) => item.rule.id));
+  const suggestedRules = candidateRules.filter((rule) => !blockedIds.has(rule.id));
+  return {
+    groupId: "process-directories",
+    title: "顶层构建与缓存目录",
+    description: "Desk Tools 启发式发现的 process/build 目录；仅建议，不会自动写入",
+    confidence: "high",
+    defaultSelected: suggestedRules.length > 0 && blockedRules.length === 0,
+    reviewRequired: false,
+    evidence: [...pathsByPattern.values()].flat().slice(0, 8).map((path) => ({
+      kind: "matching-path" as const,
+      label: `发现顶层进程目录 ${path}`,
+      path,
+    })),
+    suggestedRules,
+    existingRules,
+    blockedRules,
+  };
+}
+
 export function ktcAnalyzeIgnoreRecommendations(
   snapshot: KtcIgnoreWorkspaceSnapshot,
   catalog: KtcIgnoreRuleCatalogDocument = ktcGetBuiltinIgnoreRuleCatalog(),
@@ -180,6 +246,8 @@ export function ktcAnalyzeIgnoreRecommendations(
       blockedRules,
     });
   }
+  const processDirectories = buildProcessDirectoryRecommendation(snapshot, catalog);
+  if (processDirectories) recommendations.push(processDirectories);
   return recommendations.sort((a, b) => confidenceRank(b.confidence) - confidenceRank(a.confidence)
     || Number(a.reviewRequired) - Number(b.reviewRequired)
     || a.title.localeCompare(b.title));

@@ -4,7 +4,7 @@
 
 源码仓库：[PhoenixWing321/kt-auto-code](https://gitee.com/PhoenixWing321/kt-auto-code)。
 
-当前插件提供 **头文件编码修正、文件转码、Ignore 设置、工作区搜索替换**。Ignore 支持 CAA/C++/Web 受管预设、工作区规则扩展和按证据分析推荐，确认后只修改未保存的文本缓冲区，其他工具会立即共用该草稿；搜索替换支持有序关联规则、动态拆词、源/目标双前缀、CAA I/E、全大写派生、可选本地工作目录、分层最近目录和显式保存的工作区规则档案。写盘前会检查已存在目标和多源同目标冲突，详细结果在当前编辑分栏的 View 中展示。
+当前插件提供 **头文件编码修正、文件转码、Ignore 设置、工作区搜索替换、C++ 成员排序、UUID 替换、CAA 对话框定位与工程环境管理**。成员排序、UUID、搜索替换和 CAA 扫描可共用 `.phoenix/worksets.json`；工程环境 Block 直接维护操作系统用户环境变量，不使用 VS Code Settings 伪装系统值；其他插件配置仍使用 VS Code Settings。写盘前会检查冲突和文件快照，结果统一显示在单 Block 中。
 
 ## 快速开始
 
@@ -29,7 +29,7 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 | [PNXCaaStudy CAA 命名规则调查](doc/PNXCaaStudy-CAA命名规则调查.md) | I/E、TIE、dico 命名证据与完整名称/末词段两种模式 |
 | [工作区验收记录](doc/真实工作区只读验收.md) | CAA、C++、Web 只读预览与一次性工作区真实写盘验收 |
 | [代码规范](doc/代码规范.md) | 命名前缀、代码整理、MVC、状态与测试规则 |
-| [前端开发规则](doc/前端开发规则.md) | Vue 3、双视图、状态边界和前端体积约束 |
+| [UI 开发规则](doc/前端开发规则.md) | Ribbon、单显示多打开、Block 布局、范围、缓存、结果、Diff、主题与验收的权威规范 |
 | [Side Bar 界面改进计划](doc/侧边栏界面改进计划.md) | 四个工具、SVG 图标、共享 Ignore Service 和 MVC 分层 |
 | [搜索替换](doc/搜索替换.md) | 文本/文件名/文件夹名替换、字节精确处理与安全边界 |
 | [源文件编码扫描](doc/源文件编码扫描.md) | CLI、扫描范围；**CP1252 / 全角标点映射表** |

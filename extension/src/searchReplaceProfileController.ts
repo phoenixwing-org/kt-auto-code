@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import * as vscode from "vscode";
 import {
   ktcLoadWorkspaceSearchReplaceProfiles,
   ktcWriteWorkspaceSearchReplaceProfiles,
@@ -43,14 +42,20 @@ export class KtcSearchReplaceProfileController {
   async save(
     root: string,
     draft: KtcSearchReplaceProfileDraft,
-  ): Promise<KtcSearchReplaceProfileViewSnapshot | undefined> {
+    label: string,
+  ): Promise<KtcSearchReplaceProfileViewSnapshot> {
     const snapshot = ktcLoadWorkspaceSearchReplaceProfiles(root);
     if (snapshot.error) throw new Error(`无法保存：${snapshot.error}`);
-    const identity = await this.promptIdentity(snapshot.document.profiles);
-    if (!identity) return undefined;
+    const normalized = label.trim();
+    if (!normalized) throw new Error("规则档案名称不能为空");
+    const existing = snapshot.document.profiles.find((profile) => profile.label.localeCompare(
+      normalized,
+      undefined,
+      { sensitivity: "accent" },
+    ) === 0);
     const selectedProfile = ktcCreateSearchReplaceProfile(draft, {
-      id: identity.id,
-      label: identity.label,
+      id: existing?.id ?? randomUUID(),
+      label: existing?.label ?? normalized,
       updatedAt: new Date().toISOString(),
     });
     const document = ktcUpsertSearchReplaceProfile(snapshot.document, selectedProfile);
@@ -59,36 +64,5 @@ export class KtcSearchReplaceProfileController {
       profiles: ktcSearchReplaceProfileSummaries(saved.document),
       selectedProfile,
     };
-  }
-
-  private async promptIdentity(
-    profiles: readonly KtcSearchReplaceProfile[],
-  ): Promise<{ id: string; label: string } | undefined> {
-    let suggestion = "";
-    while (true) {
-      const label = await vscode.window.showInputBox({
-        title: "保存搜索替换规则档案",
-        prompt: "档案只写入当前工作区 .phoenix/search-replace.json",
-        value: suggestion,
-        validateInput: (value) => value.trim() ? undefined : "名称不能为空",
-      });
-      if (label === undefined) return undefined;
-      const normalized = label.trim();
-      const existing = profiles.find((profile) => profile.label.localeCompare(
-        normalized,
-        undefined,
-        { sensitivity: "accent" },
-      ) === 0);
-      if (!existing) return { id: randomUUID(), label: normalized };
-      const choice = await vscode.window.showWarningMessage(
-        `规则档案“${existing.label}”已存在。`,
-        { modal: true },
-        "更新",
-        "另存为",
-      );
-      if (choice === "更新") return { id: existing.id, label: existing.label };
-      if (choice !== "另存为") return undefined;
-      suggestion = `${normalized} 副本`;
-    }
   }
 }

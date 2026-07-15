@@ -9,6 +9,9 @@ export interface KtcSearchReplaceRequest {
   preserveCase?: boolean;
   levels: readonly RenameLevel[];
   scope?: string;
+  /** Optional workspace-relative file snapshot expanded from a named workset. */
+  includePaths?: readonly string[];
+  scopeLabel?: string;
   includeIgnored?: boolean;
 }
 

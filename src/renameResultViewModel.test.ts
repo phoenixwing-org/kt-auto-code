@@ -21,6 +21,7 @@ function report(): WorkspaceRenameReport {
         level: "dir",
         occurrences: 1,
         status: "preview",
+        ruleMatches: [{ ruleId: "old-folder", search: "Old", replace: "New", occurrences: 1 }],
       },
       {
         id: "text:src/file.cpp",
@@ -33,6 +34,7 @@ function report(): WorkspaceRenameReport {
         lines: [2, 4, 6, 8, 10, 12],
         detectedEncoding: "utf8-bom",
         status: "preview",
+        ruleMatches: [{ ruleId: "old-text", search: "OldName", replace: "NewName", occurrences: 6 }],
       },
     ],
   };
@@ -59,6 +61,8 @@ describe("renameResultViewModel", () => {
       targetOrPositionLabel: "L2, L4, L6, L8，……等 6 处",
       encodingLabel: "utf8-bom",
       statusLabel: "预览",
+      sourceHighlightTerms: ["OldName"],
+      editorHighlightTerms: ["OldName"],
     });
   });
 
@@ -66,7 +70,11 @@ describe("renameResultViewModel", () => {
     const applied = report();
     applied.applied = true;
     applied.hits[0]!.status = "applied";
-    expect(ktcBuildRenameResultViewModel(applied).rows[0]?.openPath).toBe("/workspace/src/NewFolder");
+    expect(ktcBuildRenameResultViewModel(applied).rows[0]).toMatchObject({
+      openPath: "/workspace/src/NewFolder",
+      sourceHighlightTerms: ["Old"],
+      editorHighlightTerms: ["New"],
+    });
   });
 
   it("写盘后使用 Model 提供的最终嵌套目录路径", () => {

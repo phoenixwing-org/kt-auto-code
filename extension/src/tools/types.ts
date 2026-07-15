@@ -6,12 +6,29 @@ import type {
   KtcSearchReplaceProfileSummary,
 } from "../../../src/searchReplaceProfiles.js";
 import type { KtcSearchReplaceRequest } from "../../../src/searchReplaceContracts.js";
+import type { KtcRenameResultViewModel } from "../../../src/renameResultViewModel.js";
+import type { KtcIgnoreRecommendationReport } from "../ignoreRecommendationTypes.js";
+import type { KtcWorkspaceFileScopeSummary } from "../worksets.js";
 
 /** Webview → Extension */
 export type WebviewInboundMessage =
   | { type: "ready" }
   | { type: "selectTool"; toolId: string }
-  | { type: "run"; toolId: string; action: string }
+  | { type: "selectWorkspaceFileScope"; toolId: string; scopeId: string }
+  | { type: "openWorkspaceWorksets" }
+  | {
+      type: "run";
+      toolId: string;
+      action: string;
+      uuidStrategy?: "map_per_value" | "fresh_per_hit";
+    }
+  | {
+      type: "reorderAction";
+      toolId: "reorderMembers";
+      action: "open" | "preview" | "apply" | "cancel" | "gitDiff" | "revert";
+      uris: string[];
+    }
+  | { type: "reorderSelection"; toolId: "reorderMembers"; uris: string[] }
   | { type: "openIssue"; toolId: string; file: string; line: number }
   | { type: "openEncodingFile"; toolId: string; file: string }
   | { type: "openIgnoreFile" }
@@ -20,7 +37,7 @@ export type WebviewInboundMessage =
   | { type: "analyzeIgnore" }
   | { type: "pickSearchReplaceDirectory"; toolId: "codeRename" }
   | { type: "rememberSearchReplaceDirectory"; toolId: "codeRename"; directory: string }
-  | { type: "saveSearchReplaceProfile"; toolId: "codeRename"; draft: KtcSearchReplaceProfileDraft }
+  | { type: "saveSearchReplaceProfile"; toolId: "codeRename"; label: string; draft: KtcSearchReplaceProfileDraft }
   | { type: "loadSearchReplaceProfile"; toolId: "codeRename"; id: string }
   | {
       type: "requestAssociatedRuleCandidates";
@@ -52,6 +69,15 @@ export type WebviewInboundMessage =
       currentName: string;
       suggestedName: string;
     }
+  | { type: "codeRenameAction"; toolId: "codeRename"; action: "open"; rowId: string }
+  | { type: "caaDialogAction"; toolId: "caaDialog"; action: "open" | "openExternal"; uri: string }
+  | { type: "uuidAction"; toolId: "uuidReplace"; action: "open" | "apply" | "cancel" | "gitDiff"; uris: string[] }
+  | { type: "uuidSelection"; toolId: "uuidReplace"; uris: string[] }
+  | { type: "ignoreSelection"; toolId: "ignoreSettings"; groupIds: string[] }
+  | { type: "applyIgnoreRecommendations"; groupIds: string[] }
+  | { type: "environmentAction"; toolId: "environmentSettings"; action: "refresh" | "openSystemSettings" | "openPluginSettings" }
+  | { type: "environmentAction"; toolId: "environmentSettings"; action: "set"; key: ProjectEnvironmentValueSummary["key"]; value: string }
+  | { type: "environmentAction"; toolId: "environmentSettings"; action: "clear" | "pick"; key: ProjectEnvironmentValueSummary["key"] }
   | { type: "setOption"; toolId: string; key: "preserveGbk" | "stripBom" | "includeHeaders" | "includeSource" | "includeMarkdown"; value: boolean };
 
 /** Extension → Webview */
@@ -60,20 +86,32 @@ export type WebviewOutboundMessage =
       type: "init";
       tools: ToolSummary[];
       activeToolId: string;
+      openToolIds: readonly string[];
       workspaceLabel: string;
       scope: { includeHeaders: boolean; includeSource: boolean; includeMarkdown: boolean };
       ignoreConfig?: IgnoreConfigSummary;
       toolOptions: Record<string, ToolOptionsState>;
       sidebarStyle: "ribbon" | "compact";
+      presentation: "ribbon" | "detailBlock";
       recentWorkingDirectories: KtcRecentWorkingDirectories;
       searchReplaceProfiles: readonly KtcSearchReplaceProfileSummary[];
       searchReplaceProfileError?: string;
+      workspaceFileScopes: readonly KtcWorkspaceFileScopeSummary[];
+      selectedWorkspaceFileScopes: Record<string, string>;
+      workspaceFileScopeError?: string;
     }
   | { type: "workspace"; label: string }
   | { type: "scope"; scope: { includeHeaders: boolean; includeSource: boolean; includeMarkdown: boolean } }
   | { type: "ignoreConfig"; ignoreConfig?: IgnoreConfigSummary }
   | { type: "options"; toolId: string; options: ToolOptionsState }
   | { type: "sidebarStyle"; style: "ribbon" | "compact" }
+  | { type: "openTools"; activeToolId: string; openToolIds: readonly string[] }
+  | {
+      type: "workspaceFileScopes";
+      scopes: readonly KtcWorkspaceFileScopeSummary[];
+      selected: Record<string, string>;
+      error?: string;
+    }
   | { type: "requestSearchReplacePreview" }
   | { type: "recentWorkingDirectories"; directories: KtcRecentWorkingDirectories; selected?: string }
   | {
@@ -146,6 +184,64 @@ export interface ToolUiState {
   scanned?: number;
   issueFiles?: number;
   fixedFiles?: number;
+  reorderResults?: ReorderFileResultSummary[];
+  reorderRevision?: number;
+  reorderScopeLabel?: string;
+  reorderSelectedUris?: string[];
+  codeRenameResults?: KtcRenameResultViewModel;
+  caaDialogResults?: CaaDialogFileResultSummary[];
+  caaSettingsText?: string;
+  caaDeskConnection?: {
+    status: "checking" | "online" | "offline" | "incompatible" | "custom-command";
+    text: string;
+    endpoint?: string;
+    checkedAt: string;
+  };
+  ignoreRecommendations?: KtcIgnoreRecommendationReport;
+  ignoreSelectedGroupIds?: string[];
+  uuidResults?: UuidFileResultSummary[];
+  uuidRevision?: number;
+  uuidStrategy?: "map_per_value" | "fresh_per_hit";
+  uuidSelectedUris?: string[];
+  environmentValues?: ProjectEnvironmentValueSummary[];
+}
+
+export interface ProjectEnvironmentValueSummary {
+  key: "customRoot" | "thirdPartyRoot" | "coreRoot" | "caaMkVersion";
+  environmentVariable: "ROOT_DIR" | "ROOT_DIR_3rdParty" | "ROOT_DIR_CORE" | "CAA_MK_VERSION";
+  required: boolean;
+  source: "system" | "missing";
+  value?: string;
+  suggestedValue?: string;
+  pathExists?: boolean;
+}
+
+export interface UuidFileResultSummary {
+  uri: string;
+  relativePath: string;
+  encoding: string;
+  hitCount: number;
+  firstLine: number;
+  state: "pending" | "cancelled" | "applied" | "blocked";
+  hasApplied: boolean;
+  warnings: readonly string[];
+  mappings: readonly { line: number; column: number; from: string; to: string }[];
+}
+
+export interface CaaDialogFileResultSummary {
+  uri: string;
+  relativePath: string;
+  selected: boolean;
+}
+
+export interface ReorderFileResultSummary {
+  uri: string;
+  relativePath: string;
+  kind: "header" | "source";
+  encoding: string;
+  changed: boolean;
+  state: "unchanged" | "pending" | "cancelled" | "applied" | "blocked" | "reverted";
+  warnings: readonly string[];
 }
 
 export interface FileResultSummary {
@@ -173,6 +269,7 @@ export interface ToolPanelModel {
 export interface ToolRunContext {
   workspaceRoot: string | undefined;
   workspaceLabel: string;
+  workspaceFileScopeId: string;
   postState: (state: ToolUiState) => void;
   log: (text: string) => void;
 }

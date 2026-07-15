@@ -2,39 +2,57 @@ import * as vscode from "vscode";
 import { dirname } from "node:path";
 import { SidebarViewProvider } from "./sidebar/sidebarViewProvider.js";
 import { registerTool, getTools } from "./tools/registry.js";
-import { headerAsciiTool, registerHeaderAsciiResultView } from "./tools/headerAscii/index.js";
-import { encodingFixTool, registerEncodingResultView } from "./tools/encodingFix/index.js";
-import { codeRenameTool, registerCodeRenameResultView } from "./tools/codeRename/index.js";
-import { registerReorderMembersResultView, reorderMembersTool } from "./tools/reorderMembers/index.js";
+import { headerAsciiTool } from "./tools/headerAscii/index.js";
+import { encodingFixTool } from "./tools/encodingFix/index.js";
+import { codeRenameTool } from "./tools/codeRename/index.js";
+import { registerReorderMembersSupport, reorderMembersTool } from "./tools/reorderMembers/index.js";
 import { ignoreSettingsTool } from "./tools/ignoreSettings/index.js";
-import { registerUuidReplacementResultView, uuidReplaceTool } from "./tools/uuidReplace/index.js";
-import { caaDialogTool, registerCaaDialogResultView } from "./tools/caaDialog/index.js";
+import { uuidReplaceTool } from "./tools/uuidReplace/index.js";
+import { caaDialogTool } from "./tools/caaDialog/index.js";
+import { environmentSettingsTool } from "./tools/environmentSettings/index.js";
 import { invalidateWorkspaceIgnorePatterns } from "./ignoreConfig.js";
+import { ktcOpenWorkspaceWorksets } from "./worksets.js";
+import { ktcRegisterResultAccordion } from "./workbench/resultAccordion.js";
+import { ktcRegisterEditorMatchHighlight } from "./workbench/editorMatchHighlight.js";
 
 let sidebarProvider: SidebarViewProvider | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
-  registerHeaderAsciiResultView(context);
-  registerEncodingResultView(context);
-  registerCodeRenameResultView(context);
-  registerReorderMembersResultView(context);
-  registerUuidReplacementResultView(context);
-  registerCaaDialogResultView(context);
+  void vscode.commands.executeCommand("setContext", "ktAutoCode.modulePanelVisible", false);
+  ktcRegisterEditorMatchHighlight(context);
+  registerReorderMembersSupport(context);
   registerTool(headerAsciiTool);
   registerTool(encodingFixTool);
   registerTool(ignoreSettingsTool);
+  registerTool(environmentSettingsTool);
   registerTool(codeRenameTool);
   registerTool(reorderMembersTool);
   registerTool(uuidReplaceTool);
   registerTool(caaDialogTool);
 
   sidebarProvider = new SidebarViewProvider(context.extensionUri, context.globalState, context.workspaceState);
+  context.subscriptions.push(ktcRegisterResultAccordion(SidebarViewProvider.moduleViewType, sidebarProvider));
 
   for (const tool of getTools()) {
     tool.registerCommands(context);
   }
 
   context.subscriptions.push(
+    vscode.commands.registerCommand("ktAutoCode.tool.show", (toolId: string) => {
+      void sidebarProvider?.showTool(toolId);
+    }),
+    vscode.commands.registerCommand("ktAutoCode.settings.headerAscii", () => {
+      void vscode.commands.executeCommand("workbench.action.openSettings", "@ext:kuntai.kt-auto-code headerAscii");
+    }),
+    vscode.commands.registerCommand("ktAutoCode.settings.scope", () => {
+      void vscode.commands.executeCommand("workbench.action.openSettings", "@ext:kuntai.kt-auto-code scope");
+    }),
+    vscode.commands.registerCommand("ktAutoCode.codeRename.openAdvanced", () => {
+      void sidebarProvider?.showTool("codeRename");
+    }),
+    vscode.commands.registerCommand("ktAutoCode.ignore.openAdvanced", () => {
+      void sidebarProvider?.showTool("ignoreSettings");
+    }),
     vscode.commands.registerCommand("ktAutoCode.sidebar.toggleStyle", async () => {
       const config = vscode.workspace.getConfiguration("ktAutoCode");
       const current = config.get<"ribbon" | "compact">("sidebar.toolPickerStyle", "ribbon");
@@ -45,13 +63,33 @@ export function activate(context: vscode.ExtensionContext): void {
       );
     }),
     vscode.commands.registerCommand("ktAutoCode.searchReplace.preview", () => {
-      sidebarProvider?.requestSearchReplacePreview();
+      void sidebarProvider?.showTool("codeRename");
+    }),
+    vscode.commands.registerCommand("ktAutoCode.modulePanel.close", () => {
+      void sidebarProvider?.closeToolBlock();
+    }),
+    vscode.commands.registerCommand("ktAutoCode.reorderMembers.showResults", () => {
+      void sidebarProvider?.showTool("reorderMembers");
+    }),
+    vscode.commands.registerCommand("ktAutoCode.reorderMembers.closeResults", () => {
+      void sidebarProvider?.closeToolBlock();
+    }),
+    vscode.commands.registerCommand("ktAutoCode.worksets.open", async () => {
+      const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+      if (!root) { void vscode.window.showErrorMessage("请先打开工作区，再配置工作集。"); return; }
+      try { await ktcOpenWorkspaceWorksets(root); await sidebarProvider?.refreshWorkspaceFileScopes(); }
+      catch (error) { void vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error)); }
     }),
   );
 
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(
       SidebarViewProvider.viewType,
+      sidebarProvider,
+      { webviewOptions: { retainContextWhenHidden: true } },
+    ),
+    vscode.window.registerWebviewViewProvider(
+      SidebarViewProvider.moduleViewType,
       sidebarProvider,
       { webviewOptions: { retainContextWhenHidden: true } },
     ),
@@ -62,6 +100,9 @@ export function activate(context: vscode.ExtensionContext): void {
       if (ignoreRootForDocument(document)) sidebarProvider?.refreshIgnoreConfig();
     }),
     vscode.workspace.onDidSaveTextDocument((document) => {
+      if (document.uri.path.replace(/\\/g, "/").endsWith("/.phoenix/worksets.json")) {
+        void sidebarProvider?.refreshWorkspaceFileScopes();
+      }
       const root = ignoreRootForDocument(document);
       if (root) {
         invalidateWorkspaceIgnorePatterns(root);

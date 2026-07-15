@@ -34,6 +34,8 @@ export interface WorkspaceRenameOptions {
   preserveCase?: boolean;
   levels: readonly RenameLevel[];
   scope?: string;
+  /** Workspace-relative files captured before preview; parent directories remain eligible for path rename. */
+  includePaths?: readonly string[];
   includeIgnored?: boolean;
   ignorePatterns?: readonly string[];
   apply?: boolean;
@@ -188,7 +190,11 @@ function collectEntries(opts: WorkspaceRenameOptions, root: string, start: strin
   } else if (startStat.isFile()) {
     out.push({ fullPath: start, relativePath: normalizeRelativePath(relative(root, start)), kind: "file" });
   }
-  return out;
+  if (!opts.includePaths) return out;
+  const included = new Set(opts.includePaths.map(normalizeRelativePath));
+  return out.filter((entry) => entry.kind === "file"
+    ? included.has(entry.relativePath)
+    : [...included].some((path) => path === entry.relativePath || path.startsWith(`${entry.relativePath}/`)));
 }
 
 function isProbablyText(fullPath: string, bytes: Buffer): boolean {

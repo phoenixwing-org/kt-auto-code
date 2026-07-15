@@ -18,6 +18,8 @@ export interface KtcRenameResultRowViewModel {
   encodingLabel: string;
   statusLabel: string;
   detail?: string;
+  sourceHighlightTerms: readonly string[];
+  editorHighlightTerms: readonly string[];
 }
 
 export interface KtcRenameResultViewModel {
@@ -63,6 +65,10 @@ export function ktcBuildRenameResultViewModel(report: WorkspaceRenameReport): Kt
     rows: report.hits.map((hit) => {
       const source = pathParts(hit.relativePath);
       const target = pathParts(hit.newPath ?? hit.relativePath);
+      const sourceHighlightTerms = [...new Set((hit.ruleMatches ?? []).map((match) => match.search).filter(Boolean))];
+      const editorHighlightTerms = [...new Set((hit.ruleMatches ?? [])
+        .map((match) => report.applied ? match.replace : match.search)
+        .filter(Boolean))];
       return {
         id: hit.id,
         level: hit.level,
@@ -77,6 +83,8 @@ export function ktcBuildRenameResultViewModel(report: WorkspaceRenameReport): Kt
         encodingLabel: hit.detectedEncoding ?? "",
         statusLabel: KTC_LEVEL_STATUS[hit.status] ?? hit.status,
         detail: hit.status === "error" || hit.status === "skipped" ? hit.detail : undefined,
+        sourceHighlightTerms,
+        editorHighlightTerms,
       };
     }),
   };

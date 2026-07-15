@@ -17,11 +17,14 @@ pnpm fix-headers tests/fixtures/multiChar   # 修复样例（慎用，会改文�
 pnpm test
 ```
 
+## 共享算法 fixture
+
+C++ 成员排序由 `phoenix-wing/code-core` 提供，回归样例统一位于 `phoenix-wing/src/code-core/fixtures/`，本仓库不再建立 `reorder_members/` 副本。KtAlarmClock 的 clang-format 配置副本、类尾空行用例和排序幂等测试也归 Wing，避免插件与 DeskTools 各自维护一套规则。
+
 ## 布局（规划）
 
 | 路径 | 用途 |
 | --- | --- |
-| `reorder_members/` | 最小 `.h` 片段（锁定段用例） |
 | `uuid/` | UUID / GUID / CAA IID 形态小样本 |
 | `caa/` | CAA 对话框样例（CATDlg / expected） |
 | `workspaces/` | 最小工作空间 DB 和 Document.xml 片段 |

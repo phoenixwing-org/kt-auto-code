@@ -100,6 +100,24 @@ describe("workspaceRename", () => {
     expect(result.hits.map((hit) => hit.relativePath)).toEqual(["keep.cpp"]);
   });
 
+  it("按工作集文件快照限制文本和路径替换", () => {
+    const root = tempRoot();
+    mkdirSync(join(root, "OldSelected"));
+    mkdirSync(join(root, "OldOutside"));
+    writeFileSync(join(root, "OldSelected", "Old.cpp"), "Old\n");
+    writeFileSync(join(root, "OldOutside", "Old.cpp"), "Old\n");
+    runWorkspaceRename({
+      root,
+      oldName: "Old",
+      newName: "New",
+      levels: ["text", "file", "dir"],
+      includePaths: ["OldSelected/Old.cpp"],
+      apply: true,
+    });
+    expect(readFileSync(join(root, "NewSelected", "New.cpp"), "utf8")).toBe("New\n");
+    expect(readFileSync(join(root, "OldOutside", "Old.cpp"), "utf8")).toBe("Old\n");
+  });
+
   it("按文本、文件名、文件夹顺序批量处理", () => {
     const root = tempRoot();
     mkdirSync(join(root, "OldPkg"));

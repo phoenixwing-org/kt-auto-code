@@ -45,4 +45,19 @@ describe("sourceEncodingWalk", () => {
     const after = scanWorkspace({ root, headersOnly: true, fix: false });
     expect(after).toHaveLength(0);
   });
+
+  it("工作集精确文件范围只扫描 includePaths", () => {
+    const root = mkdtempSync(join(tmpdir(), "phoenix-code-scope-"));
+    writeFileSync(join(root, "selected.h"), Buffer.from("void f(\x94x\x94);\n", "latin1"));
+    writeFileSync(join(root, "outside.h"), Buffer.from("void g(\x94y\x94);\n", "latin1"));
+
+    const report = runWorkspaceEncodingScan({
+      root,
+      headersOnly: true,
+      includePaths: ["selected.h"],
+    });
+
+    expect(report.scanned).toBe(1);
+    expect(report.results.map((row) => row.filePath)).toEqual([join(root, "selected.h")]);
+  });
 });

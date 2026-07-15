@@ -5,7 +5,10 @@ import { pnwReorderCppText, pnwReorderHeaderText } from "phoenix-wing/code-core"
 import { isIgnoredPath } from "../../../../src/dotIgnore.js";
 import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
 import { resolveWorkspaceIgnorePatterns } from "../../ignoreConfig.js";
-import { KtcReorderMembersResultView, type KtcReorderPreviewRow, type KtcReorderApplyResult, type KtcReorderMembersResultActions, type KtcReorderRevertResult } from "../../workbench/reorderMembersResultView.js";
+import type { KtcReorderPreviewRow, KtcReorderApplyResult, KtcReorderMembersResultActions, KtcReorderRevertResult } from "./contracts.js";
+import { ktcAddResultFilesToWorkset, ktcFileInWorkspaceScope, ktcResolveWorkspaceFileScope } from "../../worksets.js";
+import { ktcPendingReorderUris, ktcReorderResultSummaries, type KtcReorderStateRow } from "./state.js";
+import { ktcExecuteReorderAction } from "./controller.js";
 
 const INCLUDE = "**/*.{h,hpp,hh,cc,cpp,cxx}";
 const EXCLUDE = "**/{.git,.phoenix,node_modules,dist,build,out,target}/**";
@@ -14,13 +17,24 @@ const PREVIEW_SCHEME = "kt-auto-code-reorder-preview";
 type Encoding = "utf8" | "gbk";
 type Snapshot = KtcReorderPreviewRow & { raw: Uint8Array; after: string; encodingKind: Encoding; bom: boolean };
 
-let reorderMembersResultView: KtcReorderMembersResultView | undefined;
+let lastResultPaths: readonly string[] = [];
+let lastResultRoot: string | undefined;
 const previewContents = new Map<string, string>();
+let revision = 0;
+let activeSession: {
+  readonly root: string;
+  readonly snapshots: readonly Snapshot[];
+  readonly stateRows: KtcReorderStateRow[];
+  readonly actions: KtcReorderMembersResultActions;
+  readonly scanned: number;
+  readonly scopeLabel: string;
+  readonly revision: number;
+  readonly runtimeWarnings: Map<string, string>;
+  selected: Set<string>;
+} | undefined;
 
-export function registerReorderMembersResultView(context: vscode.ExtensionContext): void {
-  reorderMembersResultView = new KtcReorderMembersResultView(context);
+export function registerReorderMembersSupport(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
-    reorderMembersResultView,
     vscode.workspace.registerTextDocumentContentProvider(PREVIEW_SCHEME, {
       provideTextDocumentContent: (uri) => previewContents.get(uri.toString()) ?? "",
     }),
@@ -30,8 +44,18 @@ export function registerReorderMembersResultView(context: vscode.ExtensionContex
 export const reorderMembersTool: KtTool = {
   id: "reorderMembers", title: "C++ 成员排序", description: "扫描、预览、确认写回 C++ 成员排序。", icon: "media/tools/member-sort.svg",
   getPanelModel(): ToolPanelModel { return { summary: { id: this.id, title: this.title, description: this.description, icon: this.icon } }; },
-  registerCommands(context): void { context.subscriptions.push(vscode.commands.registerCommand("ktAutoCode.reorderMembers.preview", () => { const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath; if (root) void runPreview({ workspaceRoot: root, workspaceLabel: root, postState: () => undefined, log: () => undefined }); })); },
-  async handleMessage(message: WebviewInboundMessage, ctx: ToolRunContext): Promise<void> { if (message.type === "run" && message.toolId === this.id) await runPreview(ctx); },
+  registerCommands(context): void { context.subscriptions.push(
+    vscode.commands.registerCommand("ktAutoCode.reorderMembers.preview", async () => { await vscode.commands.executeCommand("ktAutoCode.tool.show", this.id); const ctx = getRunContext(); if (ctx) await runPreview(ctx); }),
+    vscode.commands.registerCommand("ktAutoCode.reorderMembers.addToWorkset", () => addResultsToWorkset("成员排序")),
+  ); },
+  async handleMessage(message: WebviewInboundMessage, ctx: ToolRunContext): Promise<void> {
+    if (message.type === "run" && message.toolId === this.id) {
+      if (message.action === "addToWorkset") await addResultsToWorkset("成员排序");
+      else await runPreview(ctx);
+    }
+    if (message.type === "reorderAction" && message.toolId === this.id) await handleReorderAction(message, ctx);
+    if (message.type === "reorderSelection" && message.toolId === this.id) updateReorderSelection(message.uris, ctx);
+  },
   async runAction(action: string, ctx: ToolRunContext): Promise<void> { if (action === "preview" || action === "scan") await runPreview(ctx); },
 };
 
@@ -39,12 +63,18 @@ async function runPreview(ctx: ToolRunContext): Promise<void> {
   if (!ctx.workspaceRoot) { ctx.postState({ status: "error", message: "请先打开工作区。" }); return; }
   ctx.postState({ status: "running", message: "正在生成 C++ 成员排序预览…" });
   const root = vscode.Uri.file(ctx.workspaceRoot);
+  let scope;
+  try { scope = await ktcResolveWorkspaceFileScope(root, ctx.workspaceFileScopeId); }
+  catch (error) { ctx.postState({ status: "error", message: error instanceof Error ? error.message : String(error) }); return; }
   const ignorePatterns = resolveWorkspaceIgnorePatterns(ctx.workspaceRoot);
   const candidates = (await vscode.workspace.findFiles(new vscode.RelativePattern(root, INCLUDE), EXCLUDE))
+    .filter((uri) => ktcFileInWorkspaceScope(uri, scope))
     .filter((uri) => !isIgnoredPath(relative(ctx.workspaceRoot!, uri.fsPath).replace(/\\/g, "/"), ignorePatterns))
     .map(uri => ({ file: uri.fsPath, relativePath: relative(ctx.workspaceRoot!, uri.fsPath).replace(/\\/g, "/"), kind: /\.(?:h|hpp|hh)$/i.test(uri.fsPath) ? "header" as const : "source" as const }))
     .sort((a, b) => a.relativePath.localeCompare(b.relativePath));
   const snapshots = await Promise.all(candidates.map(previewFile));
+  lastResultPaths = candidates.map((candidate) => candidate.relativePath);
+  lastResultRoot = ctx.workspaceRoot;
   const byUri = new Map(snapshots.map(row => [row.uri.toString(), row]));
   const actions: KtcReorderMembersResultActions = {
     openFile: async uri => { const row = byUri.get(uri); if (row) await vscode.window.showTextDocument(row.uri, { preview: true }); },
@@ -56,10 +86,105 @@ async function runPreview(ctx: ToolRunContext): Promise<void> {
     revert: async uri => revertSnapshot(uri, byUri, ctx),
     apply: async uris => applySnapshots(uris, byUri, ctx),
   };
-  reorderMembersResultView?.show(snapshots, candidates.length, actions);
   const changed = snapshots.filter(row => row.changed).length;
-  ctx.postState({ status: "done", message: `已扫描 ${candidates.length} 个 C++ 文件，其中 ${changed} 个可排序；请在 Primary Sidebar 下方的“成员排序”结果视图中预览、勾选并确认写回。`, scanned: candidates.length });
-  ctx.log(`[成员排序] 扫描 ${candidates.length} 个文件；${changed} 个有变更。`);
+  activeSession = {
+    root: ctx.workspaceRoot,
+    snapshots,
+    stateRows: snapshots.map(toStateRow),
+    actions,
+    scanned: candidates.length,
+    scopeLabel: scope.label,
+    revision: ++revision,
+    runtimeWarnings: new Map(),
+    selected: new Set(snapshots.filter((row) => row.state === "pending").map((row) => row.uri.toString())),
+  };
+  postSessionState(ctx, `范围“${scope.label}”：${candidates.length} 个 C++ 文件，${changed} 个可排序。`);
+  ctx.log(`[成员排序] 范围 ${scope.label}；扫描 ${candidates.length} 个文件；${changed} 个有变更。`);
+}
+
+function updateReorderSelection(uris: readonly string[], ctx: ToolRunContext): void {
+  const session = activeSession;
+  if (!session || session.root !== ctx.workspaceRoot) return;
+  session.selected = new Set(ktcPendingReorderUris(session.stateRows, uris));
+  ctx.postState({ status: "done", reorderSelectedUris: [...session.selected] });
+}
+
+async function handleReorderAction(
+  message: Extract<WebviewInboundMessage, { type: "reorderAction" }>,
+  ctx: ToolRunContext,
+): Promise<void> {
+  const session = activeSession;
+  if (!session || !ctx.workspaceRoot || session.root !== ctx.workspaceRoot) {
+    ctx.postState({ status: "error", message: "当前工作区没有成员排序缓存，请重新扫描。" });
+    return;
+  }
+  try {
+    if (message.action === "apply") {
+      const uris = ktcPendingReorderUris(session.stateRows, message.uris);
+      if (!uris.length) return;
+      ctx.postState({ status: "running", message: `正在确认 ${uris.length} 个成员排序变更…` });
+    } else if (message.action === "revert") {
+      const row = session.stateRows.find((candidate) => candidate.uri === message.uris[0]);
+      if (!row || row.state !== "applied") return;
+      ctx.postState({ status: "running", message: `正在确认还原 ${row.relativePath}…` });
+    }
+    const outcome = await ktcExecuteReorderAction({
+      rows: session.stateRows,
+      actions: session.actions,
+      runtimeWarnings: session.runtimeWarnings,
+      selected: session.selected,
+    }, message.action, message.uris);
+    if (!outcome.handled || !outcome.refresh) return;
+    syncStates(session.snapshots, session.stateRows);
+    postSessionState(ctx, outcome.message, outcome.status);
+  } catch (error) {
+    postSessionState(ctx, error instanceof Error ? error.message : String(error), "error");
+  }
+}
+
+function postSessionState(
+  ctx: ToolRunContext,
+  message?: string,
+  status: "done" | "error" = "done",
+): void {
+  const session = activeSession;
+  if (!session) return;
+  const pending = session.stateRows.filter((row) => row.state === "pending").length;
+  const pendingUris = new Set(session.stateRows.filter((row) => row.state === "pending").map((row) => row.uri));
+  session.selected = new Set([...session.selected].filter((uri) => pendingUris.has(uri)));
+  ctx.postState({
+    status,
+    message: message ?? `已扫描 ${session.scanned} 个 C++ 文件，${pending} 个待写盘。`,
+    scanned: session.scanned,
+    reorderRevision: session.revision,
+    reorderScopeLabel: session.scopeLabel,
+    reorderSelectedUris: [...session.selected],
+    reorderResults: ktcReorderResultSummaries(session.stateRows, session.runtimeWarnings),
+  });
+}
+
+function toStateRow(row: Snapshot): KtcReorderStateRow {
+  return {
+    uri: row.uri.toString(),
+    relativePath: row.relativePath,
+    kind: row.kind,
+    encoding: row.encoding,
+    changed: row.changed,
+    state: row.state,
+    warnings: row.warnings,
+  };
+}
+
+function syncStates(rows: readonly Snapshot[], stateRows: readonly KtcReorderStateRow[]): void {
+  const states = new Map(stateRows.map((row) => [row.uri, row.state]));
+  for (const row of rows) row.state = states.get(row.uri.toString()) ?? row.state;
+}
+
+async function addResultsToWorkset(title: string): Promise<void> {
+  const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+  if (!root || lastResultRoot !== root.fsPath || !lastResultPaths.length) { void vscode.window.showInformationMessage("请先在当前工作区生成成员排序结果。"); return; }
+  try { await ktcAddResultFilesToWorkset(root, lastResultPaths, title); }
+  catch (error) { void vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error)); }
 }
 
 async function previewFile(candidate: { file: string; relativePath: string; kind: "header" | "source" }): Promise<Snapshot> {
@@ -134,15 +259,25 @@ async function revertSnapshot(uri: string, rows: ReadonlyMap<string, Snapshot>, 
 }
 
 async function applySnapshots(uris: readonly string[], rows: ReadonlyMap<string, Snapshot>, ctx: ToolRunContext): Promise<KtcReorderApplyResult> {
-  const selected = uris.map(uri => rows.get(uri)).filter((row): row is Snapshot => Boolean(row?.changed));
+  const selected = uris.map(uri => rows.get(uri)).filter((row): row is Snapshot => Boolean(row?.changed && row.state === "pending"));
   if (!selected.length) return { updates: [] };
   if (await vscode.window.showWarningMessage(`将写入 ${selected.length} 个成员排序变更。`, { modal: true }, "应用排序") !== "应用排序") return { updates: [] };
   const applied: Snapshot[] = []; const rejected: string[] = [];
   const updates: Array<{ uri: string; state: "applied" | "blocked"; warning?: string }> = [];
   for (const row of selected) try { if (!equal(await vscode.workspace.fs.readFile(row.uri), row.raw)) { const warning = "文件已被外部修改，未写入"; row.state = "blocked"; rejected.push(`${row.relativePath}（文件已变化）`); updates.push({ uri: row.uri.toString(), state: "blocked", warning }); continue; } await vscode.workspace.fs.writeFile(row.uri, encode(row)); row.state = "applied"; applied.push(row); updates.push({ uri: row.uri.toString(), state: "applied" }); } catch (error) { const warning = error instanceof Error ? error.message : "写入失败"; row.state = "blocked"; rejected.push(`${row.relativePath}（${warning}）`); updates.push({ uri: row.uri.toString(), state: "blocked", warning }); }
   const message = rejected.length ? `已写入 ${applied.length} 个文件；未写入 ${rejected.length} 个：${rejected.join("；")}` : `已写入 ${applied.length} 个文件；可在结果行按需查看 Git 差异。`;
-  ctx.log(`[成员排序应用] ${message}`); ctx.postState({ status: rejected.length ? "error" : "done", message }); void vscode.window.showInformationMessage(message);
+  ctx.log(`[成员排序应用] ${message}`); ctx.postState({ status: rejected.length ? "error" : "done", message });
   return { updates };
+}
+
+let runContextFactory: (() => ToolRunContext | undefined) | undefined;
+
+export function setReorderMembersRunContextFactory(factory: () => ToolRunContext | undefined): void {
+  runContextFactory = factory;
+}
+
+function getRunContext(): ToolRunContext | undefined {
+  return runContextFactory?.();
 }
 
 async function openGitChanges(rows: readonly Snapshot[], ctx: ToolRunContext): Promise<boolean> {

@@ -38,4 +38,17 @@ describe("fileEncodingWalk", () => {
     expect(detectFileEncoding(new Uint8Array(readFileSync(join(dir, "bom.md")))).detected).toBe("ascii");
     expect(detectFileEncoding(new Uint8Array(readFileSync(join(dir, "wide.h")))).detected).toBe("ascii");
   });
+
+  it("工作集精确文件范围只预检 includePaths", () => {
+    const root = mkdtempSync(join(tmpdir(), "kt-enc-scope-"));
+    try {
+      writeFileSync(join(root, "selected.cpp"), Buffer.from("// \xb2\xe2\n", "binary"));
+      writeFileSync(join(root, "outside.cpp"), Buffer.from("// \xb2\xe2\n", "binary"));
+      const report = scanFileEncodings({ root, includePaths: ["selected.cpp"] });
+      expect(report.scanned).toBe(1);
+      expect(report.results.map((row) => row.row.relativePath)).toEqual(["selected.cpp"]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });

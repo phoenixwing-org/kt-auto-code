@@ -20,6 +20,8 @@ export interface CollectEncodingFilesOptions {
   markdownOnly?: boolean;
   scope?: FileScopeOptions;
   ignorePatterns?: string[];
+  /** Optional exact workspace-relative file set, normally expanded from a workset. */
+  includePaths?: readonly string[];
 }
 
 export interface ScanFileEncodingOptions extends CollectEncodingFilesOptions {
@@ -61,11 +63,14 @@ export function collectEncodingFixFiles(
   if (extensions.size === 0) {
     return [];
   }
-  return collectScopedFiles({
+  const files = collectScopedFiles({
     root: absRoot,
     extensions,
     ignorePatterns: opts.ignorePatterns ?? loadDotIgnore(absRoot),
   });
+  if (!opts.includePaths) return files;
+  const included = new Set(opts.includePaths.map((value) => value.replace(/\\/g, "/").replace(/^\.\//, "")));
+  return files.filter((file) => included.has(relative(absRoot, file).replace(/\\/g, "/")));
 }
 
 function scanOneFile(filePath: string, root: string): EncodingFixRow {

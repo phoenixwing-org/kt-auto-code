@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { relative, resolve } from "node:path";
 import { ktcBuildRenameResultViewModel } from "../../src/renameResultViewModel.js";
 import { loadDotIgnore } from "../../src/dotIgnore.js";
 import type {
@@ -12,16 +13,38 @@ import {
 } from "../../src/workspaceRename.js";
 import { ktcRunSearchReplaceWorkflow } from "../../src/searchReplaceWorkflow.js";
 import { logOutput } from "./output.js";
-import type { KtcCodeRenameResultView } from "./workbench/codeRenameResultView.js";
 import { ktcOpenWorkspaceResource } from "./workspaceResource.js";
 import { getWorkspaceRoot } from "./workspace.js";
 import { resolveWorkspaceIgnorePatterns } from "./ignoreConfig.js";
 import { ktcResolveSearchReplaceLocation } from "./searchReplaceLocation.js";
 
 export class KtcSearchReplaceController {
-  constructor(private readonly resultView: () => KtcCodeRenameResultView | undefined) {}
+  private latestResultFiles: readonly string[] = [];
+  private latestResultRoot: string | undefined;
+  private latestViewModel: ReturnType<typeof ktcBuildRenameResultViewModel> | undefined;
 
-  open(): void { void vscode.commands.executeCommand("ktAutoCode.codeRenameResult.show"); }
+  open(): void { void vscode.commands.executeCommand("ktAutoCode.codeRename.openAdvanced"); }
+
+  resultModel(): ReturnType<typeof ktcBuildRenameResultViewModel> | undefined {
+    return this.latestViewModel;
+  }
+
+  async openResult(rowId: string): Promise<void> {
+    const model = this.latestViewModel;
+    const row = model?.rows.find((item) => item.id === rowId);
+    if (!model || !row) return;
+    await ktcOpenWorkspaceResource({
+      root: model.root,
+      target: row.openPath,
+      kind: row.level === "dir" ? "directory" : "text",
+      line: row.openLine,
+      highlightTerms: row.editorHighlightTerms,
+    });
+  }
+
+  resultFiles(workspaceRoot: string): readonly string[] {
+    return this.latestResultRoot && resolve(this.latestResultRoot) === resolve(workspaceRoot) ? this.latestResultFiles : [];
+  }
 
   async run(request: KtcSearchReplaceRequest, apply: boolean): Promise<KtcSearchReplaceRunResult> {
     try {
@@ -36,6 +59,7 @@ export class KtcSearchReplaceController {
         preserveCase: request.preserveCase,
         levels: request.levels,
         scope: location.scope,
+        includePaths: request.includePaths,
         includeIgnored: request.includeIgnored ?? false,
         ignorePatterns: location.usesCurrentWorkspace && workspaceRoot
           ? resolveWorkspaceIgnorePatterns(workspaceRoot)
@@ -50,12 +74,10 @@ export class KtcSearchReplaceController {
           this.showReport(report, options);
         },
       });
-      if (result === "blocked") void vscode.window.showWarningMessage("预检发现目标冲突，未执行任何写盘。");
       return result;
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
       logOutput(`[搜索替换] ${text}`);
-      void vscode.window.showErrorMessage(text);
       return "error";
     }
   }
@@ -65,14 +87,17 @@ export class KtcSearchReplaceController {
     options: WorkspaceRenameOptions,
   ): void {
     logOutput(formatRenameLog(report, options));
-    const model = ktcBuildRenameResultViewModel(report);
-    this.resultView()?.show(model, async (row) => {
-      await ktcOpenWorkspaceResource({ root: model.root, target: row.openPath, kind: row.level === "dir" ? "directory" : "text", line: row.openLine });
-    });
+    this.latestResultRoot = report.root;
+    this.latestResultFiles = [...new Set(report.hits
+      .filter((hit) => hit.level === "text" || hit.level === "file")
+      .map((hit) => report.applied
+        ? relative(report.root, hit.plannedFullPath).replace(/\\/g, "/")
+        : hit.relativePath))].sort();
+    this.latestViewModel = ktcBuildRenameResultViewModel(report);
   }
 
   private async confirmWrite(request: KtcSearchReplaceRequest): Promise<boolean> {
-    const workingDirectory = request.scope?.trim() || "当前 VS Code 工作区";
+    const workingDirectory = request.scopeLabel || request.scope?.trim() || "当前 VS Code 工作区";
     const answer = await vscode.window.showWarningMessage(
       request.rules && request.rules.length > 1
         ? `将写盘执行 ${request.rules.length} 条搜索替换规则。\n工作目录：${workingDirectory}\n\n建议先预览并提交 Git。`

@@ -54,4 +54,14 @@ describe("ignoreWorkspaceSnapshot", () => {
     expect(snapshot.paths).toHaveLength(100);
     expect(snapshot.truncated).toBe(true);
   });
+
+  it("记录但不深入 Desk Tools 识别的顶层构建目录", () => {
+    const root = tempRoot();
+    mkdirSync(join(root, "build-local", "many"), { recursive: true });
+    mkdirSync(join(root, "bin", "nested"), { recursive: true });
+    writeFileSync(join(root, "build-local", "many", "generated.cpp"), "");
+    const snapshot = ktcCollectIgnoreWorkspaceSnapshot(root);
+    expect(snapshot.paths).toEqual(expect.arrayContaining(["build-local/", "bin/"]));
+    expect(snapshot.paths).not.toEqual(expect.arrayContaining(["build-local/many/", "bin/nested/"]));
+  });
 });

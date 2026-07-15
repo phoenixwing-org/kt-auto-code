@@ -1,11 +1,6 @@
 import * as vscode from "vscode";
 import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
 import { openEncodingFile, runEncodingFixAction } from "./commands.js";
-import { KtcEncodingResultView } from "../../workbench/encodingResultView.js";
-
-let encodingResultView: KtcEncodingResultView | undefined;
-export function registerEncodingResultView(context: vscode.ExtensionContext): void { encodingResultView = new KtcEncodingResultView(context); context.subscriptions.push(encodingResultView); }
-
 export const encodingFixTool: KtTool = {
   id: "encodingFix",
   title: "编码修正",
@@ -25,10 +20,11 @@ export const encodingFixTool: KtTool = {
   },
 
   registerCommands(context: vscode.ExtensionContext): void {
-    const makeHandler = (action: string) => () => {
+    const makeHandler = (action: string) => async () => {
+      await vscode.commands.executeCommand("ktAutoCode.tool.show", this.id);
       const ctx = getRunContext();
       if (!ctx) return;
-      void runWithResults(action, ctx);
+      await runWithResults(action, ctx);
     };
 
     context.subscriptions.push(
@@ -53,7 +49,11 @@ export const encodingFixTool: KtTool = {
   },
 };
 
-async function runWithResults(action: string, ctx: ToolRunContext): Promise<void> { await runEncodingFixAction(action, { ...ctx, postState: (state) => { ctx.postState(state); if (state.status === "done" && state.encodingResults) encodingResultView?.show(state.encodingResults); } }); }
+async function runWithResults(action: string, ctx: ToolRunContext): Promise<void> {
+  // The module Webview owns both controls and cached results. Do not activate a
+  // second TreeView after scanning/converting; update the current Block in place.
+  await runEncodingFixAction(action, ctx);
+}
 
 let runContextFactory: (() => ToolRunContext | undefined) | undefined;
 

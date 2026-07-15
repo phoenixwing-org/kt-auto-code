@@ -1,11 +1,13 @@
 import * as vscode from "vscode";
 import { ktcIsPathInsideWorkspace } from "../../src/workspace/workspacePath.js";
+import { ktcHighlightLiteralMatches } from "./workbench/editorMatchHighlight.js";
 
 export interface KtcOpenWorkspaceResourceRequest {
   root: string;
   target: string;
   kind: "directory" | "text";
   line?: number;
+  highlightTerms?: readonly string[];
 }
 
 export async function ktcOpenWorkspaceResource(
@@ -31,5 +33,6 @@ export async function ktcOpenWorkspaceResource(
       vscode.TextEditorRevealType.InCenterIfOutsideViewport,
     );
   }
+  ktcHighlightLiteralMatches(editor, request.highlightTerms ?? []);
   return true;
 }

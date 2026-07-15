@@ -6,19 +6,25 @@
 
 - **头文件 ASCII 修正**：检查并修正弯引号、全角标点等不适合头文件的字符。
 - **文件编码修正**：检测 UTF-8、BOM、GBK 等编码并按需转换。
-- **Ignore 设置**：维护工作区 `.phoenix/.ignore`，可使用 CAA / C++ / Web 预设。
+- **Ignore 设置**：维护工作区 `.phoenix/.ignore`，可使用 CAA / C++ / Web 预设，并分析顶层构建/缓存目录。
 - **工作区搜索替换**：预览文本、文件名与文件夹名的替换结果；支持关联规则、冲突检查和 UTF-8 / GBK 编码保护。
 - **C++ 成员排序**：扫描、预览差异、勾选或逐文件应用成员排序，并可通过 Git Diff 审核写盘结果。
-- **UUID 替换**：按相同旧 UUID 生成稳定映射，支持按文件勾选或逐行替换、Git Diff 审核与取消候选。
-- **CAA 对话框**：扫描 `.CATDlg` 文件，在已配置的外部编辑器中按文件打开。
+- **UUID 替换**：支持“同值同替换”或“每处独立新值”，并提供按文件勾选、Git Diff 审核与取消候选。
+- **CAA 对话框**：扫描 `.CATDlg` 文件，默认投递到本机 Desk Tools 接口并打开图形编辑器，也可配置自定义外部 EXE。
+- **工作集**：使用 `.phoenix/worksets.json` 为成员排序、UUID、搜索替换和 CAA 扫描定义可复现范围。
+- **工程环境**：在独立 Block 中读取和维护 `ROOT_DIR`、`ROOT_DIR_3rdParty`、`ROOT_DIR_CORE` 与可选的 `CAA_MK_VERSION`；不把操作系统环境变量伪装成 VS Code 插件设置。
 
 ## 使用
 
 1. 在 VS Code 左侧活动栏打开 **KT Auto Code**。
-2. 选择工具并先执行“预检”或“预览”；文件类结果会显示在主工具面板下方，可自行展开或收起。
+2. 点击 Ribbon 工具后，原操作界面会在 Ribbon 正下方展开；头文件、编码、Ignore、搜索替换、成员排序、UUID、CAA 与工程环境都使用单 Block，不再注册第二套结果 TreeView。
 3. 确认结果后再执行会写入文件的操作；建议先提交 Git。
 
-搜索替换、头文件 ASCII 修正和编码修正会在主侧栏下方显示紧凑文件结果 View。对于原文件为 ASCII、替换目标含中文等非 ASCII 字符的情况，可在界面选择默认 UTF-8 或 GBK 编码。
+默认使用排他展开模式：Ribbon 保持最小高度，最近使用的模块获得主要空间，关闭或切换后缓存仍保留。可在设置中将 `Kt Auto Code › Sidebar › Block Expansion Mode` 改为 `multiple`。
+
+CAA 外部编辑默认调用 `http://127.0.0.1:5180/api/caa/dialog/open`。若希望由插件启动桌面 EXE，请配置 `Kt Auto Code › Caa › External Editor: Command`，并把参数设为 `--workspace`、`${workspace}`、`--catdlg`、`${file}`；配置 command 后优先使用 EXE。
+
+0.4.0 已把单 Block 工作流推广到全部模块。对于原文件为 ASCII、替换目标含中文等非 ASCII 字符的情况，可在搜索替换界面选择默认 UTF-8 或 GBK 编码。
 
 ## 要求
 

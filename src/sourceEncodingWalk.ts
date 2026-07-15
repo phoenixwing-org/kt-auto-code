@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { relative, resolve } from "node:path";
 import { loadDotIgnore } from "./dotIgnore.js";
 import {
   collectScopedFiles,
@@ -30,6 +30,8 @@ export interface CollectSourceFilesOptions {
   headersOnly?: boolean;
   scope?: FileScopeOptions;
   ignorePatterns?: string[];
+  /** Optional exact workspace-relative file set, normally expanded from a workset. */
+  includePaths?: readonly string[];
 }
 
 export interface ScanWorkspaceOptions extends CollectSourceFilesOptions {
@@ -67,11 +69,14 @@ export function collectSourceFiles(
   if (extensions.size === 0) {
     return [];
   }
-  return collectScopedFiles({
+  const files = collectScopedFiles({
     root: absRoot,
     extensions,
     ignorePatterns: opts.ignorePatterns ?? loadDotIgnore(absRoot),
   });
+  if (!opts.includePaths) return files;
+  const included = new Set(opts.includePaths.map((value) => value.replace(/\\/g, "/").replace(/^\.\//, "")));
+  return files.filter((file) => included.has(relative(absRoot, file).replace(/\\/g, "/")));
 }
 
 function scanFileBytes(

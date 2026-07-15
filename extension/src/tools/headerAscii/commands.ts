@@ -10,8 +10,10 @@ import { dedupeIssuesByOffset, formatIssueTransform } from "./formatIssue.js";
 import { getModeLabel, getPreserveGbk, getStripBom, isAsciiOnly } from "./options.js";
 import { getFileScope, isScopeEmpty, scopeSummary } from "../../scopeOptions.js";
 import { resolveWorkspaceIgnorePatterns } from "../../ignoreConfig.js";
+import { ktcHighlightHeaderIssues } from "../../workbench/editorMatchHighlight.js";
+import { ktcResolveWorkspaceFileScope, type KtcWorkspaceFileScope } from "../../worksets.js";
 
-function walkOptions(root: string, fix: boolean) {
+function walkOptions(root: string, fix: boolean, workspaceScope?: KtcWorkspaceFileScope) {
   const scope = getFileScope();
   return {
     fix,
@@ -19,14 +21,15 @@ function walkOptions(root: string, fix: boolean) {
     stripBom: getStripBom(),
     scope: { ...scope, includeMarkdown: false },
     ignorePatterns: resolveWorkspaceIgnorePatterns(root),
+    includePaths: workspaceScope?.relativeFiles,
   };
 }
 
-export async function scanHeaders(root: string): Promise<WorkspaceReport> {
-  return runWorkspaceEncodingScan({ root, ...walkOptions(root, false) });
+export async function scanHeaders(root: string, workspaceScope?: KtcWorkspaceFileScope): Promise<WorkspaceReport> {
+  return runWorkspaceEncodingScan({ root, ...walkOptions(root, false, workspaceScope) });
 }
 
-export async function fixHeaders(root: string): Promise<WorkspaceReport | undefined> {
+export async function fixHeaders(root: string, workspaceScope?: KtcWorkspaceFileScope): Promise<WorkspaceReport | undefined> {
   const preserveGbk = getPreserveGbk();
   const stripBom = getStripBom();
   let msg = preserveGbk
@@ -42,7 +45,7 @@ export async function fixHeaders(root: string): Promise<WorkspaceReport | undefi
   if (ok !== "修复") {
     return undefined;
   }
-  return runWorkspaceEncodingScan({ root, ...walkOptions(root, true) });
+  return runWorkspaceEncodingScan({ root, ...walkOptions(root, true, workspaceScope) });
 }
 
 export function reportToResults(report: WorkspaceReport): FileResultSummary[] {
@@ -75,13 +78,18 @@ export function logReport(report: WorkspaceReport, fix: boolean, log: (text: str
   log(formatWorkspaceReport(report, fix));
 }
 
-export async function openIssueFile(fullPath: string, line: number): Promise<void> {
+export async function openIssueFile(
+  fullPath: string,
+  line: number,
+  issues: readonly FileResultSummary["issues"][number][] = [],
+): Promise<void> {
   const uri = vscode.Uri.file(fullPath);
   const doc = await vscode.workspace.openTextDocument(uri);
   const editor = await vscode.window.showTextDocument(doc, { preview: true });
   const pos = new vscode.Position(Math.max(0, line - 1), 0);
   editor.selection = new vscode.Selection(pos, pos);
   editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+  ktcHighlightHeaderIssues(editor, issues, !getPreserveGbk());
 }
 
 export async function runHeaderAsciiAction(
@@ -108,8 +116,10 @@ export async function runHeaderAsciiAction(
   ctx.postState({ status: "running", message: `${action === "fix" ? "正在修复" : "正在预检"}（${getModeLabel()}；${scopeSummary(scope)}）…` });
 
   try {
+    const workspaceScope = await ktcResolveWorkspaceFileScope(vscode.Uri.file(ctx.workspaceRoot), ctx.workspaceFileScopeId);
+    ctx.postState({ status: "running", message: `${action === "fix" ? "正在修复" : "正在预检"}（${workspaceScope.label}；${getModeLabel()}；${scopeSummary(scope)}）…` });
     if (action === "scan") {
-      const report = await scanHeaders(ctx.workspaceRoot);
+      const report = await scanHeaders(ctx.workspaceRoot, workspaceScope);
       logReport(report, false, ctx.log);
       ctx.postState({
         status: "done",
@@ -125,13 +135,13 @@ export async function runHeaderAsciiAction(
     }
 
     if (action === "fix") {
-      const report = await fixHeaders(ctx.workspaceRoot);
+      const report = await fixHeaders(ctx.workspaceRoot, workspaceScope);
       if (!report) {
         ctx.postState({ status: "idle", message: "已取消修复。" });
         return;
       }
       logReport(report, true, ctx.log);
-      const rescan = await scanHeaders(ctx.workspaceRoot);
+      const rescan = await scanHeaders(ctx.workspaceRoot, workspaceScope);
       ctx.postState({
         status: "done",
         message: `已修复 ${report.fixedFiles} 个文件。`,
@@ -140,11 +150,6 @@ export async function runHeaderAsciiAction(
         issueFiles: rescan.issueFiles,
         fixedFiles: report.fixedFiles,
       });
-      if (report.fixedFiles > 0) {
-        void vscode.window.showInformationMessage(
-          `KT Auto Code：已修复 ${report.fixedFiles} 个头文件。`,
-        );
-      }
       return;
     }
 

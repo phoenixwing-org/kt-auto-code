@@ -9,12 +9,14 @@ import type { KtcSearchReplaceRequest } from "../../../../src/searchReplaceContr
 import { ktcResolveWorkspaceWorkingDirectory } from "../../../../src/workspaceRename.js";
 import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
 import { KtcSearchReplaceController } from "../../searchReplaceController.js";
-import { KtcCodeRenameResultView } from "../../workbench/codeRenameResultView.js";
+import { getWorkspaceRoot } from "../../workspace.js";
 import { ktcCreateAssociatedRulePicker } from "./associatedRulePicker.js";
+import { ktcAddResultFilesToWorkset } from "../../worksets.js";
+import { ktcResolveWorkspaceFileScope } from "../../worksets.js";
+import { ktcResolveSearchReplaceLocation } from "../../searchReplaceLocation.js";
 
 let searchReplaceController: KtcSearchReplaceController | undefined;
-let codeRenameResultView: KtcCodeRenameResultView | undefined;
-export function registerCodeRenameResultView(context: vscode.ExtensionContext): void { codeRenameResultView = new KtcCodeRenameResultView(context); context.subscriptions.push(codeRenameResultView); }
+let runContextFactory: (() => ToolRunContext | undefined) | undefined;
 
 type AssociatedRuleCandidateRequest = Extract<
   WebviewInboundMessage,
@@ -32,13 +34,19 @@ export const codeRenameTool: KtTool = {
   },
 
   registerCommands(context: vscode.ExtensionContext): void {
-    searchReplaceController = new KtcSearchReplaceController(() => codeRenameResultView);
+    searchReplaceController = new KtcSearchReplaceController();
     context.subscriptions.push(
+      vscode.commands.registerCommand("ktAutoCode.codeRename.configure", async () => {
+        await vscode.commands.executeCommand("ktAutoCode.tool.show", this.id);
+      }),
       vscode.commands.registerCommand("ktAutoCode.codeRename.open", () => {
         searchReplaceController?.open();
       }),
       vscode.commands.registerCommand("ktAutoCode.searchReplace.open", () => {
         searchReplaceController?.open();
+      }),
+      vscode.commands.registerCommand("ktAutoCode.codeRename.addToWorkset", async () => {
+        await addCodeRenameResultsToWorkset();
       }),
     );
   },
@@ -84,6 +92,11 @@ export const codeRenameTool: KtTool = {
       return;
     }
 
+    if (message.type === "codeRenameAction" && message.toolId === this.id) {
+      await searchReplaceController?.openResult(message.rowId);
+      return;
+    }
+
     if (message.type === "searchReplace" && message.toolId === this.id && searchReplaceController) {
       const payload = normalizeSearchReplaceRules(message.payload);
       const activeRules = payload.rules?.filter((rule) => rule.enabled !== false && rule.search) ?? [];
@@ -102,25 +115,37 @@ export const codeRenameTool: KtTool = {
         ctx.postState({ status: "error", message: "文件名或文件夹名的替换内容不能为空。" });
         return;
       }
-      const rootRenameSuggestion = getRootRenameSuggestion(payload, ctx.workspaceRoot);
       ctx.postState({
         status: "running",
         message: message.action === "apply" ? "正在执行替换…" : "正在生成预览…",
-        rootRenameSuggestion,
         associatedRules: payload.rules?.slice(1),
       });
-      const result = await searchReplaceController.run(payload, message.action === "apply");
+      let scopedPayload: KtcSearchReplaceRequest;
+      try { scopedPayload = await applyWorkspaceFileScope(payload, ctx); }
+      catch (error) {
+        ctx.postState({ status: "error", message: error instanceof Error ? error.message : String(error) });
+        return;
+      }
+      const rootRenameSuggestion = getRootRenameSuggestion(scopedPayload, ctx.workspaceRoot);
+      ctx.postState({
+        status: "running",
+        message: `${message.action === "apply" ? "正在执行替换" : "正在生成预览"}（${scopedPayload.scopeLabel || scopedPayload.scope || "整个工作区"}）…`,
+        rootRenameSuggestion,
+      });
+      const result = await searchReplaceController.run(scopedPayload, message.action === "apply");
+      const codeRenameResults = searchReplaceController.resultModel();
       if (result === "cancelled") {
-        ctx.postState({ status: "idle", message: "已取消替换。", rootRenameSuggestion });
+        ctx.postState({ status: "idle", message: "已取消替换。", rootRenameSuggestion, codeRenameResults });
       } else if (result === "blocked") {
-        ctx.postState({ status: "error", message: "预检发现冲突，未执行任何写盘。", rootRenameSuggestion });
+        ctx.postState({ status: "error", message: "预检发现冲突，未执行任何写盘。", rootRenameSuggestion, codeRenameResults });
       } else if (result === "error") {
-        ctx.postState({ status: "error", message: "搜索替换失败，请查看结果 View。", rootRenameSuggestion });
+        ctx.postState({ status: "error", message: "搜索替换失败，请检查当前 Block 结果。", rootRenameSuggestion, codeRenameResults });
       } else {
         ctx.postState({
           status: "done",
           message: message.action === "apply" ? "替换完成，请检查 Git diff。" : "预览已更新。",
           rootRenameSuggestion,
+          codeRenameResults,
         });
       }
       return;
@@ -128,12 +153,44 @@ export const codeRenameTool: KtTool = {
     if (message.type === "run" && message.toolId === this.id) await this.runAction(message.action, ctx);
   },
 
-  async runAction(_action: string, ctx: ToolRunContext): Promise<void> {
+  async runAction(action: string, ctx: ToolRunContext): Promise<void> {
     if (!searchReplaceController) return;
+    if (action === "addToWorkset") {
+      await addCodeRenameResultsToWorkset();
+      return;
+    }
     searchReplaceController.open();
-    ctx.postState({ status: "done", message: "搜索替换结果 View 已打开。" });
+    ctx.postState({ status: "done", message: "搜索替换 Block 已打开。", codeRenameResults: searchReplaceController.resultModel() });
   },
 };
+
+async function applyWorkspaceFileScope(
+  payload: KtcSearchReplaceRequest,
+  ctx: ToolRunContext,
+): Promise<KtcSearchReplaceRequest> {
+  if (!ctx.workspaceRoot) return payload;
+  const location = ktcResolveSearchReplaceLocation(ctx.workspaceRoot, payload.scope);
+  if (!location.usesCurrentWorkspace) return { ...payload, includePaths: undefined, scopeLabel: payload.scope || location.root };
+  const scope = await ktcResolveWorkspaceFileScope(vscode.Uri.file(ctx.workspaceRoot), ctx.workspaceFileScopeId);
+  return scope.kind === "workset"
+    ? { ...payload, includePaths: scope.relativeFiles, scopeLabel: `工作集：${scope.label}` }
+    : { ...payload, includePaths: undefined, scopeLabel: payload.scope?.trim() || scope.label };
+}
+
+export function setCodeRenameRunContextFactory(factory: () => ToolRunContext | undefined): void {
+  runContextFactory = factory;
+}
+
+async function addCodeRenameResultsToWorkset(): Promise<void> {
+  const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+  const paths = root ? searchReplaceController?.resultFiles(root.fsPath) ?? [] : [];
+  if (!root || !paths.length) {
+    void vscode.window.showInformationMessage("请先在当前工作区生成搜索替换结果；工作区外结果不能加入此工作集。");
+    return;
+  }
+  try { await ktcAddResultFilesToWorkset(root, paths, "搜索替换"); }
+  catch (error) { void vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error)); }
+}
 
 function postAssociatedRulePicker(
   ctx: ToolRunContext,

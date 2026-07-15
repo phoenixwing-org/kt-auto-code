@@ -4,6 +4,10 @@
 | --- | --- |
 | [下一阶段实施计划.md](./下一阶段实施计划.md) | **近期主计划**：Extension Host 确认流程、主题验收与 TODO |
 | [0.3.0-功能计划.md](./0.3.0-功能计划.md) | **0.3.0 主计划**：成员排序 Panel、Code、UUID/CAA、工作集与环境变量 |
+| [0.4.0-Block工作流改造计划.md](./0.4.0-Block工作流改造计划.md) | **当前主计划**：结果 Block 承载操作与配置，Ribbon 收敛为入口 |
+| [前端开发规则.md](./前端开发规则.md) | **UI 权威规则**：Ribbon、单显示多打开、Block 布局、范围、缓存、结果、Diff、主题与验收 |
+| [0.4.0-DeskTools复用盘点.md](./0.4.0-DeskTools复用盘点.md) | 工作集、UUID、Ignore 可复用能力，以及不迁移的桌面宿主边界 |
+| [0.4.0-ExtensionHost人工验收清单.md](./0.4.0-ExtensionHost人工验收清单.md) | Ribbon、原生 Block、Block 内范围、Ignore 推荐与 Git Diff 的图形化验收 |
 | [0.3.0-ExtensionHost人工验收清单.md](./0.3.0-ExtensionHost人工验收清单.md) | 原生 Panel、UUID、CAA 文件选择的 F5 图形化验收步骤 |
 | [Phoenix三形态产品架构计划.md](./Phoenix三形态产品架构计划.md) | **总纲**：VS Code 双插件、Tauri/Web、共享 core、设置与发布路线图 |
 | [项目调查.md](./项目调查.md) | **建议先读**：项目定位、实际实现、架构、当前状态与行为边界 |
@@ -11,7 +15,6 @@
 | [PNXCaaStudy-CAA命名规则调查.md](./PNXCaaStudy-CAA命名规则调查.md) | PNXCaaStudy 的 I/E、TIE、dico 命名证据与两种 CAA 替换模式 |
 | [工作区验收记录](./真实工作区只读验收.md) | CAA、C++、Web 真实工作区预览指纹与一次性工作区写盘验收 |
 | [代码规范.md](./代码规范.md) | 命名前缀、重复逻辑整理、MVC 边界、消息与测试规则 |
-| [前端开发规则.md](./前端开发规则.md) | Vue 3 双视图、状态边界、Element Plus 按需导入与体积规则 |
 | [侧边栏界面改进计划.md](./侧边栏界面改进计划.md) | 四个工具、SVG 图标、共享 Ignore Service 与 MVC 迁移计划 |
 | [搜索替换.md](./搜索替换.md) | 工作区搜索替换、右侧预览与编码安全策略 |
 | [搜索替换编码规则.md](./搜索替换编码规则.md) | ASCII 歧义场景的默认 UTF-8 / GBK 选择与文本替换编码算法 |

@@ -3,6 +3,8 @@ import { ktcIgnoreController, type KtcIgnoreMessage } from "../../ignoreControll
 import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
 import { getWorkspaceRoot } from "../../workspace.js";
 
+let runContextFactory: (() => ToolRunContext | undefined) | undefined;
+
 export const ignoreSettingsTool: KtTool = {
   id: "ignoreSettings",
   title: "忽略设置",
@@ -15,12 +17,9 @@ export const ignoreSettingsTool: KtTool = {
 
   registerCommands(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
-      vscode.commands.registerCommand("ktAutoCode.ignore.open", async () => {
-        await ktcIgnoreController.handle({ type: "openIgnoreFile" }, getWorkspaceRoot());
-      }),
-      vscode.commands.registerCommand("ktAutoCode.ignore.sync", async () => {
-        await ktcIgnoreController.handle({ type: "syncIgnoreFromGit" }, getWorkspaceRoot());
-      }),
+      vscode.commands.registerCommand("ktAutoCode.ignore.open", () => runIgnoreCommand({ type: "openIgnoreFile" })),
+      vscode.commands.registerCommand("ktAutoCode.ignore.sync", () => runIgnoreCommand({ type: "syncIgnoreFromGit" })),
+      vscode.commands.registerCommand("ktAutoCode.ignore.analyze", () => runIgnoreCommand({ type: "analyzeIgnore" })),
     );
   },
 
@@ -37,3 +36,28 @@ export const ignoreSettingsTool: KtTool = {
     else ctx.postState({ status: "done", message: result.summary?.statusText ?? "已打开 .phoenix/.ignore。" });
   },
 };
+
+export function setIgnoreSettingsRunContextFactory(factory: () => ToolRunContext | undefined): void {
+  runContextFactory = factory;
+}
+
+async function runIgnoreCommand(message: KtcIgnoreMessage): Promise<void> {
+  await vscode.commands.executeCommand("ktAutoCode.tool.show", "ignoreSettings");
+  const ctx = runContextFactory?.();
+  if (!ctx) return;
+  const result = await ktcIgnoreController.handle(message, getWorkspaceRoot());
+  if (result.error) {
+    ctx.postState({ status: "error", message: result.error });
+  } else if (result.recommendations) {
+    ctx.postState({
+      status: "done",
+      message: result.message,
+      ignoreRecommendations: result.recommendations,
+      ignoreSelectedGroupIds: result.recommendations.recommendations
+        .filter((group) => group.defaultSelected && group.suggestedRules.length > 0)
+        .map((group) => group.groupId),
+    });
+  } else {
+    ctx.postState({ status: "done", message: result.summary?.statusText ?? "Ignore 设置已更新。" });
+  }
+}
