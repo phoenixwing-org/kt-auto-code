@@ -186,6 +186,14 @@
         "icon": "$(layout)"
       },
       {
+        "command": "ktAutoCode.module.code.show",
+        "title": "☐ Code"
+      },
+      {
+        "command": "ktAutoCode.module.code.hide",
+        "title": "☑ Code"
+      },
+      {
         "command": "ktAutoCode.worksets.open",
         "title": "KT Auto Code：打开工作集配置",
         "icon": "$(project)"
@@ -219,24 +227,34 @@
     "menus": {
       "view/title": [
         {
+          "command": "ktAutoCode.module.code.show",
+          "when": "view == ktAutoCode.sidebar && ktAutoCode.modules.hasOptional && !ktAutoCode.module.code.visible",
+          "group": "navigation@1"
+        },
+        {
+          "command": "ktAutoCode.module.code.hide",
+          "when": "view == ktAutoCode.sidebar && ktAutoCode.modules.hasOptional && ktAutoCode.module.code.visible",
+          "group": "navigation@1"
+        },
+        {
           "command": "ktAutoCode.searchReplace.preview",
           "when": "view == ktAutoCode.sidebar",
-          "group": "navigation@1"
+          "group": "navigation@20"
         },
         {
           "command": "ktAutoCode.sidebar.toggleStyle",
           "when": "view == ktAutoCode.sidebar",
-          "group": "navigation@3"
+          "group": "navigation@22"
         },
         {
           "command": "ktAutoCode.worksets.open",
           "when": "view == ktAutoCode.sidebar",
-          "group": "navigation@2"
+          "group": "navigation@21"
         },
         {
           "command": "ktAutoCode.environment.open",
           "when": "view == ktAutoCode.sidebar",
-          "group": "navigation@4"
+          "group": "navigation@23"
         },
         {
           "command": "ktAutoCode.modulePanel.close",
@@ -310,17 +328,20 @@
     }
   },
   "scripts": {
+    "vscode:prepublish": "pnpm run build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "package": "vsce package --no-dependencies --baseContentUrl https://gitee.com/PhoenixWing321/kt-auto-code/blob/master/extension --baseImagesUrl https://gitee.com/PhoenixWing321/kt-auto-code/raw/master/extension"
   },
   "dependencies": {
-    "iconv-lite": "0.6.3",
-    "phoenix-wing": "link:../../phoenix-wing"
+    "@phoenix-wing/code-core": "0.3.0",
+    "iconv-lite": "0.6.3"
   },
   "devDependencies": {
-    "@types/vscode": "^1.85.0",
+    "@types/vscode": "1.85.0",
     "esbuild": "^0.25.0",
-    "@vscode/vsce": "^3.2.1"
+    "@vscode/vsce": "^3.2.1",
+    "typescript": "~5.7.2"
   }
 }

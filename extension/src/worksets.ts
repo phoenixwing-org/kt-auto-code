@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { relative } from "node:path";
-import { pnwParseWorksetDocument, type PnwWorkset, type PnwWorksetParseResult } from "phoenix-wing/code-core";
+import { pnwParseWorksetDocument, type PnwWorkset, type PnwWorksetParseResult } from "@phoenix-wing/code-core";
 
 export type KtcWorksetReadResult = PnwWorksetParseResult & { readonly relativePath: ".phoenix/worksets.json"; readonly exists: boolean };
 

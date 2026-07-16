@@ -16,4 +16,15 @@ describe("tool Block MRU history", () => {
     expect(ktcCloseToolBlock(["headerAscii"], "headerAscii"))
       .toEqual({ openToolIds: [], nextToolId: undefined });
   });
+
+  it("不同模块工具共用多打开与 MRU 顺序", () => {
+    const codeOpen = ktcActivateToolBlock([], "codeRename");
+    const cadFilenameOpen = ktcActivateToolBlock(codeOpen, "cadFilename");
+    const cadScanOpen = ktcActivateToolBlock(cadFilenameOpen, "cadScan");
+    expect(cadScanOpen).toEqual(["codeRename", "cadFilename", "cadScan"]);
+    expect(ktcCloseToolBlock(cadScanOpen, "cadScan")).toEqual({
+      openToolIds: ["codeRename", "cadFilename"],
+      nextToolId: "cadFilename",
+    });
+  });
 });

@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import iconv from "iconv-lite";
 import { basename, relative } from "node:path";
-import { pnwReorderCppText, pnwReorderHeaderText } from "phoenix-wing/code-core";
+import { pnwReorderCppText, pnwReorderHeaderText } from "@phoenix-wing/code-core";
 import { isIgnoredPath } from "../../../../src/dotIgnore.js";
 import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
 import { resolveWorkspaceIgnorePatterns } from "../../ignoreConfig.js";

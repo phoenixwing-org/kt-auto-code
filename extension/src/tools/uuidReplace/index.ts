@@ -9,7 +9,7 @@ import {
   type PnwUuidReplacementPlan,
   type PnwUuidReplacementPlanHit,
   type PnwUuidReplacementStrategy,
-} from "phoenix-wing/code-core";
+} from "@phoenix-wing/code-core";
 import { isIgnoredPath } from "../../../../src/dotIgnore.js";
 import type { KtTool, ToolPanelModel, ToolRunContext, ToolUiState, UuidFileResultSummary, WebviewInboundMessage } from "../types.js";
 import { resolveWorkspaceIgnorePatterns } from "../../ignoreConfig.js";

@@ -14,11 +14,14 @@ import { invalidateWorkspaceIgnorePatterns } from "./ignoreConfig.js";
 import { ktcOpenWorkspaceWorksets } from "./worksets.js";
 import { ktcRegisterResultAccordion } from "./workbench/resultAccordion.js";
 import { ktcRegisterEditorMatchHighlight } from "./workbench/editorMatchHighlight.js";
+import type { KtcAutoCodeShellApiV2 } from "../../src/moduleShellContract.js";
 
 let sidebarProvider: SidebarViewProvider | undefined;
 
-export function activate(context: vscode.ExtensionContext): void {
-  void vscode.commands.executeCommand("setContext", "ktAutoCode.modulePanelVisible", false);
+export type { KtcAutoCodeShellApiV2 } from "../../src/moduleShellContract.js";
+
+export async function activate(context: vscode.ExtensionContext): Promise<KtcAutoCodeShellApiV2> {
+  await vscode.commands.executeCommand("setContext", "ktAutoCode.modulePanelVisible", false);
   ktcRegisterEditorMatchHighlight(context);
   registerReorderMembersSupport(context);
   registerTool(headerAsciiTool);
@@ -31,6 +34,7 @@ export function activate(context: vscode.ExtensionContext): void {
   registerTool(caaDialogTool);
 
   sidebarProvider = new SidebarViewProvider(context.extensionUri, context.globalState, context.workspaceState);
+  await sidebarProvider.initializeModuleState();
   context.subscriptions.push(ktcRegisterResultAccordion(SidebarViewProvider.moduleViewType, sidebarProvider));
 
   for (const tool of getTools()) {
@@ -68,6 +72,18 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("ktAutoCode.modulePanel.close", () => {
       void sidebarProvider?.closeToolBlock();
     }),
+    vscode.commands.registerCommand("ktAutoCode.module.activate", (moduleId: unknown) => {
+      if (typeof moduleId !== "string") return false;
+      return sidebarProvider?.activateModule(moduleId) ?? false;
+    }),
+    vscode.commands.registerCommand("ktAutoCode.module.code.show", async () => {
+      const state = sidebarProvider?.getModuleState();
+      return state?.visible.includes("code") ? true : await sidebarProvider?.toggleModule("code") ?? false;
+    }),
+    vscode.commands.registerCommand("ktAutoCode.module.code.hide", async () => {
+      const state = sidebarProvider?.getModuleState();
+      return state && !state.visible.includes("code") ? true : await sidebarProvider?.toggleModule("code") ?? false;
+    }),
     vscode.commands.registerCommand("ktAutoCode.reorderMembers.showResults", () => {
       void sidebarProvider?.showTool("reorderMembers");
     }),
@@ -95,6 +111,11 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
       sidebarProvider?.refreshWorkspaceLabel();
+    }),
+    vscode.extensions.onDidChange(() => {
+      void sidebarProvider?.refreshInstalledModules().catch((error: unknown) => {
+        void vscode.window.showErrorMessage(`刷新 KT Auto Code 模块失败：${error instanceof Error ? error.message : String(error)}`);
+      });
     }),
     vscode.workspace.onDidChangeTextDocument(({ document }) => {
       if (ignoreRootForDocument(document)) sidebarProvider?.refreshIgnoreConfig();
@@ -125,6 +146,17 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }),
   );
+
+  return {
+    version: 2,
+    getModuleState: () => sidebarProvider!.getModuleState(),
+    activateModule: (moduleId) => sidebarProvider!.activateModule(moduleId),
+    toggleModule: (moduleId) => sidebarProvider!.toggleModule(moduleId),
+    registerModuleBlockProvider: (moduleId, provider) => sidebarProvider!.registerModuleBlockProvider(moduleId, provider),
+    refreshModuleBlock: (moduleId) => sidebarProvider!.refreshModuleBlock(moduleId),
+    showModuleTool: (moduleId, toolId) => sidebarProvider!.showModuleTool(moduleId, toolId),
+    closeModuleTool: (moduleId, toolId) => sidebarProvider!.closeModuleTool(moduleId, toolId),
+  };
 }
 
 export function deactivate(): void {

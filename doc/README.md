@@ -2,6 +2,7 @@
 
 | 文档 | 说明 |
 | --- | --- |
+| [可选模块接入契约.md](./可选模块接入契约.md) | **扩展架构契约**：Shell、模块 manifest、Header、Ribbon、Block 与 Shell API v2 的职责边界 |
 | [下一阶段实施计划.md](./下一阶段实施计划.md) | **近期主计划**：Extension Host 确认流程、主题验收与 TODO |
 | [0.3.0-功能计划.md](./0.3.0-功能计划.md) | **0.3.0 主计划**：成员排序 Panel、Code、UUID/CAA、工作集与环境变量 |
 | [0.4.0-Block工作流改造计划.md](./0.4.0-Block工作流改造计划.md) | **当前主计划**：结果 Block 承载操作与配置，Ribbon 收敛为入口 |
@@ -10,6 +11,7 @@
 | [0.4.0-ExtensionHost人工验收清单.md](./0.4.0-ExtensionHost人工验收清单.md) | Ribbon、原生 Block、Block 内范围、Ignore 推荐与 Git Diff 的图形化验收 |
 | [0.3.0-ExtensionHost人工验收清单.md](./0.3.0-ExtensionHost人工验收清单.md) | 原生 Panel、UUID、CAA 文件选择的 F5 图形化验收步骤 |
 | [Phoenix三形态产品架构计划.md](./Phoenix三形态产品架构计划.md) | **总纲**：VS Code 双插件、Tauri/Web、共享 core、设置与发布路线图 |
+| [KT Auto CAD同仓实施计划.md](./KT%20Auto%20CAD同仓实施计划.md) | `kt-auto-code` 同仓产出 `kt-auto-code`/`kt-auto-cad` 两个 VSIX 的接入、Rust 构建与分期验收 |
 | [项目调查.md](./项目调查.md) | **建议先读**：项目定位、实际实现、架构、当前状态与行为边界 |
 | [PNXCaaStudy-Ignore规则总结.md](./PNXCaaStudy-Ignore规则总结.md) | PNXCaaStudy 多级 Ignore 样例、CAA 基线与项目特有规则边界 |
 | [PNXCaaStudy-CAA命名规则调查.md](./PNXCaaStudy-CAA命名规则调查.md) | PNXCaaStudy 的 I/E、TIE、dico 命名证据与两种 CAA 替换模式 |

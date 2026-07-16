@@ -28,6 +28,17 @@ describe("sidebar panel HTML", () => {
     expect(html).not.toContain('type: "chooseCaaRules"');
     expect(html).not.toContain('type: "chooseAssociatedRule"');
     expect(html).toContain('body.detail-block #tabs');
+    expect(html).toContain('id="module-block"');
+    expect(html).toContain('type: "moduleBlockAction"');
+    expect(html).toContain('msg.type === "moduleBlock"');
+    expect(html).toContain('body.external-module-block');
+    expect(html).not.toContain('id="module-filters"');
+    expect(html).not.toContain('id="module-code"');
+    expect(html).not.toContain('id="module-cad"');
+    expect(html).toContain('msg.type === "modules"');
+    expect(html).toContain('(item.moduleId || "code") === moduleId');
+    expect(html).toContain('type: "runModuleTool"');
+    expect(html).toContain('t.shortTitle || shortTitles[t.id] || t.title');
     expect(html).toContain('body.detail-block .reorder-block h2');
     expect(html).toContain('id="btn-reorder-apply"');
     expect(html).toContain('id="reorder-show-unchanged"');
@@ -71,7 +82,10 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('.compact-file-name { flex: 0 0 auto;');
     expect(html).toContain('.compact-file-dir { flex: 1 1 0; min-width: 0;');
     expect(html).toContain('body.ribbon-only .wrap { padding: 3px 10px 4px; }');
-    expect(html).toContain('grid-template-columns: repeat(auto-fill, 54px);');
+    expect(html).toContain('className = "module-group"');
+    expect(html).toContain('className = "module-group-label"');
+    expect(html).toContain('(moduleTools[0].moduleTitle || moduleId).toUpperCase()');
+    expect(html).toContain('.module-group-tools { display: flex;');
     expect(html).toContain('min-height: 50px;');
     expect(html).toContain('id="replace-validation"');
     expect(html).toContain('id="replace-preview-tooltip"');
@@ -113,7 +127,8 @@ describe("sidebar panel HTML", () => {
   it("只贡献 Ribbon 与单个工具 Block，不再注册旧结果 TreeView", () => {
     const manifest = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as {
       contributes: {
-        views: Record<string, Array<{ id: string; initialSize?: number }>>;
+        viewsContainers?: { activitybar?: Array<{ id: string }> };
+        views: Record<string, Array<{ id: string; initialSize?: number; when?: string }>>;
         menus: Record<string, unknown[]>;
         configuration: { properties: Record<string, unknown> };
       };
@@ -123,6 +138,11 @@ describe("sidebar panel HTML", () => {
       "ktAutoCode.modulePanel",
     ]);
     expect(manifest.contributes.views["kt-auto-code"]?.map((view) => view.initialSize)).toEqual([1, 12]);
+    expect(manifest.contributes.viewsContainers?.activitybar).toHaveLength(1);
+    expect(manifest.contributes.viewsContainers?.activitybar?.[0]?.id).toBe("kt-auto-code");
+    expect(manifest.contributes.views["kt-auto-code"]?.[1]?.when).toBe(
+      "ktAutoCode.modulePanelVisible",
+    );
     expect(manifest.contributes.menus["view/item/context"]).toBeUndefined();
     expect(Object.keys(manifest.contributes.configuration.properties)).not.toEqual(expect.arrayContaining([
       "ktAutoCode.environment.rootDir",

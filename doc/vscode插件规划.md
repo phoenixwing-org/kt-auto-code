@@ -305,7 +305,7 @@ kt-auto-code/
 
 ## 3.1 `phoenix-wing` 复用与 MVC 分离计划
 
-根项目已安装 `phoenix-wing@0.1.4`，其源码仓库位于同级目录 `../phoenix-wing`。该包同时包含纯 TypeScript 工具、Vue 3 / Pinia composable、Element Plus 组件和数据库适配器。本项目当前的 Webview 是原生 HTML/CSS/JavaScript，计划迁移为 Vue 3；迁移期间仍应按依赖边界选择性复用，不能把整个根入口引入 Extension Host。
+根项目已安装 `phoenix-wing@0.3.0`，其源码仓库位于同级目录 `../phoenix-wing`。该包同时包含纯 TypeScript 工具、Vue 3 / Pinia composable、Element Plus 组件和数据库适配器。本项目当前的 Webview 是原生 HTML/CSS/JavaScript，计划迁移为 Vue 3；迁移期间仍应按依赖边界选择性复用，不能把整个根入口引入 Extension Host。
 
 ### 3.1.1 调查结论
 

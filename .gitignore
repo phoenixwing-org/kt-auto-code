@@ -4,3 +4,4 @@ extension/node_modules/
 *.vsix
 *.swp
 .phoenix/
+extensions/kt-auto-cad/bin/

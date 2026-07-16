@@ -1,4 +1,5 @@
 import * as esbuild from "esbuild";
+import { rm } from "node:fs/promises";
 
 const watch = process.argv.includes("--watch");
 
@@ -20,5 +21,6 @@ if (watch) {
   await ctx.watch();
   console.log("watching extension…");
 } else {
+  await rm("dist", { recursive: true, force: true });
   await esbuild.build(options);
 }

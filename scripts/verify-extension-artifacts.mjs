@@ -1,0 +1,142 @@
+import fs from "node:fs";
+import path from "node:path";
+import { inflateRawSync } from "node:zlib";
+import { fileURLToPath } from "node:url";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const artifacts = [
+  {
+    kind: "code",
+    file: path.join(root, "extension", "kt-auto-code-0.4.0.vsix"),
+    packagePath: "extension/package.json",
+    bundlePath: "extension/dist/extension.js",
+  },
+  {
+    kind: "cad",
+    file: path.join(root, "extensions", "kt-auto-cad", "kt-auto-cad-0.1.0.vsix"),
+    packagePath: "extension/package.json",
+    bundlePath: "extension/dist/extension.js",
+  },
+];
+
+for (const artifact of artifacts) {
+  const zip = readZip(artifact.file);
+  const names = [...zip.keys()].sort();
+  for (const name of names) {
+    if (/(?:^|\/)(?:node_modules|src|target)(?:\/|$)/u.test(name)
+        || /\.(?:map|rs|exe|dll|dylib|so|sqlite)$/iu.test(name)
+        || /(?:^|\/)Cargo\.(?:toml|lock)$/u.test(name)) {
+      throw new Error(`${artifact.kind} VSIX contains forbidden file: ${name}`);
+    }
+  }
+  const manifest = JSON.parse(readText(zip, artifact.packagePath));
+  const bundle = readText(zip, artifact.bundlePath);
+  if (/element-plus|node-sqlite3-wasm|@phoenix-wing\/cad-rust-source/u.test(bundle)) {
+    throw new Error(`${artifact.kind} VSIX bundle contains a forbidden Wing/UI/native dependency`);
+  }
+  if (artifact.kind === "code") {
+    assertEqual(manifest.dependencies?.["@phoenix-wing/code-core"], "0.3.0", "Code VSIX code-core version");
+    if (manifest.dependencies?.["phoenix-wing"] !== undefined) {
+      throw new Error("Code VSIX must not depend on the Vue/UI aggregate phoenix-wing package");
+    }
+    const titleCommands = manifest.contributes?.menus?.["view/title"] ?? [];
+    const codeShow = titleCommands.find((candidate) => candidate.command === "ktAutoCode.module.code.show");
+    const codeHide = titleCommands.find((candidate) => candidate.command === "ktAutoCode.module.code.hide");
+    if (!codeShow?.when?.includes("!ktAutoCode.module.code.visible")
+        || !codeHide?.when?.includes("ktAutoCode.module.code.visible")) {
+      throw new Error("Code VSIX is missing its visible checked/unchecked Header commands");
+    }
+    if (titleCommands.some((candidate) => candidate.command.startsWith("ktAutoCad."))) {
+      throw new Error("Code VSIX must not own CAD Header commands");
+    }
+  } else {
+    assertEqual(manifest.extensionDependencies?.[0], "kuntai.kt-auto-code", "CAD base extension dependency");
+    if (manifest.contributes?.viewsContainers !== undefined) {
+      throw new Error("CAD VSIX must not contribute another Activity Bar container");
+    }
+    if (manifest.contributes?.views !== undefined) {
+      throw new Error("CAD VSIX must consume the Shell-owned Block container instead of contributing a View");
+    }
+    const moduleTools = manifest.ktAutoCodeModule?.id === "cad"
+      ? manifest.ktAutoCodeModule.tools
+      : undefined;
+    if (!Array.isArray(moduleTools) || moduleTools.length !== 6) {
+      throw new Error("CAD VSIX must publish six data-defined shared Ribbon tools");
+    }
+    if (!moduleTools.every((tool) => tool.command.startsWith("ktAutoCad.block."))) {
+      throw new Error("CAD Ribbon tools must open Blocks without directly running business actions");
+    }
+    assertEqual(manifest.ktAutoCodeModule?.title, "CAD", "CAD module title");
+    assertEqual(manifest.ktAutoCodeModule?.order, 20, "CAD module order");
+    assertEqual(manifest.ktAutoCodeModule?.commandPrefix, "ktAutoCad.", "CAD command prefix");
+    const titleCommands = manifest.contributes?.menus?.["view/title"] ?? [];
+    const cadShow = titleCommands.find((candidate) => candidate.command === "ktAutoCad.module.show");
+    const cadHide = titleCommands.find((candidate) => candidate.command === "ktAutoCad.module.hide");
+    if (!cadShow?.when?.includes("!ktAutoCode.module.cad.visible")
+        || !cadHide?.when?.includes("ktAutoCode.module.cad.visible")) {
+      throw new Error("CAD VSIX must own visible checked/unchecked Header commands");
+    }
+    const requirements = Object.fromEntries(moduleTools.map((tool) => [tool.id, tool.requirement]));
+    assertEqual(requirements.cadFilename, "none", "CAD filename requirement");
+    assertEqual(requirements.cadScan, "none", "CAD scan requirement");
+    assertEqual(requirements.cadRead, "optional-desk-provider", "CAD native read requirement");
+    assertEqual(requirements.cadQuery, "workspace-database", "CAD query requirement");
+    const queryTool = moduleTools.find((tool) => tool.id === "cadQuery");
+    if (!queryTool?.description?.includes("无需 Desk Tools")) {
+      throw new Error("CAD database query must declare that it does not require Desk Tools");
+    }
+    if (!bundle.includes("node:sqlite") || bundle.includes("queryTool.binaryPath")) {
+      throw new Error("CAD VSIX must query through built-in SQLite rather than the Desk provider binary");
+    }
+    if (!bundle.includes("registerModuleBlockProvider") || bundle.includes("registerWebviewViewProvider")) {
+      throw new Error("CAD VSIX must inject UI through the Shell Block provider API");
+    }
+    if (names.length !== 8) throw new Error(`CAD VSIX must remain thin (expected 8 files, got ${names.length})`);
+  }
+  process.stdout.write(`[verify] ${artifact.kind} VSIX: ${names.length} files, ${fs.statSync(artifact.file).size} bytes passed\n`);
+}
+
+function readZip(filename) {
+  const archive = fs.readFileSync(filename);
+  const eocd = findEndOfCentralDirectory(archive);
+  const count = archive.readUInt16LE(eocd + 10);
+  let offset = archive.readUInt32LE(eocd + 16);
+  const entries = new Map();
+  for (let index = 0; index < count; index += 1) {
+    if (archive.readUInt32LE(offset) !== 0x02014b50) throw new Error(`invalid ZIP central directory: ${filename}`);
+    const method = archive.readUInt16LE(offset + 10);
+    const compressedSize = archive.readUInt32LE(offset + 20);
+    const nameLength = archive.readUInt16LE(offset + 28);
+    const extraLength = archive.readUInt16LE(offset + 30);
+    const commentLength = archive.readUInt16LE(offset + 32);
+    const localOffset = archive.readUInt32LE(offset + 42);
+    const name = archive.subarray(offset + 46, offset + 46 + nameLength).toString("utf8");
+    const localNameLength = archive.readUInt16LE(localOffset + 26);
+    const localExtraLength = archive.readUInt16LE(localOffset + 28);
+    const dataOffset = localOffset + 30 + localNameLength + localExtraLength;
+    const compressed = archive.subarray(dataOffset, dataOffset + compressedSize);
+    const data = method === 0 ? compressed : method === 8 ? inflateRawSync(compressed) : undefined;
+    if (!data) throw new Error(`unsupported ZIP compression method ${method} for ${name}`);
+    entries.set(name, data);
+    offset += 46 + nameLength + extraLength + commentLength;
+  }
+  return entries;
+}
+
+function findEndOfCentralDirectory(archive) {
+  const minimum = Math.max(0, archive.length - 65_557);
+  for (let offset = archive.length - 22; offset >= minimum; offset -= 1) {
+    if (archive.readUInt32LE(offset) === 0x06054b50) return offset;
+  }
+  throw new Error("invalid ZIP: end of central directory not found");
+}
+
+function readText(entries, name) {
+  const value = entries.get(name);
+  if (!value) throw new Error(`VSIX is missing ${name}`);
+  return value.toString("utf8");
+}
+
+function assertEqual(actual, expected, label) {
+  if (actual !== expected) throw new Error(`${label} must equal ${expected}, got ${String(actual)}`);
+}

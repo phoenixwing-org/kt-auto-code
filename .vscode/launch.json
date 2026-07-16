@@ -2,7 +2,21 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Run Extension",
+      "name": "Run Code + CAD Extensions",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/extension",
+        "--extensionDevelopmentPath=${workspaceFolder}/extensions/kt-auto-cad"
+      ],
+      "outFiles": [
+        "${workspaceFolder}/extension/dist/**/*.js",
+        "${workspaceFolder}/extensions/kt-auto-cad/dist/**/*.js"
+      ],
+      "preLaunchTask": "build extensions"
+    },
+    {
+      "name": "Run Code Extension Only",
       "type": "extensionHost",
       "request": "launch",
       "args": ["--extensionDevelopmentPath=${workspaceFolder}/extension"],
@@ -10,7 +24,7 @@
       "preLaunchTask": "build extension"
     },
     {
-      "name": "Run Extension (样例 multiChar)",
+      "name": "Run Code Extension Only (样例 multiChar)",
       "type": "extensionHost",
       "request": "launch",
       "args": [

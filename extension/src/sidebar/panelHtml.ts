@@ -85,6 +85,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     body.detail-block .reorder-block { margin: 0; padding: 0; border: 0; }
     body.detail-block .reorder-block h2,
     body.detail-block .reorder-summary { display: none; }
+    body.external-module-block .wrap > :not(#tabs):not(#module-block) { display: none !important; }
     body.detail-block .reorder-actions .action { flex: 1 1 0; }
     body.detail-block .reorder-block .status { margin: 6px 0 0; padding: 4px 6px; min-height: 0; font-size: 11px; }
     .wrap { padding: 8px 14px 16px; }
@@ -97,12 +98,17 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       padding-bottom: 8px;
     }
     .tabs.ribbon {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, 54px);
+      display: flex;
+      flex-wrap: wrap;
       justify-content: start;
-      gap: 3px;
+      align-items: stretch;
+      gap: 5px;
       padding: 4px 0 9px;
     }
+    .module-group { display: flex; flex: 0 1 auto; align-items: stretch; min-width: 0; max-width: 100%; }
+    .module-group-label { display: flex; flex: 0 0 16px; align-items: center; justify-content: center; width: 16px; min-height: 50px; margin-right: 2px; border-right: 1px solid var(--vscode-panel-border); color: var(--vscode-descriptionForeground); font-size: 8px; font-weight: 600; letter-spacing: .5px; line-height: 1; text-orientation: upright; writing-mode: vertical-rl; }
+    .module-group-label.active { color: var(--vscode-textLink-foreground); border-right-color: var(--vscode-textLink-foreground); }
+    .module-group-tools { display: flex; flex: 0 1 auto; flex-wrap: wrap; align-content: flex-start; min-width: 0; max-width: calc(100vw - 38px); gap: 3px; }
     .tab {
       position: relative;
       display: inline-flex;
@@ -175,13 +181,35 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       border-color: var(--vscode-focusBorder);
     }
     .tabs.ribbon .tool-icon { width: 22px; height: 22px; flex-basis: 22px; }
+    .module-block { font-size: 12px; }
+    .module-block .block-header { padding-bottom: 10px; border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border); }
+    .module-block .block-header-row { display: flex; align-items: flex-start; gap: 8px; }
+    .module-block .block-header-main { flex: 1 1 auto; min-width: 0; }
+    .module-block .block-header-actions { display: flex; flex: 0 0 auto; gap: 3px; }
+    .module-block .block-header-action { min-width: 26px; height: 26px; padding: 0 6px; border: 0; border-radius: 3px; color: var(--vscode-foreground); background: transparent; cursor: pointer; }
+    .module-block .block-header-action:hover { background: var(--vscode-toolbar-hoverBackground); }
+    .module-block h2 { margin: 0 0 5px; font-size: 14px; }
+    .module-block h3 { margin: 0 0 6px; font-size: 12px; }
+    .module-block p { margin: 0; color: var(--vscode-descriptionForeground); font-size: 12px; line-height: 1.5; }
+    .module-block .state { display: inline-block; margin-bottom: 8px; padding: 2px 6px; border-radius: 3px; color: var(--vscode-badge-foreground); background: var(--vscode-badge-background); font-size: 11px; }
+    .module-block .state.warning { color: var(--vscode-editorWarning-foreground); background: var(--vscode-inputValidation-warningBackground, var(--vscode-badge-background)); }
+    .module-block .state.success { color: var(--vscode-testing-iconPassed, var(--vscode-badge-foreground)); }
+    .module-block section { margin-top: 12px; padding: 10px; border: 1px solid var(--vscode-widget-border); border-radius: 5px; background: var(--vscode-sideBarSectionHeader-background); }
+    .module-block ul { margin: 7px 0 0; padding-left: 18px; color: var(--vscode-descriptionForeground); font-size: 12px; line-height: 1.55; }
+    .module-block .notice { margin-top: 12px; padding: 9px 10px; border-left: 3px solid var(--vscode-textLink-foreground); background: var(--vscode-textBlockQuote-background); }
+    .module-block .notice strong { display: block; margin-bottom: 3px; font-size: 12px; }
+    .module-block .notice.warning { border-left-color: var(--vscode-editorWarning-foreground); }
+    .module-block .notice.success { border-left-color: var(--vscode-testing-iconPassed); }
+    .module-block .notice-detail { margin-top: 5px; }
     .tabs.compact {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, 42px);
+      display: flex;
+      flex-wrap: wrap;
       justify-content: start;
       align-items: start;
       gap: 2px;
     }
+    .tabs.compact .module-group-label { flex-basis: 14px; width: 14px; min-height: 32px; font-size: 7px; }
+    .tabs.compact .module-group-tools { gap: 2px; }
     .tabs.compact .tab {
       width: 42px;
       height: 38px;
@@ -634,6 +662,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
 <body>
   <div class="wrap">
     <div class="tabs" id="tabs"></div>
+    <div class="module-block" id="module-block" hidden></div>
     <div class="title-row">
       <h2 id="tool-title">KT Auto Code</h2>
     </div>
@@ -853,6 +882,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       workspaceFileScopes: [],
       selectedWorkspaceFileScopes: {},
       workspaceFileScopeError: "",
+      moduleState: { installed: ["code"], enabled: ["code"], visible: ["code"], known: ["code"], active: "code" },
+      moduleBlock: null,
       uuidStrategy: saved.uuidStrategy === "fresh_per_hit" ? "fresh_per_hit" : "map_per_value",
       replace: Object.assign({ search: "", with: "", text: true, file: false, dir: false, ignored: false, scope: "", expanded: false, sourcePrefix: legacyPrefix, targetPrefix: legacyPrefix, defaultEncoding: "utf8", preserveCase: false, extraRules: [], profileId: "", profileLabel: "" }, savedReplace),
     };
@@ -865,6 +896,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
 
     const els = {
       tabs: document.getElementById("tabs"),
+      moduleBlock: document.getElementById("module-block"),
       title: document.getElementById("tool-title"),
       desc: document.getElementById("tool-desc"),
       replaceBlock: document.getElementById("replace-block"),
@@ -1450,6 +1482,58 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       return state.tools.find((t) => t.id === state.activeToolId);
     }
 
+    function renderModuleBlock() {
+      const content = state.moduleBlock;
+      els.moduleBlock.innerHTML = "";
+      if (!content) {
+        const loading = document.createElement("p");
+        loading.textContent = "模块界面正在载入…";
+        els.moduleBlock.appendChild(loading);
+        return;
+      }
+      const header = document.createElement("div");
+      header.className = "block-header";
+      const row = document.createElement("div");
+      row.className = "block-header-row";
+      const main = document.createElement("div");
+      main.className = "block-header-main";
+      if (content.status) {
+        const status = document.createElement("span");
+        status.className = "state " + (content.statusKind || "default");
+        status.textContent = content.status;
+        main.appendChild(status);
+      }
+      const title = document.createElement("h2");
+      title.textContent = content.title || "模块工具";
+      main.appendChild(title);
+      if (content.description) {
+        const description = document.createElement("p");
+        description.textContent = content.description;
+        main.appendChild(description);
+      }
+      row.appendChild(main);
+      if ((content.headerActions || []).length) {
+        const actions = document.createElement("div");
+        actions.className = "block-header-actions";
+        for (const action of content.headerActions) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "block-header-action";
+          button.textContent = action.icon || action.title;
+          button.title = action.title;
+          button.setAttribute("aria-label", action.title);
+          button.onclick = () => vscode.postMessage({ type: "moduleBlockAction", actionId: action.id });
+          actions.appendChild(button);
+        }
+        row.appendChild(actions);
+      }
+      header.appendChild(row);
+      const body = document.createElement("div");
+      body.className = "module-block-body";
+      body.innerHTML = content.html || "";
+      els.moduleBlock.append(header, body);
+    }
+
     function toolState() {
       return state.toolStates[state.activeToolId] || { status: "idle" };
     }
@@ -1874,33 +1958,59 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.tabs.title = (state.openToolIds || []).length
         ? "已打开 " + state.openToolIds.length + " 个工具 Block"
         : "没有打开的工具 Block";
-      for (const t of state.tools) {
-        if (t.id === "environmentSettings") continue;
-        const btn = document.createElement("button");
-        const isOpen = (state.openToolIds || []).includes(t.id);
-        const isActive = isOpen && t.id === state.activeToolId;
-        btn.className = "tab" + (isOpen ? " open" : "") + (isActive ? " active" : "");
-        btn.type = "button";
-        btn.setAttribute("aria-pressed", isActive ? "true" : "false");
-        if (t.icon && t.icon.includes(":")) {
-          const icon = document.createElement("span");
-          icon.className = "tool-icon";
-          icon.style.setProperty("--tool-icon", 'url("' + t.icon.replace(/"/g, "") + '")');
-          btn.appendChild(icon);
+      const visibleModules = state.moduleState.visible || ["code"];
+      for (const moduleId of visibleModules) {
+        const moduleTools = state.tools.filter((item) => (item.moduleId || "code") === moduleId && item.id !== "environmentSettings");
+        if (!moduleTools.length) continue;
+        const group = document.createElement("div");
+        group.className = "module-group";
+        group.dataset.moduleId = moduleId;
+        const groupLabel = document.createElement("div");
+        groupLabel.className = "module-group-label" + (moduleId === state.moduleState.active ? " active" : "");
+        groupLabel.textContent = (moduleTools[0].moduleTitle || moduleId).toUpperCase();
+        groupLabel.title = (moduleTools[0].moduleTitle || moduleId) + " 模块";
+        const groupTools = document.createElement("div");
+        groupTools.className = "module-group-tools";
+        for (const t of moduleTools) {
+          const btn = document.createElement("button");
+          const isModuleTool = (t.moduleId || "code") !== "code" && !!t.command;
+          const isOpen = (state.openToolIds || []).includes(t.id);
+          const isActiveModule = (t.moduleId || "code") === state.moduleState.active;
+          const isActive = isOpen && isActiveModule && t.id === state.activeToolId;
+          btn.className = "tab" + (isOpen ? " open" : "") + (isActive ? " active" : "");
+          btn.type = "button";
+          btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+          if (t.icon && t.icon.includes(":")) {
+            const icon = document.createElement("span");
+            icon.className = "tool-icon";
+            icon.style.setProperty("--tool-icon", 'url("' + t.icon.replace(/"/g, "") + '")');
+            btn.appendChild(icon);
+          }
+          const label = document.createElement("span");
+          const shortTitles = { headerAscii: "头文件", encodingFix: "编码", ignoreSettings: "忽略", codeRename: "替换", reorderMembers: "排序", uuidReplace: "UUID", caaDialog: "CAA", environmentSettings: "环境" };
+          label.textContent = t.shortTitle || shortTitles[t.id] || t.title;
+          btn.appendChild(label);
+          const openState = isActive
+            ? " · 当前显示"
+            : (isOpen ? " · 已打开，当前隐藏" : "");
+          const countState = isOpen ? " · 共打开 " + state.openToolIds.length + " 个" : "";
+          btn.title = t.title + openState + countState;
+          btn.dataset.tooltip = t.title + openState + countState;
+          btn.setAttribute("aria-label", t.title + openState);
+          btn.onclick = () => isModuleTool
+            ? vscode.postMessage({ type: "runModuleTool", moduleId: t.moduleId, command: t.command })
+            : vscode.postMessage({ type: "selectTool", toolId: t.id });
+          groupTools.appendChild(btn);
         }
-        const label = document.createElement("span");
-        const shortTitles = { headerAscii: "头文件", encodingFix: "编码", ignoreSettings: "忽略", codeRename: "替换", reorderMembers: "排序", uuidReplace: "UUID", caaDialog: "CAA", environmentSettings: "环境" };
-        label.textContent = shortTitles[t.id] || t.title;
-        btn.appendChild(label);
-        const openState = isActive
-          ? " · 当前显示"
-          : (isOpen ? " · 已打开，当前隐藏" : "");
-        const countState = isOpen ? " · 共打开 " + state.openToolIds.length + " 个" : "";
-        btn.title = t.title + openState + countState;
-        btn.dataset.tooltip = t.title + openState + countState;
-        btn.setAttribute("aria-label", t.title + openState);
-        btn.onclick = () => vscode.postMessage({ type: "selectTool", toolId: t.id });
-        els.tabs.appendChild(btn);
+        group.append(groupLabel, groupTools);
+        els.tabs.appendChild(group);
+      }
+      const externalModuleBlock = state.presentation === "detailBlock" && state.moduleState.active !== "code";
+      document.body.classList.toggle("external-module-block", externalModuleBlock);
+      els.moduleBlock.hidden = !externalModuleBlock;
+      if (externalModuleBlock) {
+        renderModuleBlock();
+        return;
       }
       const ts = toolState();
       const running = ts.status === "running";
@@ -2339,6 +2449,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         state.workspaceFileScopes = msg.workspaceFileScopes || [];
         state.selectedWorkspaceFileScopes = msg.selectedWorkspaceFileScopes || {};
         state.workspaceFileScopeError = msg.workspaceFileScopeError || "";
+        state.moduleState = msg.moduleState || state.moduleState;
         els.workspace.textContent = msg.workspaceLabel;
         render();
       } else if (msg.type === "workspace") {
@@ -2358,6 +2469,12 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       } else if (msg.type === "openTools") {
         state.activeToolId = msg.activeToolId || state.activeToolId;
         state.openToolIds = msg.openToolIds || [];
+        render();
+      } else if (msg.type === "modules") {
+        state.moduleState = msg.moduleState || state.moduleState;
+        render();
+      } else if (msg.type === "moduleBlock") {
+        state.moduleBlock = msg.content || null;
         render();
       } else if (msg.type === "workspaceFileScopes") {
         state.workspaceFileScopes = msg.scopes || [];

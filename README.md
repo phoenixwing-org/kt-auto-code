@@ -1,6 +1,6 @@
 # KT Auto Code
 
-面向 **CAA / MSVC C++** 的小工具集合：核心在 `src/`，通过 **CLI** 或 **VS Code / Cursor 插件** 使用。
+面向 **CAA / MSVC C++ 与 CAD** 的小工具集合：核心在 `src/`，通过 **CLI** 或 **VS Code / Cursor 插件** 使用。本仓库同时产出基础插件 `KT Auto Code` 与依赖它的可选模块 `KT Auto CAD`，两者共用一个 Activity Bar 入口。
 
 源码仓库：[PhoenixWing321/kt-auto-code](https://gitee.com/PhoenixWing321/kt-auto-code)。
 
@@ -9,14 +9,18 @@
 ## 快速开始
 
 ```bash
-pnpm install && pnpm -C extension install
+pnpm install
 
 pnpm test
+pnpm extensions:typecheck
+pnpm extensions:build
 pnpm scan-encoding --headers --ascii tests/fixtures/multiChar   # 预检
 pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎用）
 ```
 
-**插件**：`pnpm ext:watch` → 本仓库 **F5** → Host 窗口打开 CAA 工程 → Side Bar **KT Auto Code**。
+**基础插件**：`pnpm ext:watch` → 本仓库 **F5** → Host 窗口打开 CAA 工程 → Side Bar **KT Auto Code**。
+
+开发环境使用 Node.js 22 LTS 与 pnpm 10。**双插件联调**：选择 `Run Code + CAD Extensions` 启动配置；CAD 不创建第二个 Activity Bar 图标，Code/CAD 在工具栏 Header 独立勾选，工具按钮共用同一个 Ribbon。后续可选模块按[可选模块接入契约](doc/可选模块接入契约.md)接入。
 
 ## 文档
 
@@ -43,7 +47,8 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 | 命令 | 说明 |
 | --- | --- |
 | `pnpm ext:watch` | 监听编译扩展 |
-| `pnpm ext:launch` | 启动 Extension Host（同 F5） |
+| `pnpm ext:launch` | 同时加载 Code + CAD 的 Extension Host（默认 F5 配置） |
+| `pnpm ext:launch:code` | 只加载 KT Auto Code 的 Extension Host |
 | `pnpm fix-headers` | 头文件纯 ASCII 修复 |
 | `pnpm scan-file-encoding` | 整文件编码预检（GBK / BOM / UTF-16） |
 | `pnpm convert-file-encoding` | 转换为 UTF-8 |
@@ -54,6 +59,7 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 ```text
 src/           # 核心（无 vscode 依赖）
 extension/     # VS Code 插件壳
+extensions/kt-auto-cad/ # 可选 CAD VS Code 插件壳
 scripts/       # CLI
 tests/fixtures/
 doc/           # 中文文档

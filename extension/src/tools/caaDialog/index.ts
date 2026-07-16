@@ -1,6 +1,6 @@
 import { relative } from "node:path";
 import * as vscode from "vscode";
-import { pnwIsCaaDialogHandoff, type PnwCaaDialogHandoff } from "phoenix-wing/code-core";
+import { pnwIsCaaDialogHandoff, type PnwCaaDialogHandoff } from "@phoenix-wing/code-core";
 import { isIgnoredPath } from "../../../../src/dotIgnore.js";
 import type { CaaDialogFileResultSummary, KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
 import { ktcProbeDeskTools } from "../../caaDeskBridge.js";

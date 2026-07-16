@@ -4,6 +4,9 @@
 
 ## 0.4.0
 
+- Code 纯算法改为直接消费 `@phoenix-wing/code-core` 小包，不再通过带 Vue/Element 依赖的聚合包。
+- Code/CAD 模块切换迁入原生 View Header；共享 Ribbon 根据当前模块渲染 manifest 数据定义的工具，不再增加独立 CAD 工具块或 Activity Bar 按钮。
+- CAD 文件名分析、工作区 FCStd 检索、基础界面和已有 Schema v13 数据库只读查询无需 Desk Tools；只有 FCStd 原生读取在执行时检查 provider。
 - 主侧栏保留最小高度 Ribbon；点击模块只在其正下方展开原工具界面 Block，不再立即扫描或预览。
 - Ribbon 支持“单显示、多打开”状态：当前 Block 强高亮，后台已打开 Block 使用次级颜色；关闭当前项按最近使用顺序恢复上一个。
 - 新增单 Block 双样板：编码修正用于验证多控件操作区，C++ 成员排序将扫描、状态、筛选、勾选和文件结果合并在同一 Block，不再自动打开第二个原生结果 View。

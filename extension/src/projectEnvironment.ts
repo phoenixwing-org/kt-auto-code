@@ -3,7 +3,7 @@ import {
   pnwResolveCaaEnvironment,
   type PnwCaaEnvironment,
   type PnwCaaEnvironmentValue,
-} from "phoenix-wing/code-core";
+} from "@phoenix-wing/code-core";
 
 const ENVIRONMENT_VARIABLES = ["ROOT_DIR", "ROOT_DIR_3rdParty", "ROOT_DIR_CORE", "CAA_MK_VERSION"] as const;
 export type KtcProjectEnvironmentVariable = typeof ENVIRONMENT_VARIABLES[number];

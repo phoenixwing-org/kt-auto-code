@@ -1,0 +1,11 @@
+KT Auto Code
+Copyright 2024-2026 Shanghai Kuntai Co.
+
+This product is licensed under the Apache License, Version 2.0.
+
+The rename and replacement algorithms in this product were derived from a
+Windows application developed by Shanghai Kuntai Co. in 2024, involving C++,
+Qt, and .NET technologies, and were redesigned and implemented for the
+VS Code extension scenario.
+
+Software Copyright Registration No.: 2024SR1374380

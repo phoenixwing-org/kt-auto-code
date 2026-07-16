@@ -27,6 +27,21 @@
           "endsPattern": "watching extension"
         }
       }
+    },
+    {
+      "label": "build CAD extension",
+      "type": "npm",
+      "script": "cad:build",
+      "path": ".",
+      "problemMatcher": "$esbuild"
+    },
+    {
+      "label": "build extensions",
+      "type": "npm",
+      "script": "extensions:build",
+      "path": ".",
+      "group": "build",
+      "problemMatcher": "$esbuild"
     }
   ]
 }

@@ -9,10 +9,14 @@ import type { KtcSearchReplaceRequest } from "../../../src/searchReplaceContract
 import type { KtcRenameResultViewModel } from "../../../src/renameResultViewModel.js";
 import type { KtcIgnoreRecommendationReport } from "../ignoreRecommendationTypes.js";
 import type { KtcWorkspaceFileScopeSummary } from "../worksets.js";
+import type { KtcModuleId, KtcModuleState } from "../modules/moduleState.js";
+import type { KtcModuleBlockContent } from "../../../src/moduleShellContract.js";
 
 /** Webview → Extension */
 export type WebviewInboundMessage =
   | { type: "ready" }
+  | { type: "runModuleTool"; moduleId: KtcModuleId; command: string }
+  | { type: "moduleBlockAction"; actionId: string }
   | { type: "selectTool"; toolId: string }
   | { type: "selectWorkspaceFileScope"; toolId: string; scopeId: string }
   | { type: "openWorkspaceWorksets" }
@@ -99,6 +103,7 @@ export type WebviewOutboundMessage =
       workspaceFileScopes: readonly KtcWorkspaceFileScopeSummary[];
       selectedWorkspaceFileScopes: Record<string, string>;
       workspaceFileScopeError?: string;
+      moduleState: KtcModuleState;
     }
   | { type: "workspace"; label: string }
   | { type: "scope"; scope: { includeHeaders: boolean; includeSource: boolean; includeMarkdown: boolean } }
@@ -106,6 +111,8 @@ export type WebviewOutboundMessage =
   | { type: "options"; toolId: string; options: ToolOptionsState }
   | { type: "sidebarStyle"; style: "ribbon" | "compact" }
   | { type: "openTools"; activeToolId: string; openToolIds: readonly string[] }
+  | { type: "modules"; moduleState: KtcModuleState }
+  | { type: "moduleBlock"; moduleId: KtcModuleId; content?: KtcModuleBlockContent }
   | {
       type: "workspaceFileScopes";
       scopes: readonly KtcWorkspaceFileScopeSummary[];
@@ -140,6 +147,10 @@ export interface ToolSummary {
   title: string;
   description: string;
   icon?: string;
+  moduleId?: KtcModuleId;
+  moduleTitle?: string;
+  command?: string;
+  shortTitle?: string;
 }
 
 export interface KtcRecentWorkingDirectories {
