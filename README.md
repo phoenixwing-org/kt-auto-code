@@ -27,7 +27,7 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 | 文档 | 内容 |
 | --- | --- |
 | [doc/README.md](doc/README.md) | 文档索引 |
-| [下一阶段实施计划](doc/下一阶段实施计划.md) | **近期 TODO**：Extension Host 确认流程与浅色/深色/高对比主题验收 |
+| [当前路线](doc/current-roadmap.md) | 当前优先级、完成基线与 92.5 联合治理接入责任 |
 | [Phoenix 三形态产品架构计划](doc/Phoenix三形态产品架构计划.md) | VS Code 双插件、Tauri/Web、共享 core 与统一发布总纲 |
 | [项目调查](doc/项目调查.md) | 项目定位、实际实现、架构、当前状态与行为边界 |
 | [PNXCaaStudy CAA 命名规则调查](doc/PNXCaaStudy-CAA命名规则调查.md) | I/E、TIE、dico 命名证据与完整名称/末词段两种模式 |
@@ -36,13 +36,9 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 | [UI 开发规则](doc/前端开发规则.md) | Ribbon、单显示多打开、Block 布局、范围、缓存、结果、Diff、主题与验收的权威规范 |
 | [Codegen 快速原型](doc/Codegen快速原型.md) | Codegen 单 Block、多 JSON View、共享 Table 与 MVC 边界 |
 | [Codegen 手工验收](doc/codegen-plan/Codegen手工验收.md) | 可重置 fixture 工作区、深浅主题与冲突/取消测试步骤 |
-| [Codegen 验收覆盖矩阵](doc/codegen-plan/CodegenAcceptanceCoverage.json) | 13 项目标要求对应的自动证据、人工 checkpoint 与完成门禁 |
-| [Codegen 第四轮评分](doc/codegen-plan/Codegen第四轮可验收性评分.md) | 当前 98/100 自动验证证据、人工保留项与安全边界 |
-| [Side Bar 界面改进计划](doc/侧边栏界面改进计划.md) | 四个工具、SVG 图标、共享 Ignore Service 和 MVC 分层 |
 | [搜索替换](doc/搜索替换.md) | 文本/文件名/文件夹名替换、字节精确处理与安全边界 |
 | [源文件编码扫描](doc/源文件编码扫描.md) | CLI、扫描范围；**CP1252 / 全角标点映射表** |
 | [编码修正](doc/编码修正.md) | 整文件编码检测与转换（`encodingFix`） |
-| [vscode插件规划](doc/vscode插件规划.md) | 插件架构、多工具扩展 |
 | [开发与测试](doc/开发与测试.md) | F5、测试、选项与检查清单 |
 | [VS Code 插件发布](doc/VS%20Code%20插件发布.md) | Marketplace 发布流程、上架检查清单与版权说明 |
 
@@ -54,6 +50,7 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 | `pnpm ext:launch` | 同时加载 Code + CAD 的 Extension Host（默认 F5 配置） |
 | `pnpm ext:launch:code` | 只加载 KT Auto Code 的 Extension Host |
 | `pnpm ext:launch:codegen` | 构建插件、复制新 Codegen QA fixture 并启动 Extension Host |
+| `pnpm ext:test:host` | 在独立配置中启动真实 VS Code，自动验收 Codegen 代表宿主流程 |
 | `pnpm ext:prepare:codegen` | 只准备新的临时 Codegen QA 工作区 |
 | `pnpm ext:verify:codegen -- <路径> [--checkpoint-a|--checkpoint-e]` | 验证 fixture 基线、CSV 或真实 Apply 结果 |
 | `pnpm ext:report:codegen -- <路径>` | 查看或记录 A–F 手工验收进度 |

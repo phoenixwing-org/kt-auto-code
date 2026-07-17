@@ -4,23 +4,16 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  '@phoenix-wing/code-core@0.4.0': link:../phoenix-wing/packages/code-core
-  '@phoenix-wing/kt-codegen@0.4.0': link:../phoenix-wing/packages/kt-codegen
-  '@phoenix-wing/cad-core@0.4.0': link:../phoenix-wing/packages/cad-core
-  '@phoenix-wing/cad-contracts@0.4.0': link:../phoenix-wing/packages/cad-contracts
-  '@phoenix-wing/workspace-schema@0.4.0': link:../phoenix-wing/packages/workspace-schema
-
 importers:
 
   .:
     dependencies:
       '@phoenix-wing/code-core':
-        specifier: link:../phoenix-wing/packages/code-core
-        version: link:../phoenix-wing/packages/code-core
+        specifier: 0.4.2
+        version: 0.4.2
       '@phoenix-wing/kt-codegen':
-        specifier: link:../phoenix-wing/packages/kt-codegen
-        version: link:../phoenix-wing/packages/kt-codegen
+        specifier: 0.4.2
+        version: 0.4.2
       iconv-lite:
         specifier: 0.6.3
         version: 0.6.3
@@ -41,11 +34,11 @@ importers:
   extension:
     dependencies:
       '@phoenix-wing/code-core':
-        specifier: link:../../phoenix-wing/packages/code-core
-        version: link:../../phoenix-wing/packages/code-core
+        specifier: 0.4.2
+        version: 0.4.2
       '@phoenix-wing/kt-codegen':
-        specifier: link:../../phoenix-wing/packages/kt-codegen
-        version: link:../../phoenix-wing/packages/kt-codegen
+        specifier: 0.4.2
+        version: 0.4.2
       iconv-lite:
         specifier: 0.6.3
         version: 0.6.3
@@ -66,14 +59,14 @@ importers:
   extensions/kt-auto-cad:
     devDependencies:
       '@phoenix-wing/cad-contracts':
-        specifier: link:../../../phoenix-wing/packages/cad-contracts
-        version: link:../../../phoenix-wing/packages/cad-contracts
+        specifier: 0.4.2
+        version: 0.4.2
       '@phoenix-wing/cad-core':
-        specifier: link:../../../phoenix-wing/packages/cad-core
-        version: link:../../../phoenix-wing/packages/cad-core
+        specifier: 0.4.2
+        version: 0.4.2
       '@phoenix-wing/workspace-schema':
-        specifier: link:../../../phoenix-wing/packages/workspace-schema
-        version: link:../../../phoenix-wing/packages/workspace-schema
+        specifier: 0.4.2
+        version: 0.4.2
       '@types/vscode':
         specifier: 1.85.0
         version: 1.85.0
@@ -491,6 +484,21 @@ packages:
 
   '@oxc-project/types@0.139.0':
     resolution: {integrity: sha512-r9gHphtCs+1M7J0pw6Sn/hh/Wpa/iQrOOkrNAlVLF/gHq+/CJmHIWKKUUhdWjcD6CIa8idarspCsASiXCXvFUw==}
+
+  '@phoenix-wing/cad-contracts@0.4.2':
+    resolution: {integrity: sha512-KKvxaPldhUaocrjvEJlEudbhYDQz+I85Lrmz1x45aHpt3cfChRS+6lg09iLwf/VnKMKLI/vsGypv8FVvVpi+YA==}
+
+  '@phoenix-wing/cad-core@0.4.2':
+    resolution: {integrity: sha512-44YXGJGLXqrvlPNhliOuaF9pe002D1AaEpLIarWMlYVquiypKUh4iwOpxpM46gzmr5QFGnN0+rVMTXilazsHRQ==}
+
+  '@phoenix-wing/code-core@0.4.2':
+    resolution: {integrity: sha512-y0/buMhbhGdwDk/rQFpDcc0sCvhSLB/w4otCIr13jBYrnidSJLz3SHrHSyS2x7DOqAsBJv2y5synkohZhFYb5A==}
+
+  '@phoenix-wing/kt-codegen@0.4.2':
+    resolution: {integrity: sha512-lmTkPKpbongMiKCgqtcGBm0tsohenzDSe3WuvhHIP8SDFEBg2r4HBDAmTAdGKhrIl0LWOxibougMRaj1TKg7+g==}
+
+  '@phoenix-wing/workspace-schema@0.4.2':
+    resolution: {integrity: sha512-G29yCmMJ1UXrenZvg/BgXcqHzqfb76ovlo519Z7X+icEMC12g6eEf88tHzxSly0Wp7FeRBmm8Pwfi57hfMLg7w==}
 
   '@rolldown/binding-android-arm64@1.1.5':
     resolution: {integrity: sha512-lZg8fqIv2v7FF237bwMgzGZEJvGL79/s5knJ/i6FmsGF4XXlzccZ4jb+TrFIxtSSxFtIpdsgrPZeMk1I9AFcyQ==}
@@ -2190,6 +2198,16 @@ snapshots:
       fastq: 1.20.1
 
   '@oxc-project/types@0.139.0': {}
+
+  '@phoenix-wing/cad-contracts@0.4.2': {}
+
+  '@phoenix-wing/cad-core@0.4.2': {}
+
+  '@phoenix-wing/code-core@0.4.2': {}
+
+  '@phoenix-wing/kt-codegen@0.4.2': {}
+
+  '@phoenix-wing/workspace-schema@0.4.2': {}
 
   '@rolldown/binding-android-arm64@1.1.5':
     optional: true

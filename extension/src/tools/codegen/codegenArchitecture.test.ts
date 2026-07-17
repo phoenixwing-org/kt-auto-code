@@ -6,31 +6,18 @@ function source(name: string): string {
 }
 
 describe("Codegen MVC dependency boundary", () => {
-  it("跨宿主审计如实区分共享 Apply、重复投影和旧 Qt 行为参考", () => {
+  it("跨宿主审计确认 VS Code 与 Desk 共用 Apply，旧 Qt 仅作行为参考", () => {
     const audit = JSON.parse(source("../../../../doc/codegen-plan/CodegenMvcDependencyAudit.json")) as {
       crossHostConsumers: Array<{ id: string; status: string; duplicatePureLogic?: string[] }>;
     };
-    const wingApply = readFileSync(
-      new URL("../../../../../phoenix-wing/packages/kt-codegen/src/KtCodegenApply.ts", import.meta.url),
-      "utf8",
-    );
-    const deskTools = readFileSync(
-      new URL("../../../../../phoenix-desk-tools/server/src/lib/ktCodegenService.ts", import.meta.url),
-      "utf8",
-    );
-    expect(wingApply).toContain("export function ktCodegenProjectApply");
     expect(source("./sourceApply.ts")).toContain("ktCodegenProjectApply as ktcProjectCodegenApply");
     expect(audit.crossHostConsumers.find((item) => item.id === "vscode-plugin")?.status)
       .toBe("shared-apply");
 
-    expect(deskTools).toContain("KtCodegenController");
-    expect(deskTools).toContain("function replacementPairs(");
-    expect(deskTools).toContain("function normalizeGeneratedEol(");
-    expect(deskTools).not.toContain("ktCodegenProjectApply");
     expect(audit.crossHostConsumers.find((item) => item.id === "phoenix-desk-tools"))
       .toMatchObject({
-        status: "shared-analyze-duplicate-apply",
-        duplicatePureLogic: ["replacementPairs", "normalizeGeneratedEol", "range/overlap projection"],
+        status: "shared-apply",
+        duplicatePureLogic: [],
       });
     expect(audit.crossHostConsumers.find((item) => item.id === "legacy-qt-vb")?.status)
       .toBe("behavior-reference");

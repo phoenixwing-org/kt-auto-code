@@ -18,12 +18,9 @@ import type {
   KtCodegenPlatform,
   KtCodegenTableData,
 } from "@phoenix-wing/kt-codegen";
+import type { KtcCodegenMetaField } from "./codegen/contracts.js";
 
-export type KtcCodegenMetaField =
-  | "namePrefix"
-  | "nameMiddle"
-  | "nameSpace"
-  | "appendFunction";
+export type { KtcCodegenMetaField } from "./codegen/contracts.js";
 
 /** Webview → Extension */
 export type WebviewInboundMessage =

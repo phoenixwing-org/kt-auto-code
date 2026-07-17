@@ -28,6 +28,19 @@ const codegenTableOptions = {
   logLevel: "info",
 };
 
+/** @type {import('esbuild').BuildOptions} */
+const extensionHostSmokeOptions = {
+  entryPoints: ["src/test/extensionHostSmoke.ts"],
+  bundle: true,
+  outfile: "dist/test/extension-host-smoke.js",
+  external: ["vscode"],
+  platform: "node",
+  format: "cjs",
+  target: "node18",
+  sourcemap: true,
+  logLevel: "info",
+};
+
 if (watch) {
   const extensionContext = await esbuild.context(extensionOptions);
   const tableContext = await esbuild.context(codegenTableOptions);
@@ -35,5 +48,9 @@ if (watch) {
   console.log("watching extension…");
 } else {
   await rm("dist", { recursive: true, force: true });
-  await Promise.all([esbuild.build(extensionOptions), esbuild.build(codegenTableOptions)]);
+  await Promise.all([
+    esbuild.build(extensionOptions),
+    esbuild.build(codegenTableOptions),
+    esbuild.build(extensionHostSmokeOptions),
+  ]);
 }

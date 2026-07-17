@@ -1,0 +1,33 @@
+name: Auto Code quality and VSIX artifacts
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auto-code-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm verify:ci
+      - uses: actions/upload-artifact@v4
+        with:
+          name: auto-code-vsix
+          path: extension/*.vsix
+          if-no-files-found: error

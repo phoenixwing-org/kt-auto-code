@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 interface ExtensionManifest {
+  icon?: string;
+  scripts?: Record<string, string>;
   extensionDependencies?: string[];
   activationEvents?: string[];
   engines: { vscode: string };
@@ -30,6 +32,8 @@ describe("KT Auto CAD extension manifest", () => {
   it("depends on KT Auto Code and contributes to its existing container", () => {
     const cad = readManifest("../extensions/kt-auto-cad/package.json");
     expect(cad.extensionDependencies).toEqual(["kuntai.kt-auto-code"]);
+    expect(cad.icon).toBe("media/cn.kt.doc.AutoCode.Color.128.png");
+    expect(cad.scripts?.package).toContain("../../extension/kt-auto-cad-${npm_package_version}.vsix");
     expect(cad.activationEvents).not.toContain("onStartupFinished");
     expect(cad.activationEvents).toEqual(expect.arrayContaining([
       "onCommand:ktAutoCad.open",
@@ -111,14 +115,14 @@ describe("KT Auto CAD extension manifest", () => {
     expect(cad.engines.vscode).toBe("^1.85.0");
     expect(code.engines.vscode).toBe(cad.engines.vscode);
     expect(cad.devDependencies?.["@types/vscode"]).toBe("1.85.0");
-    expect(cad.devDependencies?.["@phoenix-wing/cad-core"]).toBe("0.4.0");
-    expect(cad.devDependencies?.["@phoenix-wing/cad-contracts"]).toBe("0.4.0");
-    expect(cad.devDependencies?.["@phoenix-wing/workspace-schema"]).toBe("0.4.0");
+    expect(cad.devDependencies?.["@phoenix-wing/cad-core"]).toBe("0.4.2");
+    expect(cad.devDependencies?.["@phoenix-wing/cad-contracts"]).toBe("0.4.2");
+    expect(cad.devDependencies?.["@phoenix-wing/workspace-schema"]).toBe("0.4.2");
     expect(cad.devDependencies?.["@phoenix-wing/cad-rust-source"]).toBeUndefined();
     expect(cad.devDependencies?.["@phoenix-wing/db-node"]).toBeUndefined();
     expect(code.devDependencies?.["@types/vscode"]).toBe("1.85.0");
-    expect(code.dependencies?.["@phoenix-wing/code-core"]).toBe("0.4.0");
-    expect(code.dependencies?.["@phoenix-wing/kt-codegen"]).toBe("0.4.0");
+    expect(code.dependencies?.["@phoenix-wing/code-core"]).toBe("0.4.2");
+    expect(code.dependencies?.["@phoenix-wing/kt-codegen"]).toBe("0.4.2");
     expect(code.dependencies?.["phoenix-wing"]).toBeUndefined();
   });
 });

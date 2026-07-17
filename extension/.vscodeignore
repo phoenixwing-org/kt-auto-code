@@ -6,3 +6,4 @@ esbuild.mjs
 tsconfig.json
 pnpm-lock.yaml
 **/*.map
+dist/test/**

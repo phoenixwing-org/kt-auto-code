@@ -86,11 +86,11 @@
     },
     {
       "id": "phoenix-desk-tools",
-      "status": "shared-analyze-duplicate-apply",
-      "wingApis": ["KtCodegenController.analyze", "KtCodegenMarker", "KtCodegenRenderer", "KtCodegenTableData"],
-      "duplicatePureLogic": ["replacementPairs", "normalizeGeneratedEol", "range/overlap projection"],
-      "hostOnly": ["stable file read", "encoding", "mode preservation", "temporary file", "fsync", "atomic rename", "rollback file"],
-      "nextBoundary": "Desk Tools Codegen worktree was archived as 1551985. Replace duplicate projection with ktCodegenProjectApply in a follow-up commit; retain its stronger atomic filesystem transaction in the host."
+      "status": "shared-apply",
+      "wingApis": ["KtCodegenController.analyze", "ktCodegenProjectApply", "ktCodegenCommitApplyWrites", "KtCodegenTableData"],
+      "duplicatePureLogic": [],
+      "hostOnly": ["workspace boundary", "stable file read", "UTF-8/GBK codec", "mode preservation", "temporary file", "fsync", "atomic rename"],
+      "nextBoundary": "Keep the AST host declaration gate and the byte-identical apply-projection-v1 fixture green; Desk commit cbb19c6 removed the projection and rollback transaction copies."
     },
     {
       "id": "legacy-qt-vb",

@@ -3,7 +3,7 @@
 ## 0.1.0
 
 - 建立依赖 KT Auto Code 的独立扩展骨架。
-- 向共享 `kt-auto-code` View Container 贡献按需 CAD 详情 View。
+- 向共享 `kt-auto-code` View Container 贡献按需 CAD Block，不创建独立 Activity Bar 或并列 View。
 - 通过 Desk Tools native provider 只读分析 FCStd，并展示对象、BOM、XLink 与根节点摘要。
 - 使用 VS Code 文件 API 扫描工作区 FCStd，不要求 Desk Tools 或 native provider。
 - 通过 VS Code 内置 `node:sqlite` 严格只读查询 workspace Schema v13，展示 BOM 与入向/出向引用摘要，无需 Desk Tools provider。

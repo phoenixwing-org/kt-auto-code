@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import contractFixtureJson from "@phoenix-wing/kt-codegen/fixtures/apply-projection-v1.json";
 import {
   KtCodegenController,
   type KtCodegenPlan,
@@ -9,6 +10,19 @@ import {
   ktcNormalizeCodegenGeneratedEol,
   ktcProjectCodegenApply,
 } from "./sourceApply.js";
+
+const contractFixture = contractFixtureJson as unknown as {
+  plan: KtCodegenPlan;
+  source: { path: string; text: string; fingerprint: string };
+  expected: {
+    after: string;
+    utf8Hex: string;
+    regionCount: number;
+    regionIds: string[];
+    conflictFingerprint: string;
+    conflictCode: string;
+  };
+};
 
 function plan(fingerprint = "sha256:before"): KtCodegenPlan {
   return {
@@ -44,6 +58,24 @@ function plan(fingerprint = "sha256:before"): KtCodegenPlan {
 }
 
 describe("Codegen source Apply projection", () => {
+  it("与 Wing 使用同一 v1 fixture 锁定投影、冲突和最终字节", () => {
+    const result = ktcProjectCodegenApply(contractFixture.plan, [contractFixture.source]);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.changes[0]).toMatchObject({
+      after: contractFixture.expected.after,
+      regionCount: contractFixture.expected.regionCount,
+    });
+    expect(result.changes[0]?.regions.map((region) => region.id)).toEqual(contractFixture.expected.regionIds);
+    expect(Buffer.from(result.changes[0]!.after, "utf8").toString("hex")).toBe(contractFixture.expected.utf8Hex);
+
+    const conflict = ktcProjectCodegenApply(contractFixture.plan, [{
+      ...contractFixture.source,
+      fingerprint: contractFixture.expected.conflictFingerprint,
+    }]);
+    expect(conflict.changes).toEqual([]);
+    expect(conflict.diagnostics.map((item) => item.code)).toEqual([contractFixture.expected.conflictCode]);
+  });
+
   it("指纹一致时按区域生成整文件结果", () => {
     expect(ktcProjectCodegenApply(plan(), [{
       path: "/workspace/a.cpp",

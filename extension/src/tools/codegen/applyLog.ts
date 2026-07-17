@@ -35,10 +35,7 @@ export function ktcCodegenApplyDiagnosticLog(
   return `${prefix(stage)}[${diagnostic.severity}] ${diagnostic.code}：${diagnostic.message}${location}`;
 }
 
-/**
- * 输出计划审计信息。即使 Wing 没有产生 error，也会明确列出未命中的控制符，
- * 便于判断“Apply 没改文件”究竟是缺 Marker、没有 Artifact，还是内容相同。
- */
+/** 输出计划审计信息；当前文件未包含某个已选控制符是正常情况，不合成告警。 */
 export function ktcCodegenApplyPlanLogs(
   plan: KtCodegenPlan,
   stage: KtcCodegenPlanLogStage = "Apply",
@@ -51,16 +48,8 @@ export function ktcCodegenApplyPlanLogs(
   for (const target of summary.targets) {
     lines.push(`${logPrefix}[Target] ${target.target}；status=${target.status}；artifacts=${target.artifactCount}`);
   }
-  for (const block of summary.blocks.filter((item) => item.regionCount > 0)) {
-    lines.push(
-      `${logPrefix}[Marker] ${block.blockKey}；regions=${block.regionCount}；artifacts=${block.artifactCount}；files=${block.paths.join("、") || "无"}`,
-    );
-  }
-  if (summary.missingBlockKeys.length) {
-    lines.push(
-      `${logPrefix}[warning] marker.not-found：未找到 ${summary.missingBlockKeys.length} 个已选控制符：${summary.missingBlockKeys.join("、")}`,
-    );
-  }
+  const matchedBlockCount = summary.blocks.filter((item) => item.regionCount > 0).length;
+  lines.push(`${logPrefix}[Marker] 已找到 ${matchedBlockCount} 个已选控制符，共 ${summary.regionCount} 个区域`);
   if (summary.blocksWithoutArtifacts.length) {
     lines.push(
       `${logPrefix}[warning] apply.marker-without-artifact：${summary.blocksWithoutArtifacts.length} 个控制符已有区域但没有生成产物：${summary.blocksWithoutArtifacts.join("、")}`,

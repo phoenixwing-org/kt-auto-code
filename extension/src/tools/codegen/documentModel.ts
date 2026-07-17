@@ -7,8 +7,7 @@ import {
   type KtCodegenParam,
   type KtCodegenTableData,
 } from "@phoenix-wing/kt-codegen";
-import type { KtcCodegenMetaField } from "../types.js";
-import type { KtcCodegenPreflightResult } from "./contracts.js";
+import type { KtcCodegenMetaField, KtcCodegenPreflightResult } from "./contracts.js";
 
 export interface KtcCodegenDocumentIdentity {
   readonly uri: string;

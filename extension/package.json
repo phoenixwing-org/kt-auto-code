@@ -346,8 +346,8 @@
     "package": "vsce package --no-dependencies --baseContentUrl https://gitee.com/PhoenixWing321/kt-auto-code/blob/master/extension --baseImagesUrl https://gitee.com/PhoenixWing321/kt-auto-code/raw/master/extension"
   },
   "dependencies": {
-    "@phoenix-wing/code-core": "0.4.0",
-    "@phoenix-wing/kt-codegen": "0.4.0",
+    "@phoenix-wing/code-core": "0.4.2",
+    "@phoenix-wing/kt-codegen": "0.4.2",
     "iconv-lite": "0.6.3"
   },
   "devDependencies": {

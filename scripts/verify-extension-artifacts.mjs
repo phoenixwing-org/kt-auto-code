@@ -16,7 +16,7 @@ const allArtifacts = [
   },
   {
     kind: "cad",
-    file: path.join(root, "extensions", "kt-auto-cad", `kt-auto-cad-${cadPackage.version}.vsix`),
+    file: path.join(root, "extension", `kt-auto-cad-${cadPackage.version}.vsix`),
     packagePath: "extension/package.json",
     bundlePath: "extension/dist/extension.js",
     expectedPackage: cadPackage,
@@ -31,6 +31,7 @@ for (const artifact of artifacts) {
   const names = [...zip.keys()].sort();
   for (const name of names) {
     if (/(?:^|\/)(?:node_modules|src|target)(?:\/|$)/u.test(name)
+        || /(?:^|\/)dist\/test(?:\/|$)/u.test(name)
         || /\.(?:map|rs|exe|dll|dylib|so|sqlite)$/iu.test(name)
         || /(?:^|\/)Cargo\.(?:toml|lock)$/u.test(name)) {
       throw new Error(`${artifact.kind} VSIX contains forbidden file: ${name}`);
@@ -77,6 +78,10 @@ for (const artifact of artifacts) {
     }
   } else {
     assertEqual(manifest.extensionDependencies?.[0], "kuntai.kt-auto-code", "CAD base extension dependency");
+    assertEqual(manifest.icon, "media/cn.kt.doc.AutoCode.Color.128.png", "CAD Marketplace icon");
+    if (!names.includes(`extension/${manifest.icon}`)) {
+      throw new Error(`CAD VSIX is missing its Marketplace icon: ${manifest.icon}`);
+    }
     if (manifest.contributes?.viewsContainers !== undefined) {
       throw new Error("CAD VSIX must not contribute another Activity Bar container");
     }
@@ -117,7 +122,7 @@ for (const artifact of artifacts) {
     if (!bundle.includes("registerModuleBlockProvider") || bundle.includes("registerWebviewViewProvider")) {
       throw new Error("CAD VSIX must inject UI through the Shell Block provider API");
     }
-    if (names.length !== 8) throw new Error(`CAD VSIX must remain thin (expected 8 files, got ${names.length})`);
+    if (names.length !== 9) throw new Error(`CAD VSIX must remain thin (expected 9 files, got ${names.length})`);
   }
   process.stdout.write(`[verify] ${artifact.kind} VSIX: ${names.length} files, ${fs.statSync(artifact.file).size} bytes passed\n`);
 }

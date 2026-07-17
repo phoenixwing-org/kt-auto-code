@@ -7,7 +7,7 @@
  * Software Copyright Registration No.: 2024SR1374380
  */
 
-import type { ReplacementRule } from "./replacementRules.js";
+import type { ReplacementRule } from "./replacementRuleContracts.js";
 
 export type KtcAssociatedRelationKind =
   | "spaced"

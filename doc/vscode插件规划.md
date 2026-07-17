@@ -305,7 +305,7 @@ kt-auto-code/
 
 ## 3.1 `phoenix-wing` 复用与 MVC 分离计划
 
-根项目已安装 `phoenix-wing@0.3.0`，其源码仓库位于同级目录 `../phoenix-wing`。该包同时包含纯 TypeScript 工具、Vue 3 / Pinia composable、Element Plus 组件和数据库适配器。本项目当前的 Webview 是原生 HTML/CSS/JavaScript，计划迁移为 Vue 3；迁移期间仍应按依赖边界选择性复用，不能把整个根入口引入 Extension Host。
+当前工程从 npm Registry 精确消费 `@phoenix-wing/code-core@0.4.2`、`@phoenix-wing/kt-codegen@0.4.2` 及 CAD 侧对应的 0.4.2 scoped packages；已移除 committed 相邻仓库 override、本地 Apply 契约副本，并直接消费 Registry 中的 Codegen 宿主契约、Workspace Schema 兼容性与纯能力 fixture。Extension Host 继续只引入无 UI 的小包，不能把包含 Vue 3 / Pinia / Element Plus 的聚合根入口引入 VS Code Host；最新测试数量以 `pnpm verify:ci` 的输出为准。
 
 ### 3.1.1 调查结论
 

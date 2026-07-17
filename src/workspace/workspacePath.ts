@@ -1,8 +1,8 @@
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { relative, resolve } from "node:path";
+import { pnwNormalizeWorkspacePath } from "@phoenix-wing/code-core";
 
-/** Lexically checks that a path stays inside the selected workspace root. */
+/** Node path adapter; relative path safety is owned by Wing code-core. */
 export function ktcIsPathInsideWorkspace(root: string, target: string): boolean {
-  const relation = relative(resolve(root), resolve(target));
-  return relation === ""
-    || (relation !== ".." && !relation.startsWith(`..${sep}`) && !isAbsolute(relation));
+  const relation = relative(resolve(root), resolve(target)).replace(/\\/g, "/");
+  return relation === "" || pnwNormalizeWorkspacePath(relation) !== null;
 }

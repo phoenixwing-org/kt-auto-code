@@ -8,28 +8,19 @@
  */
 
 import iconv from "iconv-lite";
+import type {
+  ReplacementRule,
+  ReplacementTextEncoding,
+  ResolvedReplacementRule,
+  RuleMatchSummary,
+} from "./replacementRuleContracts.js";
 
-export interface ReplacementRule {
-  id?: string;
-  search: string;
-  replace: string;
-  enabled?: boolean;
-}
-
-export interface ResolvedReplacementRule {
-  id: string;
-  search: string;
-  replace: string;
-  sourceIndex: number;
-  derived: boolean;
-}
-
-export interface RuleMatchSummary {
-  ruleId: string;
-  search: string;
-  replace: string;
-  occurrences: number;
-}
+export type {
+  ReplacementRule,
+  ReplacementTextEncoding,
+  ResolvedReplacementRule,
+  RuleMatchSummary,
+} from "./replacementRuleContracts.js";
 
 export interface KtcNameReplacementSuggestion {
   currentName: string;
@@ -145,8 +136,6 @@ interface ByteRule {
   search: Buffer;
   replace: Buffer;
 }
-
-export type ReplacementTextEncoding = "utf8" | "ascii" | "gbk";
 
 function encodeReplacementText(value: string, encoding: ReplacementTextEncoding): Buffer {
   if (encoding !== "gbk") return Buffer.from(value, encoding);

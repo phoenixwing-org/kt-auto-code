@@ -35,11 +35,12 @@ function plan(): KtCodegenPlan {
 }
 
 describe("Codegen Apply Output log", () => {
-  it("列出 Target、命中的区域和找不到的控制符", () => {
+  it("列出 Target 和命中摘要，不把未出现的已选控制符合成告警", () => {
     const logs = ktcCodegenApplyPlanLogs(plan());
     expect(logs).toContainEqual(expect.stringContaining("[Target] cpp.parameter；status=ready"));
-    expect(logs).toContainEqual(expect.stringContaining("[Marker] PARAM DECLARATION；regions=1"));
-    expect(logs).toContainEqual(expect.stringContaining("marker.not-found：未找到 1 个已选控制符：QT UPDATE DIALOG"));
+    expect(logs).toContainEqual(expect.stringContaining("[Marker] 已找到 1 个已选控制符，共 1 个区域"));
+    expect(logs.join("\n")).not.toContain("marker.not-found");
+    expect(logs.join("\n")).not.toContain("QT UPDATE DIALOG");
     expect(ktcCodegenApplyPlanLogs(plan(), "Preflight")[0]).toContain("[Codegen][Preflight]");
   });
 
