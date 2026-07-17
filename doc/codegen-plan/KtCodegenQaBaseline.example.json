@@ -1,0 +1,30 @@
+{
+  "kind": "kt.codegen.qa-baseline",
+  "schemaVersion": 1,
+  "createdAt": "2026-07-16T14:30:00.000Z",
+  "sourceFileCount": 1202,
+  "protectedSources": [
+    {
+      "path": "src/KtCourseGuard.cpp",
+      "fingerprint": "sha256:prepared-course-guard-example"
+    },
+    {
+      "path": "src/PNXWidget.cpp",
+      "fingerprint": "sha256:prepared-widget-example"
+    }
+  ],
+  "editableJson": [
+    {
+      "path": "PNXWidgetParam.json",
+      "fingerprint": "sha256:prepared-widget-json-example",
+      "rootKeys": ["type", "version", "NamePrefix", "NameMiddle", "NameSpace", "AppendFunction", "headers", "data"],
+      "headers": ["NameSuffix", "ID", "Name", "ParamString", "DataType", "TCKind", "DefaultValue", "CATAttrInOut", "IsList", "IsOnTree", "Component", "Count", "IsParamDlg", "Unit", "Author", "CreateDate", "Notes"]
+    },
+    {
+      "path": "config/EmptyParam.json",
+      "fingerprint": "sha256:prepared-empty-json-example",
+      "rootKeys": ["type", "version", "NamePrefix", "NameMiddle", "NameSpace", "AppendFunction", "headers", "data"],
+      "headers": ["NameSuffix", "ID", "Name", "ParamString", "DataType", "TCKind", "DefaultValue", "CATAttrInOut", "IsList", "IsOnTree", "Component", "Count", "IsParamDlg", "Unit", "Author", "CreateDate", "Notes"]
+    }
+  ]
+}

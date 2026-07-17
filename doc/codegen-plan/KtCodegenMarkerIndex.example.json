@@ -1,0 +1,27 @@
+{
+  "kind": "kt.codegen.marker-index",
+  "schemaVersion": 1,
+  "revision": 27,
+  "workspaceUri": "file:///workspace/PNXBomAnalysis",
+  "scopeId": "workspace",
+  "ignoreFingerprint": "sha256:ignore-example",
+  "createdAt": "2026-07-16T12:00:00.000Z",
+  "files": [
+    {
+      "path": "src/PNXBomAnalysisParam.cpp",
+      "mtime": 1784188800000,
+      "size": 8120,
+      "candidate": true,
+      "markerCount": 4,
+      "fingerprint": "sha256:source-param-cpp-example",
+      "encoding": "utf8",
+      "eol": "lf"
+    },
+    {
+      "path": "src/PlainHelper.cpp",
+      "mtime": 1784188800100,
+      "size": 420,
+      "candidate": false
+    }
+  ]
+}

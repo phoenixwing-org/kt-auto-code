@@ -11,6 +11,19 @@ import type { KtcIgnoreRecommendationReport } from "../ignoreRecommendationTypes
 import type { KtcWorkspaceFileScopeSummary } from "../worksets.js";
 import type { KtcModuleId, KtcModuleState } from "../modules/moduleState.js";
 import type { KtcModuleBlockContent } from "../../../src/moduleShellContract.js";
+import type {
+  KtCodegenBlockKey,
+  KtCodegenLegacyBlockState,
+  KtCodegenPlan,
+  KtCodegenPlatform,
+  KtCodegenTableData,
+} from "@phoenix-wing/kt-codegen";
+
+export type KtcCodegenMetaField =
+  | "namePrefix"
+  | "nameMiddle"
+  | "nameSpace"
+  | "appendFunction";
 
 /** Webview → Extension */
 export type WebviewInboundMessage =
@@ -18,6 +31,49 @@ export type WebviewInboundMessage =
   | { type: "runModuleTool"; moduleId: KtcModuleId; command: string }
   | { type: "moduleBlockAction"; actionId: string }
   | { type: "selectTool"; toolId: string }
+  | {
+      type: "codegenAction";
+      toolId: "codegen";
+      action: "refresh" | "openJson" | "importCsv" | "openDocument" | "updateMeta"
+        | "scanCandidates" | "openCandidate" | "cancelOperation" | "copyDiagnostics";
+      uri?: string;
+      field?: KtcCodegenMetaField;
+      value?: string;
+    }
+  | {
+      type: "codegenEditorAction";
+      toolId: "codegen";
+      uri: string;
+      action: "ready" | "revert" | "preflight" | "cancelPreflight" | "apply";
+      table?: KtCodegenTableData;
+    }
+  | {
+      type: "codegenEditorDirty";
+      toolId: "codegen";
+      uri: string;
+      itemCount: number;
+    }
+  | {
+      type: "codegenEditorExchange";
+      toolId: "codegen";
+      uri: string;
+      action: "sync" | "save";
+      model: KtcCodegenEditorModel;
+    }
+  | {
+      type: "codegenControlSelection";
+      toolId: "codegen";
+      uri: string;
+      blockKeys: KtCodegenBlockKey[];
+      singleMode: boolean;
+    }
+  | {
+      type: "codegenControlOpen";
+      toolId: "codegen";
+      uri: string;
+      path: string;
+      line: number;
+    }
   | { type: "selectWorkspaceFileScope"; toolId: string; scopeId: string }
   | { type: "openWorkspaceWorksets" }
   | {
@@ -129,6 +185,19 @@ export type WebviewOutboundMessage =
     }
   | { type: "state"; toolId: string; state: ToolUiState };
 
+/** Extension Host → Codegen 右侧编辑 Webview。 */
+export type KtcCodegenEditorOutboundMessage =
+  | { type: "codegenModel"; model: KtcCodegenEditorModel }
+  | { type: "codegenControlsModel"; model: KtcCodegenControlViewModel }
+  | { type: "codegenDocumentState"; dirty: boolean; externalConflict: boolean }
+  | { type: "codegenPreflightState"; running: boolean }
+  | {
+      type: "codegenStatus";
+      status: "idle" | "saving" | "saved" | "error";
+      message: string;
+      documentRevision?: number;
+    };
+
 export interface ToolOptionsState {
   preserveGbk?: boolean;
   stripBom?: boolean;
@@ -215,6 +284,79 @@ export interface ToolUiState {
   uuidStrategy?: "map_per_value" | "fresh_per_hit";
   uuidSelectedUris?: string[];
   environmentValues?: ProjectEnvironmentValueSummary[];
+  codegenDocuments?: KtcCodegenDocumentSummary[];
+  codegenActiveUri?: string;
+  codegenCandidates?: KtcCodegenSourceCandidateSummary[];
+  codegenOperation?: "discovery" | "candidates";
+}
+
+export interface KtcCodegenDocumentSummary {
+  uri: string;
+  fileName: string;
+  displayPath: string;
+  itemCount: number;
+  className: string;
+  namePrefix: string;
+  nameMiddle: string;
+  nameSpace: string;
+  appendFunction: string;
+  open: boolean;
+  active: boolean;
+  dirty: boolean;
+  externalConflict: boolean;
+  externalState: "current" | "changed" | "deleted";
+  diagnosticCount: number;
+}
+
+export interface KtcCodegenEditorModel {
+  uri: string;
+  fileName: string;
+  table: KtCodegenTableData;
+  controls: KtcCodegenControlViewModel;
+  dirty: boolean;
+  externalConflict: boolean;
+}
+
+export interface KtcCodegenControlBlockViewModel {
+  readonly key: KtCodegenBlockKey;
+  readonly legacyId: number;
+  readonly platform: KtCodegenPlatform;
+  readonly legacyState: KtCodegenLegacyBlockState;
+  readonly legacyCall: string;
+  readonly title: string;
+  readonly controlWords: string;
+  readonly notes: string;
+}
+
+/** 当前 JSON 页面独享的控制符选择与预检缓存投影。 */
+export interface KtcCodegenControlViewModel {
+  readonly kind: "kt.codegen.control-view-model";
+  readonly schemaVersion: 1;
+  readonly uri: string;
+  readonly fileName: string;
+  readonly blocks: readonly KtcCodegenControlBlockViewModel[];
+  readonly selectedBlockKeys: readonly KtCodegenBlockKey[];
+  readonly singleSelectionMode: boolean;
+  readonly presets: {
+    readonly all: readonly KtCodegenBlockKey[];
+    readonly none: readonly KtCodegenBlockKey[];
+    readonly cppOnly: readonly KtCodegenBlockKey[];
+    readonly fieldCode: readonly KtCodegenBlockKey[];
+  };
+  readonly preflight?: {
+    readonly plan: KtCodegenPlan;
+    readonly reused: boolean;
+    readonly createdAt: string;
+  };
+}
+
+/** 工作区级控制标记候选；不绑定某一份 Codegen JSON。 */
+export interface KtcCodegenSourceCandidateSummary {
+  uri: string;
+  displayPath: string;
+  markerCount: number;
+  encoding: string;
+  eol: "lf" | "crlf";
 }
 
 export interface ProjectEnvironmentValueSummary {

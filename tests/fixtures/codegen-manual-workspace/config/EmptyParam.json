@@ -1,0 +1,28 @@
+{
+    "type": "100106",
+    "version": "4.0",
+    "NamePrefix": "PNX",
+    "NameMiddle": "Empty",
+    "NameSpace": "PNX",
+    "AppendFunction": "push_back",
+    "headers": [
+        "NameSuffix",
+        "ID",
+        "Name",
+        "ParamString",
+        "DataType",
+        "TCKind",
+        "DefaultValue",
+        "CATAttrInOut",
+        "IsList",
+        "IsOnTree",
+        "Component",
+        "Count",
+        "IsParamDlg",
+        "Unit",
+        "Author",
+        "CreateDate",
+        "Notes"
+    ],
+    "data": []
+}

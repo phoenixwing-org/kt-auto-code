@@ -1,0 +1,7 @@
+NameSuffix,ID,Name,ParamString,DataType,TCKind,DefaultValue,CATAttrInOut,IsList,IsOnTree,Component,Count,IsParamDlg,Unit,Author,CreateDate,Notes
+Item,1,Legacy Enabled,LegacyEnabled,bool,Boolean,true,In,0,1,QCheckBox,1,1,,Manual QA,2026-07-16,CSV auto-conversion fixture
+Item,2,Legacy Title,LegacyTitle,CATUnicodeString,String,,InOut,0,1,QLineEdit,1,1,,Manual QA,2026-07-16,Source CSV must disappear only after verified JSON
+$NamePrefix,PNX,the prefix
+$NameMiddle,LegacyPanel,the middle name
+$NameSpace,PNX,the namespace
+$AppendFunction,push_back,the append function name

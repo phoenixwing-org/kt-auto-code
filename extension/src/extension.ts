@@ -10,6 +10,11 @@ import { ignoreSettingsTool } from "./tools/ignoreSettings/index.js";
 import { uuidReplaceTool } from "./tools/uuidReplace/index.js";
 import { caaDialogTool } from "./tools/caaDialog/index.js";
 import { environmentSettingsTool } from "./tools/environmentSettings/index.js";
+import {
+  codegenTool,
+  notifyCodegenWorkspaceFoldersChanged,
+  registerCodegenSupport,
+} from "./tools/codegen/index.js";
 import { invalidateWorkspaceIgnorePatterns } from "./ignoreConfig.js";
 import { ktcOpenWorkspaceWorksets } from "./worksets.js";
 import { ktcRegisterResultAccordion } from "./workbench/resultAccordion.js";
@@ -24,11 +29,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<KtcAut
   await vscode.commands.executeCommand("setContext", "ktAutoCode.modulePanelVisible", false);
   ktcRegisterEditorMatchHighlight(context);
   registerReorderMembersSupport(context);
+  registerCodegenSupport(context);
   registerTool(headerAsciiTool);
   registerTool(encodingFixTool);
   registerTool(ignoreSettingsTool);
   registerTool(environmentSettingsTool);
   registerTool(codeRenameTool);
+  registerTool(codegenTool);
   registerTool(reorderMembersTool);
   registerTool(uuidReplaceTool);
   registerTool(caaDialogTool);
@@ -111,6 +118,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<KtcAut
     ),
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
       sidebarProvider?.refreshWorkspaceLabel();
+      notifyCodegenWorkspaceFoldersChanged();
     }),
     vscode.extensions.onDidChange(() => {
       void sidebarProvider?.refreshInstalledModules().catch((error: unknown) => {

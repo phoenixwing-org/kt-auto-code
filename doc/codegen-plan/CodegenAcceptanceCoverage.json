@@ -1,0 +1,203 @@
+{
+  "kind": "kt.codegen.acceptance-coverage",
+  "schemaVersion": 1,
+  "createdAt": "2026-07-16",
+  "objectiveStatus": "manual-partial-todo",
+  "automaticScore": 98,
+  "automaticThreshold": 90,
+  "requirements": [
+    {
+      "id": "repeatable-fixture",
+      "requirement": "可重复的 JSON/CSV/源码 fixture 工作区与一键准备方式",
+      "automatedStatus": "proved",
+      "evidence": [
+        "tests/fixtures/codegen-manual-workspace",
+        "scripts/launch-extension-host.mjs",
+        "scripts/codegen-fixture-qa.mjs",
+        "scripts/record-codegen-checkpoint.mjs",
+        "extension/src/tools/codegen/manualFixture.test.ts",
+        "extension/src/tools/codegen/manualFixtureVerifier.test.ts"
+      ],
+      "manualCheckpoint": "A",
+      "manualStatus": "user-confirmed"
+    },
+    {
+      "id": "runtime-diagnostics",
+      "requirement": "运行态诊断与状态摘要不泄露表格单元格和源码正文",
+      "automatedStatus": "proved",
+      "evidence": [
+        "extension/src/tools/codegen/diagnostics.ts",
+        "extension/src/tools/codegen/diagnostics.test.ts",
+        "doc/codegen-plan/KtCodegenRuntimeDiagnostics.example.json"
+      ],
+      "manualCheckpoint": "A",
+      "manualStatus": "user-confirmed"
+    },
+    {
+      "id": "phased-checklist",
+      "requirement": "分阶段 checkpoint 与问题回报入口",
+      "automatedStatus": "proved",
+      "evidence": [
+        "doc/codegen-plan/Codegen手工验收.md",
+        "doc/codegen-plan/CodegenManualQaReport.example.json",
+        "doc/codegen-plan/CodegenQtVbMigrationMatrix.json",
+        "extension/src/tools/codegen/qtVbMigrationMatrix.test.ts"
+      ],
+      "manualCheckpoint": "A-F",
+      "manualStatus": "pending"
+    },
+    {
+      "id": "discover-without-open",
+      "requirement": "首次发现根目录和嵌套 JSON，但不自动打开 View",
+      "automatedStatus": "partial",
+      "evidence": [
+        "extension/src/tools/codegen/workspaceDiscovery.ts",
+        "extension/src/tools/codegen/workspaceDiscovery.test.ts",
+        "extension/src/tools/codegen/index.ts"
+      ],
+      "manualCheckpoint": "A",
+      "manualStatus": "user-confirmed"
+    },
+    {
+      "id": "json-multi-view",
+      "requirement": "一份 JSON 一个 View，重复打开定位原 View，切换后 Block 跟随",
+      "automatedStatus": "partial",
+      "evidence": [
+        "extension/src/tools/codegen/editorViewController.ts",
+        "extension/src/tools/codegen/editorViewController.test.ts",
+        "extension/src/tools/codegen/index.ts",
+        "extension/src/tools/codegen/editorHtml.test.ts"
+      ],
+      "manualCheckpoint": "B",
+      "manualStatus": "user-confirmed"
+    },
+    {
+      "id": "whole-table-save-revert",
+      "requirement": "整表交换、编辑、保存、还原、revision 与 dirty 状态",
+      "automatedStatus": "proved",
+      "evidence": [
+        "extension/src/tools/codegen/documentModel.ts",
+        "extension/src/tools/codegen/documentModel.test.ts",
+        "extension/src/tools/codegen/documentService.test.ts",
+        "extension/src/tools/codegen/index.ts",
+        "extension/src/tools/codegen/editorHtml.ts"
+      ],
+      "manualCheckpoint": "C",
+      "manualStatus": "user-confirmed",
+      "manualCoreEvidence": "2026-07-17 用户确认修改 JSON 与保存 OK；Revert/外部事件仍按 Checkpoint C/D 留作 TODO"
+    },
+    {
+      "id": "external-conflict",
+      "requirement": "外部修改、删除和无效 JSON 不静默覆盖内存草稿",
+      "automatedStatus": "proved",
+      "evidence": [
+        "extension/src/tools/codegen/documentService.ts",
+        "extension/src/tools/codegen/documentService.test.ts",
+        "extension/src/tools/codegen/fileEventQueue.test.ts",
+        "extension/src/tools/codegen/documentModel.test.ts"
+      ],
+      "manualCheckpoint": "D",
+      "manualStatus": "user-confirmed",
+      "manualCoreEvidence": "2026-07-17 使用 PNXCombinedCurveParam.json 验证；外部修改后正确显示冲突处理提示"
+    },
+    {
+      "id": "safe-csv-conversion",
+      "requirement": "CSV 单向安全转换，复读成功后删除，冲突保留两边",
+      "automatedStatus": "proved",
+      "evidence": [
+        "extension/src/tools/codegen/documentService.test.ts",
+        "extension/src/tools/codegen/workspaceDiscovery.test.ts",
+        "scripts/codegen-fixture-qa.mjs"
+      ],
+      "manualCheckpoint": "A",
+      "manualStatus": "user-confirmed"
+    },
+    {
+      "id": "candidate-scan-cancel",
+      "requirement": "工作区级候选扫描、进度、取消、排队与缓存",
+      "automatedStatus": "proved",
+      "evidence": [
+        "extension/src/tools/codegen/workspaceOperationCoordinator.test.ts",
+        "extension/src/tools/codegen/workspaceWatchService.test.ts",
+        "extension/src/tools/codegen/sourceScanPolicy.test.ts",
+        "extension/src/tools/codegen/preflight.ts"
+      ],
+      "manualCheckpoint": "E",
+      "manualStatus": "pending"
+    },
+    {
+      "id": "preflight-control-preview",
+      "requirement": "预检、32 控制符、预设、单选、源码定位与 Artifact 预览",
+      "automatedStatus": "proved",
+      "evidence": [
+        "extension/src/tools/codegen/preflightCache.test.ts",
+        "extension/src/tools/codegen/editorHtml.test.ts",
+        "extension/src/tools/codegen/controlNavigation.test.ts",
+        "extension/src/tools/codegen/problemReporter.test.ts",
+        "doc/codegen-plan/KtCodegenControlViewModel.example.json"
+      ],
+      "manualCheckpoint": "E",
+      "manualStatus": "pending"
+    },
+    {
+      "id": "theme-and-narrow-layout",
+      "requirement": "深色、浅色、高对比主题和窄窗口适配",
+      "automatedStatus": "partial",
+      "evidence": [
+        "extension/src/tools/codegen/editorHtml.test.ts",
+        "extension/src/sidebar/panelHtml.test.ts"
+      ],
+      "manualCheckpoint": "F",
+      "manualStatus": "pending"
+    },
+    {
+      "id": "safe-source-apply",
+      "requirement": "Apply 自动预检、事务内逐文件比较原字节、保持编码并在批量写入失败时安全回滚",
+      "automatedStatus": "proved",
+      "evidence": [
+        "extension/src/tools/codegen/codegenArchitecture.test.ts",
+        "extension/src/tools/codegen/sourceApply.test.ts",
+        "extension/src/tools/codegen/sourceApplyTransaction.test.ts",
+        "extension/src/tools/codegen/applyLog.test.ts",
+        "extension/src/tools/codegen/applyReceipt.ts",
+        "extension/src/tools/codegen/applyReceiptStore.ts",
+        "extension/src/tools/codegen/applyReceipt.test.ts",
+        "../phoenix-wing/packages/kt-codegen/tests/apply.test.ts",
+        "extension/src/tools/codegen/sourceCodec.test.ts",
+        "extension/src/tools/codegen/index.ts",
+        "scripts/codegen-fixture-qa.mjs"
+      ],
+      "manualCheckpoint": "E",
+      "manualStatus": "pending",
+      "manualCoreEvidence": "2026-07-17 用户确认真实 Apply OK；候选取消、Problems 定位和完整 E 清单仍为 TODO"
+    },
+    {
+      "id": "scored-exit-gate",
+      "requirement": "100 分评分，自动验证至少 90 分，核心手测后才能结束",
+      "automatedStatus": "proved",
+      "evidence": [
+        "doc/codegen-plan/Codegen第四轮可验收性评分.md",
+        "doc/codegen-plan/Codegen手工验收.md",
+        "extension/src/tools/codegen/qtVbMigrationMatrix.test.ts"
+      ],
+      "manualCheckpoint": "A-F",
+      "manualStatus": "pending"
+    }
+  ],
+  "completionGate": {
+    "automatic": {
+      "status": "passed",
+      "score": 98,
+      "lastVerified": "73 test files / 364 tests; Code/CAD typecheck and build; Wing 20 test files / 75 tests, typecheck and build; Ktd mirror 17 test files / 61 tests, typecheck"
+    },
+    "manual": {
+      "status": "partial",
+      "requiredCheckpoints": ["A", "B", "C", "D", "E", "F"],
+      "userConfirmedCheckpoints": ["A", "B", "C", "D"],
+      "todoCheckpoints": ["E", "F"],
+      "reportedAt": "2026-07-17",
+      "reportTemplate": "doc/codegen-plan/CodegenManualQaReport.example.json"
+    },
+    "applyBoundary": "fingerprint-checked-write-with-verifiable-receipt"
+  }
+}

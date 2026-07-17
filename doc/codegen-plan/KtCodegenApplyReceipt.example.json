@@ -1,0 +1,32 @@
+{
+  "kind": "kt.codegen.apply-receipt",
+  "schemaVersion": 1,
+  "createdAt": "2026-07-17T10:00:00.000Z",
+  "documentPath": "PNXWidgetParam.json",
+  "preflightCachePath": ".phoenix/cache/codegen/preflight-v1/0123456789abcdef01234567.json",
+  "preflightCreatedAt": "2026-07-17T09:59:58.000Z",
+  "fileCount": 1,
+  "regionCount": 1,
+  "files": [
+    {
+      "path": "src/PNXWidget.cpp",
+      "beforeFingerprint": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "afterFingerprint": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "encoding": "utf8",
+      "eol": "lf",
+      "beforeBytes": 412,
+      "afterBytes": 486,
+      "regionCount": 1,
+      "regions": [
+        {
+          "id": "src/PNXWidget.cpp#PARAM DECLARATION#PNXWidget",
+          "artifactId": "cpp.parameter#PNXWidget",
+          "blockKey": "PARAM DECLARATION",
+          "classId": "PNXWidget",
+          "nameSuffix": "Widget",
+          "line": 3
+        }
+      ]
+    }
+  ]
+}

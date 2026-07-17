@@ -1,0 +1,31 @@
+{
+  "kind": "kt.codegen.preflight-cache",
+  "schemaVersion": 1,
+  "createdAt": "2026-07-16T12:02:00.000Z",
+  "documentUri": "file:///workspace/PNXBomAnalysis/PNXBomAnalysisParam.json",
+  "configFingerprint": "sha256:normalized-codegen-param-and-selection-example",
+  "markerIndexRevision": 27,
+  "generatorVersion": "0.3.1",
+  "plan": {
+    "kind": "kt.codegen.plan",
+    "schemaVersion": 1,
+    "phase": "preview",
+    "targets": [
+      {
+        "target": "cpp.parameter",
+        "rendererId": "cpp-parameter",
+        "status": "ready",
+        "artifactCount": 0
+      }
+    ],
+    "blockKeys": [
+      "PARAM CONSTRUCTOR",
+      "PARAM DECLARATION"
+    ],
+    "artifacts": [],
+    "markerRegions": [],
+    "diagnostics": [],
+    "hasChanges": false,
+    "canApply": false
+  }
+}

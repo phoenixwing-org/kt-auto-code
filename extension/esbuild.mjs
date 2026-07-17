@@ -4,7 +4,7 @@ import { rm } from "node:fs/promises";
 const watch = process.argv.includes("--watch");
 
 /** @type {import('esbuild').BuildOptions} */
-const options = {
+const extensionOptions = {
   entryPoints: ["src/extension.ts"],
   bundle: true,
   outfile: "dist/extension.js",
@@ -16,11 +16,24 @@ const options = {
   logLevel: "info",
 };
 
+/** @type {import('esbuild').BuildOptions} */
+const codegenTableOptions = {
+  entryPoints: ["src/tools/codegen/tableEntry.ts"],
+  bundle: true,
+  outfile: "dist/codegen-table.js",
+  platform: "browser",
+  format: "iife",
+  target: "es2022",
+  sourcemap: true,
+  logLevel: "info",
+};
+
 if (watch) {
-  const ctx = await esbuild.context(options);
-  await ctx.watch();
+  const extensionContext = await esbuild.context(extensionOptions);
+  const tableContext = await esbuild.context(codegenTableOptions);
+  await Promise.all([extensionContext.watch(), tableContext.watch()]);
   console.log("watching extension…");
 } else {
   await rm("dist", { recursive: true, force: true });
-  await esbuild.build(options);
+  await Promise.all([esbuild.build(extensionOptions), esbuild.build(codegenTableOptions)]);
 }

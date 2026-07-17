@@ -1,0 +1,46 @@
+{
+  "kind": "kt.codegen.table-data",
+  "schemaVersion": 1,
+  "documentRevision": 12,
+  "selectedRow": 1,
+  "items": [
+    {
+      "nameSuffix": "Analysis",
+      "id": 1,
+      "name": "First Product",
+      "paramString": "FirstProduct",
+      "dataType": "CATISpecObject_var",
+      "tcKind": "",
+      "defaultValue": "NULL_var",
+      "catAttrInOut": "In",
+      "isList": false,
+      "isOnTree": true,
+      "component": "",
+      "componentCount": 0,
+      "isParamDlg": false,
+      "unit": "",
+      "author": "Kathy",
+      "createDate": "2026-07-16",
+      "notes": "对象输入参数"
+    },
+    {
+      "nameSuffix": "Analysis",
+      "id": 2,
+      "name": "Top Part Number",
+      "paramString": "FirstPartNumber",
+      "dataType": "CATUnicodeString",
+      "tcKind": "PrivateLegacyKind",
+      "defaultValue": "\"\"",
+      "catAttrInOut": "LegacyPrivateDirection",
+      "isList": false,
+      "isOnTree": false,
+      "component": "PrivateWidget",
+      "componentCount": 1,
+      "isParamDlg": true,
+      "unit": "",
+      "author": "Kathy",
+      "createDate": "2026-07-16",
+      "notes": "未知 Combo 值必须原样往返"
+    }
+  ]
+}

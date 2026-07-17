@@ -17,6 +17,7 @@ import { setUuidReplaceRunContextFactory } from "../tools/uuidReplace/index.js";
 import { setCaaDialogRunContextFactory } from "../tools/caaDialog/index.js";
 import { setReorderMembersRunContextFactory } from "../tools/reorderMembers/index.js";
 import { setIgnoreSettingsRunContextFactory } from "../tools/ignoreSettings/index.js";
+import { setCodegenRunContextFactory } from "../tools/codegen/index.js";
 import { getPreserveGbk, getStripBom } from "../tools/headerAscii/options.js";
 import { getFileScope, setFileScopeOption, type ScopeOptionKey } from "../scopeOptions.js";
 import { getWorkspaceLabel, getWorkspaceRoot } from "../workspace.js";
@@ -105,6 +106,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     setCaaDialogRunContextFactory(() => this.createRunContext("caaDialog"));
     setReorderMembersRunContextFactory(() => this.createRunContext("reorderMembers"));
     setIgnoreSettingsRunContextFactory(() => this.createRunContext("ignoreSettings"));
+    setCodegenRunContextFactory(() => this.createRunContext("codegen"));
   }
 
   async initializeModuleState(): Promise<void> {
@@ -207,6 +209,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     }
     if (toolId === "environmentSettings") await tool.runAction("refresh", this.createRunContext(toolId));
     if (toolId === "caaDialog") await tool.runAction("checkConnection", this.createRunContext(toolId));
+    if (toolId === "codegen") await tool.runAction("activate", this.createRunContext(toolId));
   }
 
   /** Opens one optional-module tool in the shared Block history. */
@@ -402,6 +405,9 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       const selected = { ...this.getSelectedWorkspaceFileScopes(), [message.toolId]: message.scopeId };
       await this.workspaceState.update(FILE_SCOPE_STATE_KEY, selected);
       this.postToViews({ type: "workspaceFileScopes", scopes: snapshot.scopes, selected });
+      if (message.toolId === "codegen") {
+        await getTool("codegen")?.runAction("workspaceScopeChanged", this.createRunContext("codegen"));
+      }
       return;
     }
 

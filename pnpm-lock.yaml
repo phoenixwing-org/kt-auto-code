@@ -5,10 +5,11 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@phoenix-wing/code-core@0.3.0': link:../phoenix-wing/packages/code-core
-  '@phoenix-wing/cad-core@0.3.0': link:../phoenix-wing/packages/cad-core
-  '@phoenix-wing/cad-contracts@0.3.0': link:../phoenix-wing/packages/cad-contracts
-  '@phoenix-wing/workspace-schema@0.3.0': link:../phoenix-wing/packages/workspace-schema
+  '@phoenix-wing/code-core@0.4.0': link:../phoenix-wing/packages/code-core
+  '@phoenix-wing/kt-codegen@0.4.0': link:../phoenix-wing/packages/kt-codegen
+  '@phoenix-wing/cad-core@0.4.0': link:../phoenix-wing/packages/cad-core
+  '@phoenix-wing/cad-contracts@0.4.0': link:../phoenix-wing/packages/cad-contracts
+  '@phoenix-wing/workspace-schema@0.4.0': link:../phoenix-wing/packages/workspace-schema
 
 importers:
 
@@ -17,6 +18,9 @@ importers:
       '@phoenix-wing/code-core':
         specifier: link:../phoenix-wing/packages/code-core
         version: link:../phoenix-wing/packages/code-core
+      '@phoenix-wing/kt-codegen':
+        specifier: link:../phoenix-wing/packages/kt-codegen
+        version: link:../phoenix-wing/packages/kt-codegen
       iconv-lite:
         specifier: 0.6.3
         version: 0.6.3
@@ -39,6 +43,9 @@ importers:
       '@phoenix-wing/code-core':
         specifier: link:../../phoenix-wing/packages/code-core
         version: link:../../phoenix-wing/packages/code-core
+      '@phoenix-wing/kt-codegen':
+        specifier: link:../../phoenix-wing/packages/kt-codegen
+        version: link:../../phoenix-wing/packages/kt-codegen
       iconv-lite:
         specifier: 0.6.3
         version: 0.6.3

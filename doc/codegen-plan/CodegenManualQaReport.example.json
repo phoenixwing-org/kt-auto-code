@@ -1,0 +1,70 @@
+{
+  "kind": "kt.codegen.manual-qa-report",
+  "schemaVersion": 1,
+  "status": "pending",
+  "workspacePath": "<CODEGEN_FIXTURE_PATH>",
+  "vscodeVersion": "",
+  "extensionVersion": "0.4.0",
+  "startedAt": "",
+  "completedAt": "",
+  "themes": {
+    "dark": "",
+    "light": "",
+    "highContrast": ""
+  },
+  "checkpoints": [
+    {
+      "id": "A",
+      "title": "首次发现、诊断与 CSV",
+      "status": "pending",
+      "verifierCommand": "pnpm ext:verify:codegen -- <CODEGEN_FIXTURE_PATH> --checkpoint-a",
+      "verifierPassed": null,
+      "notes": ""
+    },
+    {
+      "id": "B",
+      "title": "一份 JSON 一个 View",
+      "status": "pending",
+      "notes": ""
+    },
+    {
+      "id": "C",
+      "title": "整表编辑、Save 与 Revert",
+      "status": "pending",
+      "verifierCommand": "pnpm ext:verify:codegen -- <CODEGEN_FIXTURE_PATH> --checkpoint-c",
+      "verifierPassed": null,
+      "notes": ""
+    },
+    {
+      "id": "D",
+      "title": "外部修改冲突",
+      "status": "pending",
+      "notes": ""
+    },
+    {
+      "id": "E",
+      "title": "候选、取消、预检、内嵌控制符与真实 Apply",
+      "status": "pending",
+      "verifierCommand": "pnpm ext:verify:codegen -- <CODEGEN_FIXTURE_PATH> --checkpoint-e",
+      "verifierPassed": null,
+      "notes": ""
+    },
+    {
+      "id": "F",
+      "title": "主题与窄窗口",
+      "status": "pending",
+      "notes": ""
+    },
+    {
+      "id": "G",
+      "title": "多根工作区（可选）",
+      "status": "skipped",
+      "notes": ""
+    }
+  ],
+  "diagnosticsCopied": false,
+  "sourceSafetyPassed": null,
+  "lastAutomatedVerificationAt": "",
+  "lastManualUpdateAt": "",
+  "issues": []
+}

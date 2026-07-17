@@ -4,7 +4,7 @@
 
 源码仓库：[PhoenixWing321/kt-auto-code](https://gitee.com/PhoenixWing321/kt-auto-code)。
 
-当前插件提供 **头文件编码修正、文件转码、Ignore 设置、工作区搜索替换、C++ 成员排序、UUID 替换、CAA 对话框定位与工程环境管理**。成员排序、UUID、搜索替换和 CAA 扫描可共用 `.phoenix/worksets.json`；工程环境 Block 直接维护操作系统用户环境变量，不使用 VS Code Settings 伪装系统值；其他插件配置仍使用 VS Code Settings。写盘前会检查冲突和文件快照，结果统一显示在单 Block 中。
+当前插件提供 **头文件编码修正、文件转码、Ignore 设置、工作区搜索替换、C++ 成员排序、UUID 替换、CAA 对话框定位、工程环境管理与 Codegen 参数表原型**。成员排序、UUID、搜索替换、CAA 扫描和 Codegen 预检可共用 `.phoenix/worksets.json`；工程环境 Block 直接维护操作系统用户环境变量，不使用 VS Code Settings 伪装系统值；其他插件配置仍使用 VS Code Settings。写盘前会检查冲突和文件快照，结果统一显示在单 Block 中；Codegen Apply 会自动预检、重验源码指纹并保持 UTF-8/BOM/GBK 原编码，批量写入失败时尝试回滚。
 
 ## 快速开始
 
@@ -34,6 +34,10 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 | [工作区验收记录](doc/真实工作区只读验收.md) | CAA、C++、Web 只读预览与一次性工作区真实写盘验收 |
 | [代码规范](doc/代码规范.md) | 命名前缀、代码整理、MVC、状态与测试规则 |
 | [UI 开发规则](doc/前端开发规则.md) | Ribbon、单显示多打开、Block 布局、范围、缓存、结果、Diff、主题与验收的权威规范 |
+| [Codegen 快速原型](doc/Codegen快速原型.md) | Codegen 单 Block、多 JSON View、共享 Table 与 MVC 边界 |
+| [Codegen 手工验收](doc/codegen-plan/Codegen手工验收.md) | 可重置 fixture 工作区、深浅主题与冲突/取消测试步骤 |
+| [Codegen 验收覆盖矩阵](doc/codegen-plan/CodegenAcceptanceCoverage.json) | 13 项目标要求对应的自动证据、人工 checkpoint 与完成门禁 |
+| [Codegen 第四轮评分](doc/codegen-plan/Codegen第四轮可验收性评分.md) | 当前 98/100 自动验证证据、人工保留项与安全边界 |
 | [Side Bar 界面改进计划](doc/侧边栏界面改进计划.md) | 四个工具、SVG 图标、共享 Ignore Service 和 MVC 分层 |
 | [搜索替换](doc/搜索替换.md) | 文本/文件名/文件夹名替换、字节精确处理与安全边界 |
 | [源文件编码扫描](doc/源文件编码扫描.md) | CLI、扫描范围；**CP1252 / 全角标点映射表** |
@@ -49,6 +53,10 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 | `pnpm ext:watch` | 监听编译扩展 |
 | `pnpm ext:launch` | 同时加载 Code + CAD 的 Extension Host（默认 F5 配置） |
 | `pnpm ext:launch:code` | 只加载 KT Auto Code 的 Extension Host |
+| `pnpm ext:launch:codegen` | 构建插件、复制新 Codegen QA fixture 并启动 Extension Host |
+| `pnpm ext:prepare:codegen` | 只准备新的临时 Codegen QA 工作区 |
+| `pnpm ext:verify:codegen -- <路径> [--checkpoint-a|--checkpoint-e]` | 验证 fixture 基线、CSV 或真实 Apply 结果 |
+| `pnpm ext:report:codegen -- <路径>` | 查看或记录 A–F 手工验收进度 |
 | `pnpm fix-headers` | 头文件纯 ASCII 修复 |
 | `pnpm scan-file-encoding` | 整文件编码预检（GBK / BOM / UTF-16） |
 | `pnpm convert-file-encoding` | 转换为 UTF-8 |

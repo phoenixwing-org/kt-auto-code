@@ -1,9 +1,9 @@
 {
   "name": "kt-auto-code",
   "displayName": "KT Auto Code",
-  "description": "CAA / MSVC C++ 工具：编码修正、转码、Ignore、搜索替换与成员排序",
+  "description": "CAA / MSVC C++ 工具：编码修正、Ignore、搜索替换、成员排序与 Codegen 参数表",
   "author": "上海锟钛",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "license": "Apache-2.0",
   "publisher": "kuntai",
   "private": true,
@@ -23,7 +23,8 @@
     "encoding",
     "refactor",
     "search replace",
-    "member sort"
+    "member sort",
+    "code generation"
   ],
   "engines": {
     "vscode": "^1.85.0"
@@ -129,6 +130,16 @@
         "command": "ktAutoCode.codeRename.openAdvanced",
         "title": "KT Auto Code：打开高级搜索替换配置",
         "icon": "$(settings-gear)"
+      },
+      {
+        "command": "ktAutoCode.codegen.open",
+        "title": "KT Auto Code：打开 Codegen JSON",
+        "icon": "$(table)"
+      },
+      {
+        "command": "ktAutoCode.codegen.importCsv",
+        "title": "KT Auto Code：导入 Codegen CSV",
+        "icon": "$(file-symlink-file)"
       },
       {
         "command": "ktAutoCode.searchReplace.preview",
@@ -335,7 +346,8 @@
     "package": "vsce package --no-dependencies --baseContentUrl https://gitee.com/PhoenixWing321/kt-auto-code/blob/master/extension --baseImagesUrl https://gitee.com/PhoenixWing321/kt-auto-code/raw/master/extension"
   },
   "dependencies": {
-    "@phoenix-wing/code-core": "0.3.0",
+    "@phoenix-wing/code-core": "0.4.0",
+    "@phoenix-wing/kt-codegen": "0.4.0",
     "iconv-lite": "0.6.3"
   },
   "devDependencies": {

@@ -1,0 +1,65 @@
+{
+  "kind": "kt.codegen.runtime-diagnostics",
+  "schemaVersion": 1,
+  "createdAt": "2026-07-16T14:00:00.000Z",
+  "host": {
+    "vscodeVersion": "1.x",
+    "extensionVersion": "0.4.0"
+  },
+  "workspace": {
+    "roots": [
+      "/temporary/codegen-manual-workspace"
+    ],
+    "scopeId": "workspace"
+  },
+  "runtime": {
+    "activeDocument": "PNXWidgetParam.json",
+    "operation": "idle",
+    "pendingOperations": [],
+    "candidateIndexReady": true,
+    "pendingExternalJsonResources": 0
+  },
+  "csv": {
+    "convertedInSession": 1,
+    "deduplicatedInSession": 0,
+    "conflictCount": 1
+  },
+  "documents": [
+    {
+      "fileName": "PNXWidgetParam.json",
+      "displayPath": "PNXWidgetParam.json",
+      "itemCount": 3,
+      "open": true,
+      "active": true,
+      "dirty": false,
+      "externalState": "current",
+      "diagnosticCount": 0
+    }
+  ],
+  "candidates": [
+    {
+      "displayPath": "src/PNXWidget.cpp",
+      "markerCount": 4,
+      "encoding": "utf8",
+      "eol": "lf"
+    }
+  ],
+  "sessions": [
+    {
+      "fileName": "PNXWidgetParam.json",
+      "revision": 1,
+      "dirty": false,
+      "externalState": "current",
+      "selectedBlockCount": 32,
+      "singleSelectionMode": false,
+      "preflight": {
+        "markerIndexRevision": 1,
+        "candidateFileCount": 1,
+        "regionCount": 2,
+        "diagnosticCount": 0,
+        "canApply": true,
+        "reused": false
+      }
+    }
+  ]
+}

@@ -2,6 +2,17 @@
 
 所有显著变更会记录在本文件中。
 
+## 0.5.0
+
+- 初步完成旧 Qt/VB Codegen 自动代码能力迁移：首次进入自动发现工作区内根目录及嵌套 Codegen JSON，但不自动打开编辑器；旧 CSV 可在验证成功后单向转换为 JSON，冲突时保留两边。
+- 一份 JSON 对应当前编辑区一个 Codegen View；左侧 Block 跟随活动 View 显示 Prefix、Middle、Namespace 与 Append 属性，JSON 和工作区控制符候选均提供可收缩、有限高度的滚动列表。
+- 新增可复用的 `KtCodegenTable` Web Component 与 `KtCodegenTableCore`，采用整表数据输入/输出、文档级 dirty/checkpoint 和批量操作，避免每个单元格修改都与扩展宿主交互。
+- Codegen JSON 保存保持既有根字段和 `headers` 顺序，统一使用 4 空格；支持还原、外部文件变更/删除检测以及保存时指纹复验，避免静默覆盖磁盘修改。
+- 恢复 32 项 Kevin 控制符目录、选择预设、单选模式、候选扫描、可取消预检、命中/问题/Artifact 预览和源码定位；控制符与预检固定内嵌在当前 JSON View，并支持横向和纵向滚动。
+- 真实 Apply 复用 `@phoenix-wing/kt-codegen` 0.4.0 的 Marker、生成、区域投影与通用事务算法，保持 UTF-8/BOM/GBK 和原换行；写入前复读源码，批量失败时安全回滚。
+- Apply 的 Output 按 Target、Marker、文件和区域输出稳定身份；warning/error 同步进入 Problems。成功事务额外生成不含源码正文的 Apply Receipt，可按前后 sha256 和区域身份复核实际写入。
+- 增加可重复 JSON/CSV/源码 fixture、A–F 手工验收清单及自动 verifier；当前用户已确认 A–D、JSON 保存与 Apply 核心路径，主题和完整预检交互继续保留为后续回归项。
+
 ## 0.4.0
 
 - Code 纯算法改为直接消费 `@phoenix-wing/code-core` 小包，不再通过带 Vue/Element 依赖的聚合包。

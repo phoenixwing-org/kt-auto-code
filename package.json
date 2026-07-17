@@ -1,7 +1,7 @@
 {
   "name": "@phoenix/code-plugin",
   "author": "上海锟钛",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "license": "Apache-2.0",
   "private": true,
   "type": "module",
@@ -20,11 +20,17 @@
     "ext:watch": "pnpm -C extension watch",
     "ext:launch": "node scripts/launch-extension-host.mjs",
     "ext:launch:code": "node scripts/launch-extension-host.mjs --code-only",
+    "ext:launch:codegen": "pnpm ext:build && node scripts/launch-extension-host.mjs --code-only --codegen-fixture",
+    "ext:prepare:codegen": "node scripts/launch-extension-host.mjs --code-only --codegen-fixture --prepare-only",
+    "ext:verify:codegen": "node scripts/verify-codegen-fixture.mjs",
+    "ext:report:codegen": "node scripts/record-codegen-checkpoint.mjs",
     "cad:build": "pnpm -C extensions/kt-auto-cad build",
     "cad:watch": "pnpm -C extensions/kt-auto-cad watch",
     "extensions:typecheck": "pnpm -r --filter kt-auto-code --filter kt-auto-cad run typecheck",
     "extensions:build": "pnpm -r --filter kt-auto-code --filter kt-auto-cad run build",
     "ext:package": "pnpm -C extension package",
+    "ext:verify-artifact": "node scripts/verify-extension-artifacts.mjs --code-only",
+    "ext:release-candidate": "pnpm test && pnpm -C extension typecheck && pnpm ext:package && pnpm ext:verify-artifact",
     "cad:package": "pnpm -C extensions/kt-auto-cad package",
     "extensions:package": "pnpm extensions:typecheck && pnpm ext:package && pnpm cad:package && node scripts/verify-extension-artifacts.mjs",
     "extensions:verify-artifacts": "node scripts/verify-extension-artifacts.mjs"
@@ -36,15 +42,17 @@
     "vitest": "^4.1.9"
   },
   "dependencies": {
-    "@phoenix-wing/code-core": "0.3.0",
+    "@phoenix-wing/code-core": "0.4.0",
+    "@phoenix-wing/kt-codegen": "0.4.0",
     "iconv-lite": "0.6.3"
   },
   "pnpm": {
     "overrides": {
-      "@phoenix-wing/code-core@0.3.0": "link:../phoenix-wing/packages/code-core",
-      "@phoenix-wing/cad-core@0.3.0": "link:../phoenix-wing/packages/cad-core",
-      "@phoenix-wing/cad-contracts@0.3.0": "link:../phoenix-wing/packages/cad-contracts",
-      "@phoenix-wing/workspace-schema@0.3.0": "link:../phoenix-wing/packages/workspace-schema"
+      "@phoenix-wing/code-core@0.4.0": "link:../phoenix-wing/packages/code-core",
+      "@phoenix-wing/kt-codegen@0.4.0": "link:../phoenix-wing/packages/kt-codegen",
+      "@phoenix-wing/cad-core@0.4.0": "link:../phoenix-wing/packages/cad-core",
+      "@phoenix-wing/cad-contracts@0.4.0": "link:../phoenix-wing/packages/cad-contracts",
+      "@phoenix-wing/workspace-schema@0.4.0": "link:../phoenix-wing/packages/workspace-schema"
     }
   }
 }

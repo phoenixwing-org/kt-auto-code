@@ -1,0 +1,177 @@
+{
+  "kind": "kt.codegen.mvc-dependency-audit",
+  "schemaVersion": 1,
+  "createdAt": "2026-07-17",
+  "score": 99,
+  "layers": [
+    {
+      "id": "wing-domain",
+      "files": [
+        "@phoenix-wing/kt-codegen:KtCodegenController",
+        "@phoenix-wing/kt-codegen:KtCodegenApply",
+        "@phoenix-wing/kt-codegen:KtCodegenTableCore",
+        "@phoenix-wing/kt-codegen:KtCodegenBlockPresentation"
+      ],
+      "mayDependOn": ["typescript-standard-library"],
+      "mustNotDependOn": ["vscode", "dom", "node-filesystem", "product-ui"]
+    },
+    {
+      "id": "document-model",
+      "files": ["extension/src/tools/codegen/documentModel.ts"],
+      "mayDependOn": ["wing-domain", "host-contract-types"],
+      "mustNotDependOn": ["vscode", "dom", "filesystem"]
+    },
+    {
+      "id": "host-services",
+      "files": [
+        "extension/src/tools/codegen/documentService.ts",
+        "extension/src/tools/codegen/sourceCodec.ts",
+        "extension/src/tools/codegen/workspaceDiscovery.ts",
+        "extension/src/tools/codegen/workspaceDiscoveryPolicy.ts",
+        "extension/src/tools/codegen/workspaceWatchService.ts",
+        "extension/src/tools/codegen/workspaceOperationCoordinator.ts",
+        "extension/src/tools/codegen/preflightCache.ts",
+        "extension/src/tools/codegen/sourceApply.ts",
+        "extension/src/tools/codegen/sourceApplyTransaction.ts",
+        "extension/src/tools/codegen/applyLog.ts",
+        "extension/src/tools/codegen/applyReceipt.ts",
+        "extension/src/tools/codegen/applyReceiptStore.ts",
+        "extension/src/tools/codegen/sourceScanPolicy.ts",
+        "extension/src/tools/codegen/workspaceRootResolver.ts",
+        "extension/src/tools/codegen/workspaceSessionPolicy.ts",
+        "extension/src/tools/codegen/preflight.ts"
+      ],
+      "mayDependOn": ["wing-domain", "vscode-filesystem-port", "workspace-scope"],
+      "mustNotDependOn": ["webview-html", "sidebar-dom", "editor-panel-state"]
+    },
+    {
+      "id": "view",
+      "files": [
+        "extension/src/tools/codegen/editorHtml.ts",
+        "@phoenix-wing/kt-codegen/table:KtCodegenTable"
+      ],
+      "mayDependOn": ["view-model-contracts", "wing-browser-component"],
+      "mustNotDependOn": ["workspace-filesystem", "json-writer", "source-apply"]
+    },
+    {
+      "id": "view-controller",
+      "files": [
+        "extension/src/tools/codegen/editorViewController.ts"
+      ],
+      "mayDependOn": ["vscode-webview-panel", "view"],
+      "mustNotDependOn": ["KtCodegenParam-mutation", "csv-conversion", "source-analysis"]
+    },
+    {
+      "id": "workspace-controller",
+      "files": ["extension/src/tools/codegen/index.ts"],
+      "mayDependOn": ["document-model", "host-services", "view-controller"],
+      "responsibility": "composition, session routing, command orchestration and view-model projection"
+    }
+  ],
+  "communication": {
+    "tableToView": "internal kt-codegen-table-change signal",
+    "viewToHost": "600ms debounced whole-table snapshot plus immediate document actions",
+    "hostToTable": "whole-table snapshot with documentRevision",
+    "cellLevelHostMessages": false,
+    "workspaceEvents": "WorkspaceWatchService filters and debounces host events before semantic Controller callbacks",
+    "workspaceOperationQueue": "Pure coordinator serializes discovery/candidates and coalesces watcher refresh requests without cross-cancelling the running operation",
+    "externalJsonGuard": "sha256 checkpoint plus save-time reread; watcher is an early signal, not the correctness boundary"
+  },
+  "crossHostConsumers": [
+    {
+      "id": "vscode-plugin",
+      "status": "shared-apply",
+      "wingApis": ["ktCodegenInspectApplyPlan", "ktCodegenProjectApply", "ktCodegenCommitApplyWrites", "ktCodegenParamsEqual"],
+      "hostOnly": ["workspace boundary", "dirty editor guard", "UTF-8/GBK codec", "workspace.fs port", "Output", "Problems", "Webview UI"]
+    },
+    {
+      "id": "phoenix-desk-tools",
+      "status": "shared-analyze-duplicate-apply",
+      "wingApis": ["KtCodegenController.analyze", "KtCodegenMarker", "KtCodegenRenderer", "KtCodegenTableData"],
+      "duplicatePureLogic": ["replacementPairs", "normalizeGeneratedEol", "range/overlap projection"],
+      "hostOnly": ["stable file read", "encoding", "mode preservation", "temporary file", "fsync", "atomic rename", "rollback file"],
+      "nextBoundary": "Desk Tools Codegen worktree was archived as 1551985. Replace duplicate projection with ktCodegenProjectApply in a follow-up commit; retain its stronger atomic filesystem transaction in the host."
+    },
+    {
+      "id": "legacy-qt-vb",
+      "status": "behavior-reference",
+      "wingApis": [],
+      "hostOnly": ["archived UI and file workflow evidence"],
+      "nextBoundary": "Keep as audited behavior evidence; do not make the legacy native UI depend on the TypeScript runtime."
+    },
+    {
+      "id": "ktd-mirror",
+      "status": "source-mirror",
+      "wingApis": ["KtCodegenApply", "ktCodegenParamsEqual"],
+      "hostOnly": [],
+      "nextBoundary": "Keep source and tests synchronized with the publishable Wing package."
+    }
+  ],
+  "completedReliability": [
+    {
+      "id": "root-and-nested-discovery",
+      "evidence": "deduplicated explicit root and nested globs with executable host-boundary test; cancellation reaches findFiles and per-root limits fail closed instead of truncating"
+    },
+    {
+      "id": "external-file-conflict",
+      "evidence": "watcher signal, explicit changed state even for unreadable external JSON, save-time fingerprint check, reload/overwrite/recreate decisions"
+    },
+    {
+      "id": "cancellable-observable-scans",
+      "evidence": "pure tested workspace operation coordinator, FIFO coalesced watcher requests, progress messages, cancellation tokens, post-cache cancellation check, task-owner check, cancel-state UI and workspace-scope invalidation"
+    },
+    {
+      "id": "watcher-separation",
+      "evidence": "watcher lifecycle, path classification and debounce extracted from workspace Controller"
+    },
+    {
+      "id": "complete-source-scope",
+      "evidence": "findFiles receives cancellation directly; a pure policy rejects scoped source sets above 5000 instead of silently building a truncated marker index"
+    },
+    {
+      "id": "watcher-forced-source-refresh",
+      "evidence": "source events mark the containing workspace root stale, clear visible candidates, invalidate plans and force the next index pass to reread entries even when mtime and size are unchanged"
+    },
+    {
+      "id": "multi-root-preflight-routing",
+      "evidence": "candidate scans aggregate all Workspace Folders; pure root/session policies route each JSON cache and drop removed-root clean sessions while retaining open/dirty/conflicted drafts"
+    },
+    {
+      "id": "shared-source-codec",
+      "evidence": "DocumentService and Preflight share one VS Code-independent strict UTF-8/BOM/GBK decoder with byte fingerprint and EOL tests"
+    },
+    {
+      "id": "atomic-json-save",
+      "evidence": "DocumentService validates through Wing, checks the save-time fingerprint or missing-file guard, atomically renames the temporary JSON and restores the original if final verification fails"
+    },
+    {
+      "id": "transactional-csv-conversion",
+      "evidence": "CSV conversion validates a temporary JSON, deletes CSV only after target verification, and restores the previous JSON when an explicit overwrite fails after replacement"
+    },
+    {
+      "id": "transactional-source-apply",
+      "evidence": "Wing KtCodegenApply owns plan inspection, EOL-safe text projection and the tested generic write transaction; the transaction rereads each target before writing and rolls back in reverse order only while the file still equals this transaction's after bytes"
+    },
+    {
+      "id": "observable-source-apply",
+      "evidence": "The VS Code adapter formats Wing plan summaries and diagnostics into Output lines for targets, matched markers, missing selected markers, source rereads, prepared writes, concurrent changes and rollback failures; Problems continues to receive structured diagnostics. After a successful transaction it atomically stores a source-body-free receipt with before/after fingerprints and per-region identities; receipt persistence failures remain explicit warnings instead of pretending the source transaction rolled back."
+    }
+  ],
+  "remainingRisks": [
+    {
+      "id": "real-extension-host-visual-qa",
+      "status": "manual-checkpoint",
+      "impact": "Automated HTML/theme-token/accessibility checks pass, but dark/light/high-contrast themes, zoom and file-event timing still require the documented Extension Host walkthrough."
+    },
+    {
+      "id": "native-custom-editor",
+      "status": "pending",
+      "impact": "No VS Code native Save All, Backup/Hot Exit or close confirmation yet; debounced in-memory draft retention is implemented."
+    },
+    {
+      "id": "apply-all",
+      "status": "pending",
+      "impact": "Current Apply writes only the active JSON plan; workspace-wide Apply All remains deferred."
+    }
+  ]
+}

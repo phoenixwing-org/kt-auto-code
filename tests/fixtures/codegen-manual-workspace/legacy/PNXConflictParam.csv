@@ -1,0 +1,6 @@
+NameSuffix,ID,Name,ParamString,DataType,TCKind,DefaultValue,CATAttrInOut,IsList,IsOnTree,Component,Count,IsParamDlg,Unit,Author,CreateDate,Notes
+Item,1,Conflicting CSV Value,ConflictingValue,int,Integer,99,In,0,0,QSpinBox,1,1,,Manual QA,2026-07-16,This CSV must remain next to the existing different JSON
+$NamePrefix,PNX,the prefix
+$NameMiddle,Conflict,the middle name
+$NameSpace,PNX,the namespace
+$AppendFunction,push_back,the append function name

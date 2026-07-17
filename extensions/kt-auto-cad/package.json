@@ -184,9 +184,9 @@
     "package": "vsce package --no-dependencies"
   },
   "devDependencies": {
-    "@phoenix-wing/cad-core": "0.3.0",
-    "@phoenix-wing/cad-contracts": "0.3.0",
-    "@phoenix-wing/workspace-schema": "0.3.0",
+    "@phoenix-wing/cad-core": "0.4.0",
+    "@phoenix-wing/cad-contracts": "0.4.0",
+    "@phoenix-wing/workspace-schema": "0.4.0",
     "@types/vscode": "1.85.0",
     "@vscode/vsce": "^3.2.1",
     "esbuild": "^0.25.0",

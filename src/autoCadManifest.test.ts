@@ -111,13 +111,14 @@ describe("KT Auto CAD extension manifest", () => {
     expect(cad.engines.vscode).toBe("^1.85.0");
     expect(code.engines.vscode).toBe(cad.engines.vscode);
     expect(cad.devDependencies?.["@types/vscode"]).toBe("1.85.0");
-    expect(cad.devDependencies?.["@phoenix-wing/cad-core"]).toBe("0.3.0");
-    expect(cad.devDependencies?.["@phoenix-wing/cad-contracts"]).toBe("0.3.0");
-    expect(cad.devDependencies?.["@phoenix-wing/workspace-schema"]).toBe("0.3.0");
+    expect(cad.devDependencies?.["@phoenix-wing/cad-core"]).toBe("0.4.0");
+    expect(cad.devDependencies?.["@phoenix-wing/cad-contracts"]).toBe("0.4.0");
+    expect(cad.devDependencies?.["@phoenix-wing/workspace-schema"]).toBe("0.4.0");
     expect(cad.devDependencies?.["@phoenix-wing/cad-rust-source"]).toBeUndefined();
     expect(cad.devDependencies?.["@phoenix-wing/db-node"]).toBeUndefined();
     expect(code.devDependencies?.["@types/vscode"]).toBe("1.85.0");
-    expect(code.dependencies?.["@phoenix-wing/code-core"]).toBe("0.3.0");
+    expect(code.dependencies?.["@phoenix-wing/code-core"]).toBe("0.4.0");
+    expect(code.dependencies?.["@phoenix-wing/kt-codegen"]).toBe("0.4.0");
     expect(code.dependencies?.["phoenix-wing"]).toBeUndefined();
   });
 });

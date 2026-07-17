@@ -13,6 +13,7 @@
 - **CAA 对话框**：扫描 `.CATDlg` 文件，默认投递到本机 Desk Tools 接口并打开图形编辑器，也可配置自定义外部 EXE。
 - **工作集**：使用 `.phoenix/worksets.json` 为成员排序、UUID、搜索替换和 CAA 扫描定义可复现范围。
 - **工程环境**：在独立 Block 中读取和维护 `ROOT_DIR`、`ROOT_DIR_3rdParty`、`ROOT_DIR_CORE` 与可选的 `CAA_MK_VERSION`；不把操作系统环境变量伪装成 VS Code 插件设置。
+- **Codegen 自动代码**：自动发现 Codegen JSON/旧 CSV，一份 JSON 对应一个参数表 View；支持属性与整表编辑、保序保存、工作区控制符候选、32 项 Kevin 控制符预检、源码定位和真实 Apply。写入前复验源码，保持原编码/换行并输出逐区域日志与可验证回执。
 
 ## 使用
 
@@ -24,7 +25,9 @@
 
 CAA 外部编辑默认调用 `http://127.0.0.1:5180/api/caa/dialog/open`。若希望由插件启动桌面 EXE，请配置 `Kt Auto Code › Caa › External Editor: Command`，并把参数设为 `--workspace`、`${workspace}`、`--catdlg`、`${file}`；配置 command 后优先使用 EXE。
 
-0.4.0 已把单 Block 工作流推广到全部模块。对于原文件为 ASCII、替换目标含中文等非 ASCII 字符的情况，可在搜索替换界面选择默认 UTF-8 或 GBK 编码。
+0.5.0 初步完成旧 Qt/VB Codegen 自动代码能力迁移。控制符、预检、问题和 Artifact 预览内嵌在当前 JSON View；JSON 列表与候选列表位于左侧可收缩 Block。当前版本已覆盖参数编辑、保存、预检和单份 JSON Apply，工作区级 Apply All 仍留待后续版本。
+
+0.4.0 已把单 Block 工作流推广到其他模块。对于原文件为 ASCII、替换目标含中文等非 ASCII 字符的情况，可在搜索替换界面选择默认 UTF-8 或 GBK 编码。
 
 ## 要求
 

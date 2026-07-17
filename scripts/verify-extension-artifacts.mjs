@@ -4,20 +4,27 @@ import { inflateRawSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const artifacts = [
+const codePackage = readPackage(path.join(root, "extension", "package.json"));
+const cadPackage = readPackage(path.join(root, "extensions", "kt-auto-cad", "package.json"));
+const allArtifacts = [
   {
     kind: "code",
-    file: path.join(root, "extension", "kt-auto-code-0.4.0.vsix"),
+    file: path.join(root, "extension", `kt-auto-code-${codePackage.version}.vsix`),
     packagePath: "extension/package.json",
     bundlePath: "extension/dist/extension.js",
+    expectedPackage: codePackage,
   },
   {
     kind: "cad",
-    file: path.join(root, "extensions", "kt-auto-cad", "kt-auto-cad-0.1.0.vsix"),
+    file: path.join(root, "extensions", "kt-auto-cad", `kt-auto-cad-${cadPackage.version}.vsix`),
     packagePath: "extension/package.json",
     bundlePath: "extension/dist/extension.js",
+    expectedPackage: cadPackage,
   },
 ];
+const artifacts = process.argv.includes("--code-only")
+  ? allArtifacts.filter((artifact) => artifact.kind === "code")
+  : allArtifacts;
 
 for (const artifact of artifacts) {
   const zip = readZip(artifact.file);
@@ -31,11 +38,30 @@ for (const artifact of artifacts) {
   }
   const manifest = JSON.parse(readText(zip, artifact.packagePath));
   const bundle = readText(zip, artifact.bundlePath);
+  assertEqual(manifest.name, artifact.expectedPackage.name, `${artifact.kind} VSIX name`);
+  assertEqual(manifest.version, artifact.expectedPackage.version, `${artifact.kind} VSIX version`);
   if (/element-plus|node-sqlite3-wasm|@phoenix-wing\/cad-rust-source/u.test(bundle)) {
     throw new Error(`${artifact.kind} VSIX bundle contains a forbidden Wing/UI/native dependency`);
   }
   if (artifact.kind === "code") {
-    assertEqual(manifest.dependencies?.["@phoenix-wing/code-core"], "0.3.0", "Code VSIX code-core version");
+    assertEqual(
+      manifest.dependencies?.["@phoenix-wing/code-core"],
+      codePackage.dependencies?.["@phoenix-wing/code-core"],
+      "Code VSIX code-core version",
+    );
+    assertEqual(
+      manifest.dependencies?.["@phoenix-wing/kt-codegen"],
+      codePackage.dependencies?.["@phoenix-wing/kt-codegen"],
+      "Code VSIX kt-codegen version",
+    );
+    const tableBundle = readText(zip, "extension/dist/codegen-table.js");
+    if (!tableBundle.includes("kt-codegen-table")) {
+      throw new Error("Code VSIX is missing the KtCodegenTable custom element registration");
+    }
+    const codegenCommand = manifest.contributes?.commands?.find(
+      (candidate) => candidate.command === "ktAutoCode.codegen.open",
+    );
+    if (!codegenCommand) throw new Error("Code VSIX is missing the Codegen open command");
     if (manifest.dependencies?.["phoenix-wing"] !== undefined) {
       throw new Error("Code VSIX must not depend on the Vue/UI aggregate phoenix-wing package");
     }
@@ -94,6 +120,10 @@ for (const artifact of artifacts) {
     if (names.length !== 8) throw new Error(`CAD VSIX must remain thin (expected 8 files, got ${names.length})`);
   }
   process.stdout.write(`[verify] ${artifact.kind} VSIX: ${names.length} files, ${fs.statSync(artifact.file).size} bytes passed\n`);
+}
+
+function readPackage(filename) {
+  return JSON.parse(fs.readFileSync(filename, "utf8"));
 }
 
 function readZip(filename) {

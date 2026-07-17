@@ -1,0 +1,5 @@
+{
+  "name": "ordinary project metadata",
+  "version": 1,
+  "purpose": "This file must never appear in the Codegen JSON list."
+}
