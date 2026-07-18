@@ -1,6 +1,5 @@
 import {
   ktCodegenInspectApplyPlan,
-  type KtCodegenApplyRegionChange,
   type KtCodegenDiagnostic,
   type KtCodegenPlan,
 } from "@phoenix-wing/kt-codegen";
@@ -11,14 +10,18 @@ function prefix(stage: KtcCodegenPlanLogStage): string {
   return `[Codegen][${stage}]`;
 }
 
-/** 真实提交成功后，为单个 Wing 区域生成可定位的审计日志。 */
-export function ktcCodegenAppliedRegionLog(
+/** 真实提交成功后，默认只为每个文件生成一行摘要；区域细节保留在结构化回执。 */
+export function ktcCodegenAppliedFileLog(
   path: string,
-  region: KtCodegenApplyRegionChange,
+  regionCount: number,
 ): string {
-  return `[Codegen][Apply][Region] 已写入 ${path}:${region.line + 1}`
-    + `；block=${region.blockKey}；class=${region.classId}`
-    + `；region=${region.id}；artifact=${region.artifactId}`;
+  const normalized = path.replaceAll("\\", "/");
+  const fileName = normalized.slice(normalized.lastIndexOf("/") + 1);
+  return `[Codegen][Apply][File] ${fileName}；已写入 ${regionCount} 个区域`;
+}
+
+export function ktcCodegenApplyReceiptLog(fileCount: number, regionCount: number): string {
+  return `[Codegen][Apply][Receipt] 回执已保存；${fileCount} 个文件，${regionCount} 个区域`;
 }
 
 /** 把 Wing 结构化诊断转换成 VS Code Output 可搜索的一行。 */
@@ -46,6 +49,7 @@ export function ktcCodegenApplyPlanLogs(
     `${logPrefix} blocks=${summary.blocks.length}；regions=${summary.regionCount}；artifacts=${summary.artifactCount}；diagnostics=${summary.diagnosticCount}；canApply=${summary.canApply}`,
   ];
   for (const target of summary.targets) {
+    if (target.status === "ready" && target.artifactCount === 0) continue;
     lines.push(`${logPrefix}[Target] ${target.target}；status=${target.status}；artifacts=${target.artifactCount}`);
   }
   const matchedBlockCount = summary.blocks.filter((item) => item.regionCount > 0).length;

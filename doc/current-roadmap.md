@@ -22,6 +22,7 @@ Owner：KT Auto Code maintainers
 3. 真实 Extension Host 的打开、预览、冲突、Apply、保存复读和失败回滚已进入自动 smoke；继续补齐浅色、深色、高对比、取消和 VSIX 安装的人工视觉矩阵。
 4. 从 P1 去重队列提炼两个无 UI 能力；优先 workset/ignore/path 与 encoding/file-core，不迁移 VS Code 命令或 Webview 状态。
 5. 保持双 VSIX 可复现，并在 Wing 升级时先运行 Registry 防回退、全测和制品门禁。
+6. 下一项工作区功能是 Codegen `全部应用`：先全量预检、一次确认、ready 项串行重验与 Apply，最终生成结构化批量报告；设计与点检见 `codegen-plan/Codegen全部应用与批量报告计划.md`。
 
 ## 已完成第一波：Codegen 控制符目录与模板日志
 
@@ -68,10 +69,12 @@ Owner：KT Auto Code maintainers
 
 ### UI Bug 收口
 
-- [x] JSON View `full` 左目录与右结果都有独立、可见的纵向滚动边界。Browser 实测先复现两侧 `clientHeight=0`，最终定位为 `<details>` 内容盒不参与普通 flex 剩余高度分配；面板改为在 34px summary 下用 top/bottom 确定高度。
-- [x] 窄窗口进入上下布局后，抽屉保留 540px 可用高度并交给页面整体滚动，不再把两个内部列表压成零高度。760×480 与 560×420 下页面 `scrollHeight=766`，两区均为 252px。
+- [x] JSON View `full` 改为页面唯一纵向滚动：控制符目录与预检结果按内容自然撑高，不再各自强制纵滚，也不再使用固定 `44vh/58vh` 和绝对 `inset`。
+- [x] 两区始终保持左右结构，中间使用可拖动、可键盘调整的 separator；20%～75% 限幅，比例经 Host `workspaceState` 持久化，不写业务 JSON。
+- [x] Browser 在 1600×900、1000×650、760×480、560×420 下验证 32 行目录和 32 条结果均为 `clientHeight == scrollHeight`；560×420 页面为 `420 / 2331`，右侧宽内容为 `306 / 520` 横向滚动，左右没有纵向滚动。
 - [x] 预检完成后左目录和右结果默认只显示命中；显示筛选与 Preflight/Apply 勾选语义拆开，输出只处理当前筛选。
 - [ ] 深色、浅色、高对比真实 VS Code 中的滚轮、滚动条 thumb 和 Artifact 横向滚动仍由用户/真实宿主回执；详见 `codegen-plan/Codegen控制面板滚动筛选点检表.md` D 组。
+- [ ] 参数表的 Header 和工具位于 Wing `KtCodegenTable` Shadow DOM；禁止 Auto 穿透私有 DOM 做高度裁剪。折叠 + `layout="page"` 作为 Wing 0.4.4 公共能力，Registry 发布并升级消费后再完成。
 
 ## 已完成第二个切口：Primary Codegen 页面壳
 
@@ -105,12 +108,13 @@ Owner：KT Auto Code maintainers
 - 定向行为测试为 5 个文件、38 项，包含全部 32 个 legacy block 均产生真实 Renderer artifact 的断言；全仓为 82 个文件、398 项。Extension typecheck、118/22/9 架构边界、Registry Wing 0.4.2 依赖门禁、57 份 Markdown 分类/链接均通过。
 - 当轮本地 `kt-auto-code-0.5.0.vsix` 为 28 个文件、415,786 字节，产物门禁通过；滚动问题随后由第六个切口独立治理。
 
-## 已完成第六个切口：控制面板筛选与三层滚动
+## 已完成第六个切口：控制面板筛选与单一纵向滚动
 
 - 新增高层 `ktc-codegen-control-panel`：Primary compact 和 JSON View full 共用同一组件；catalog 负责显示筛选、选择和输出，full 外层只负责 View 专属的命中/问题/Artifact。
 - 显示筛选与 Apply 勾选彻底分开。预检前默认已选，预检后左右默认命中；当前筛选输出携带可见 blockKeys，Host 过滤非法 key、去重并恢复 legacy 顺序。
-- 页面、左目录、右结果建立三层滚动边界。Browser localhost 夹具首次实测复现左右 `clientHeight=0`，根因是 `<details>` 内容盒不参与 flex 剩余高度；用相对抽屉和 `inset: 34px 0 0` 后，四组尺寸均获得非零内部滚动高度。
-- 760×480 与 560×420 自动切换上下布局，面板维持 504px、两区各 252px，页面 `scrollHeight=766`，不再把内部列表压平。深色/浅色/高对比真实 VS Code 视觉回执仍保留给用户。
+- 后续按真实使用反馈把三层纵向滚动收敛为 JSON View 页面唯一纵向滚动；左右 section 自然增高，只为宽路径和 Artifact 保留局部横向滚动，Primary compact 的限定高度纵滚不受影响。
+- full 面板新增 8px separator、Pointer Capture、Left/Right 键盘步进和 Host `workspaceState` 恢复。窄窗口不再转上下布局，560px 宽仍保留左右语义，右侧宽内容自己横向滚动。
+- Browser 长内容夹具在 1600/1000/760/560 四档实测：32 行目录 `1261 / 1261`、32 条结果 `1852 / 1852`，面板 `1887 / 1887`，证明左右没有独立纵向滚动；页面在低高度形成唯一纵向溢出。
 - 门禁结果：83 个测试文件、405 项测试；119 个生产源文件、22 个 pure graph、9 个 View root；58 份 Markdown；7 个 Wing Registry 0.4.2 引用；VSIX 28 个文件、422,617 字节。
 
 ## 已完成第七个切口：自动代码入口视觉一致性

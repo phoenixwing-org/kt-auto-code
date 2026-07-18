@@ -177,4 +177,33 @@ describe("KtcCodegenEditorViewController", () => {
     expect(second.dispose).toHaveBeenCalledTimes(1);
     expect(callbacks.onDispose).not.toHaveBeenCalled();
   });
+
+  it("从工作区恢复左右比例并拦截布局消息持久化，不进入领域路由", () => {
+    const panel = fakePanel();
+    createWebviewPanel.mockReturnValueOnce(panel);
+    const callbacks = {
+      onMessage: vi.fn(),
+      onActive: vi.fn(),
+      onDispose: vi.fn(),
+    };
+    const workspaceState = {
+      get: vi.fn(() => ({ controlSplitPercent: 61 })),
+      update: vi.fn(() => Promise.resolve()),
+    };
+    const views = new KtcCodegenEditorViewController(extensionUri(), callbacks, workspaceState);
+    views.show(model("file:///workspace/A.json", "A.json"));
+
+    expect(panel.webview.html).toContain('"controlSplitPercent":61');
+    panel.fireMessage({
+      type: "codegenEditorLayout",
+      toolId: "codegen",
+      uri: "file:///workspace/A.json",
+      layout: { controlSplitPercent: 99 },
+    });
+    expect(workspaceState.update).toHaveBeenCalledWith(
+      "ktAutoCode.codegen.editorLayout.v1",
+      { controlSplitPercent: 75 },
+    );
+    expect(callbacks.onMessage).not.toHaveBeenCalled();
+  });
 });

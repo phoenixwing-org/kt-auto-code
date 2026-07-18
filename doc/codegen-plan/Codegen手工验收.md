@@ -134,7 +134,7 @@ pnpm ext:verify:codegen -- <临时工作区> --checkpoint-c
 6. 点击命中区域，观察 Artifact 预览；“打开”应定位源码行。
 7. 点击“Apply”；也可先清掉/失效缓存，确认 Apply 会自动预检。
 
-预期：Apply 修改命中的 `.cpp` 文件；Output 先按文件列出区域数，再用 `[Codegen][Apply][Region]` 为每个成功区域列出文件行号、`block`、`class`、`region` 和 `artifact` 稳定身份，最后输出 `[Codegen][Apply][Receipt]`。源码 Start/End 标记仍保留。预检或 Apply 的 warning/error 同时进入 Problems，点击可定位并显示黄色行背景。若在多文件 Apply 期间外部再次修改尚未写入的目标，应出现 `apply.source-changed-during-write`，此前文件回滚而第三方内容不被覆盖。
+预期：候选扫描、预检与 Apply 的完成摘要均包含扫描/命中/写入计数和从用户动作开始计算的耗时。`ready + artifacts=0` 的 Target 不占用默认 Output；非零产物、`scaffold`、`unsupported` 和诊断仍保留。Apply 成功后只用 `[Codegen][Apply][File]` 按文件名输出一行及区域数，不输出逐区域绝对路径、字节范围或 artifact 身份；这些审计明细仍完整保存在结构化回执中，Output 最后用简短的 `[Codegen][Apply][Receipt]` 确认回执已保存。源码 Start/End 标记仍保留。预检或 Apply 的 warning/error 同时进入 Problems，点击可定位并显示黄色行背景。若在多文件 Apply 期间外部再次修改尚未写入的目标，应出现 `apply.source-changed-during-write`，此前文件回滚而第三方内容不被覆盖。
 
 成功回执位于 `.phoenix/cache/codegen/apply-receipt-v1/`，一份 JSON 只保留最新一份。它只记录工作区相对路径、前后 sha256、编码/换行、字节数和已写区域身份，不保存源码正文；只有源码事务成功后才写入。回执落盘失败不会撤销已经成功的源码事务，而会以 `apply.receipt-write-failed` warning 同时进入 Output 和 Problems。
 单选模式在勾选另一项及页面重绘后仍保持；只开关单选模式不会使已有预检缓存失效，真正改变控制符选择才会失效。

@@ -9,8 +9,19 @@ class FakeNode {
   type = "";
   hidden = false;
   tabIndex = -1;
+  readonly styleValues = new Map<string, string>();
+  readonly style = { setProperty: (name: string, value: string) => this.styleValues.set(name, value) };
+  readonly classNames = new Set<string>();
+  readonly classList = {
+    add: (name: string) => this.classNames.add(name),
+    remove: (name: string) => this.classNames.delete(name),
+  };
+  private capturedPointer: number | undefined;
   onclick?: (event: { stopPropagation(): void }) => void;
   onkeydown?: (event: { key: string; preventDefault(): void }) => void;
+  onpointerdown?: (event: { pointerId: number; clientX: number }) => void;
+  onpointermove?: (event: { pointerId: number; clientX: number }) => void;
+  onpointerup?: (event: { pointerId: number; clientX: number }) => void;
   constructor(readonly tagName = "") {}
   append(...nodes: Array<FakeNode | string>): void { this.children.push(...nodes); }
   replaceChildren(...nodes: Array<FakeNode | string>): void {
@@ -18,6 +29,12 @@ class FakeNode {
   }
   setAttribute(name: string, value: string): void { this.attributes.set(name, value); }
   getAttribute(name: string): string | null { return this.attributes.get(name) ?? null; }
+  getBoundingClientRect(): { left: number; width: number } { return { left: 0, width: 1008 }; }
+  setPointerCapture(pointerId: number): void { this.capturedPointer = pointerId; }
+  hasPointerCapture(pointerId: number): boolean { return this.capturedPointer === pointerId; }
+  releasePointerCapture(pointerId: number): void {
+    if (this.capturedPointer === pointerId) this.capturedPointer = undefined;
+  }
 }
 
 class FakeElement extends FakeNode {
@@ -98,7 +115,7 @@ function model() {
 describe("Codegen control panel", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("full 预检默认只显示命中，可切换问题，并保留左右独立滚动", async () => {
+  it("full 预检默认只显示命中，可切换问题，并把纵向滚动交给外层 View", async () => {
     vi.resetModules();
     installFakeDom();
     const browser = await import("./controlPanel.js");
@@ -110,12 +127,29 @@ describe("Codegen control panel", () => {
     expect(hits.attributes.get("aria-pressed")).toBe("true");
     expect(findNodes(panel.shadow, (node) => node.textContent === "PARAM DECLARATION")).toHaveLength(1);
     expect(findNodes(panel.shadow, (node) => node.textContent === "示例问题")).toHaveLength(0);
-    expect(findNodes(panel.shadow, (node) => node.attributes.get("aria-label") === "预检结果滚动区域")).toHaveLength(1);
+    expect(findNodes(panel.shadow, (node) => node.attributes.get("aria-label") === "预检结果内容；宽内容可横向滚动")).toHaveLength(1);
     const style = findNodes(panel.shadow, (node) => node.tagName === "style")[0]!.textContent;
-    expect(style).toContain("overflow-y: scroll");
+    expect(style).toContain("overflow-y: hidden");
     expect(style).toContain("::-webkit-scrollbar-thumb");
-    expect(style).toContain("grid-template-rows: repeat(2, minmax(0, 1fr))");
+    expect(style).not.toContain("grid-template-rows: repeat(2, minmax(0, 1fr))");
     expect(style).toContain("rgba(121, 121, 121, .7)");
+    const splitter = findNodes(panel.shadow, (node) => node.attributes.get("role") === "separator")[0]!;
+    expect(splitter.attributes.get("aria-orientation")).toBe("vertical");
+    expect(splitter.attributes.get("aria-valuenow")).toBe("42");
+    splitter.onkeydown?.({ key: "ArrowRight", preventDefault() {} });
+    expect(splitter.attributes.get("aria-valuenow")).toBe("44");
+    expect(panel.events.at(-1)).toMatchObject({
+      type: "ktc-codegen-control-split-change",
+      detail: { percent: 44 },
+    });
+    splitter.onpointerdown?.({ pointerId: 1, clientX: 440 });
+    splitter.onpointermove?.({ pointerId: 1, clientX: 600 });
+    splitter.onpointerup?.({ pointerId: 1, clientX: 600 });
+    expect(splitter.attributes.get("aria-valuenow")).toBe("60");
+    expect(panel.events.at(-1)).toMatchObject({
+      type: "ktc-codegen-control-split-change",
+      detail: { percent: 60 },
+    });
 
     const open = findNodes(panel.shadow, (node) => node.textContent === "打开")[0]!;
     open.onclick?.({ stopPropagation() {} });

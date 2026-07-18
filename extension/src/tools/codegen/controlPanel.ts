@@ -1,10 +1,20 @@
 import type { KtcCodegenControlCatalogViewModel, KtcCodegenControlViewModel } from "./controlViewModel.js";
+import {
+  KTC_CODEGEN_CONTROL_SPLIT_MAX,
+  KTC_CODEGEN_CONTROL_SPLIT_MIN,
+  KTC_CODEGEN_DEFAULT_EDITOR_LAYOUT,
+  ktcClampCodegenControlSplitPercent,
+} from "./editorLayoutState.js";
 
 export const KTC_CODEGEN_CONTROL_PANEL_TAG = "ktc-codegen-control-panel";
 
 export interface KtcCodegenControlOpenDetail {
   readonly path: string;
   readonly line: number;
+}
+
+export interface KtcCodegenControlSplitChangeDetail {
+  readonly percent: number;
 }
 
 type KtcCodegenControlResultFilter = "hits" | "issues" | "all";
@@ -14,17 +24,19 @@ const STYLE = `
   * { box-sizing: border-box; }
   button { font: inherit; cursor: pointer; }
   button:focus-visible, [tabindex]:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
-  :host([mode="full"]) { block-size: 100%; min-block-size: 0; overflow: hidden; container-type: inline-size; }
-  .grid { display: grid; block-size: 100%; min-block-size: 0; grid-template-columns: minmax(280px, 42%) minmax(360px, 58%); overflow: hidden; }
-  .section { display: flex; min-width: 0; min-height: 0; overflow: hidden; flex-direction: column; }
-  .catalog { border-right: 1px solid var(--vscode-panel-border); }
-  ktc-codegen-control-catalog { flex: 1 1 0; min-height: 0; overflow: hidden; }
+  :host([mode="full"]) { block-size: auto; min-block-size: 0; overflow-x: auto; overflow-y: hidden; }
+  .grid { display: grid; min-width: 540px; min-block-size: 0; grid-template-columns: minmax(220px, var(--ktc-control-split, 42%)) 8px minmax(300px, 1fr); align-items: stretch; overflow: visible; }
+  .section { display: flex; min-width: 0; min-height: 0; overflow: visible; flex-direction: column; }
+  ktc-codegen-control-catalog { flex: 0 0 auto; min-height: 0; overflow: visible; }
+  .splitter { position: relative; min-height: 44px; background: var(--vscode-panel-border); cursor: col-resize; touch-action: none; }
+  .splitter::before { content: ""; position: absolute; inset: 0 2px; background: var(--vscode-editor-background); }
+  .splitter:hover, .splitter:focus-visible, .splitter.dragging { background: var(--vscode-focusBorder); outline: none; }
   .section-title { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; gap: 5px; min-height: 34px; padding: 5px 8px; color: var(--vscode-descriptionForeground); background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); border-bottom: 1px solid var(--vscode-panel-border); font-size: 11px; font-weight: 650; }
   .section-title .spacer { flex: 1 1 auto; }
   .filter { min-height: 24px; padding: 2px 7px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: 1px solid var(--vscode-panel-border); border-radius: 3px; }
   .filter[aria-pressed="true"] { color: var(--vscode-button-foreground); background: var(--vscode-button-background); border-color: var(--vscode-button-background); }
-  .scroll { flex: 1 1 0; min-width: 0; min-height: 0; overflow-x: auto; overflow-y: scroll; overscroll-behavior: contain; scrollbar-gutter: stable both-edges; scrollbar-color: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, .7)) transparent; }
-  .scroll::-webkit-scrollbar { width: 12px; height: 12px; }
+  .scroll { flex: 0 0 auto; min-width: 0; min-height: 0; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-color: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, .7)) transparent; }
+  .scroll::-webkit-scrollbar { width: 0; height: 12px; }
   .scroll::-webkit-scrollbar-track { background: transparent; }
   .scroll::-webkit-scrollbar-thumb { min-height: 28px; background: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, .7)); border: 3px solid transparent; border-radius: 999px; background-clip: padding-box; }
   .scroll::-webkit-scrollbar-thumb:hover { background-color: var(--vscode-scrollbarSlider-hoverBackground, rgba(100, 100, 100, .9)); }
@@ -40,16 +52,8 @@ const STYLE = `
   .diagnostic.error { border-left-color: var(--vscode-errorForeground); }
   .diagnostic-code { display: block; margin-bottom: 2px; font-weight: 650; }
   .diagnostic-location { display: block; margin-top: 3px; color: var(--vscode-descriptionForeground); font-size: 10px; }
-  .preview { margin: 8px; padding: 9px; overflow: auto; color: var(--vscode-editor-foreground); background: var(--vscode-textCodeBlock-background); border: 1px solid var(--vscode-panel-border); border-radius: 5px; font: 12px/1.45 var(--vscode-editor-font-family); white-space: pre; }
+  .preview { margin: 8px; padding: 9px; overflow-x: auto; overflow-y: hidden; color: var(--vscode-editor-foreground); background: var(--vscode-textCodeBlock-background); border: 1px solid var(--vscode-panel-border); border-radius: 5px; font: 12px/1.45 var(--vscode-editor-font-family); white-space: pre; }
   .empty { padding: 22px 12px; color: var(--vscode-descriptionForeground); text-align: center; }
-  @container (max-width: 760px) {
-    .grid { grid-template-columns: 1fr; grid-template-rows: repeat(2, minmax(0, 1fr)); }
-    .catalog { border-right: 0; border-bottom: 1px solid var(--vscode-panel-border); }
-  }
-  @media (max-width: 760px) {
-    .grid { grid-template-columns: 1fr; grid-template-rows: repeat(2, minmax(0, 1fr)); }
-    .catalog { border-right: 0; border-bottom: 1px solid var(--vscode-panel-border); }
-  }
 `;
 
 function fullModel(
@@ -66,6 +70,13 @@ export class KtcCodegenControlPanel extends HTMLElement {
   private readonly catalog = document.createElement("ktc-codegen-control-catalog");
   private currentModel: KtcCodegenControlCatalogViewModel | undefined;
   private resultFilter: KtcCodegenControlResultFilter = "hits";
+  private splitPercent = KTC_CODEGEN_DEFAULT_EDITOR_LAYOUT.controlSplitPercent;
+
+  get splitRatio(): number { return this.splitPercent; }
+  set splitRatio(value: number) {
+    this.splitPercent = ktcClampCodegenControlSplitPercent(value);
+    this.render();
+  }
 
   get model(): KtcCodegenControlCatalogViewModel | undefined { return this.currentModel; }
   set model(value: KtcCodegenControlCatalogViewModel | undefined) {
@@ -93,14 +104,70 @@ export class KtcCodegenControlPanel extends HTMLElement {
     grid.className = "grid";
     const catalogSection = document.createElement("section");
     catalogSection.className = "section catalog";
-    catalogSection.setAttribute("aria-label", "可筛选、可滚动的控制符目录");
+    catalogSection.setAttribute("aria-label", "可筛选的控制符目录");
     catalogSection.append(this.catalog);
     const results = document.createElement("section");
     results.className = "section results";
-    results.setAttribute("aria-label", "可筛选、可滚动的预检命中与问题");
+    results.setAttribute("aria-label", "可筛选的预检命中与问题");
     results.append(...this.resultNodes(model));
-    grid.append(catalogSection, results);
+    const splitter = this.splitter(grid);
+    grid.append(catalogSection, splitter, results);
     this.root.replaceChildren(style, grid);
+  }
+
+  private splitter(grid: HTMLElement): HTMLElement {
+    const splitter = document.createElement("div");
+    splitter.className = "splitter";
+    splitter.tabIndex = 0;
+    splitter.setAttribute("role", "separator");
+    splitter.setAttribute("aria-label", "调整控制符目录与预检结果宽度");
+    splitter.setAttribute("aria-orientation", "vertical");
+    splitter.setAttribute("aria-valuemin", String(KTC_CODEGEN_CONTROL_SPLIT_MIN));
+    splitter.setAttribute("aria-valuemax", String(KTC_CODEGEN_CONTROL_SPLIT_MAX));
+    splitter.title = "拖动调整左右宽度；方向键可微调";
+    this.applySplit(grid, splitter, this.splitPercent);
+    let dragging = false;
+    splitter.onpointerdown = (event) => {
+      dragging = true;
+      splitter.classList.add("dragging");
+      splitter.setPointerCapture?.(event.pointerId);
+    };
+    splitter.onpointermove = (event) => {
+      if (!dragging) return;
+      const rect = grid.getBoundingClientRect();
+      const usableWidth = Math.max(1, rect.width - 8);
+      this.applySplit(grid, splitter, ((event.clientX - rect.left) / usableWidth) * 100);
+    };
+    const finish = (event: PointerEvent) => {
+      if (!dragging) return;
+      dragging = false;
+      splitter.classList.remove("dragging");
+      if (splitter.hasPointerCapture?.(event.pointerId)) splitter.releasePointerCapture(event.pointerId);
+      this.emitSplit();
+    };
+    splitter.onpointerup = finish;
+    splitter.onpointercancel = finish;
+    splitter.onkeydown = (event) => {
+      const direction = event.key === "ArrowLeft" ? -2 : event.key === "ArrowRight" ? 2 : 0;
+      if (!direction) return;
+      event.preventDefault();
+      this.applySplit(grid, splitter, this.splitPercent + direction);
+      this.emitSplit();
+    };
+    return splitter;
+  }
+
+  private applySplit(grid: HTMLElement, splitter: HTMLElement, value: number): void {
+    this.splitPercent = ktcClampCodegenControlSplitPercent(value);
+    grid.style.setProperty("--ktc-control-split", `${this.splitPercent}%`);
+    splitter.setAttribute("aria-valuenow", String(this.splitPercent));
+  }
+
+  private emitSplit(): void {
+    this.dispatchEvent(new CustomEvent<KtcCodegenControlSplitChangeDetail>(
+      "ktc-codegen-control-split-change",
+      { bubbles: true, composed: true, detail: { percent: this.splitPercent } },
+    ));
   }
 
   private resultNodes(model: KtcCodegenControlCatalogViewModel | undefined): HTMLElement[] {
@@ -126,7 +193,7 @@ export class KtcCodegenControlPanel extends HTMLElement {
     const scroll = document.createElement("div");
     scroll.className = "scroll";
     scroll.tabIndex = 0;
-    scroll.setAttribute("aria-label", "预检结果滚动区域");
+    scroll.setAttribute("aria-label", "预检结果内容；宽内容可横向滚动");
     const content = document.createElement("div");
     content.className = "content";
     const summary = document.createElement("div");

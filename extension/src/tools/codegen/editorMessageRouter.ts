@@ -19,6 +19,7 @@ export function ktcRouteCodegenEditorMessage(
   message: KtcCodegenEditorInboundMessage,
 ): KtcCodegenEditorCommand {
   if (message.uri !== sessionUri) return { kind: "ignore" };
+  if (message.type === "codegenEditorLayout") return { kind: "ignore" };
   if (message.type === "codegenControlOpen"
     || message.type === "codegenControlSelection"
     || message.type === "codegenControlDisplay"

@@ -6,6 +6,7 @@ import type { KtcCodegenMetaField } from "./contracts.js";
 import type {
   KtcCodegenControlViewModel,
 } from "./controlViewModel.js";
+import type { KtcCodegenEditorLayoutState } from "./editorLayoutState.js";
 
 export interface KtcCodegenEditorModel {
   readonly uri: string;
@@ -69,6 +70,12 @@ export type KtcCodegenControlMessage =
     };
 
 export type KtcCodegenEditorInboundMessage =
+  | {
+      readonly type: "codegenEditorLayout";
+      readonly toolId: "codegen";
+      readonly uri: string;
+      readonly layout: KtcCodegenEditorLayoutState;
+    }
   | {
       readonly type: "codegenEditorAction";
       readonly toolId: "codegen";

@@ -5,6 +5,11 @@ import type {
   KtcCodegenEditorOutboundMessage,
 } from "./editorContracts.js";
 import { getCodegenEditorHtml } from "./editorHtml.js";
+import {
+  KTC_CODEGEN_DEFAULT_EDITOR_LAYOUT,
+  KTC_CODEGEN_EDITOR_LAYOUT_STATE_KEY,
+  ktcNormalizeCodegenEditorLayout,
+} from "./editorLayoutState.js";
 
 export interface KtcCodegenEditorViewCallbacks {
   readonly onMessage: (uri: string, message: KtcCodegenEditorInboundMessage) => void;
@@ -20,6 +25,7 @@ export class KtcCodegenEditorViewController implements vscode.Disposable {
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly callbacks: KtcCodegenEditorViewCallbacks,
+    private readonly workspaceState?: Pick<vscode.Memento, "get" | "update">,
   ) {}
 
   show(model: KtcCodegenEditorModel): void {
@@ -40,8 +46,21 @@ export class KtcCodegenEditorViewController implements vscode.Disposable {
       },
     );
     this.panels.set(model.uri, panel);
-    panel.webview.html = getCodegenEditorHtml(panel.webview, this.extensionUri, model);
+    const layout = ktcNormalizeCodegenEditorLayout(this.workspaceState?.get(
+      KTC_CODEGEN_EDITOR_LAYOUT_STATE_KEY,
+      KTC_CODEGEN_DEFAULT_EDITOR_LAYOUT,
+    ));
+    panel.webview.html = getCodegenEditorHtml(panel.webview, this.extensionUri, model, layout);
     panel.webview.onDidReceiveMessage((message: KtcCodegenEditorInboundMessage) => {
+      if (message.type === "codegenEditorLayout") {
+        if (message.uri === model.uri) {
+          void this.workspaceState?.update(
+            KTC_CODEGEN_EDITOR_LAYOUT_STATE_KEY,
+            ktcNormalizeCodegenEditorLayout(message.layout),
+          );
+        }
+        return;
+      }
       this.callbacks.onMessage(model.uri, message);
     });
     panel.onDidChangeViewState(({ webviewPanel }) => {

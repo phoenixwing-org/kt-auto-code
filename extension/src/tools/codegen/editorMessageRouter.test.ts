@@ -40,6 +40,10 @@ describe("Codegen editor message router", () => {
     expect(route({
       type: "codegenEditorDirty", toolId: "codegen", uri: "file:///workspace/Other.json", itemCount: 2,
     })).toEqual({ kind: "ignore" });
+    expect(route({
+      type: "codegenEditorLayout", toolId: "codegen", uri: URI,
+      layout: { controlSplitPercent: 42 },
+    })).toEqual({ kind: "ignore" });
   });
 
   it("把 dirty、整表交换与带表格动作投影为语义命令", () => {

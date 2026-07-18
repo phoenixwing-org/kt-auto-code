@@ -63,6 +63,7 @@ for (const artifact of artifacts) {
     if (!controlCatalogBundle.includes("ktc-codegen-control-catalog")
         || !controlCatalogBundle.includes("ktc-codegen-control-panel")
         || !controlCatalogBundle.includes("ktc-codegen-control-selection-change")
+        || !controlCatalogBundle.includes("ktc-codegen-control-split-change")
         || !controlCatalogBundle.includes('{ scope: "visible", blockKeys:')
         || !controlCatalogBundle.includes("overflow-y: scroll")
         || controlCatalogBundle.includes("acquireVsCodeApi")) {

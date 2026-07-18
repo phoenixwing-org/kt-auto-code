@@ -67,8 +67,8 @@ const STYLE = `
   :host([mode="compact"]) .row { grid-template-columns: 22px 24px minmax(0, 1fr) auto auto; }
   :host([mode="compact"]) .tag, :host([mode="compact"]) .key { display: none; }
   :host([mode="compact"]) .templates { grid-column: 3 / -1; }
-  :host([mode="full"]) { display: flex; block-size: 100%; min-block-size: 0; overflow: hidden; flex-direction: column; }
-  :host([mode="full"]) .list { flex: 1 1 0; min-block-size: 0; max-height: none; }
+  :host([mode="full"]) { display: flex; block-size: auto; min-block-size: 0; overflow: visible; flex-direction: column; }
+  :host([mode="full"]) .list { flex: 0 0 auto; min-block-size: 0; max-height: none; overflow: visible; }
   .empty { padding: 12px 8px; color: var(--vscode-descriptionForeground); text-align: center; }
 `;
 

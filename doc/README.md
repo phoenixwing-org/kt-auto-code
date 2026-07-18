@@ -22,6 +22,7 @@ Owner：KT Auto Code maintainers
 
 - [Codegen 快速原型与 MVC 边界](Codegen快速原型.md)
 - [Codegen 手工验收](codegen-plan/Codegen手工验收.md)
+- [Codegen 全部应用计划](codegen-plan/Codegen全部应用与批量报告计划.md)与[点检表](codegen-plan/Codegen全部应用点检表.md)
 - [Extension Host 自动验收](ExtensionHost自动验收.md)
 - [搜索替换行为规范](搜索替换.md)、[编码规则](搜索替换编码规则.md)与[算法审计](搜索替换算法审计.md)
 - [源文件编码扫描](源文件编码扫描.md)与[编码修正](编码修正.md)

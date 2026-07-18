@@ -290,6 +290,20 @@
       "lastVerified": "2026-07-17"
     },
     {
+      "path": "doc/codegen-plan/Codegen全部应用点检表.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
+      "path": "doc/codegen-plan/Codegen全部应用与批量报告计划.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
       "path": "doc/codegen-plan/Codegen手工验收.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",

@@ -1,6 +1,11 @@
 import type * as vscode from "vscode";
 import { ktcCreateWebviewSecurity } from "../../webviewSupport.js";
 import type { KtcCodegenEditorModel } from "./editorContracts.js";
+import {
+  KTC_CODEGEN_DEFAULT_EDITOR_LAYOUT,
+  ktcNormalizeCodegenEditorLayout,
+  type KtcCodegenEditorLayoutState,
+} from "./editorLayoutState.js";
 
 function safeJson(value: unknown): string {
   return JSON.stringify(value)
@@ -14,6 +19,7 @@ export function getCodegenEditorHtml(
   webview: Pick<vscode.Webview, "cspSource" | "asWebviewUri">,
   extensionUri: vscode.Uri,
   initialModel: KtcCodegenEditorModel,
+  initialLayout: KtcCodegenEditorLayoutState = KTC_CODEGEN_DEFAULT_EDITOR_LAYOUT,
 ): string {
   const { nonce, csp } = ktcCreateWebviewSecurity(webview);
   const basePath = extensionUri.path.replace(/\/$/, "");
@@ -24,6 +30,7 @@ export function getCodegenEditorHtml(
     extensionUri.with({ path: `${basePath}/dist/codegen-control-catalog.js` }),
   );
   const model = safeJson(initialModel);
+  const layout = safeJson(ktcNormalizeCodegenEditorLayout(initialLayout));
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -33,11 +40,14 @@ export function getCodegenEditorHtml(
   <style>
     :root { color-scheme: light dark; }
     * { box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; margin: 0; }
+    html { width: 100%; height: 100%; margin: 0; }
     body {
       display: flex;
       flex-direction: column;
       gap: 8px;
+      width: 100%;
+      min-height: 100%;
+      margin: 0;
       overflow-x: hidden;
       overflow-y: auto;
       overscroll-behavior: contain;
@@ -100,10 +110,9 @@ export function getCodegenEditorHtml(
       background: var(--vscode-editor-background);
     }
     .control-drawer[open] {
-      display: flex;
-      height: min(44vh, 460px);
-      min-height: 230px;
-      flex-direction: column;
+      display: block;
+      height: auto;
+      min-height: 0;
     }
     .control-drawer > summary {
       display: flex;
@@ -122,14 +131,12 @@ export function getCodegenEditorHtml(
     .control-drawer[open] > summary::before { transform: rotate(90deg); }
     .control-summary-title { color: var(--vscode-foreground); font-weight: 650; }
     .control-summary-meta { margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
-    /* details 的内容盒不是普通 flex 子项；用 top/bottom 建立确定高度。 */
     .control-drawer[open] > ktc-codegen-control-panel {
-      position: absolute;
-      inset: 34px 0 0;
+      position: static;
       display: block;
       height: auto;
       min-height: 0;
-      overflow: hidden;
+      overflow: visible;
     }
     body.vscode-high-contrast kt-codegen-table,
     body.vscode-high-contrast-light kt-codegen-table {
@@ -153,11 +160,6 @@ export function getCodegenEditorHtml(
       .document-title { flex: 1 0 100%; }
       .view-toolbar button { flex: 1 1 auto; }
       .separator { display: none; }
-      .control-drawer[open] { height: min(58vh, 520px); min-height: 260px; }
-    }
-    @media (max-width: 760px) {
-      /* full 面板会转为上下布局；宁可由 body 滚动，也不把两个列表压成零高度。 */
-      .control-drawer[open] { height: 540px; min-height: 540px; }
     }
   </style>
 </head>
@@ -196,12 +198,18 @@ export function getCodegenEditorHtml(
     const controlDrawer = document.getElementById("control-drawer");
     const controlPanel = document.getElementById("control-panel");
     let model = ${model};
+    let editorLayout = ${layout};
     let controlsModel = model.controls;
     let dirtyNotified = !!model.dirty;
     let draftSyncTimer;
 
     function post(message) {
       vscode.postMessage(Object.assign({ toolId: "codegen", uri: model.uri }, message));
+    }
+
+    function persistEditorLayout(next) {
+      editorLayout = Object.assign({}, editorLayout, next);
+      post({ type: "codegenEditorLayout", layout: editorLayout });
     }
 
     function syncHeader() {
@@ -266,6 +274,7 @@ export function getCodegenEditorHtml(
     table.setData(model.table);
     syncHeader();
     controlPanel.model = controlsModel;
+    controlPanel.splitRatio = editorLayout.controlSplitPercent;
     syncControlSummary();
 
     table.addEventListener("kt-codegen-table-dirty-change", (event) => {
@@ -336,6 +345,9 @@ export function getCodegenEditorHtml(
       path: event.detail.path,
       line: event.detail.line,
     }));
+    controlPanel.addEventListener("ktc-codegen-control-split-change", (event) => {
+      persistEditorLayout({ controlSplitPercent: event.detail.percent });
+    });
 
     document.addEventListener("visibilitychange", () => { if (document.hidden) exchangeDraft(); });
     window.addEventListener("beforeunload", exchangeDraft);

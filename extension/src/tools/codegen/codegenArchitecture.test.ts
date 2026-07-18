@@ -83,7 +83,11 @@ describe("Codegen MVC dependency boundary", () => {
     expect(sidebar).toContain('<ktc-codegen-primary-panel id="codegen-panel" hidden>');
     expect(primary).toContain('controlPanel.setAttribute("mode", "compact")');
     expect(panel).toContain('document.createElement("ktc-codegen-control-catalog")');
-    expect(panel).toContain('grid-template-rows: repeat(2, minmax(0, 1fr))');
+    expect(panel).not.toContain('grid-template-rows: repeat(2, minmax(0, 1fr))');
+    expect(panel).toContain('"ktc-codegen-control-split-change"');
+    expect(panel).toContain('role", "separator"');
+    expect(catalog).toContain(':host([mode="full"]) .list');
+    expect(catalog).toContain("overflow: visible");
     expect(editor).not.toContain("function renderBlocks");
     expect(editor).not.toContain("function renderPreflight");
     expect(sidebar).not.toContain("block.controlWords");
@@ -127,6 +131,8 @@ describe("Codegen MVC dependency boundary", () => {
     expect(router).toContain('kind: "control"');
     expect(router).not.toMatch(/from ["']vscode["']|acquireVsCodeApi|workspace\.|document\.|window\./);
     expect(view).toContain('from "./editorContracts.js"');
+    expect(view).toContain("KTC_CODEGEN_EDITOR_LAYOUT_STATE_KEY");
+    expect(view).toContain("workspaceState");
     expect(view).not.toContain('from "../types.js"');
   });
 
@@ -239,7 +245,8 @@ describe("Codegen MVC dependency boundary", () => {
     expect(source("./sourceApplyTransaction.ts")).not.toMatch(/from ["']vscode["']|workspace\./);
     expect(source("./applyLog.ts")).toContain("ktCodegenInspectApplyPlan");
     expect(controller).toContain('ktcCodegenApplyPlanLogs(plan, "Preflight")');
-    expect(apply).toContain("ktcCodegenApplyPlanLogs");
+    expect(apply).not.toContain("ktcCodegenApplyPlanLogs");
+    expect(apply).toContain("ktcCodegenAppliedFileLog");
     expect(apply).toContain("apply.rollback-failed");
   });
 

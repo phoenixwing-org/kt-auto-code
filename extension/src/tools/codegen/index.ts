@@ -65,10 +65,20 @@ import {
   ktcCommitCodegenApplyWrites,
 } from "./sourceApplyTransaction.js";
 import {
-  ktcCodegenAppliedRegionLog,
+  ktcCodegenAppliedFileLog,
   ktcCodegenApplyDiagnosticLog,
   ktcCodegenApplyPlanLogs,
+  ktcCodegenApplyReceiptLog,
 } from "./applyLog.js";
+import {
+  ktcStartCodegenOperationTimer,
+  type KtcCodegenOperationTimer,
+} from "./operationTimer.js";
+import {
+  ktcCodegenApplySummary,
+  ktcCodegenCandidateScanSummary,
+  ktcCodegenPreflightSummary,
+} from "./operationSummary.js";
 import {
   ktcCodegenReceiptWorkspacePath,
   ktcCreateCodegenApplyReceipt,
@@ -163,7 +173,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
           ? `${session.identity.fileName} 的 View 已关闭；未保存内容尚未写盘。`
           : `${session.identity.fileName} 的 View 已关闭。`);
       },
-    });
+    }, context.workspaceState);
     this.workspaceWatch = new KtcCodegenWorkspaceWatchService({
       onJson: (uri, event) => {
         if (this.internalWrites.has(uri.toString())) return;
@@ -269,6 +279,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
   }
 
   private async refresh(ctx: ToolRunContext): Promise<void> {
+    const timer = ktcStartCodegenOperationTimer();
     if (this.initializedRoot !== this.workspaceKey(ctx)) {
       this.candidates = [];
       this.candidateIndexReady = false;
@@ -320,17 +331,25 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
         this.csvDeduplicatedInSession ? `本会话清理重复 CSV ${this.csvDeduplicatedInSession}` : "",
         this.csvConflictCount ? `当前保留冲突/失败 CSV ${this.csvConflictCount}` : "",
       ].filter(Boolean).join("；");
-      this.publish(ctx, count
-        ? `发现 ${count} 份 Codegen JSON${conversionSummary ? `；${conversionSummary}` : ""}。`
-        : `扫描 ${result.scannedJsonCount} 份 JSON，未识别到 Codegen v4 配置${conversionSummary ? `；${conversionSummary}` : ""}。`, "done");
+      const elapsed = timer.elapsedText();
+      const matchSummary = count
+        ? `识别 ${count} 份 Codegen v4 配置`
+        : "未识别到 Codegen v4 配置";
+      const summary = `扫描 ${result.scannedJsonCount} 份 JSON，${matchSummary}${conversionSummary ? `；${conversionSummary}` : ""}；耗时 ${elapsed}。`;
+      ctx.log(`[Codegen][Discovery] ${summary}`);
+      this.publish(ctx, summary, "done");
     } catch (error) {
       if (!release()) return;
       if (error instanceof vscode.CancellationError) {
-        this.publish(ctx, "Codegen 列表扫描已取消。");
+        const message = `Codegen 列表扫描已取消；耗时 ${timer.elapsedText()}。`;
+        ctx.log(`[Codegen][Discovery] ${message}`);
+        this.publish(ctx, message);
         return;
       }
       this.initializedRoot = null;
-      this.publish(ctx, `Codegen 列表扫描失败：${error instanceof Error ? error.message : String(error)}`, "error");
+      const message = `Codegen 列表扫描失败：${error instanceof Error ? error.message : String(error)}；耗时 ${timer.elapsedText()}。`;
+      ctx.log(`[Codegen][Discovery][error] ${message}`);
+      this.publish(ctx, message, "error");
     } finally {
       cancellation.dispose();
       if (released) this.startNextWorkspaceOperation();
@@ -368,9 +387,12 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
   }
 
   private async scanCandidates(ctx: ToolRunContext): Promise<void> {
+    const timer = ktcStartCodegenOperationTimer();
     const roots = this.workspaceRoots(ctx);
     if (!roots.length) {
-      this.publish(ctx, "请先打开工作区再扫描控制符候选。", "error");
+      const message = `请先打开工作区再扫描控制符候选；耗时 ${timer.elapsedText()}。`;
+      ctx.log(`[Codegen][Candidates][error] ${message}`);
+      this.publish(ctx, message, "error");
       return;
     }
     const cancellation = this.workspaceOperations.begin(
@@ -410,20 +432,33 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
             ? { ...candidate, displayPath: `${basename(root.fsPath)}/${candidate.displayPath}` }
             : candidate);
         }
-        ctx.log(`[Codegen][Candidates] root=${root.fsPath}；index=${result.indexPath}；revision=${result.revision}；files=${result.indexedFileCount}；candidates=${result.candidates.length}`);
+        if (roots.length > 1) {
+          ctx.log(`[Codegen][Candidates][Root] ${basename(root.fsPath)}；扫描 ${result.indexedFileCount} 个源码文件，命中 ${result.candidates.length} 个候选`);
+        }
       }
       if (!release()) return;
       this.candidates = [...candidates.values()]
         .sort((left, right) => left.displayPath.localeCompare(right.displayPath));
       this.candidateIndexReady = true;
-      this.publish(ctx, `候选扫描完成：${roots.length} 个工作区根、${indexedFileCount} 个源码文件中，${this.candidates.length} 个含控制符。`);
+      const message = ktcCodegenCandidateScanSummary({
+        rootCount: roots.length,
+        indexedFileCount,
+        candidateCount: this.candidates.length,
+        elapsed: timer.elapsedText(),
+      });
+      ctx.log(`[Codegen][Candidates] ${message}`);
+      this.publish(ctx, message);
     } catch (error) {
       if (!release()) return;
       if (error instanceof vscode.CancellationError) {
-        this.publish(ctx, "候选源码扫描已取消。");
+        const message = `候选源码扫描已取消；耗时 ${timer.elapsedText()}。`;
+        ctx.log(`[Codegen][Candidates] ${message}`);
+        this.publish(ctx, message);
         return;
       }
-      this.publish(ctx, `候选扫描失败：${error instanceof Error ? error.message : String(error)}`, "error");
+      const message = `候选扫描失败：${error instanceof Error ? error.message : String(error)}；耗时 ${timer.elapsedText()}。`;
+      ctx.log(`[Codegen][Candidates][error] ${message}`);
+      this.publish(ctx, message, "error");
     } finally {
       cancellation.dispose();
       if (released) this.startNextWorkspaceOperation();
@@ -761,15 +796,20 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       return;
     }
     if (command.kind === "preflight") {
+      const timer = ktcStartCodegenOperationTimer();
       if (command.table && !this.acceptActionTable(session, command.table, ctx)) return;
-      await this.runPreflight(session, ctx);
+      await this.runPreflight(session, ctx, timer);
       return;
     }
     if (command.kind === "apply") {
+      const timer = ktcStartCodegenOperationTimer();
       if (command.table && !this.acceptActionTable(session, command.table, ctx)) return;
       if (!session.preflight) await this.runPreflight(session, ctx);
-      if (!session.preflight) return;
-      await this.apply(session, ctx);
+      if (!session.preflight) {
+        ctx.log(`[Codegen][Apply] 自动预检未产生可用计划，Apply 已停止；耗时 ${timer.elapsedText()}。`);
+        return;
+      }
+      await this.apply(session, ctx, timer);
     }
   }
 
@@ -796,6 +836,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
   private async runPreflight(
     session: KtcCodegenDocumentModel,
     ctx: ToolRunContext,
+    timer: KtcCodegenOperationTimer = ktcStartCodegenOperationTimer(),
   ): Promise<void> {
     const workspaceRoot = ktcResolveCodegenWorkspaceRoot(
       session.identity.fsPath,
@@ -803,8 +844,9 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       ctx.workspaceRoot,
     );
     if (!workspaceRoot) {
-      ctx.log(`[Codegen][Preflight][error] preflight.workspace-missing：请先打开工作区；json=${session.identity.fsPath}`);
-      this.publish(ctx, "请先打开工作区再执行 Codegen 预检。", "error");
+      const message = `请先打开工作区再执行 Codegen 预检；耗时 ${timer.elapsedText()}。`;
+      ctx.log(`[Codegen][Preflight][error] preflight.workspace-missing：${message}；json=${session.identity.fsPath}`);
+      this.publish(ctx, message, "error");
       return;
     }
     this.preflightTasks.get(session.identity.uri)?.cancel();
@@ -831,7 +873,15 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       this.staleSourceRoots.delete(workspaceRoot);
       session.setPreflight(result);
       const plan = result.plan;
-      const message = `${result.reused ? "复用缓存" : "生成新计划"}：${result.candidateFileCount} 个候选文件，${plan.markerRegions.length} 个区域，${plan.artifacts.length} 个产物，${plan.diagnostics.length} 条诊断。`;
+      const message = ktcCodegenPreflightSummary({
+        reused: result.reused,
+        indexedFileCount: result.indexedFileCount,
+        candidateFileCount: result.candidateFileCount,
+        regionCount: plan.markerRegions.length,
+        artifactCount: plan.artifacts.length,
+        diagnosticCount: plan.diagnostics.length,
+        elapsed: timer.elapsedText(),
+      });
       ctx.log(`[Codegen][Preflight] ${session.identity.fileName}；${message}`);
       for (const line of ktcCodegenApplyPlanLogs(plan, "Preflight")) ctx.log(line);
       this.sessionPresenter.post(session, { type: "codegenStatus", status: "idle", message });
@@ -840,17 +890,19 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     } catch (error) {
       if (error instanceof vscode.CancellationError) {
         if (this.preflightTasks.get(session.identity.uri) !== cancellation) return;
-        this.sessionPresenter.post(session, { type: "codegenStatus", status: "idle", message: "预检已取消。" });
-        ctx.log(`[Codegen][Preflight][info] preflight.cancelled：${session.identity.fsPath}`);
-        this.publish(ctx, `${session.identity.fileName} 的预检已取消。`);
+        const message = `预检已取消；耗时 ${timer.elapsedText()}。`;
+        this.sessionPresenter.post(session, { type: "codegenStatus", status: "idle", message });
+        ctx.log(`[Codegen][Preflight][info] preflight.cancelled：${message}；json=${session.identity.fsPath}`);
+        this.publish(ctx, `${session.identity.fileName} 的${message}`);
         return;
       }
       const message = error instanceof Error ? error.message : String(error);
+      const elapsed = timer.elapsedText();
       session.setPreflight(undefined);
       this.sessionPresenter.publishControls(session);
-      this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message: `预检失败：${message}` });
-      ctx.log(`[Codegen][Preflight][error] preflight.failed：${message}；json=${session.identity.fsPath}`);
-      this.publish(ctx, `预检失败：${message}`, "error");
+      this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message: `预检失败：${message}；耗时 ${elapsed}。` });
+      ctx.log(`[Codegen][Preflight][error] preflight.failed：${message}；耗时 ${elapsed}；json=${session.identity.fsPath}`);
+      this.publish(ctx, `预检失败：${message}；耗时 ${elapsed}。`, "error");
     } finally {
       if (this.preflightTasks.get(session.identity.uri) === cancellation) {
         this.preflightTasks.delete(session.identity.uri);
@@ -906,21 +958,23 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     }
   }
 
-  private async apply(session: KtcCodegenDocumentModel, ctx: ToolRunContext): Promise<void> {
+  private async apply(
+    session: KtcCodegenDocumentModel,
+    ctx: ToolRunContext,
+    timer: KtcCodegenOperationTimer = ktcStartCodegenOperationTimer(),
+  ): Promise<void> {
     const preflight = session.preflight;
     if (!preflight) {
-      const message = "自动预检没有产生可用计划，未修改源码。";
+      const message = `自动预检没有产生可用计划，未修改源码；耗时 ${timer.elapsedText()}。`;
       ctx.log(`[Codegen][Apply][error] apply.preflight-missing：${message}；json=${session.identity.fsPath}`);
       this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message });
       this.publish(ctx, message, "error");
       return;
     }
     const plan = preflight.plan;
-    ctx.log(`[Codegen][Apply] ${session.identity.fsPath}`);
-    ctx.log(`[Codegen][Apply] cache=${preflight.cachePath}；created=${preflight.createdAt}；reused=${preflight.reused}`);
-    for (const line of ktcCodegenApplyPlanLogs(plan)) ctx.log(line);
     if (!plan.canApply) {
-      const message = "当前计划包含错误或没有可应用产物；未修改源码。";
+      const message = `当前计划包含错误或没有可应用产物，未修改源码；耗时 ${timer.elapsedText()}。`;
+      ctx.log(`[Codegen][Apply] ${message}`);
       this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message });
       this.problemReporter?.publish(session.identity.uri, session.identity.fsPath, plan.diagnostics);
       this.publish(ctx, message, "error");
@@ -983,7 +1037,6 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
           continue;
         }
         sources.push({ path, raw, decoded });
-        ctx.log(`[Codegen][Apply][Source] 已复读 ${path}；encoding=${decoded.encoding}；eol=${decoded.eol}；bytes=${raw.byteLength}`);
       } catch (error) {
         applyDiagnostics.push(this.applyDiagnostic(
           "apply.source-read-failed",
@@ -1006,7 +1059,8 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
         ctx.log(ktcCodegenApplyDiagnosticLog(diagnostic));
       }
       this.problemReporter?.publish(session.identity.uri, session.identity.fsPath, diagnostics);
-      const message = `Apply 已阻止：${projection.diagnostics.length} 个问题；未修改源码。`;
+      const message = `Apply 已阻止：${projection.diagnostics.length} 个问题，未修改源码；耗时 ${timer.elapsedText()}。`;
+      ctx.log(`[Codegen][Apply] ${message}`);
       this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message });
       this.publish(ctx, message, "error");
       return;
@@ -1035,7 +1089,6 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
           regionCount: change.regionCount,
           regions: change.regions,
         });
-        ctx.log(`[Codegen][Apply][Write] 已准备 ${change.path}；regions=${change.regionCount}；before=${source.raw.byteLength} bytes`);
       }
     } catch (error) {
       const diagnostic = this.applyDiagnostic(
@@ -1043,9 +1096,12 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
         error instanceof Error ? error.message : String(error),
       );
       this.problemReporter?.publish(session.identity.uri, session.identity.fsPath, [...diagnostics, diagnostic]);
-      this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message: diagnostic.message });
+      const elapsed = timer.elapsedText();
+      const message = `${diagnostic.message}；耗时 ${elapsed}。`;
+      this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message });
       ctx.log(ktcCodegenApplyDiagnosticLog(diagnostic));
-      this.publish(ctx, `Apply 编码失败：${diagnostic.message}`, "error");
+      ctx.log(`[Codegen][Apply] Apply 编码失败；耗时 ${elapsed}。`);
+      this.publish(ctx, `Apply 编码失败：${message}`, "error");
       return;
     }
 
@@ -1077,21 +1133,21 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
         concurrent ? String(commit.error.target) : commit.rollbackFailures[0],
       );
       this.problemReporter?.publish(session.identity.uri, session.identity.fsPath, [...diagnostics, diagnostic]);
-      this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message });
+      const timedMessage = `${message}；耗时 ${timer.elapsedText()}。`;
+      this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message: timedMessage });
       ctx.log(ktcCodegenApplyDiagnosticLog(diagnostic));
       for (const path of commit.rollbackFailures) {
         ctx.log(`[Codegen][Apply][error] apply.rollback-failed：回滚失败，请用 Git 检查；file=${path}`);
       }
-      this.publish(ctx, message, "error");
+      ctx.log(`[Codegen][Apply] ${timedMessage}`);
+      this.publish(ctx, timedMessage, "error");
       return;
     }
 
     for (const write of writes) {
-      ctx.log(`[Codegen][Apply] 已修改 ${write.path}；${write.regionCount} 个区域；${write.after.length} bytes`);
-      for (const region of write.regions) ctx.log(ktcCodegenAppliedRegionLog(write.path, region));
+      ctx.log(ktcCodegenAppliedFileLog(write.path, write.regionCount));
     }
     const receiptDiagnostics: KtCodegenDiagnostic[] = [];
-    let receiptPath: string | undefined;
     if (writes.length && workspaceRoot) {
       try {
         const documentPath = ktcCodegenReceiptWorkspacePath(workspaceRoot, session.identity.fsPath);
@@ -1118,7 +1174,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
           preflightCreatedAt: preflight.createdAt,
           files: receiptFiles,
         });
-        receiptPath = await ktcWriteCodegenApplyReceipt({
+        await ktcWriteCodegenApplyReceipt({
           createDirectory: (path) => vscode.workspace.fs.createDirectory(vscode.Uri.file(path)),
           writeFile: (path, content) => vscode.workspace.fs.writeFile(vscode.Uri.file(path), content),
           rename: (source, target) => vscode.workspace.fs.rename(
@@ -1128,7 +1184,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
           ),
           deleteFile: (path) => vscode.workspace.fs.delete(vscode.Uri.file(path)),
         }, workspaceRoot, preflight.cachePath, receipt);
-        ctx.log(`[Codegen][Apply][Receipt] 已验证并写入 ${receiptPath}；files=${receipt.fileCount}；regions=${receipt.regionCount}`);
+        ctx.log(ktcCodegenApplyReceiptLog(receipt.fileCount, receipt.regionCount));
       } catch (error) {
         const warning = this.applyDiagnostic(
           "apply.receipt-write-failed",
@@ -1144,11 +1200,14 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     this.sessionPresenter.publishControls(session);
     this.problemReporter?.publish(session.identity.uri, session.identity.fsPath, [...plan.diagnostics, ...receiptDiagnostics]);
     const regionCount = writes.reduce((total, write) => total + write.regionCount, 0);
-    const message = receiptDiagnostics.length
-      ? `Apply 完成：已修改 ${writes.length} 个文件、${regionCount} 个区域；回执缓存失败，请查看 Problems。`
-      : writes.length
-        ? `Apply 完成：已修改 ${writes.length} 个文件、${regionCount} 个区域；回执 ${receiptPath ?? "未生成"}。`
-      : "Apply 完成：生成结果与源码一致，没有需要写入的变化。";
+    const elapsed = timer.elapsedText();
+    const message = ktcCodegenApplySummary({
+      fileCount: writes.length,
+      regionCount,
+      receiptFailed: receiptDiagnostics.length > 0,
+      elapsed,
+    });
+    ctx.log(`[Codegen][Apply] ${message}`);
     this.sessionPresenter.post(session, { type: "codegenStatus", status: "idle", message });
     this.publish(ctx, message);
   }
