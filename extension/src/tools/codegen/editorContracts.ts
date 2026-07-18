@@ -44,7 +44,20 @@ export type KtcCodegenControlMessage =
       readonly type: "codegenControlOutput";
       readonly toolId: "codegen";
       readonly uri: string;
-      readonly scope: "all" | "block";
+      readonly scope: "all";
+    }
+  | {
+      readonly type: "codegenControlOutput";
+      readonly toolId: "codegen";
+      readonly uri: string;
+      readonly scope: "visible";
+      readonly blockKeys: readonly KtCodegenBlockKey[];
+    }
+  | {
+      readonly type: "codegenControlOutput";
+      readonly toolId: "codegen";
+      readonly uri: string;
+      readonly scope: "block";
       readonly blockKey?: KtCodegenBlockKey;
     }
   | {

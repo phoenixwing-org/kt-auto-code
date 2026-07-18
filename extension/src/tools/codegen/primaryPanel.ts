@@ -121,10 +121,10 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
     controls.open = true;
     controls.hidden = !active || !model.controls;
     controls.append(this.summary("控制符目录", "会话级"));
-    const catalog = document.createElement("ktc-codegen-control-catalog");
-    catalog.setAttribute("mode", "compact");
-    catalog.model = model.controls;
-    controls.append(catalog);
+    const controlPanel = document.createElement("ktc-codegen-control-panel");
+    controlPanel.setAttribute("mode", "compact");
+    controlPanel.model = model.controls;
+    controls.append(controlPanel);
 
     const documents = document.createElement("details");
     documents.className = "mini";

@@ -61,9 +61,12 @@ for (const artifact of artifacts) {
     }
     const controlCatalogBundle = readText(zip, "extension/dist/codegen-control-catalog.js");
     if (!controlCatalogBundle.includes("ktc-codegen-control-catalog")
+        || !controlCatalogBundle.includes("ktc-codegen-control-panel")
         || !controlCatalogBundle.includes("ktc-codegen-control-selection-change")
+        || !controlCatalogBundle.includes('{ scope: "visible", blockKeys:')
+        || !controlCatalogBundle.includes("overflow-y: scroll")
         || controlCatalogBundle.includes("acquireVsCodeApi")) {
-      throw new Error("Code VSIX is missing the UI-neutral Codegen control catalog custom element");
+      throw new Error("Code VSIX is missing the UI-neutral shared Codegen control panel custom elements");
     }
     const primaryPanelBundle = readText(zip, "extension/dist/codegen-primary-panel.js");
     if (!primaryPanelBundle.includes("ktc-codegen-primary-panel")

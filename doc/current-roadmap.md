@@ -27,22 +27,23 @@ Owner：KT Auto Code maintainers
 
 来源：旧 VB 程序可以输出全部控制文本，供新建源码尚无控制符时手工复制，也可用于排查“为什么 Apply 写不进去”。该能力作为显式辅助功能恢复，但不能把正常的未命中重新变成 warning。
 
-实现状态（2026-07-18）：Auto 内部 `ktc-codegen-control-catalog` 已由 Primary `compact` 与 JSON View `full` 两处消费；Host session 是选择、单选与“显示缺失模板”的唯一真源。单项/全部日志由纯 formatter 调用 Wing `KtCodegenMarker` 生成，组件只派发 CustomEvent。控制符 DTO、ViewModel 与消息状态机已经从 `index.ts` 提炼到 UI-neutral `controlViewModel.ts` / `controlSessionController.ts`，总 Controller 只保留 Host 导航、日志和发布适配。随后 Primary 整体页面壳进入独立 `ktc-codegen-primary-panel`，Sidebar 只投影状态并转发语义事件；JSON View 的专属消息契约、纯路由和 Editor session Presenter 也已从全工具 `types.ts` / 总 Controller 分离。全仓 396 项测试、118 源文件、22 个纯依赖图、9 个 View 根、Extension typecheck、四个发布 bundle 与 VSIX 制品检查已通过；真实 Extension Host 的点击与日志视觉回执保留到本大型 UI 目标的联合验收波次。
+实现状态（2026-07-18）：Auto 内部高层 `ktc-codegen-control-panel` 已由 Primary `compact` 与 JSON View `full` 两处消费，内部只保留一个 `ktc-codegen-control-catalog`；full 形态才装配 View 专属预检结果。Host session 是选择、单选与“展开缺失模板”的唯一真源，命中/未命中/已选/类型范围属于各 Webview 的本地显示筛选。单项和“输出筛选并复制”只发送结构化语义命令，Host 校验可见 blockKeys、按 legacy 顺序去重，再用当前 session 的 Wing Analyze/Renderer 生成真实完整 artifact。控制符 DTO、ViewModel 与消息状态机已经从 `index.ts` 提炼到 UI-neutral `controlViewModel.ts` / `controlSessionController.ts`，总 Controller 只保留 Host 导航、日志、剪贴板和发布适配。
 
 ### 交互决定
 
-- 控制符工具栏增加会话级 checkbox：`显示缺失模板`，默认关闭，不写入 Codegen JSON，也不作为全局设置。checkbox 只表达持续显示状态，不承担一次性日志命令。
+- 控制符工具栏增加会话级 checkbox：`展开缺失模板`，默认关闭，不写入 Codegen JSON，也不作为全局设置。checkbox 只表达持续显示状态，不承担一次性日志命令。
 - 勾选后只在当前活动 JSON 中，为“已选且预检未命中”的控制符展开精确 Start/End；已命中项继续显示命中数量和源码定位，不重复展开模板。
-- 工具栏另设按钮：`全部输出到日志`。这是显式、无副作用的一次性动作，直接输出当前 Param 的 32 个 legacy block × 去重 classId；不要求用户先改变选择预设，也不依赖预检成功。
-- 每个控制符行增加 Output 图标按钮，tooltip/aria-label 为“输出〈友好标题〉控制符模板到日志”；它只输出该 block × 当前 Param 的去重 classId，并自动显示既有 `KT Auto Code` Output Channel。
+- 高频第一行只做显示筛选：状态为命中/未命中/已选/全部，范围为全部类型/C++ only/Field Code；筛选不得修改 Preflight/Apply checkbox。
+- 工具栏主动作是 `输出筛选并复制 (N)`：只输出当前可见 block，不要求用户先改勾选范围。全选、全不选、选中/取消当前筛选和单选收进低频“选择工具”。
+- 每个控制符行使用一个 `⧉` 动作按钮，tooltip/aria-label 明确“输出〈友好标题〉控制块到日志并复制可粘贴源码”；它只处理该 block × 当前 Param 的去重 classId，并自动显示既有 `KT Auto Code` Output Channel。
 - 行首现有 checkbox 继续只表示“是否参与 Preflight/Apply”，不能复用成日志范围；选择状态、缺失模板显示状态和日志动作三种语义保持分离。
-- Output 文本可直接选择复制；若体验需要，可在 Output 后提供统一“复制本次输出”命令，但不在每行再堆第二个复制图标。
+- 日志保留带 legacyId/blockKey/classId 的诊断标题；剪贴板只保留源码块。单项行不再堆第二个复制图标，`⧉` 同时完成两件事。
 - 首版不自动插入源码、不猜测插入位置、不生成工作区 `.txt` 文件。将来若做自动插入，必须另有 target/anchor 契约、diff 预览和单独确认，不能复用本 TODO 暗中写盘。
 
 ### 两处消费与 Web Component 决定
 
-- Primary 原本只有工作区级候选源码列表，完整控制符目录只在 JSON View。当前已把共享目录/动作抽为 Auto Code 内部 Web Component `ktc-codegen-control-catalog`；JSON View 继续在外层装配预检结果、诊断和 Artifact 预览，暂不额外引入没有第二个消费者的组合组件。
-- Primary 使用 `compact` 形态消费 catalog：显示预设、选择、缺失模板 checkbox、全部日志按钮和单项日志图标；JSON View 使用 `full` 形态消费同一 catalog，并保留右侧预检/诊断/预览区域。两处不得复制 32 项 DOM、样式和事件逻辑。
+- Primary 与 JSON View 都消费高层 `ktc-codegen-control-panel`。Primary 使用 `compact`，只显示共享 catalog；JSON View 使用 `full`，在同一组件内组合 catalog 与预检/诊断/Artifact 预览。
+- catalog 实例在切换右侧命中/问题/全部时保持复用，不能重置左侧本地筛选。两处不得复制 32 项 DOM、样式和事件逻辑。
 - 两个 Webview 位于不同 Realm，不能共享组件实例。Host 的 `kt.codegen.control-view-model` / 文档 session 仍是状态真源；任一处改变选择或显示状态后由 Host 更新 session 并广播新快照，另一处同步刷新。
 - Web Component 只接收结构化 model/property，并派发标准 `CustomEvent`（选择、显示缺失、输出全部、输出单项、定位）；Primary/View 的薄 wrapper 再映射为 VS Code `postMessage`。组件不得直接调用 `acquireVsCodeApi()`、Output Channel、clipboard 或文件系统。
 - 先在 Auto Code 内部落地，因为当前只是同一产品的两个消费位置。只有 Desk Tools 成为第二个产品消费者、DTO 和交互稳定后，才评估迁入 Wing browser 子路径；不能因为“用了 Web Component”就提前变成公共 API。
@@ -50,17 +51,27 @@ Owner：KT Auto Code maintainers
 ### 文本与数据真源
 
 - Start/End 必须调用 Registry `@phoenix-wing/kt-codegen@0.4.2` 的 `KtCodegenMarker.createStart()` / `createEnd()`，class identity 使用当前 `KtCodegenParam` 的 Prefix/Middle 与各行 `NameSuffix`；前端不得硬编码 Kevin marker 文本。
+- Primary compact 与 JSON View full 的单项/当前筛选日志动作共用同一规则：当前 JSON 已打开且 Host session 存在时，必须用该 session 的共享 `KtCodegenController` 调用 Wing Analyze/Renderer，输出包含真实参数生成代码的完整 artifact；只有没有打开 session/controller 时才允许退化为仅含 Start/End 的空框架。两处不得分别拼接正文。
+- JSON View 的输出按钮必须先交换当前整表草稿、再发送与 Primary 相同的 `codegenControlOutput` 语义命令；Extension Host 依消息顺序更新 session 后统一生成并写日志，Webview 不直接拼接或持有日志实现。Primary 直接使用 Host 中同一 session，View 是否显示不改变日志服务边界。
+- 单项和当前筛选输出同时复制可直接粘贴的源码块：剪贴板不得包含 `[Codegen]` 摘要或 `# legacyId` 标题；真实 artifact 沿用 Wing Renderer 的空行与 `clang-format off/on`，无 session 的空框架必须保持 `Start → 空行 → clang-format off → 空行 → #error \"Run KT Auto Code Apply to generate this block\" → 空行 → clang-format on → End`。显式 `#error` 防止首次布点后忘记执行 Apply 却静默编译通过，Apply 替换整个 marker 区域后自然消失。剪贴板由 Extension Host 写入，Webview 不直接访问 Clipboard API。
 - 输出按 legacyId/blockKey → classId 稳定排序；每组包含友好标题、block key、classId、建议 target（若 Analyze artifact 可确定）、当前命中状态和两行可直接复制的标记。
 - 同一 `(blockKey, classId)` 去重。没有有效参数行或协议不兼容时输出结构化原因；没有 artifact 只表示 target 暂不可建议，仍可输出由 Wing 生成的合法 Start/End，满足首次手工布点场景。
 - 普通 Preflight/Apply 日志继续只显示“已找到 X 个已选控制符，共 Y 个区域”；checkbox 关闭时不得输出缺失列表，也不得发布 `marker.not-found` Problem。
 
 ### 验收门禁
 
-- 纯 formatter 测试覆盖：缺失/已命中混合、多个 `NameSuffix`、重复 classId、无 artifact、稳定 legacy 顺序和 Windows/Unix 换行显示；全部动作必须覆盖 32 个 legacy block key，单项动作不得泄漏其它 block。
+- 纯 formatter 测试覆盖：缺失/已命中混合、多个 `NameSuffix`、重复 classId、无 artifact、稳定 legacy 顺序和 Windows/Unix 换行显示；全量底层能力必须覆盖 32 个 legacy block key，当前筛选/单项动作不得泄漏其它 block。
 - 同一 Web Component characterization tests 必须分别挂载 `compact` / `full`，证明两处按钮、checkbox、键盘、tooltip/aria-label 与 CustomEvent payload 一致；不再分别对两份手写 DOM 做字符串断言。
-- Webview 消息只传结构化模板 DTO；Output/clipboard 属于 Extension Host adapter，Wing 不依赖 VS Code API。
-- Extension Host smoke 至少验证：默认无噪声、勾选只展示已选缺失项、单项/全部 Output 范围正确、Primary 改状态后 View 同步、关闭后恢复简洁日志，以及全部动作覆盖 32 个 legacy block key。
+- Webview 消息只传结构化语义命令；Output/clipboard 属于 Extension Host adapter，Wing 不依赖 VS Code API。
+- Extension Host smoke 至少验证：默认无噪声、勾选只展示已选缺失项、单项/当前筛选 Output 范围正确、Primary 改状态后 View 同步、关闭后恢复简洁日志，以及底层全量能力覆盖 32 个 legacy block key。
 - 文档与手工验收说明必须明确：这是首次布点/诊断工具，不代表 Apply 可以在没有 Start/End 配对时自动写入。
+
+### UI Bug 收口
+
+- [x] JSON View `full` 左目录与右结果都有独立、可见的纵向滚动边界。Browser 实测先复现两侧 `clientHeight=0`，最终定位为 `<details>` 内容盒不参与普通 flex 剩余高度分配；面板改为在 34px summary 下用 top/bottom 确定高度。
+- [x] 窄窗口进入上下布局后，抽屉保留 540px 可用高度并交给页面整体滚动，不再把两个内部列表压成零高度。760×480 与 560×420 下页面 `scrollHeight=766`，两区均为 252px。
+- [x] 预检完成后左目录和右结果默认只显示命中；显示筛选与 Preflight/Apply 勾选语义拆开，输出只处理当前筛选。
+- [ ] 深色、浅色、高对比真实 VS Code 中的滚轮、滚动条 thumb 和 Artifact 横向滚动仍由用户/真实宿主回执；详见 `codegen-plan/Codegen控制面板滚动筛选点检表.md` D 组。
 
 ## 已完成第二个切口：Primary Codegen 页面壳
 
@@ -85,6 +96,28 @@ Owner：KT Auto Code maintainers
 - Presenter characterization tests 使用 fake port 验证 show、document state、model/problems、controls 和普通 Editor message 的输出次序与 payload，不需要启动 VS Code 或读取文件。
 - `Codegen/index.ts` 从本切口前 1,460 行降到 **1,418** 行；全仓 82 个测试文件、396 项测试通过，架构门禁为 118 个生产源文件、22 个 pure graph、9 个 View root。
 - 本地 VSIX 仍为 28 个文件、414,940 字节，发布 bundle 和产物门禁通过。
+
+## 已完成第五个切口：真实控制块日志与剪贴板
+
+- Primary compact 与 JSON View full 继续只派发同一个 `codegenControlOutput`；共享 `controlSessionController` 用 Host 当前文档 session 调用 Wing Analyze/Renderer，日志正文不再只是相邻的 Start/End。
+- JSON View 点击输出前先交换仍在 600ms 防抖窗口内的整表草稿，再发输出命令；Host 按同一消息通道接收最新 table 后生成，View 不持有第二套 Renderer 或日志实现。
+- 单项与筛选输出动作同时写入 Output 与系统剪贴板。日志保留定位标题，剪贴板仅含可粘贴源码；无 session 的空框架包含真实空行、`clang-format off/on` 和显式 `#error`，防止忘记 Apply 后静默编译通过。
+- 定向行为测试为 5 个文件、38 项，包含全部 32 个 legacy block 均产生真实 Renderer artifact 的断言；全仓为 82 个文件、398 项。Extension typecheck、118/22/9 架构边界、Registry Wing 0.4.2 依赖门禁、57 份 Markdown 分类/链接均通过。
+- 当轮本地 `kt-auto-code-0.5.0.vsix` 为 28 个文件、415,786 字节，产物门禁通过；滚动问题随后由第六个切口独立治理。
+
+## 已完成第六个切口：控制面板筛选与三层滚动
+
+- 新增高层 `ktc-codegen-control-panel`：Primary compact 和 JSON View full 共用同一组件；catalog 负责显示筛选、选择和输出，full 外层只负责 View 专属的命中/问题/Artifact。
+- 显示筛选与 Apply 勾选彻底分开。预检前默认已选，预检后左右默认命中；当前筛选输出携带可见 blockKeys，Host 过滤非法 key、去重并恢复 legacy 顺序。
+- 页面、左目录、右结果建立三层滚动边界。Browser localhost 夹具首次实测复现左右 `clientHeight=0`，根因是 `<details>` 内容盒不参与 flex 剩余高度；用相对抽屉和 `inset: 34px 0 0` 后，四组尺寸均获得非零内部滚动高度。
+- 760×480 与 560×420 自动切换上下布局，面板维持 504px、两区各 252px，页面 `scrollHeight=766`，不再把内部列表压平。深色/浅色/高对比真实 VS Code 视觉回执仍保留给用户。
+- 门禁结果：83 个测试文件、405 项测试；119 个生产源文件、22 个 pure graph、9 个 View root；58 份 Markdown；7 个 Wing Registry 0.4.2 引用；VSIX 28 个文件、422,617 字节。
+
+## 已完成第七个切口：自动代码入口视觉一致性
+
+- Primary Ribbon 不再把 `codegen` 缩写为容易与普通生成动作混淆的“生成”，入口统一显示产品名“自动代码”；工具对象、手工验收文档和 Desk Tools 保持同一名称。
+- Auto Code 的表格旧图标替换为 Desk Tools `kt_codegen` 已使用的 Element Plus `Operation` 图标路径，继续通过 `currentColor` 适配 VS Code 主题。
+- 图标来源与完整 MIT 许可进入扩展 `NOTICE`；契约测试同时锁定中文名称、Operation 路径特征和旧图标退出，避免两端随后再次漂移。
 
 ## 已合并的旧路线
 

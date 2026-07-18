@@ -3,6 +3,17 @@ import { readFileSync } from "node:fs";
 import { getPanelHtml, ktcNextReorderSelection, ktcSearchReplaceButtonState } from "./panelHtml.js";
 
 describe("sidebar panel HTML", () => {
+  it("与 Desk Tools 共用自动代码名称和 Operation 图标语义", () => {
+    const source = readFileSync(new URL("./panelHtml.ts", import.meta.url), "utf8");
+    const icon = readFileSync(new URL("../../media/tools/codegen.svg", import.meta.url), "utf8");
+
+    expect(source).toContain('codegen: "自动代码"');
+    expect(source).not.toContain('codegen: "生成"');
+    expect(icon).toContain('viewBox="0 0 1024 1024"');
+    expect(icon).toContain("M389.44 768a96.064 96.064");
+    expect(icon).not.toContain("M4 3h16");
+  });
+
   it("使用统一关联规则对话框而不是多套 Quick Pick 消息", () => {
     const extensionUri = {
       path: "/extension",

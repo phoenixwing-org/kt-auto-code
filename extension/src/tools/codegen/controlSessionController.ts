@@ -11,7 +11,9 @@ import type {
 } from "./controlViewModel.js";
 import type { KtcCodegenDocumentModel } from "./documentModel.js";
 import {
+  ktcCodegenControlTemplateClipboardText,
   ktcCodegenControlTemplateLogLines,
+  ktcCodegenControlTemplatesForOutput,
   ktcCodegenControlTemplates,
   ktcCodegenMissingControlTemplates,
 } from "./controlTemplates.js";
@@ -25,7 +27,16 @@ export type KtcCodegenControlCommand =
   | { readonly type: "codegenControlDisplay"; readonly showMissingTemplates: boolean }
   | {
       readonly type: "codegenControlOutput";
-      readonly scope: "all" | "block";
+      readonly scope: "all";
+    }
+  | {
+      readonly type: "codegenControlOutput";
+      readonly scope: "visible";
+      readonly blockKeys: readonly KtCodegenBlockKey[];
+    }
+  | {
+      readonly type: "codegenControlOutput";
+      readonly scope: "block";
       readonly blockKey?: KtCodegenBlockKey;
     };
 
@@ -34,6 +45,8 @@ export interface KtcCodegenControlCommandResult {
   readonly statusMessage?: string;
   readonly editorStatusMessage?: string;
   readonly logLines?: readonly string[];
+  /** 可直接粘贴的源码块；由 Host adapter 写入系统剪贴板。 */
+  readonly clipboardText?: string;
 }
 
 const PRESENTATION_BY_KEY = new Map(
@@ -50,12 +63,35 @@ const CONTROL_BLOCKS = KT_CODEGEN_LEGACY_BLOCKS.map((block) => ({
 /** UI-neutral 的控制符会话投影与命令状态机；不访问 VS Code、DOM、Output 或文件。 */
 export class KtcCodegenControlSessionController {
   catalogModel(session: KtcCodegenDocumentModel): KtcCodegenControlCatalogViewModel {
+    const selected = new Set(session.selectedBlockKeys);
+    const hitCount = new Map<KtCodegenBlockKey, number>();
+    const artifactCount = new Map<KtCodegenBlockKey, number>();
+    for (const region of session.preflight?.plan.markerRegions ?? []) {
+      hitCount.set(region.blockKey, (hitCount.get(region.blockKey) ?? 0) + 1);
+    }
+    for (const artifact of session.preflight?.plan.artifacts ?? []) {
+      artifactCount.set(artifact.blockKey, (artifactCount.get(artifact.blockKey) ?? 0) + 1);
+    }
     return {
       kind: "kt.codegen.control-view-model",
       schemaVersion: 1,
       uri: session.identity.uri,
       fileName: session.identity.fileName,
-      blocks: CONTROL_BLOCKS,
+      blocks: CONTROL_BLOCKS.map((block) => {
+        const blockHitCount = hitCount.get(block.key) ?? 0;
+        return {
+          ...block,
+          status: !selected.has(block.key)
+            ? "unselected" as const
+            : !session.preflight
+              ? "pending" as const
+              : blockHitCount > 0
+                ? "hit" as const
+                : "missing" as const,
+          hitCount: blockHitCount,
+          artifactCount: artifactCount.get(block.key) ?? 0,
+        };
+      }),
       selectedBlockKeys: session.selectedBlockKeys,
       singleSelectionMode: session.singleSelectionMode,
       showMissingTemplates: session.showMissingTemplates,
@@ -104,17 +140,35 @@ export class KtcCodegenControlSessionController {
     }
 
     if (command.type === "codegenControlOutput") {
+      const requested = command.scope === "visible"
+        ? new Set(command.blockKeys.filter(ktCodegenIsBlockKey))
+        : undefined;
       const blockKeys = command.scope === "block" && command.blockKey && ktCodegenIsBlockKey(command.blockKey)
         ? [command.blockKey]
         : command.scope === "all"
           ? KT_CODEGEN_LEGACY_BLOCKS.map((block) => block.key)
-          : [];
-      const templates = ktcCodegenControlTemplates(session.controller.param, blockKeys);
+          : requested
+            ? KT_CODEGEN_LEGACY_BLOCKS.filter((block) => requested.has(block.key)).map((block) => block.key)
+            : [];
+      if (command.scope === "visible" && !blockKeys.length) {
+        return {
+          modelChanged: false,
+          logLines: [`[Codegen][ControlTemplates][info] filter.empty：当前筛选没有可输出的控制符；json=${session.identity.fileName}`],
+          statusMessage: "当前筛选没有可输出的控制符。",
+        };
+      }
+      const templates = ktcCodegenControlTemplatesForOutput(
+        session.controller.param,
+        blockKeys,
+        session.controller,
+      );
+      const renderedCount = templates.filter((template) => Boolean(template.content)).length;
       return {
         modelChanged: false,
         logLines: ktcCodegenControlTemplateLogLines(session.identity.fileName, command.scope, templates),
+        clipboardText: ktcCodegenControlTemplateClipboardText(templates) || undefined,
         statusMessage: templates.length
-          ? `已输出 ${templates.length} 组控制符模板到 KT Auto Code 日志。`
+          ? `已输出 ${templates.length} 组控制符到 KT Auto Code 日志，其中 ${renderedCount} 组使用当前 JSON 真实生成内容。`
           : "当前参数表没有可输出的 classId，说明已写入 KT Auto Code 日志。",
       };
     }

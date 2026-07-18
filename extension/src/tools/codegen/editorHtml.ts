@@ -38,12 +38,20 @@ export function getCodegenEditorHtml(
       display: flex;
       flex-direction: column;
       gap: 8px;
-      overflow: hidden;
+      overflow-x: hidden;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+      scrollbar-color: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, .7)) transparent;
       padding: 8px;
       color: var(--vscode-foreground);
       background: var(--vscode-editor-background);
       font: 13px/1.35 var(--vscode-font-family);
     }
+    body::-webkit-scrollbar { width: 12px; height: 12px; }
+    body::-webkit-scrollbar-track { background: transparent; }
+    body::-webkit-scrollbar-thumb { min-height: 28px; background: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, .7)); border: 3px solid transparent; border-radius: 999px; background-clip: padding-box; }
+    body::-webkit-scrollbar-thumb:hover { background-color: var(--vscode-scrollbarSlider-hoverBackground, rgba(100, 100, 100, .9)); }
     button {
       min-height: 27px;
       padding: 3px 10px;
@@ -84,6 +92,7 @@ export function getCodegenEditorHtml(
     .separator { width: 1px; height: 22px; margin: 0 2px; background: var(--vscode-panel-border); }
     kt-codegen-table { flex: 1 1 auto; min-height: 120px; }
     .control-drawer {
+      position: relative;
       flex: 0 0 auto;
       overflow: hidden;
       border: 1px solid var(--vscode-panel-border);
@@ -93,7 +102,7 @@ export function getCodegenEditorHtml(
     .control-drawer[open] {
       display: flex;
       height: min(44vh, 460px);
-      min-height: min(230px, 44vh);
+      min-height: 230px;
       flex-direction: column;
     }
     .control-drawer > summary {
@@ -113,84 +122,15 @@ export function getCodegenEditorHtml(
     .control-drawer[open] > summary::before { transform: rotate(90deg); }
     .control-summary-title { color: var(--vscode-foreground); font-weight: 650; }
     .control-summary-meta { margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
-    .control-grid {
-      display: grid;
-      flex: 1 1 auto;
-      grid-template-columns: minmax(280px, 42%) minmax(360px, 58%);
-      min-height: 0;
-      overflow: hidden;
-    }
-    .control-section {
-      display: flex;
-      min-width: 0;
-      min-height: 0;
-      overflow: hidden;
-      flex-direction: column;
-    }
-    .control-catalog { border-right: 1px solid var(--vscode-panel-border); }
-    .control-catalog ktc-codegen-control-catalog { flex: 1 1 auto; min-height: 0; overflow: hidden; }
-    .control-scroll-region {
-      flex: 1 1 auto;
-      min-width: 0;
-      min-height: 0;
-      overflow-x: auto;
-      overflow-y: scroll;
-      overscroll-behavior: contain;
-      scrollbar-gutter: stable both-edges;
-    }
-    .control-scroll-region:focus-visible {
-      outline: 1px solid var(--vscode-focusBorder);
-      outline-offset: -1px;
-    }
-    .control-results-content { min-width: 520px; }
-    .section-title {
-      position: sticky;
-      z-index: 3;
-      top: 0;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      min-height: 31px;
-      padding: 5px 9px;
-      color: var(--vscode-descriptionForeground);
-      background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
-      border-bottom: 1px solid var(--vscode-panel-border);
-      font-size: 11px;
-      font-weight: 650;
-    }
-    .hit:hover, .diagnostic:hover { background: var(--vscode-list-hoverBackground); }
-    .preflight-summary { padding: 8px 9px; color: var(--vscode-descriptionForeground); border-bottom: 1px solid var(--vscode-panel-border); }
-    .hit {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 3px 8px;
-      padding: 7px 9px;
-      border-bottom: 1px solid var(--vscode-panel-border);
-      cursor: pointer;
-    }
-    .hit:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
-    .hit strong, .hit span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .hit span { color: var(--vscode-descriptionForeground); font-size: 11px; }
-    .diagnostic {
+    /* details 的内容盒不是普通 flex 子项；用 top/bottom 建立确定高度。 */
+    .control-drawer[open] > ktc-codegen-control-panel {
+      position: absolute;
+      inset: 34px 0 0;
       display: block;
-      width: calc(100% - 16px);
       height: auto;
-      margin: 6px 8px;
-      padding: 7px 9px;
-      color: var(--vscode-foreground);
-      background: var(--vscode-textBlockQuote-background);
-      border: 0;
-      border-left: 3px solid var(--vscode-editorWarning-foreground);
-      border-radius: 2px;
-      text-align: left;
-      cursor: default;
+      min-height: 0;
+      overflow: hidden;
     }
-    .diagnostic.located { cursor: pointer; }
-    .diagnostic.error { border-left-color: var(--vscode-errorForeground); }
-    .diagnostic-code { display: block; margin-bottom: 2px; font-weight: 650; }
-    .diagnostic-location { display: block; margin-top: 3px; color: var(--vscode-descriptionForeground); font-size: 10px; }
-    .preview { margin: 8px; padding: 9px; overflow: auto; color: var(--vscode-editor-foreground); background: var(--vscode-textCodeBlock-background); border: 1px solid var(--vscode-panel-border); border-radius: 5px; font: 12px/1.45 var(--vscode-editor-font-family); white-space: pre; }
-    .empty { padding: 22px 12px; color: var(--vscode-descriptionForeground); text-align: center; }
     body.vscode-high-contrast kt-codegen-table,
     body.vscode-high-contrast-light kt-codegen-table {
       --pnw-kt-codegen-border: var(--vscode-contrastBorder, var(--vscode-panel-border));
@@ -213,14 +153,11 @@ export function getCodegenEditorHtml(
       .document-title { flex: 1 0 100%; }
       .view-toolbar button { flex: 1 1 auto; }
       .separator { display: none; }
-      .control-drawer[open] { height: min(58vh, 520px); min-height: min(260px, 58vh); }
-      .control-grid {
-        grid-template-columns: 1fr;
-        grid-template-rows: repeat(2, minmax(0, 1fr));
-        overflow: hidden;
-      }
-      .control-section { overflow: hidden; }
-      .control-catalog { border-right: 0; border-bottom: 1px solid var(--vscode-panel-border); }
+      .control-drawer[open] { height: min(58vh, 520px); min-height: 260px; }
+    }
+    @media (max-width: 760px) {
+      /* full 面板会转为上下布局；宁可由 body 滚动，也不把两个列表压成零高度。 */
+      .control-drawer[open] { height: 540px; min-height: 540px; }
     }
   </style>
 </head>
@@ -243,22 +180,7 @@ export function getCodegenEditorHtml(
       <span class="control-summary-title">控制符与预检</span>
       <span class="control-summary-meta" id="control-summary">尚未预检</span>
     </summary>
-    <div class="control-grid">
-      <section class="control-section control-catalog" aria-label="控制符目录">
-        <ktc-codegen-control-catalog id="control-catalog" mode="full"></ktc-codegen-control-catalog>
-      </section>
-      <section class="control-section" aria-label="预检命中、诊断与 Artifact 预览">
-        <div class="section-title"><span>预检命中与问题</span><span id="control-cache-state"></span></div>
-        <div class="control-scroll-region" tabindex="0" aria-label="可滚动的预检结果列表">
-          <div class="control-results-content">
-            <div id="control-preflight-summary" class="preflight-summary" role="status" aria-live="polite"></div>
-            <div id="control-regions"></div>
-            <div id="control-diagnostics"></div>
-            <pre id="control-preview" class="preview" hidden></pre>
-          </div>
-        </div>
-      </section>
-    </div>
+    <ktc-codegen-control-panel id="control-panel" mode="full"></ktc-codegen-control-panel>
   </details>
   <script nonce="${nonce}" src="${tableComponentUri}"></script>
   <script nonce="${nonce}" src="${controlCatalogUri}"></script>
@@ -272,7 +194,7 @@ export function getCodegenEditorHtml(
     const preflight = document.getElementById("preflight");
     const controls = document.getElementById("controls");
     const controlDrawer = document.getElementById("control-drawer");
-    const controlCatalog = document.getElementById("control-catalog");
+    const controlPanel = document.getElementById("control-panel");
     let model = ${model};
     let controlsModel = model.controls;
     let dirtyNotified = !!model.dirty;
@@ -321,110 +243,30 @@ export function getCodegenEditorHtml(
       post({ type: "codegenEditorExchange", action: "sync", model: currentExchangeModel() });
     }
 
-    function renderPreflight() {
-      const summary = document.getElementById("control-preflight-summary");
-      const regions = document.getElementById("control-regions");
-      const diagnostics = document.getElementById("control-diagnostics");
-      const preview = document.getElementById("control-preview");
+    function syncControlSummary() {
       const headerSummary = document.getElementById("control-summary");
-      preview.hidden = true;
       if (!controlsModel.preflight) {
-        document.getElementById("control-cache-state").textContent = "";
         headerSummary.textContent = "尚未预检 · Apply 可自动执行";
-        summary.textContent = "尚未预检。可点击页面上方“预检”，或直接点击 Apply 自动预检并写入源码。";
-        regions.replaceChildren();
-        diagnostics.replaceChildren();
         return;
       }
       const plan = controlsModel.preflight.plan;
       const issueCount = plan.diagnostics.filter((item) => item.severity === "error" || item.severity === "warning").length;
-      document.getElementById("control-cache-state").textContent = controlsModel.preflight.reused ? "缓存" : "新计划";
       headerSummary.textContent = plan.markerRegions.length + " 命中 · " + issueCount + " 问题";
-      summary.textContent = plan.markerRegions.length + " 个区域 · " + plan.artifacts.length
-        + " 个产物 · " + plan.diagnostics.length + " 条诊断";
-      const artifactByRegion = new Map(plan.artifacts.map((artifact) => [artifact.regionId, artifact]));
-      const regionFragment = document.createDocumentFragment();
-      for (const region of plan.markerRegions) {
-        const row = document.createElement("div");
-        row.className = "hit";
-        row.tabIndex = 0;
-        row.setAttribute("role", "button");
-        const title = document.createElement("strong");
-        title.textContent = region.blockKey;
-        const line = document.createElement("span");
-        line.textContent = region.path + ":" + (region.start.line + 1) + " · " + region.classId;
-        const open = document.createElement("button");
-        open.type = "button";
-        open.textContent = "打开";
-        open.onclick = (event) => {
-          event.stopPropagation();
-          post({ type: "codegenControlOpen", path: region.path, line: region.start.line });
-        };
-        const showPreview = () => {
-          const artifact = artifactByRegion.get(region.id);
-          preview.textContent = artifact ? artifact.content : "该区域没有生成 Artifact。";
-          preview.hidden = false;
-        };
-        row.setAttribute("aria-label", "预览 " + region.blockKey + "，" + line.textContent);
-        row.onclick = showPreview;
-        row.onkeydown = (event) => {
-          if (event.key !== "Enter" && event.key !== " ") return;
-          event.preventDefault();
-          showPreview();
-        };
-        row.append(title, open, line);
-        regionFragment.append(row);
-      }
-      if (!plan.markerRegions.length) {
-        const empty = document.createElement("div");
-        empty.className = "empty";
-        empty.textContent = "当前配置与所选控制符没有命中源码区域。";
-        regionFragment.append(empty);
-      }
-      regions.replaceChildren(regionFragment);
-
-      const diagnosticFragment = document.createDocumentFragment();
-      for (const item of plan.diagnostics) {
-        const located = item.path && item.path.file && Number.isInteger(item.path.row);
-        const row = document.createElement(located ? "button" : "div");
-        if (located) row.type = "button";
-        row.className = "diagnostic " + item.severity + (located ? " located" : "");
-        const code = document.createElement("span");
-        code.className = "diagnostic-code";
-        code.textContent = item.severity.toUpperCase() + " · " + item.code;
-        const message = document.createElement("span");
-        message.textContent = item.message;
-        row.append(code, message);
-        if (located) {
-          const location = document.createElement("span");
-          location.className = "diagnostic-location";
-          location.textContent = item.path.file + ":" + (item.path.row + 1);
-          row.append(location);
-          row.title = "打开并定位到问题行";
-          row.onclick = () => post({
-            type: "codegenControlOpen",
-            path: item.path.file,
-            line: item.path.row,
-          });
-        }
-        diagnosticFragment.append(row);
-      }
-      diagnostics.replaceChildren(diagnosticFragment);
     }
 
     function setControlsModel(next) {
       const gainedPreflight = !controlsModel.preflight && !!next.preflight;
       controlsModel = next;
       model.controls = next;
-      controlCatalog.model = controlsModel;
-      renderPreflight();
+      controlPanel.model = controlsModel;
+      syncControlSummary();
       if (gainedPreflight) controlDrawer.open = true;
     }
 
     table.setData(model.table);
     syncHeader();
-    controlCatalog.model = controlsModel;
-    renderPreflight();
+    controlPanel.model = controlsModel;
+    syncControlSummary();
 
     table.addEventListener("kt-codegen-table-dirty-change", (event) => {
       if (event.detail && event.detail.dirty && markDirty(event.detail.itemCount)) exchangeDraft();
@@ -449,7 +291,8 @@ export function getCodegenEditorHtml(
     document.getElementById("apply").onclick = () => post({
       type: "codegenEditorAction", action: "apply", table: table.getData(),
     });
-    controlCatalog.addEventListener("ktc-codegen-control-selection-change", (event) => {
+    controlPanel.addEventListener("ktc-codegen-control-selection-change", (event) => {
+      const selected = new Set(event.detail.blockKeys);
       controlsModel = {
         ...controlsModel,
         selectedBlockKeys: [...event.detail.blockKeys],
@@ -457,23 +300,41 @@ export function getCodegenEditorHtml(
         preflightAvailable: false,
         missingTemplates: [],
         preflight: undefined,
+        blocks: controlsModel.blocks.map((block) => ({
+          ...block,
+          status: selected.has(block.key) ? "pending" : "unselected",
+          hitCount: 0,
+          artifactCount: 0,
+        })),
       };
       model.controls = controlsModel;
-      renderPreflight();
+      controlPanel.model = controlsModel;
+      syncControlSummary();
       post({
         type: "codegenControlSelection",
         blockKeys: [...event.detail.blockKeys],
         singleMode: !!event.detail.singleMode,
       });
     });
-    controlCatalog.addEventListener("ktc-codegen-control-display-change", (event) => post({
+    controlPanel.addEventListener("ktc-codegen-control-display-change", (event) => post({
       type: "codegenControlDisplay",
       showMissingTemplates: !!event.detail.showMissingTemplates,
     }));
-    controlCatalog.addEventListener("ktc-codegen-control-output", (event) => post({
-      type: "codegenControlOutput",
-      scope: event.detail.scope,
-      blockKey: event.detail.blockKey,
+    controlPanel.addEventListener("ktc-codegen-control-output", (event) => {
+      // 同一 Webview 中可能还有 600ms 内尚未交换的整表草稿。先同步再发语义
+      // 输出命令，Extension Host 会按消息顺序用最新 session 统一生成并写日志。
+      exchangeDraft();
+      post({
+        type: "codegenControlOutput",
+        scope: event.detail.scope,
+        blockKey: event.detail.blockKey,
+        blockKeys: event.detail.blockKeys,
+      });
+    });
+    controlPanel.addEventListener("ktc-codegen-control-open", (event) => post({
+      type: "codegenControlOpen",
+      path: event.detail.path,
+      line: event.detail.line,
     }));
 
     document.addEventListener("visibilitychange", () => { if (document.hidden) exchangeDraft(); });

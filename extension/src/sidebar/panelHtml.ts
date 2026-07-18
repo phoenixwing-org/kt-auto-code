@@ -2009,7 +2009,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
             btn.appendChild(icon);
           }
           const label = document.createElement("span");
-          const shortTitles = { headerAscii: "头文件", encodingFix: "编码", ignoreSettings: "忽略", codeRename: "替换", codegen: "生成", reorderMembers: "排序", uuidReplace: "UUID", caaDialog: "CAA", environmentSettings: "环境" };
+          const shortTitles = { headerAscii: "头文件", encodingFix: "编码", ignoreSettings: "忽略", codeRename: "替换", codegen: "自动代码", reorderMembers: "排序", uuidReplace: "UUID", caaDialog: "CAA", environmentSettings: "环境" };
           label.textContent = t.shortTitle || shortTitles[t.id] || t.title;
           btn.appendChild(label);
           const openState = isActive
@@ -2197,6 +2197,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       postCodegenControl("codegenControlOutput", {
         scope: event.detail.scope,
         blockKey: event.detail.blockKey,
+        blockKeys: event.detail.blockKeys,
       });
     });
     els.btnReorderPreview.onclick = () => {

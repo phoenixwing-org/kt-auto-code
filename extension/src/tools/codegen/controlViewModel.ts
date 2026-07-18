@@ -15,6 +15,10 @@ export interface KtcCodegenControlBlockViewModel {
   readonly title: string;
   readonly controlWords: string;
   readonly notes: string;
+  /** 当前 Host session 的预检状态；筛选只消费该投影，不在 Webview 猜测。 */
+  readonly status: "unselected" | "pending" | "hit" | "missing";
+  readonly hitCount: number;
+  readonly artifactCount: number;
 }
 
 /** Primary / JSON View 共用的控制符目录与会话状态投影。 */

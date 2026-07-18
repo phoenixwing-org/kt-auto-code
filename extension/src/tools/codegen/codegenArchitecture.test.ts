@@ -77,16 +77,21 @@ describe("Codegen MVC dependency boundary", () => {
     const editor = source("./editorHtml.ts");
     const sidebar = source("../../sidebar/panelHtml.ts");
     const catalog = source("./controlCatalog.ts");
+    const panel = source("./controlPanel.ts");
     const primary = source("./primaryPanel.ts");
-    expect(editor).toContain('<ktc-codegen-control-catalog id="control-catalog" mode="full">');
+    expect(editor).toContain('<ktc-codegen-control-panel id="control-panel" mode="full">');
     expect(sidebar).toContain('<ktc-codegen-primary-panel id="codegen-panel" hidden>');
-    expect(primary).toContain('catalog.setAttribute("mode", "compact")');
+    expect(primary).toContain('controlPanel.setAttribute("mode", "compact")');
+    expect(panel).toContain('document.createElement("ktc-codegen-control-catalog")');
+    expect(panel).toContain('grid-template-rows: repeat(2, minmax(0, 1fr))');
     expect(editor).not.toContain("function renderBlocks");
+    expect(editor).not.toContain("function renderPreflight");
     expect(sidebar).not.toContain("block.controlWords");
     expect(catalog).toContain("ktc-codegen-control-selection-change");
     expect(catalog).toContain("ktc-codegen-control-display-change");
     expect(catalog).toContain("ktc-codegen-control-output");
     expect(catalog).not.toMatch(/acquireVsCodeApi|from ["']vscode["']|workspace\.fs|clipboard/);
+    expect(panel).not.toMatch(/acquireVsCodeApi|from ["']vscode["']|workspace\.fs|clipboard/);
   });
 
   it("Primary 页面壳拥有 Codegen DOM，Sidebar 只投影状态并转发语义事件", () => {

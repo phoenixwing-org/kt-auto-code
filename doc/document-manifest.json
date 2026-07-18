@@ -283,6 +283,13 @@
       "reason": "阶段评分证据，不代表当前全工程成熟度"
     },
     {
+      "path": "doc/codegen-plan/Codegen控制面板滚动筛选点检表.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
       "path": "doc/codegen-plan/Codegen手工验收.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",

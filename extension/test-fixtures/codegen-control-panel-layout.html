@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Codegen 控制面板布局点检</title>
+  <style>
+    :root {
+      --vscode-foreground: #222;
+      --vscode-descriptionForeground: #666;
+      --vscode-editor-background: #fff;
+      --vscode-sideBar-background: #f6f6f8;
+      --vscode-editorWidget-background: #f7f7fa;
+      --vscode-panel-border: #d7d7dc;
+      --vscode-button-secondaryForeground: #222;
+      --vscode-button-secondaryBackground: #e8e8eb;
+      --vscode-button-secondaryHoverBackground: #ddd;
+      --vscode-button-foreground: #fff;
+      --vscode-button-background: #0875d1;
+      --vscode-list-hoverBackground: #eef4fb;
+      --vscode-scrollbarSlider-background: rgba(80, 80, 80, .72);
+      --vscode-scrollbarSlider-hoverBackground: rgba(55, 55, 55, .9);
+      --vscode-editorWarning-foreground: #9a6700;
+      --vscode-errorForeground: #c62828;
+      --vscode-testing-iconPassed: #16813d;
+      --vscode-textBlockQuote-background: #f4f4f4;
+      --vscode-textCodeBlock-background: #f3f3f5;
+      --vscode-editor-foreground: #222;
+      --vscode-font-family: Arial, sans-serif;
+      --vscode-editor-font-family: monospace;
+      --vscode-focusBorder: #0875d1;
+      color-scheme: light;
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; }
+    body {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow-x: hidden;
+      overflow-y: auto;
+      scrollbar-gutter: stable;
+      padding: 8px;
+      color: var(--vscode-foreground);
+      background: var(--vscode-editor-background);
+      font: 13px/1.35 var(--vscode-font-family);
+    }
+    .view-toolbar {
+      display: flex;
+      flex: 0 0 auto;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      min-height: 42px;
+      padding: 6px 8px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      background: var(--vscode-sideBar-background);
+    }
+    .document-title { flex: 1 1 180px; min-width: 120px; margin-right: auto; }
+    .document-title strong, .document-title span { display: block; }
+    .view-toolbar button { min-height: 27px; }
+    .fake-table {
+      flex: 1 1 auto;
+      min-height: 120px;
+      overflow: auto;
+      padding: 10px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+    }
+    .fake-row { min-width: 900px; height: 34px; border-bottom: 1px solid var(--vscode-panel-border); }
+    .control-drawer {
+      position: relative;
+      flex: 0 0 auto;
+      overflow: hidden;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      background: var(--vscode-editor-background);
+    }
+    .control-drawer[open] {
+      display: flex;
+      height: min(44vh, 460px);
+      min-height: 230px;
+      flex-direction: column;
+    }
+    .control-drawer > summary {
+      display: flex;
+      flex: 0 0 auto;
+      align-items: center;
+      min-height: 34px;
+      padding: 6px 10px;
+      background: var(--vscode-sideBar-background);
+    }
+    .control-drawer[open] > ktc-codegen-control-panel {
+      position: absolute;
+      inset: 34px 0 0;
+      display: block;
+      height: auto;
+      min-height: 0;
+      overflow: hidden;
+    }
+    @media (max-width: 800px) {
+      .document-title { flex: 1 0 100%; }
+      .view-toolbar button { flex: 1 1 auto; }
+      .control-drawer[open] { height: min(58vh, 520px); min-height: 260px; }
+    }
+    @media (max-width: 760px) {
+      .control-drawer[open] { height: 540px; min-height: 540px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="view-toolbar">
+    <div class="document-title">
+      <strong>PNXCombinedCurveParam.json</strong>
+      <span>Codegen JSON 编辑 View · 布局点检夹具</span>
+    </div>
+    <button type="button">预检</button>
+    <button type="button">控制符 / 结果</button>
+    <button type="button">Apply</button>
+    <button type="button">保存 JSON</button>
+  </header>
+  <div class="fake-table" aria-label="参数表占位">
+    <div class="fake-row">参数表第 1 行</div>
+    <div class="fake-row">参数表第 2 行</div>
+    <div class="fake-row">参数表第 3 行</div>
+    <div class="fake-row">参数表第 4 行</div>
+    <div class="fake-row">参数表第 5 行</div>
+    <div class="fake-row">参数表第 6 行</div>
+    <div class="fake-row">参数表第 7 行</div>
+    <div class="fake-row">参数表第 8 行</div>
+  </div>
+  <details class="control-drawer" open>
+    <summary>控制符与预检</summary>
+    <ktc-codegen-control-panel id="control-panel" mode="full"></ktc-codegen-control-panel>
+  </details>
+  <script src="../dist/codegen-control-catalog.js"></script>
+  <script>
+    const keys = [
+      "CATALOG PARAMS", "FACTRY ON TREE", "IMPLEMENTS CPP GET", "IMPLEMENTS CPP SET",
+      "IMPLEMENTS HEAD GET", "IMPLEMENTS HEAD SET", "IMPLEMENTS PARAM GET", "IMPLEMENTS PARAM SET",
+      "INTERFACES HEAD GET", "INTERFACES HEAD SET", "PARAM CONSTRUCTOR", "PARAM DECLARATION",
+      "PARAM DESTRUCTOR", "PARAM EQUAL", "DIALOG NOTIFY", "UPDATE DIALOG", "UPDATE INFORS",
+      "QT UPDATE DIALOG", "QT UPDATE INFORS", "DLG DEFINE FIELD TYPE", "DLG SET ACTIVE FIELD",
+      "DLG GET SELECTOR LIST", "CMD AGENT DECLARE", "CMD AGENT CONSTRUCTOR", "CMD AGENT DESTRUCTOR",
+      "CMD AGENT BUILD GRAPH", "CMD AGENT UPDATE STATE", "CMD AGENT FIA CLEAR", "CMD ACTION PDA",
+      "CMD ACTION FIA", "CMD ELEMENT SELECTED", "CMD SET ACTIVE FIELD",
+    ];
+    const blocks = keys.map((key, index) => ({
+      key,
+      legacyId: index,
+      platform: index >= 10 && index <= 13 ? "cpp" : index === 17 || index === 18 ? "qt" : "caa",
+      legacyState: "active",
+      legacyCall: "",
+      title: `Control ${index}`,
+      controlWords: key,
+      notes: "",
+      status: index < 12 ? "hit" : index < 28 ? "missing" : "unselected",
+      hitCount: index < 12 ? 1 : 0,
+      artifactCount: index < 12 ? 1 : 0,
+    }));
+    const markerRegions = keys.slice(0, 12).map((blockKey, index) => ({
+      id: `region-${index}`,
+      blockKey,
+      classId: `PNXVeryLongCombinedCurveClassName${index}`,
+      path: `/workspace/a/very/long/source/path/that/needs/horizontal/scroll/PNXCombinedCurveImplementation${index}.cpp`,
+      start: { line: index * 20 },
+    }));
+    const artifacts = markerRegions.map((region, index) => ({
+      regionId: region.id,
+      blockKey: region.blockKey,
+      classId: region.classId,
+      content: `// clang-format off\n${"int generated_field_" + index + "; ".repeat(20)}\n// clang-format on`,
+    }));
+    const diagnostics = Array.from({ length: 10 }, (_, index) => ({
+      severity: index % 4 === 0 ? "error" : "warning",
+      code: `layout.issue.${index}`,
+      message: "用于滚动点检的长诊断信息 ".repeat(8),
+      path: { file: `/workspace/long/path/Issue${index}.cpp`, row: index * 9 },
+    }));
+    customElements.whenDefined("ktc-codegen-control-panel").then(() => {
+      document.getElementById("control-panel").model = {
+        kind: "kt.codegen.control-view-model",
+        schemaVersion: 1,
+        uri: "file:///workspace/PNXCombinedCurveParam.json",
+        fileName: "PNXCombinedCurveParam.json",
+        blocks,
+        selectedBlockKeys: keys.slice(0, 28),
+        singleSelectionMode: false,
+        showMissingTemplates: false,
+        preflightAvailable: true,
+        missingTemplates: [],
+        presets: { all: keys, none: [], cppOnly: keys.slice(10, 14), fieldCode: keys.slice(19) },
+        preflight: {
+          reused: false,
+          createdAt: "2026-07-18T00:00:00.000Z",
+          plan: { markerRegions, artifacts, diagnostics },
+        },
+      };
+      document.body.dataset.ready = "true";
+    });
+  </script>
+</body>
+</html>

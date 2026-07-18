@@ -146,9 +146,9 @@ describe("Codegen Primary panel", () => {
       "Demo.json · 未保存", "PNXDemo · 3 行 · 当前编辑 View", "控制符目录", "JSON 配置",
       "控制符候选（工作区级）", "一份 JSON 对应当前编辑区一个表格 View；Primary 与 JSON View 的控制符目录由 Host session 同步。",
     ]));
-    const catalog = findNodes(element.shadow, (node) => node.tagName === "ktc-codegen-control-catalog")[0]!;
-    expect(catalog.attributes.get("mode")).toBe("compact");
-    expect((catalog as FakeNode & { model?: unknown }).model).toBe(model.controls);
+    const controlPanel = findNodes(element.shadow, (node) => node.tagName === "ktc-codegen-control-panel")[0]!;
+    expect(controlPanel.attributes.get("mode")).toBe("compact");
+    expect((controlPanel as FakeNode & { model?: unknown }).model).toBe(model.controls);
     const refresh = findNodes(element.shadow, (node) => node.textContent === "取消扫描")[0]!;
     const candidateScan = findNodes(element.shadow, (node) => node.textContent === "扫描候选源码")[0]!;
     expect(refresh.disabled).toBe(false);

@@ -38,6 +38,35 @@ describe("KtcCodegenControlSessionController", () => {
     expect(controls.viewModel(model).preflight).toBeUndefined();
   });
 
+  it("把当前预检投影为命中、未命中和未选择状态", () => {
+    const model = session();
+    model.setSelectedBlockKeys(["PARAM DECLARATION", "QT UPDATE DIALOG"]);
+    model.setPreflight({
+      plan: {
+        markerRegions: [{ blockKey: "PARAM DECLARATION", classId: "CATDemoBase" }],
+        artifacts: [{ blockKey: "PARAM DECLARATION", classId: "CATDemoBase" }],
+        diagnostics: [],
+      } as unknown as NonNullable<typeof model.preflight>["plan"],
+      reused: false,
+      createdAt: "2026-07-18T00:00:00.000Z",
+      markerIndexRevision: 1,
+      indexedFileCount: 1,
+      candidateFileCount: 1,
+      cachePath: "/workspace/.phoenix/cache/codegen/test.json",
+    });
+
+    const blocks = new KtcCodegenControlSessionController().catalogModel(model).blocks;
+    expect(blocks.find((block) => block.key === "PARAM DECLARATION")).toMatchObject({
+      status: "hit", hitCount: 1, artifactCount: 1,
+    });
+    expect(blocks.find((block) => block.key === "QT UPDATE DIALOG")).toMatchObject({
+      status: "missing", hitCount: 0, artifactCount: 0,
+    });
+    expect(blocks.find((block) => block.key === "CATALOG PARAMS")).toMatchObject({
+      status: "unselected", hitCount: 0, artifactCount: 0,
+    });
+  });
+
   it("选择和显示命令只修改会话并返回结构化 Host 动作", () => {
     const model = session();
     const controls = new KtcCodegenControlSessionController();
@@ -48,6 +77,8 @@ describe("KtcCodegenControlSessionController", () => {
     expect(selected).toMatchObject({ modelChanged: true, editorStatusMessage: expect.any(String) });
     expect(model.selectedBlockKeys).toEqual(["PARAM DECLARATION"]);
     expect(model.singleSelectionMode).toBe(true);
+    expect(controls.catalogModel(model).selectedBlockKeys).toEqual(["PARAM DECLARATION"]);
+    expect(controls.viewModel(model).selectedBlockKeys).toEqual(["PARAM DECLARATION"]);
 
     const display = controls.handle(model, {
       type: "codegenControlDisplay",
@@ -67,5 +98,40 @@ describe("KtcCodegenControlSessionController", () => {
     expect(result.modelChanged).toBe(false);
     expect(result.logLines?.[0]).toContain("scope=block；blocks=1；classes=1；templates=1");
     expect(result.logLines?.join("\n")).toContain("CATDemoBase PARAM DECLARATION");
+    expect(result.logLines?.join("\n")).toContain("int First;");
+    expect(result.clipboardText).toContain("// clang-format off");
+    expect(result.clipboardText).toContain("int First;");
+    expect(result.clipboardText).toContain("// clang-format on");
+    expect(result.clipboardText).not.toContain("[Codegen]");
+    expect(result.statusMessage).toContain("1 组使用当前 JSON 真实生成内容");
+  });
+
+  it("当前筛选输出由 Host 校验、去重并恢复 legacy 顺序", () => {
+    const model = session();
+    const controls = new KtcCodegenControlSessionController();
+    const result = controls.handle(model, {
+      type: "codegenControlOutput",
+      scope: "visible",
+      blockKeys: [
+        "QT UPDATE DIALOG",
+        "invalid block" as "PARAM DECLARATION",
+        "PARAM DECLARATION",
+        "QT UPDATE DIALOG",
+      ],
+    });
+    const log = result.logLines?.join("\n") ?? "";
+    expect(result.logLines?.[0]).toContain("scope=visible；blocks=2；classes=1；templates=2");
+    expect(log.indexOf("# 11 PARAM define · PARAM DECLARATION")).toBeLessThan(
+      log.indexOf("# 17 Update QT Dialog · QT UPDATE DIALOG"),
+    );
+    expect(log).not.toContain("invalid block");
+
+    const empty = controls.handle(model, {
+      type: "codegenControlOutput",
+      scope: "visible",
+      blockKeys: ["invalid block" as "PARAM DECLARATION"],
+    });
+    expect(empty.clipboardText).toBeUndefined();
+    expect(empty.logLines?.[0]).toContain("filter.empty");
   });
 });

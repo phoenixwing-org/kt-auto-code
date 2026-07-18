@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import {
+  ktcFilterCodegenControlBlocks,
   ktcNextCodegenControlSelection,
   ktcToggleCodegenControlSingleMode,
 } from "./controlCatalogState.js";
@@ -81,6 +82,26 @@ describe("Codegen control catalog", () => {
     })).toEqual({ blockKeys: ["PARAM DECLARATION"], singleMode: true });
   });
 
+  it("显示筛选不修改勾选，并组合状态与 C++/Field Code 范围", () => {
+    const blocks = [
+      { key: "PARAM DECLARATION", status: "hit" },
+      { key: "QT UPDATE DIALOG", status: "missing" },
+      { key: "CMD ACTION PDA", status: "unselected" },
+    ] as unknown as Parameters<typeof ktcFilterCodegenControlBlocks>[0];
+    const selected = ["PARAM DECLARATION", "QT UPDATE DIALOG"] as const;
+    const scopes = {
+      cppOnly: ["PARAM DECLARATION"] as const,
+      fieldCode: ["QT UPDATE DIALOG", "CMD ACTION PDA"] as const,
+    };
+    expect(ktcFilterCodegenControlBlocks(
+      blocks, selected, { status: "hit", scope: "all" }, scopes,
+    ).map((block) => block.key)).toEqual(["PARAM DECLARATION"]);
+    expect(ktcFilterCodegenControlBlocks(
+      blocks, selected, { status: "selected", scope: "field-code" }, scopes,
+    ).map((block) => block.key)).toEqual(["QT UPDATE DIALOG"]);
+    expect(selected).toEqual(["PARAM DECLARATION", "QT UPDATE DIALOG"]);
+  });
+
   it("显式注册一次 Web Component，模块加载不触碰 VS Code API", async () => {
     vi.resetModules();
     const registry = installFakeDom();
@@ -110,6 +131,9 @@ describe("Codegen control catalog", () => {
         title: "参数声明",
         controlWords: "PARAM DECLARATION",
         notes: "test",
+        status: "pending" as const,
+        hitCount: 0,
+        artifactCount: 0,
       }],
       selectedBlockKeys: ["PARAM DECLARATION" as const],
       singleSelectionMode: false,
@@ -130,9 +154,17 @@ describe("Codegen control catalog", () => {
       element.model = model;
       const buttons = findNodes(element.shadow, (node) => Boolean(node.textContent));
       expect(buttons.map((node) => node.textContent)).toEqual(expect.arrayContaining([
-        "全选", "全不选", "C++ only", "Field Code", "全部输出到日志", "单选", "↗",
+        "命中 0", "未命中 0", "已选 1", "全部 1", "全部类型", "C++ only", "Field Code",
+        "输出筛选并复制 (1)", "选中当前筛选", "取消当前筛选", "全选", "全不选", "开启单选", "⧉",
       ]));
-      const outputOne = buttons.find((node) => node.textContent === "↗")!;
+      expect(buttons.find((node) => node.textContent === "已选 1")?.attributes.get("aria-pressed")).toBe("true");
+      const outputVisible = buttons.find((node) => node.textContent === "输出筛选并复制 (1)")!;
+      outputVisible.onclick?.();
+      expect(element.events.at(-1)).toMatchObject({
+        type: "ktc-codegen-control-output",
+        detail: { scope: "visible", blockKeys: ["PARAM DECLARATION"] },
+      });
+      const outputOne = buttons.find((node) => node.textContent === "⧉")!;
       outputOne.onclick?.();
       expect(element.events.at(-1)).toMatchObject({
         type: "ktc-codegen-control-output",
@@ -151,6 +183,61 @@ describe("Codegen control catalog", () => {
     }
   });
 
+  it("预检完成后默认只显示命中，切换显示筛选不改变 Apply 勾选", async () => {
+    vi.resetModules();
+    installFakeDom();
+    const browser = await import("./controlCatalog.js");
+    const element = new browser.KtcCodegenControlCatalog() as unknown as FakeElement & { model: unknown };
+    element.setAttribute("mode", "full");
+    element.model = {
+      kind: "kt.codegen.control-view-model",
+      schemaVersion: 1,
+      uri: "file:///Demo.json",
+      fileName: "Demo.json",
+      blocks: [
+        {
+          key: "PARAM DECLARATION", legacyId: 11, platform: "cpp", legacyState: "active", legacyCall: "",
+          title: "命中项", controlWords: "PARAM DECLARATION", notes: "", status: "hit", hitCount: 1, artifactCount: 1,
+        },
+        {
+          key: "QT UPDATE DIALOG", legacyId: 17, platform: "qt", legacyState: "active", legacyCall: "",
+          title: "未命中项", controlWords: "QT UPDATE DIALOG", notes: "", status: "missing", hitCount: 0, artifactCount: 0,
+        },
+      ],
+      selectedBlockKeys: ["PARAM DECLARATION", "QT UPDATE DIALOG"],
+      singleSelectionMode: false,
+      showMissingTemplates: false,
+      preflightAvailable: true,
+      missingTemplates: [],
+      presets: {
+        all: ["PARAM DECLARATION", "QT UPDATE DIALOG"], none: [],
+        cppOnly: ["PARAM DECLARATION"], fieldCode: [],
+      },
+    };
+
+    let nodes = findNodes(element.shadow, (node) => Boolean(node.textContent));
+    expect(nodes.find((node) => node.textContent === "命中 1")?.attributes.get("aria-pressed")).toBe("true");
+    expect(nodes.some((node) => node.textContent === "命中项")).toBe(true);
+    expect(nodes.some((node) => node.textContent === "未命中项")).toBe(false);
+
+    nodes.find((node) => node.textContent === "未命中 1")!.onclick?.();
+    nodes = findNodes(element.shadow, (node) => Boolean(node.textContent));
+    expect(nodes.some((node) => node.textContent === "命中项")).toBe(false);
+    expect(nodes.some((node) => node.textContent === "未命中项")).toBe(true);
+    expect(element.events).toHaveLength(0);
+
+    nodes.find((node) => node.textContent === "输出筛选并复制 (1)")!.onclick?.();
+    expect(element.events.at(-1)).toMatchObject({
+      type: "ktc-codegen-control-output",
+      detail: { scope: "visible", blockKeys: ["QT UPDATE DIALOG"] },
+    });
+    nodes.find((node) => node.textContent === "取消当前筛选")!.onclick?.();
+    expect(element.events.at(-1)).toMatchObject({
+      type: "ktc-codegen-control-selection-change",
+      detail: { blockKeys: ["PARAM DECLARATION"], singleMode: false },
+    });
+  });
+
   it("compact/full 共用选择、显示与日志事件，并保持无障碍标签", () => {
     const source = readFileSync(new URL("./controlCatalog.ts", import.meta.url), "utf8");
     expect(source).toContain(':host([mode="compact"])');
@@ -158,8 +245,11 @@ describe("Codegen control catalog", () => {
     expect(source).toContain('"ktc-codegen-control-display-change"');
     expect(source).toContain('"ktc-codegen-control-output"');
     expect(source).toContain("显示已选但未命中的控制符模板");
-    expect(source).toContain("全部输出到日志");
-    expect(source).toContain("输出${block.title}控制符模板到日志");
+    expect(source).toContain("输出筛选并复制");
+    expect(source).toContain("显示筛选不会修改 Apply 勾选");
+    expect(source).toContain("输出${block.title}控制块到日志并复制可粘贴源码");
+    expect(source).toContain("overflow-y: scroll");
+    expect(source).toContain("::-webkit-scrollbar-thumb");
     expect(source).not.toContain("acquireVsCodeApi");
   });
 });

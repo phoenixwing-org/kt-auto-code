@@ -889,7 +889,21 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     if (result.editorStatusMessage) {
       this.sessionPresenter.post(session, { type: "codegenStatus", status: "idle", message: result.editorStatusMessage });
     }
-    if (result.statusMessage) this.publish(ctx, result.statusMessage);
+    if (result.clipboardText) {
+      try {
+        await vscode.env.clipboard.writeText(result.clipboardText);
+      } catch (error) {
+        this.publish(
+          ctx,
+          `控制块已写入日志，但复制失败：${error instanceof Error ? error.message : String(error)}`,
+          "error",
+        );
+        return;
+      }
+    }
+    if (result.statusMessage) {
+      this.publish(ctx, result.statusMessage + (result.clipboardText ? " 已复制可直接粘贴的源码块。" : ""));
+    }
   }
 
   private async apply(session: KtcCodegenDocumentModel, ctx: ToolRunContext): Promise<void> {

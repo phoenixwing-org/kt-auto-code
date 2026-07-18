@@ -35,6 +35,9 @@ describe("codegen editor HTML", () => {
           ...block,
           ...KT_CODEGEN_BLOCK_PRESENTATIONS[block.legacyId],
           controlWords: block.key,
+          status: "pending" as const,
+          hitCount: 0,
+          artifactCount: 0,
         })),
         selectedBlockKeys: KT_CODEGEN_LEGACY_BLOCKS.map((block) => block.key),
         singleSelectionMode: false,
@@ -75,19 +78,25 @@ describe("codegen editor HTML", () => {
     expect(html).toContain('body.vscode-high-contrast-light kt-codegen-table');
     expect(html).toContain('--vscode-contrastBorder');
     expect(html).toContain('@media (max-width: 800px)');
-    expect(html).toContain('grid-template-rows: repeat(2, minmax(0, 1fr));');
-    expect(html).toContain('<ktc-codegen-control-catalog id="control-catalog" mode="full">');
+    expect(html).toContain('<ktc-codegen-control-panel id="control-panel" mode="full">');
     expect(html).toContain("height: min(44vh, 460px)");
-    expect(html).toContain("overflow-y: scroll");
-    expect(html).toContain("scrollbar-gutter: stable both-edges");
-    expect(html).toContain('aria-label="可滚动的预检结果列表"');
-    expect(html).toContain('.control-results-content { min-width: 520px; }');
+    expect(html).toContain("overflow-y: auto");
+    expect(html).toContain("scrollbar-gutter: stable");
+    expect(html).toContain("body::-webkit-scrollbar-thumb");
+    expect(html).toContain("rgba(121, 121, 121, .7)");
+    expect(html).toContain("min-height: 120px");
+    expect(html).toContain("min-height: 230px");
+    expect(html).toContain('@media (max-width: 760px)');
+    expect(html).toContain("height: 540px; min-height: 540px");
+    expect(html).toContain("inset: 34px 0 0");
     expect(html).not.toContain('.view-toolbar button.secondary-action { display: none; }');
     expect(html).toContain('id="control-drawer"');
     expect(html).toContain("控制符与预检");
     expect(html).toContain('type: "codegenControlSelection"');
     expect(html).toContain('type: "codegenControlDisplay"');
     expect(html).toContain('type: "codegenControlOutput"');
+    expect(html).toContain('blockKeys: event.detail.blockKeys');
+    expect(html).toMatch(/ktc-codegen-control-output[\s\S]*exchangeDraft\(\);[\s\S]*type: "codegenControlOutput"/);
     expect(html).toContain('type: "codegenControlOpen"');
     expect(html).toContain('message.type === "codegenControlsModel"');
     expect(html).toContain("controlDrawer.open = !controlDrawer.open");
@@ -103,7 +112,7 @@ describe("codegen editor HTML", () => {
     expect(html).not.toContain('class="properties"');
     expect(html).not.toContain("PrivateWidget");
     expect(html).toContain("Apply 可自动执行");
-    expect(html).toContain("自动预检并写入源码");
+    expect(html).toContain("没有缓存时会先自动预检");
     const script = html.match(/<script nonce="[^"]+">([\s\S]*?)<\/script>/)?.[1];
     expect(script).toBeTruthy();
     expect(() => new Function(script!)).not.toThrow();
@@ -113,5 +122,6 @@ describe("codegen editor HTML", () => {
     expect(entry).toContain("ktCodegenDefineTableElement()");
     const controlEntry = readFileSync(new URL("./controlCatalogEntry.ts", import.meta.url), "utf8");
     expect(controlEntry).toContain("ktcDefineCodegenControlCatalog()");
+    expect(controlEntry).toContain("ktcDefineCodegenControlPanel()");
   });
 });
