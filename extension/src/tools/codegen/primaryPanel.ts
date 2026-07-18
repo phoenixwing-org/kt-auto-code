@@ -56,7 +56,10 @@ const STYLE = `
 
 export class KtcCodegenPrimaryPanel extends HTMLElement {
   private readonly root = this.attachShadow({ mode: "open" });
+  /** Host snapshot 重绘时复用同一实例，保留目录自己的筛选与 Tree 展开状态。 */
+  private readonly controlPanel = document.createElement("ktc-codegen-control-panel");
   private currentModel: KtcCodegenPrimaryViewModel | undefined;
+  private controlsExpanded = true;
 
   get model(): KtcCodegenPrimaryViewModel | undefined { return this.currentModel; }
   set model(value: KtcCodegenPrimaryViewModel | undefined) {
@@ -118,13 +121,14 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
 
     const controls = document.createElement("details");
     controls.className = "mini";
-    controls.open = true;
+    controls.open = this.controlsExpanded;
     controls.hidden = !active || !model.controls;
+    controls.setAttribute("aria-label", "控制符目录区");
+    controls.ontoggle = () => { this.controlsExpanded = controls.open; };
     controls.append(this.summary("控制符目录", "会话级"));
-    const controlPanel = document.createElement("ktc-codegen-control-panel");
-    controlPanel.setAttribute("mode", "compact");
-    controlPanel.model = model.controls;
-    controls.append(controlPanel);
+    this.controlPanel.setAttribute("mode", "compact");
+    this.controlPanel.model = model.controls;
+    controls.append(this.controlPanel);
 
     const documents = document.createElement("details");
     documents.className = "mini";

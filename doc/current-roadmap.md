@@ -123,6 +123,14 @@ Owner：KT Auto Code maintainers
 - Auto Code 的表格旧图标替换为 Desk Tools `kt_codegen` 已使用的 Element Plus `Operation` 图标路径，继续通过 `currentColor` 适配 VS Code 主题。
 - 图标来源与完整 MIT 许可进入扩展 `NOTICE`；契约测试同时锁定中文名称、Operation 路径特征和旧图标退出，避免两端随后再次漂移。
 
+## 已完成第八个切口：Document session Controller
+
+- 新增 UI-neutral `documentSessionController.ts`，集中拥有 session registry、活动 URI，以及 snapshot → Wing parse → `KtcCodegenDocumentModel` 的打开状态机；失败不会污染 registry，重复打开继续复用同一 Param。
+- `Codegen/index.ts` 只把 `identity.fsPath` 适配到 `vscode.Uri.file` / `DocumentService`，并继续拥有对话框、discovered 列表、Presenter、Problems、日志和命令编排；它不再直接建立 Document Model。
+- CSV 已准备 Controller、真实磁盘 fingerprint、关闭活动 View、dispose 清理和既有/new session 的 show 异常边界均由 characterization 冻结；本切口不引入并发 open 去重。
+- marker、Preflight、Apply 门禁和控制符目录均未修改。责任图、自动点检与后续 Save/Revert/Editor command TODO 见 `codegen-plan/Codegen总Controller会话提炼点检表.md`。
+- 自动门禁结果：88 个测试文件、431 项测试；124 个生产源文件、22 个 pure graph、9 个 View root；64 份 Markdown；7 个 Wing Registry 0.4.2 引用；Extension typecheck 通过。
+
 ## 已合并的旧路线
 
 - `下一阶段实施计划.md`：已完成的 Ignore/搜索替换主体成为稳定基线，未完成 Extension Host 验收进入本路线第 3 项。

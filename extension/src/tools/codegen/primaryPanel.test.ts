@@ -23,6 +23,7 @@ class FakeNode {
   tabIndex = -1;
   onclick?: () => void;
   onchange?: () => void;
+  ontoggle?: () => void;
   scrolled = false;
 
   constructor(readonly tagName = "") {}
@@ -153,6 +154,27 @@ describe("Codegen Primary panel", () => {
     const candidateScan = findNodes(element.shadow, (node) => node.textContent === "扫描候选源码")[0]!;
     expect(refresh.disabled).toBe(false);
     expect(candidateScan.disabled).toBe(true);
+  });
+
+  it("Host 快照重绘时复用 Primary compact 控制面板实例并保留外层折叠", async () => {
+    vi.resetModules();
+    installFakeDom();
+    const browser = await import("./primaryPanel.js");
+    const element = new browser.KtcCodegenPrimaryPanel() as unknown as FakeElement & {
+      model: KtcCodegenPrimaryViewModel;
+    };
+    element.model = model;
+    const firstPanel = findNodes(element.shadow, (node) => node.tagName === "ktc-codegen-control-panel")[0]!;
+    const firstSection = findNodes(element.shadow, (node) => node.attributes.get("aria-label") === "控制符目录区")[0]!;
+    firstSection.open = false;
+    firstSection.ontoggle?.();
+
+    element.model = { ...model, operation: undefined, running: false };
+    const secondPanel = findNodes(element.shadow, (node) => node.tagName === "ktc-codegen-control-panel")[0]!;
+    const secondSection = findNodes(element.shadow, (node) => node.attributes.get("aria-label") === "控制符目录区")[0]!;
+    expect(secondPanel).toBe(firstPanel);
+    expect(secondSection.open).toBe(false);
+    expect((secondPanel as FakeNode & { model?: unknown }).model).toBe(model.controls);
   });
 
   it("通过单一语义事件上报取消、打开文档、打开候选和元数据修改", async () => {

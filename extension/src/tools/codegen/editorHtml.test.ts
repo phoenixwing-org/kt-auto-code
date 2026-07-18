@@ -90,6 +90,11 @@ describe("codegen editor HTML", () => {
     expect(html).not.toContain("height: 540px; min-height: 540px");
     expect(html).not.toContain("inset: 34px 0 0");
     expect(html).toContain("position: static");
+    const controlDrawerPanelRule = html.match(
+      /\.control-drawer\[open\] > ktc-codegen-control-panel \{([^}]*)\}/u,
+    )?.[1];
+    expect(controlDrawerPanelRule).toBeTruthy();
+    expect(controlDrawerPanelRule).not.toContain("overflow");
     expect(html).not.toContain('.view-toolbar button.secondary-action { display: none; }');
     expect(html).toContain('id="control-drawer"');
     expect(html).toContain("控制符与预检");
@@ -127,5 +132,18 @@ describe("codegen editor HTML", () => {
     const controlEntry = readFileSync(new URL("./controlCatalogEntry.ts", import.meta.url), "utf8");
     expect(controlEntry).toContain("ktcDefineCodegenControlCatalog()");
     expect(controlEntry).toContain("ktcDefineCodegenControlPanel()");
+    const controlPanelSource = readFileSync(new URL("./controlPanel.ts", import.meta.url), "utf8");
+    expect(controlPanelSource).toContain(
+      ':host([mode="full"]) { block-size: auto; min-block-size: 0; overflow-x: auto; overflow-y: hidden; }',
+    );
+    const layoutFixture = readFileSync(
+      new URL("../../../test-fixtures/codegen-control-panel-layout.html", import.meta.url),
+      "utf8",
+    );
+    const fixturePanelRule = layoutFixture.match(
+      /\.control-drawer\[open\] > ktc-codegen-control-panel \{([^}]*)\}/u,
+    )?.[1];
+    expect(fixturePanelRule).toBeTruthy();
+    expect(fixturePanelRule).not.toContain("overflow");
   });
 });

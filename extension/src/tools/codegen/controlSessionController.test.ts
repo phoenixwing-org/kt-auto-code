@@ -34,7 +34,15 @@ describe("KtcCodegenControlSessionController", () => {
       showMissingTemplates: false,
       preflightAvailable: false,
     });
-    expect(controls.catalogModel(model).blocks).toHaveLength(32);
+    const blocks = controls.catalogModel(model).blocks;
+    expect(blocks).toHaveLength(32);
+    expect(blocks.map((block) => block.legacyId)).toEqual(Array.from({ length: 32 }, (_, index) => index));
+    expect(blocks.filter((block) => block.platform === "cpp")).toHaveLength(4);
+    expect(blocks.filter((block) => block.platform === "qt")).toHaveLength(2);
+    expect(blocks.filter((block) => block.platform === "caa")).toHaveLength(26);
+    expect(blocks.filter((block) => block.legacyState === "legacy-deprecated").map((block) => block.legacyId)).toEqual([
+      20, 21, 30,
+    ]);
     expect(controls.viewModel(model).preflight).toBeUndefined();
   });
 
@@ -87,6 +95,28 @@ describe("KtcCodegenControlSessionController", () => {
     expect(display).toMatchObject({ modelChanged: true, statusMessage: expect.stringContaining("显示") });
     expect(model.showMissingTemplates).toBe(true);
     expect(model.dirty).toBe(false);
+  });
+
+  it("Host 对乱序、重复和非法选择键统一校验并恢复全局 legacyId 顺序", () => {
+    const model = session();
+    const controls = new KtcCodegenControlSessionController();
+    const result = controls.handle(model, {
+      type: "codegenControlSelection",
+      blockKeys: [
+        "QT UPDATE DIALOG",
+        "invalid block" as "PARAM DECLARATION",
+        "PARAM DECLARATION",
+        "QT UPDATE DIALOG",
+        "CATALOG PARAMS",
+      ],
+      singleMode: false,
+    });
+
+    expect(result.modelChanged).toBe(true);
+    expect(model.selectedBlockKeys).toEqual([
+      "CATALOG PARAMS", "PARAM DECLARATION", "QT UPDATE DIALOG",
+    ]);
+    expect(controls.catalogModel(model).selectedBlockKeys).toEqual(model.selectedBlockKeys);
   });
 
   it("日志命令返回文本而不直接依赖 Output Channel", () => {

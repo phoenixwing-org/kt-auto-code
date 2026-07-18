@@ -5,7 +5,7 @@
   "documentUri": "file:///workspace/PNXBomAnalysis/PNXBomAnalysisParam.json",
   "configFingerprint": "sha256:normalized-codegen-param-and-selection-example",
   "markerIndexRevision": 27,
-  "generatorVersion": "0.3.1",
+  "generatorVersion": "0.3.2",
   "plan": {
     "kind": "kt.codegen.plan",
     "schemaVersion": 1,

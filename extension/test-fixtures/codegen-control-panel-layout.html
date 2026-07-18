@@ -100,7 +100,6 @@
       display: block;
       height: auto;
       min-height: 0;
-      overflow: visible;
     }
     @media (max-width: 800px) {
       .document-title { flex: 1 0 100%; }
@@ -149,7 +148,7 @@
       key,
       legacyId: index,
       platform: index >= 10 && index <= 13 ? "cpp" : index === 17 || index === 18 ? "qt" : "caa",
-      legacyState: "active",
+      legacyState: [20, 21, 30].includes(index) ? "legacy-deprecated" : "active",
       legacyCall: "",
       title: `Control ${index}`,
       controlWords: key,

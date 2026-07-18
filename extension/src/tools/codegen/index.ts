@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { basename, extname, isAbsolute, relative } from "node:path";
 import {
-  KtCodegenController,
+  type KtCodegenController,
   type KtCodegenDiagnostic,
   type KtCodegenTableData,
 } from "@phoenix-wing/kt-codegen";
@@ -26,14 +26,15 @@ import {
   ktcScanCodegenCandidates,
 } from "./preflight.js";
 import { KtcCodegenDocumentModel } from "./documentModel.js";
+import { KtcCodegenDocumentSessionController } from "./documentSessionController.js";
 import {
   KtcCodegenDocumentService,
   ktcCodegenClassifySaveDiskState,
   ktcCodegenFingerprint,
   ktcCodegenIsFileNotFoundError,
-  ktcCodegenDiagnosticsText,
   type KtcDiscoveredCodegenDocument,
 } from "./documentService.js";
+import { ktcCodegenDiagnosticsText } from "./diagnosticText.js";
 import { KtcCodegenEditorViewController } from "./editorViewController.js";
 import { KtcCodegenWorkspaceDiscoveryService } from "./workspaceDiscovery.js";
 import { KtcCodegenWorkspaceWatchService } from "./workspaceWatchService.js";
@@ -119,12 +120,13 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       this.problemReporter?.publish(uri, fsPath, diagnostics);
     },
   }, this.controlSessions);
-  private readonly sessions = new Map<string, KtcCodegenDocumentModel>();
   private readonly discovered = new Map<string, KtcDiscoveredCodegenDocument>();
   private readonly documents = new KtcCodegenDocumentService(vscode.workspace.fs);
+  private readonly documentSessions = new KtcCodegenDocumentSessionController({
+    readSnapshot: (identity) => this.documents.readSnapshot(vscode.Uri.file(identity.fsPath)),
+  });
   private readonly discovery = new KtcCodegenWorkspaceDiscoveryService(this.documents);
   private candidates: KtcCodegenSourceCandidateSummary[] = [];
-  private activeUri: string | undefined;
   private initializedRoot: string | null = null;
   private activated = false;
   private candidateIndexReady = false;
@@ -142,6 +144,14 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
   private readonly workspaceOperations = new KtcCodegenWorkspaceOperationCoordinator<
     vscode.CancellationTokenSource
   >();
+
+  private get sessions(): ReadonlyMap<string, KtcCodegenDocumentModel> {
+    return this.documentSessions.sessions;
+  }
+
+  private get activeUri(): string | undefined {
+    return this.documentSessions.activeUri;
+  }
 
   initialize(context: vscode.ExtensionContext): void {
     const extensionUri = context.extensionUri;
@@ -168,7 +178,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
           this.preflightTasks.delete(uri);
           preflight.cancel();
         }
-        if (this.activeUri === uri) this.activeUri = undefined;
+        this.documentSessions.deactivate(uri);
         this.publish(ctx, session.dirty
           ? `${session.identity.fileName} 的 View 已关闭；未保存内容尚未写盘。`
           : `${session.identity.fileName} 的 View 已关闭。`);
@@ -206,7 +216,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     this.preflightTasks.clear();
     this.workspaceOperations.reset(true);
     this.activated = false;
-    this.sessions.clear();
+    this.documentSessions.clear();
     this.discovered.clear();
     this.staleSourceRoots.clear();
   }
@@ -721,27 +731,26 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     diagnosticCount = 0,
   ): Promise<void> {
     const key = uri.toString();
-    const current = this.sessions.get(key);
-    if (current) {
-      await this.showSession(current, ctx);
-      return;
-    }
-    try {
-      const controller = preparedController ?? new KtCodegenController();
-      const snapshot = await this.documents.readSnapshot(uri);
-      if (!preparedController) {
-        const result = controller.readJson(snapshot.text);
-        if (!result.ok || !result.value) throw new Error(ktcCodegenDiagnosticsText(result.diagnostics) || "不是可用的 Codegen v4 JSON");
-        diagnosticCount = result.diagnostics.length;
-      }
-      const session = new KtcCodegenDocumentModel({
+    const opened = await this.documentSessions.open({
+      identity: {
         uri: key,
         fsPath: uri.fsPath,
         fileName: basename(uri.fsPath),
-      }, controller, diagnosticCount, snapshot.fingerprint);
-      this.sessions.set(key, session);
-      this.rememberSession(session);
-      await this.showSession(session, ctx);
+      },
+      preparedController,
+      diagnosticCount,
+    });
+    if (opened.kind === "existing") {
+      await this.showSession(opened.session, ctx);
+      return;
+    }
+    if (opened.kind === "error") {
+      ctx.postState({ status: "error", message: `无法打开 ${basename(uri.fsPath)}：${opened.message}` });
+      return;
+    }
+    try {
+      this.rememberSession(opened.session);
+      await this.showSession(opened.session, ctx);
     } catch (error) {
       ctx.postState({ status: "error", message: `无法打开 ${basename(uri.fsPath)}：${error instanceof Error ? error.message : String(error)}` });
     }
@@ -1366,7 +1375,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
   }
 
   private setActive(session: KtcCodegenDocumentModel, ctx: ToolRunContext): void {
-    this.activeUri = session.identity.uri;
+    this.documentSessions.activate(session);
     this.rememberSession(session);
     this.problemReporter?.activate(session.identity.uri);
     this.sessionPresenter.publishControls(session);

@@ -173,10 +173,10 @@ export class KtcCodegenControlSessionController {
       };
     }
 
-    const selected: KtCodegenBlockKey[] = [];
-    for (const key of command.blockKeys) {
-      if (ktCodegenIsBlockKey(key)) selected.push(key);
-    }
+    const requested = new Set(command.blockKeys.filter(ktCodegenIsBlockKey));
+    const selected = KT_CODEGEN_LEGACY_BLOCKS
+      .filter((block) => requested.has(block.key))
+      .map((block) => block.key);
     const change = session.setSelectedBlockKeys(selected, command.singleMode);
     const modelChanged = change.selectionChanged || change.modeChanged;
     if (!modelChanged) return { modelChanged };

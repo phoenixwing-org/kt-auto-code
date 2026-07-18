@@ -150,6 +150,18 @@ describe("Codegen MVC dependency boundary", () => {
     expect(presenter).not.toMatch(/from ["']vscode["']|workspace\.|readFile|writeFile|acquireVsCodeApi/);
   });
 
+  it("文档 session Controller 拥有打开与活动态，总 Controller 只装配 VS Code Host", () => {
+    const workspaceController = source("./index.ts");
+    const sessions = source("./documentSessionController.ts");
+    expect(workspaceController).toContain("KtcCodegenDocumentSessionController");
+    expect(workspaceController).not.toContain("new KtcCodegenDocumentModel");
+    expect(sessions).toContain("KtcCodegenDocumentSnapshotPort");
+    expect(sessions).toContain("new KtcCodegenDocumentModel");
+    expect(sessions).toContain("activeUri");
+    expect(sessions).not.toContain("./documentService");
+    expect(sessions).not.toMatch(/from ["']vscode["']|workspace\.|window\.|Webview|HTMLElement|document\.|node:fs/);
+  });
+
   it("预检缓存协议与 VS Code 文件系统适配解耦", () => {
     const cache = source("./preflightCache.ts");
     const preflight = source("./preflight.ts");

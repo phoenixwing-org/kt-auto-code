@@ -65,7 +65,9 @@ for (const artifact of artifacts) {
         || !controlCatalogBundle.includes("ktc-codegen-control-selection-change")
         || !controlCatalogBundle.includes("ktc-codegen-control-split-change")
         || !controlCatalogBundle.includes('{ scope: "visible", blockKeys:')
-        || !controlCatalogBundle.includes("overflow-y: scroll")
+        || !controlCatalogBundle.includes(".list { max-height: 290px; overflow-x: hidden; overflow-y: auto;")
+        || !controlCatalogBundle.includes('setAttribute("role", "tree")')
+        || !controlCatalogBundle.includes("group-check")
         || controlCatalogBundle.includes("acquireVsCodeApi")) {
       throw new Error("Code VSIX is missing the UI-neutral shared Codegen control panel custom elements");
     }

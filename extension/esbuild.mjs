@@ -1,7 +1,14 @@
 import * as esbuild from "esbuild";
 import { rm } from "node:fs/promises";
+import {
+  LOCAL_WING_CODE_PACKAGES,
+  localWingBuildContextFromEnvironment,
+  verifyLocalWingBuildResults,
+} from "../scripts/local-wing-resolution.mjs";
 
 const watch = process.argv.includes("--watch");
+const localWing = localWingBuildContextFromEnvironment();
+const localWingPlugins = localWing?.plugins ?? [];
 
 /** @type {import('esbuild').BuildOptions} */
 const extensionOptions = {
@@ -14,6 +21,8 @@ const extensionOptions = {
   target: "node18",
   sourcemap: true,
   logLevel: "info",
+  metafile: Boolean(localWing),
+  plugins: localWingPlugins,
 };
 
 /** @type {import('esbuild').BuildOptions} */
@@ -26,6 +35,8 @@ const codegenTableOptions = {
   target: "es2022",
   sourcemap: true,
   logLevel: "info",
+  metafile: Boolean(localWing),
+  plugins: localWingPlugins,
 };
 
 /** @type {import('esbuild').BuildOptions} */
@@ -38,6 +49,8 @@ const codegenControlCatalogOptions = {
   target: "es2022",
   sourcemap: true,
   logLevel: "info",
+  metafile: Boolean(localWing),
+  plugins: localWingPlugins,
 };
 
 /** @type {import('esbuild').BuildOptions} */
@@ -50,6 +63,8 @@ const codegenPrimaryPanelOptions = {
   target: "es2022",
   sourcemap: true,
   logLevel: "info",
+  metafile: Boolean(localWing),
+  plugins: localWingPlugins,
 };
 
 /** @type {import('esbuild').BuildOptions} */
@@ -63,6 +78,8 @@ const extensionHostSmokeOptions = {
   target: "node18",
   sourcemap: true,
   logLevel: "info",
+  metafile: Boolean(localWing),
+  plugins: localWingPlugins,
 };
 
 if (watch) {
@@ -76,11 +93,18 @@ if (watch) {
   console.log("watching extension…");
 } else {
   await rm("dist", { recursive: true, force: true });
-  await Promise.all([
+  const results = await Promise.all([
     esbuild.build(extensionOptions),
     esbuild.build(codegenTableOptions),
     esbuild.build(codegenControlCatalogOptions),
     esbuild.build(codegenPrimaryPanelOptions),
     esbuild.build(extensionHostSmokeOptions),
   ]);
+  if (localWing) {
+    verifyLocalWingBuildResults({
+      results,
+      wingRoot: localWing.wingRoot,
+      expectedPackages: LOCAL_WING_CODE_PACKAGES,
+    });
+  }
 }

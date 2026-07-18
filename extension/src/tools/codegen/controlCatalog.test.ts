@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import {
+  KTC_CODEGEN_CONTROL_GROUPS,
+  ktcCodegenControlVisibleSelectionState,
   ktcFilterCodegenControlBlocks,
+  ktcGroupCodegenControlBlocks,
   ktcNextCodegenControlSelection,
+  ktcNextCodegenControlVisibleSelection,
   ktcToggleCodegenControlSingleMode,
 } from "./controlCatalogState.js";
 
@@ -13,10 +17,17 @@ class FakeNode {
   textContent = "";
   title = "";
   type = "";
+  value = "";
   checked = false;
+  disabled = false;
+  indeterminate = false;
+  open = false;
   tabIndex = -1;
-  onclick?: () => void;
+  onclick?: (event?: { stopPropagation(): void }) => void;
   onchange?: () => void;
+  ontoggle?: () => void;
+
+  constructor(readonly tagName = "") {}
 
   append(...nodes: Array<FakeNode | string>): void { this.children.push(...nodes); }
   replaceChildren(...nodes: Array<FakeNode | string>): void {
@@ -40,7 +51,7 @@ function installFakeDom(): Map<string, CustomElementConstructor> {
   const registry = new Map<string, CustomElementConstructor>();
   vi.stubGlobal("HTMLElement", FakeElement);
   vi.stubGlobal("document", {
-    createElement: () => new FakeNode(),
+    createElement: (tagName: string) => new FakeNode(tagName),
     createDocumentFragment: () => new FakeNode(),
   });
   vi.stubGlobal("CustomEvent", class<T> {
@@ -100,6 +111,54 @@ describe("Codegen control catalog", () => {
       blocks, selected, { status: "selected", scope: "field-code" }, scopes,
     ).map((block) => block.key)).toEqual(["QT UPDATE DIALOG"]);
     expect(selected).toEqual(["PARAM DECLARATION", "QT UPDATE DIALOG"]);
+  });
+
+  it("固定按 C++→Qt→CAA 分组，保留 deprecated，并只对当前筛选可见项计算三态与选择", () => {
+    const blocks = [
+      { key: "CATALOG PARAMS", legacyId: 0, platform: "caa", legacyState: "active" },
+      { key: "PARAM CONSTRUCTOR", legacyId: 10, platform: "cpp", legacyState: "active" },
+      { key: "PARAM DECLARATION", legacyId: 11, platform: "cpp", legacyState: "active" },
+      { key: "QT UPDATE DIALOG", legacyId: 17, platform: "qt", legacyState: "active" },
+      { key: "DLG SET ACTIVE FIELD", legacyId: 20, platform: "caa", legacyState: "legacy-deprecated" },
+    ] as unknown as Parameters<typeof ktcGroupCodegenControlBlocks>[0];
+
+    const groups = ktcGroupCodegenControlBlocks(blocks);
+    expect(groups.map((group) => group.id)).toEqual(KTC_CODEGEN_CONTROL_GROUPS.map((group) => group.id));
+    expect(groups.map((group) => group.blocks.map((block) => block.legacyId))).toEqual([
+      [10, 11], [17], [0, 20],
+    ]);
+    expect(groups[2]!.blocks.find((block) => block.legacyId === 20)?.legacyState).toBe("legacy-deprecated");
+
+    expect(ktcCodegenControlVisibleSelectionState(
+      ["PARAM CONSTRUCTOR", "PARAM DECLARATION"],
+      ["CATALOG PARAMS", "PARAM CONSTRUCTOR"],
+    )).toEqual({ checked: false, indeterminate: true, disabled: false, selectedCount: 1, visibleCount: 2 });
+    expect(ktcCodegenControlVisibleSelectionState([], ["CATALOG PARAMS"])).toEqual({
+      checked: false, indeterminate: false, disabled: true, selectedCount: 0, visibleCount: 0,
+    });
+
+    const selected = ktcNextCodegenControlVisibleSelection(
+      { blockKeys: ["CATALOG PARAMS", "PARAM CONSTRUCTOR"], singleMode: true },
+      ["PARAM CONSTRUCTOR", "PARAM DECLARATION"],
+      true,
+      blocks.map((block) => block.key),
+    );
+    expect(selected).toEqual({
+      blockKeys: ["CATALOG PARAMS", "PARAM CONSTRUCTOR", "PARAM DECLARATION"],
+      singleMode: false,
+    });
+    expect(ktcNextCodegenControlVisibleSelection(
+      selected,
+      ["PARAM CONSTRUCTOR", "PARAM DECLARATION"],
+      false,
+      blocks.map((block) => block.key),
+    )).toEqual({ blockKeys: ["CATALOG PARAMS"], singleMode: false });
+    expect(ktcNextCodegenControlVisibleSelection(
+      { blockKeys: ["CATALOG PARAMS"], singleMode: true },
+      ["QT UPDATE DIALOG"],
+      true,
+      blocks.map((block) => block.key),
+    )).toEqual({ blockKeys: ["CATALOG PARAMS", "QT UPDATE DIALOG"], singleMode: false });
   });
 
   it("显式注册一次 Web Component，模块加载不触碰 VS Code API", async () => {
@@ -197,6 +256,31 @@ describe("Codegen control catalog", () => {
       blocks: [
         {
           key: "PARAM DECLARATION", legacyId: 11, platform: "cpp", legacyState: "active", legacyCall: "",
+          title: "命中项", controlWords: "PARAM DECLARATION", notes: "", status: "pending", hitCount: 0, artifactCount: 0,
+        },
+        {
+          key: "QT UPDATE DIALOG", legacyId: 17, platform: "qt", legacyState: "active", legacyCall: "",
+          title: "未命中项", controlWords: "QT UPDATE DIALOG", notes: "", status: "pending", hitCount: 0, artifactCount: 0,
+        },
+      ],
+      selectedBlockKeys: ["PARAM DECLARATION", "QT UPDATE DIALOG"],
+      singleSelectionMode: false,
+      showMissingTemplates: false,
+      preflightAvailable: false,
+      missingTemplates: [],
+      presets: {
+        all: ["PARAM DECLARATION", "QT UPDATE DIALOG"], none: [],
+        cppOnly: ["PARAM DECLARATION"], fieldCode: [],
+      },
+    };
+    element.model = {
+      kind: "kt.codegen.control-view-model",
+      schemaVersion: 1,
+      uri: "file:///Demo.json",
+      fileName: "Demo.json",
+      blocks: [
+        {
+          key: "PARAM DECLARATION", legacyId: 11, platform: "cpp", legacyState: "active", legacyCall: "",
           title: "命中项", controlWords: "PARAM DECLARATION", notes: "", status: "hit", hitCount: 1, artifactCount: 1,
         },
         {
@@ -226,6 +310,35 @@ describe("Codegen control catalog", () => {
     expect(nodes.some((node) => node.textContent === "未命中项")).toBe(true);
     expect(element.events).toHaveLength(0);
 
+    element.model = {
+      kind: "kt.codegen.control-view-model",
+      schemaVersion: 1,
+      uri: "file:///Demo.json",
+      fileName: "Demo.json",
+      blocks: [
+        {
+          key: "PARAM DECLARATION", legacyId: 11, platform: "cpp", legacyState: "active", legacyCall: "",
+          title: "命中项", controlWords: "PARAM DECLARATION", notes: "", status: "hit", hitCount: 2, artifactCount: 2,
+        },
+        {
+          key: "QT UPDATE DIALOG", legacyId: 17, platform: "qt", legacyState: "active", legacyCall: "",
+          title: "未命中项", controlWords: "QT UPDATE DIALOG", notes: "", status: "missing", hitCount: 0, artifactCount: 0,
+        },
+      ],
+      selectedBlockKeys: ["PARAM DECLARATION", "QT UPDATE DIALOG"],
+      singleSelectionMode: false,
+      showMissingTemplates: false,
+      preflightAvailable: true,
+      missingTemplates: [],
+      presets: {
+        all: ["PARAM DECLARATION", "QT UPDATE DIALOG"], none: [],
+        cppOnly: ["PARAM DECLARATION"], fieldCode: [],
+      },
+    };
+    nodes = findNodes(element.shadow, (node) => Boolean(node.textContent));
+    expect(nodes.find((node) => node.textContent === "未命中 1")?.attributes.get("aria-pressed")).toBe("true");
+    expect(nodes.some((node) => node.textContent === "未命中项")).toBe(true);
+
     nodes.find((node) => node.textContent === "输出筛选并复制 (1)")!.onclick?.();
     expect(element.events.at(-1)).toMatchObject({
       type: "ktc-codegen-control-output",
@@ -238,8 +351,113 @@ describe("Codegen control catalog", () => {
     });
   });
 
+  it("渲染 native 范围 combo 与固定一层 Tree，组复选框按可见项三态选择并保留本地筛选/折叠", async () => {
+    vi.resetModules();
+    installFakeDom();
+    const browser = await import("./controlCatalog.js");
+    const blocks = [
+      {
+        key: "CATALOG PARAMS", legacyId: 0, platform: "caa", legacyState: "active", legacyCall: "",
+        title: "Catalog", controlWords: "CATALOG PARAMS", notes: "", status: "pending", hitCount: 0, artifactCount: 0,
+      },
+      {
+        key: "PARAM CONSTRUCTOR", legacyId: 10, platform: "cpp", legacyState: "active", legacyCall: "",
+        title: "Constructor", controlWords: "PARAM CONSTRUCTOR", notes: "", status: "pending", hitCount: 0, artifactCount: 0,
+      },
+      {
+        key: "PARAM DECLARATION", legacyId: 11, platform: "cpp", legacyState: "active", legacyCall: "",
+        title: "Declaration", controlWords: "PARAM DECLARATION", notes: "", status: "unselected", hitCount: 0, artifactCount: 0,
+      },
+      {
+        key: "QT UPDATE DIALOG", legacyId: 17, platform: "qt", legacyState: "active", legacyCall: "",
+        title: "Qt Dialog", controlWords: "QT UPDATE DIALOG", notes: "", status: "unselected", hitCount: 0, artifactCount: 0,
+      },
+      {
+        key: "DLG SET ACTIVE FIELD", legacyId: 20, platform: "caa", legacyState: "legacy-deprecated", legacyCall: "",
+        title: "Active Field", controlWords: "DLG SET ACTIVE FIELD", notes: "", status: "unselected", hitCount: 0, artifactCount: 0,
+      },
+    ] as const;
+    const model = {
+      kind: "kt.codegen.control-view-model" as const,
+      schemaVersion: 1 as const,
+      uri: "file:///Demo.json",
+      fileName: "Demo.json",
+      blocks,
+      selectedBlockKeys: ["CATALOG PARAMS", "PARAM CONSTRUCTOR"] as const,
+      singleSelectionMode: false,
+      showMissingTemplates: false,
+      preflightAvailable: false,
+      missingTemplates: [],
+      presets: {
+        all: blocks.map((block) => block.key), none: [],
+        cppOnly: ["PARAM CONSTRUCTOR", "PARAM DECLARATION"] as const,
+        fieldCode: ["QT UPDATE DIALOG", "DLG SET ACTIVE FIELD"] as const,
+      },
+    };
+    const element = new browser.KtcCodegenControlCatalog() as unknown as FakeElement & { model: typeof model };
+    element.setAttribute("mode", "compact");
+    element.model = model;
+
+    let nodes = findNodes(element.shadow, () => true);
+    const scope = nodes.find((node) => node.attributes.get("aria-label") === "控制符范围")!;
+    expect(nodes.filter((node) => node.tagName === "select")).toHaveLength(1);
+    expect(scope.tagName).toBe("select");
+    expect(scope.value).toBe("all");
+    expect(scope.children.map((option) => typeof option === "string" ? option : option.textContent)).toEqual([
+      "全部类型", "C++ only", "Field Code",
+    ]);
+
+    nodes.find((node) => node.textContent === "全部 5")!.onclick?.();
+    nodes = findNodes(element.shadow, () => true);
+    const groups = nodes.filter((node) => node.className === "group");
+    expect(groups.map((group) => group.attributes.get("data-group-id"))).toEqual(["cpp", "qt", "caa"]);
+    expect(nodes.some((node) => node.textContent === "显示 2/2 · 可见已选 1/2")).toBe(true);
+    expect(nodes.some((node) => node.textContent === "Active Field · 旧兼容")).toBe(true);
+    nodes.find((node) => node.textContent === "输出筛选并复制 (5)")!.onclick?.();
+    expect(element.events.at(-1)).toMatchObject({
+      type: "ktc-codegen-control-output",
+      detail: {
+        scope: "visible",
+        blockKeys: [
+          "CATALOG PARAMS", "PARAM CONSTRUCTOR", "PARAM DECLARATION",
+          "QT UPDATE DIALOG", "DLG SET ACTIVE FIELD",
+        ],
+      },
+    });
+    const cppCheck = nodes.find((node) => node.attributes.get("aria-label") === "选择 C++ 当前可见控制符")!;
+    expect(cppCheck.checked).toBe(false);
+    expect(cppCheck.indeterminate).toBe(true);
+    cppCheck.checked = true;
+    cppCheck.onchange?.();
+    expect(element.events.at(-1)).toMatchObject({
+      type: "ktc-codegen-control-selection-change",
+      detail: {
+        blockKeys: ["CATALOG PARAMS", "PARAM CONSTRUCTOR", "PARAM DECLARATION"],
+        singleMode: false,
+      },
+    });
+
+    nodes = findNodes(element.shadow, () => true);
+    const nextScope = nodes.find((node) => node.attributes.get("aria-label") === "控制符范围")!;
+    nextScope.value = "cpp-only";
+    nextScope.onchange?.();
+    nodes = findNodes(element.shadow, () => true);
+    const cpp = nodes.find((node) => node.attributes.get("data-group-id") === "cpp")!;
+    cpp.open = false;
+    cpp.ontoggle?.();
+    element.model = {
+      ...model,
+      selectedBlockKeys: ["PARAM CONSTRUCTOR", "PARAM DECLARATION"],
+    } as unknown as typeof model;
+    nodes = findNodes(element.shadow, () => true);
+    expect(nodes.find((node) => node.attributes.get("aria-label") === "控制符范围")?.value).toBe("cpp-only");
+    expect(nodes.filter((node) => node.className === "group").map((node) => node.attributes.get("data-group-id"))).toEqual(["cpp"]);
+    expect(nodes.find((node) => node.attributes.get("data-group-id") === "cpp")?.open).toBe(false);
+  });
+
   it("compact/full 共用选择、显示与日志事件，并保持无障碍标签", () => {
     const source = readFileSync(new URL("./controlCatalog.ts", import.meta.url), "utf8");
+    const shellSource = readFileSync(new URL("./controlPanel.ts", import.meta.url), "utf8");
     expect(source).toContain(':host([mode="compact"])');
     expect(source).toContain('"ktc-codegen-control-selection-change"');
     expect(source).toContain('"ktc-codegen-control-display-change"');
@@ -248,8 +466,13 @@ describe("Codegen control catalog", () => {
     expect(source).toContain("输出筛选并复制");
     expect(source).toContain("显示筛选不会修改 Apply 勾选");
     expect(source).toContain("输出${block.title}控制块到日志并复制可粘贴源码");
-    expect(source).toContain("overflow-y: scroll");
+    expect(source).toContain(':host([mode="compact"]) .list { max-height: 236px; overflow-y: auto; }');
+    expect(source).toContain(':host([mode="full"]) .list { flex: 0 0 auto; min-block-size: 0; max-height: none; overflow: visible; }');
+    expect(shellSource).toContain(':host([mode="full"]) { block-size: auto; min-block-size: 0; overflow-x: auto; overflow-y: hidden; }');
     expect(source).toContain("::-webkit-scrollbar-thumb");
+    expect(source).toContain('document.createElement("select")');
+    expect((source.match(/document\.createElement\("select"\)/gu) ?? [])).toHaveLength(1);
+    expect(source).toContain('data-group-id');
     expect(source).not.toContain("acquireVsCodeApi");
   });
 });

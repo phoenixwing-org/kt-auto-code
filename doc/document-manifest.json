@@ -10,6 +10,13 @@
   ],
   "entries": [
     {
+      "path": "AGENTS.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
       "path": "doc/0.1.0-插件市场发布归档.md",
       "status": "archived",
       "owner": "KT Auto Code maintainers",
@@ -83,6 +90,13 @@
     },
     {
       "path": "doc/0.4.0-ExtensionHost人工验收清单.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
+      "path": "doc/本地Wing并列开发.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.5.x",
@@ -283,6 +297,13 @@
       "reason": "阶段评分证据，不代表当前全工程成熟度"
     },
     {
+      "path": "doc/codegen-plan/Codegen控制符目录Tree与范围Combo点检表.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
       "path": "doc/codegen-plan/Codegen控制面板滚动筛选点检表.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
@@ -318,6 +339,13 @@
       "lastVerified": "2026-07-17",
       "sourceOfTruth": "doc/current-roadmap.md",
       "reason": "阶段评分证据，不代表当前全工程成熟度"
+    },
+    {
+      "path": "doc/codegen-plan/Codegen总Controller会话提炼点检表.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
     },
     {
       "path": "doc/Codegen快速原型.md",

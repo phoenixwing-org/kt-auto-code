@@ -3,9 +3,10 @@ import { createHash } from "node:crypto";
 import {
   KtCodegenController,
   ktCodegenParamsEqual,
-  type KtCodegenDiagnostic,
 } from "@phoenix-wing/kt-codegen";
 import { ktcDecodeCodegenSource } from "./sourceCodec.js";
+import type { KtcCodegenTextSnapshot } from "./contracts.js";
+import { ktcCodegenDiagnosticsText } from "./diagnosticText.js";
 
 export interface KtcCodegenFileSystem {
   readFile(uri: vscode.Uri): Thenable<Uint8Array>;
@@ -33,11 +34,6 @@ export interface KtcDiscoveredCodegenDocument {
   readonly nameSpace: string;
   readonly appendFunction: string;
   readonly diagnosticCount: number;
-}
-
-export interface KtcCodegenTextSnapshot {
-  readonly text: string;
-  readonly fingerprint: string;
 }
 
 export interface KtcCodegenJsonWriteGuard {
@@ -68,14 +64,6 @@ export function ktcCodegenIsFileNotFoundError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const code = (error as { code?: unknown }).code;
   return code === "FileNotFound" || code === "ENOENT";
-}
-
-export function ktcCodegenDiagnosticsText(diagnostics: readonly KtCodegenDiagnostic[]): string {
-  return diagnostics
-    .filter((diagnostic) => diagnostic.severity === "error")
-    .slice(0, 3)
-    .map((diagnostic) => diagnostic.message)
-    .join("；");
 }
 
 export function ktcIsLegacyCodegenJson(value: unknown): boolean {

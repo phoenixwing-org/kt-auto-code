@@ -136,7 +136,6 @@ export function getCodegenEditorHtml(
       display: block;
       height: auto;
       min-height: 0;
-      overflow: visible;
     }
     body.vscode-high-contrast kt-codegen-table,
     body.vscode-high-contrast-light kt-codegen-table {
