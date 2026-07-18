@@ -18,6 +18,8 @@ describe("Extension Development Host launcher", () => {
     expect(result.stdout.match(/--extensionDevelopmentPath=/g)).toHaveLength(2);
     expect(result.stdout).toContain(path.join(root, "extension"));
     expect(result.stdout).toContain(path.join(root, "extensions/kt-auto-cad"));
+    expect(result.stderr).toContain("当前只加载已有 dist");
+    expect(result.stderr).toContain("pnpm dev");
   });
 
   it("keeps an explicit Code-only mode", () => {
@@ -37,6 +39,9 @@ describe("Extension Development Host launcher", () => {
     expect(result.stdout).toContain("--new-window");
     expect(result.stdout).toContain("kt-auto-code-local-host-<runtime>");
     expect(result.stdout).toContain("本地快照");
+    expect(result.stdout).toContain("旧 Development Host 不会自动关闭");
+    expect(result.stdout).toContain("只在刚打开的窗口测试");
+    expect(result.stderr).not.toContain("当前只加载已有 dist");
     expect(result.stdout.match(/--extensionDevelopmentPath=/g)).toHaveLength(2);
     expect(result.stdout).not.toContain(`--extensionDevelopmentPath=${path.join(root, "extension")}`);
   });

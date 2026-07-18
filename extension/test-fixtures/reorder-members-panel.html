@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>成员排序 Page shell 点检</title>
+  <style>
+    :root {
+      --vscode-foreground: #222;
+      --vscode-descriptionForeground: #65656b;
+      --vscode-sideBar-background: #f6f6f8;
+      --vscode-editorWidget-background: #f8f8fa;
+      --vscode-panel-border: #d5d5dc;
+      --vscode-button-foreground: #fff;
+      --vscode-button-background: #0875d1;
+      --vscode-button-secondaryForeground: #222;
+      --vscode-button-secondaryBackground: #e9e9ed;
+      --vscode-focusBorder: #0875d1;
+      --vscode-list-hoverBackground: #edf4fb;
+      --vscode-symbolIcon-classForeground: #795e26;
+      --vscode-gitDecoration-modifiedResourceForeground: #8a6300;
+      --vscode-errorForeground: #c62828;
+      --vscode-testing-iconPassed: #16813d;
+      --vscode-font-family: Arial, sans-serif;
+      color-scheme: light;
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; min-width: 0; margin: 0; overflow-x: hidden; }
+    body { padding: 8px; color: var(--vscode-foreground); background: var(--vscode-sideBar-background); font: 12px/1.35 var(--vscode-font-family); }
+    .fixture-tools { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
+    .fixture-tools button { min-height: 25px; }
+    #event-log { min-height: 24px; margin: 6px 0 0; overflow-wrap: anywhere; color: var(--vscode-descriptionForeground); font-size: 10px; }
+  </style>
+</head>
+<body>
+  <div class="fixture-tools">
+    <button id="toggle-presentation" type="button">切换 Sidebar / Detail</button>
+    <button id="toggle-running" type="button">切换 Running</button>
+    <button id="host-empty" type="button">Host 空选择</button>
+  </div>
+  <ktc-reorder-members-panel id="panel"></ktc-reorder-members-panel>
+  <p id="event-log" role="log">尚无事件</p>
+  <script src="../dist/reorder-members-panel.js"></script>
+  <script>
+    const pendingUri = "file:///workspace/very/deep/project/source/tree/PNXExtremelyLongMemberOrderingImplementation.cpp";
+    const rows = [
+      {
+        uri: pendingUri,
+        relativePath: "very/deep/project/source/tree/with/many/segments/PNXExtremelyLongMemberOrderingImplementation.cpp",
+        kind: "source", encoding: "UTF-8", changed: true, state: "pending", warnings: [],
+      },
+      {
+        uri: "file:///workspace/include/PNXBlocked.hpp",
+        relativePath: "include/another/long/generated/path/PNXBlocked.hpp",
+        kind: "header", encoding: "GBK", changed: true, state: "blocked", warnings: ["文件在预览后发生变化"],
+      },
+      {
+        uri: "file:///workspace/include/PNXAnotherPending.hpp",
+        relativePath: "include/generated/deep/path/PNXAnotherPending.hpp",
+        kind: "header", encoding: "UTF-8", changed: true, state: "pending", warnings: [],
+      },
+      {
+        uri: "file:///workspace/src/PNXApplied.cpp",
+        relativePath: "src/PNXApplied.cpp",
+        kind: "source", encoding: "UTF-8", changed: true, state: "applied", warnings: [],
+      },
+      {
+        uri: "file:///workspace/src/PNXUnchanged.cpp",
+        relativePath: "src/PNXUnchanged.cpp",
+        kind: "source", encoding: "UTF-8", changed: false, state: "unchanged", warnings: [],
+      },
+    ];
+    const panel = document.getElementById("panel");
+    let presentation = "ribbon";
+    let running = false;
+    let selected = undefined;
+    const render = () => {
+      panel.model = {
+        presentation,
+        status: running ? "running" : "done",
+        message: running ? "正在生成 C++ 成员排序预览…" : "扫描 5 个文件，2 个有变更。",
+        scanned: 5,
+        reorderRevision: 11,
+        reorderSelectedUris: selected,
+        reorderResults: rows,
+      };
+    };
+    panel.addEventListener("ktc-reorder-members-action", (event) => {
+      document.getElementById("event-log").textContent = JSON.stringify(event.detail);
+      if (event.detail.kind === "reorderSelection") selected = [...event.detail.uris];
+    });
+    document.getElementById("toggle-presentation").onclick = () => {
+      presentation = presentation === "ribbon" ? "detailBlock" : "ribbon";
+      render();
+    };
+    document.getElementById("toggle-running").onclick = () => { running = !running; render(); };
+    document.getElementById("host-empty").onclick = () => { selected = []; render(); };
+    customElements.whenDefined("ktc-reorder-members-panel").then(() => {
+      render();
+      document.body.dataset.ready = "true";
+    });
+  </script>
+</body>
+</html>

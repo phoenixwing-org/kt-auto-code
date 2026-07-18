@@ -285,20 +285,47 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     };
   }
 
-  private createRunContext(toolId: string): ToolRunContext {
+  private createRunContext(toolId: string, transientTarget?: vscode.WebviewView): ToolRunContext {
     return {
       workspaceRoot: getWorkspaceRoot(),
       workspaceLabel: getWorkspaceLabel(),
       workspaceFileScopeId: this.getSelectedWorkspaceFileScopeId(toolId),
-      postState: (state) => this.setToolState(toolId, state),
+      postState: (state) => this.setToolState(toolId, state, transientTarget),
       log: (text) => logOutput(text),
     };
   }
 
-  private setToolState(toolId: string, state: ToolUiState): void {
-    const merged = { ...this.toolStates.get(toolId), ...state };
+  private setToolState(
+    toolId: string,
+    state: ToolUiState,
+    transientTarget?: vscode.WebviewView,
+  ): void {
+    const { associatedRulePicker, ...durableUpdate } = state;
+    const {
+      associatedRulePicker: _staleAssociatedRulePicker,
+      ...durablePrevious
+    } = this.toolStates.get(toolId) ?? {};
+    const merged = { ...durablePrevious, ...durableUpdate } as ToolUiState;
     this.toolStates.set(toolId, merged);
-    this.postToViews({ type: "state", toolId, state: merged });
+    if (!associatedRulePicker || !transientTarget) {
+      this.postToViews({ type: "state", toolId, state: merged });
+      return;
+    }
+
+    const durableMessage = { type: "state", toolId, state: merged } as const;
+    const transientMessage = {
+      type: "state",
+      toolId,
+      state: { ...merged, associatedRulePicker },
+    } as const;
+    postToWebview(
+      this.ribbonView,
+      this.ribbonView === transientTarget ? transientMessage : durableMessage,
+    );
+    postToWebview(
+      this.moduleView,
+      this.moduleView === transientTarget ? transientMessage : durableMessage,
+    );
   }
 
   private async sendInit(target: vscode.WebviewView): Promise<void> {
@@ -406,7 +433,10 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       await this.workspaceState.update(FILE_SCOPE_STATE_KEY, selected);
       this.postToViews({ type: "workspaceFileScopes", scopes: snapshot.scopes, selected });
       if (message.toolId === "codegen") {
-        await getTool("codegen")?.runAction("workspaceScopeChanged", this.createRunContext("codegen"));
+        await getTool("codegen")?.runAction(
+          "workspaceScopeChanged",
+          this.createRunContext("codegen", source),
+        );
       }
       return;
     }
@@ -528,7 +558,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       }
       const tool = getTool(message.toolId);
       if (tool) {
-        const ctx = this.createRunContext(message.toolId);
+        const ctx = this.createRunContext(message.toolId, source);
         try { await tool.handleMessage(message, ctx); }
         catch (error) { this.postUnhandledToolError(message.toolId, error); }
         this.refreshToolOptions(message.toolId);
@@ -545,7 +575,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    const ctx = this.createRunContext(message.toolId);
+    const ctx = this.createRunContext(message.toolId, source);
     try { await tool.handleMessage(message, ctx); }
     catch (error) { this.postUnhandledToolError(message.toolId, error); }
   }

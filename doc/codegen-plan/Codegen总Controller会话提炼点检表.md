@@ -53,7 +53,7 @@ Owner：KT Auto Code maintainers
 
 ## 后续 TODO
 
-- [ ] 把 Editor 语义命令执行从总 Controller 进一步提炼；必须把 Apply 作为注入动作，不能借重构改变其阻断规则。
+- [x] 把 Editor 语义命令执行从总 Controller 进一步提炼；Apply 已作为注入动作，既有阻断规则和双计时语义保持不变。责任图与时序见[Codegen 编辑器语义命令 Controller 点检表](Codegen编辑器语义命令Controller点检表.md)。
 - [ ] 单独设计 Save/Revert 决策 Controller；先冻结外部修改、覆盖、重新创建与取消矩阵。
 - [ ] 评估 discovery/candidate scan 的进度与取消 Presenter，现有 `WorkspaceOperationCoordinator` 继续保持唯一队列真源。
 - [ ] 不在本切口实现并发打开合并、Custom Editor Save All、Hot Exit 或 Apply All。

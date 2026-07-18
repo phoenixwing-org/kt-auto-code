@@ -9,6 +9,11 @@ import {
 const watch = process.argv.includes("--watch");
 const localWing = localWingBuildContextFromEnvironment();
 const localWingPlugins = localWing?.plugins ?? [];
+const extensionBuildProvenance = {
+  __KTC_WING_BUILD_MODE__: JSON.stringify(localWing ? "local" : "registry"),
+  // Registry bundle 不记录构建机路径；本地 bundle 只记录用户明确选择的 Wing 根。
+  __KTC_WING_BUILD_ROOT__: JSON.stringify(localWing?.wingRoot ?? ""),
+};
 
 /** @type {import('esbuild').BuildOptions} */
 const extensionOptions = {
@@ -22,6 +27,7 @@ const extensionOptions = {
   sourcemap: true,
   logLevel: "info",
   metafile: Boolean(localWing),
+  define: extensionBuildProvenance,
   plugins: localWingPlugins,
 };
 
@@ -68,6 +74,34 @@ const codegenPrimaryPanelOptions = {
 };
 
 /** @type {import('esbuild').BuildOptions} */
+const reorderMembersPanelOptions = {
+  entryPoints: ["src/sidebar/reorderMembersPanelEntry.ts"],
+  bundle: true,
+  outfile: "dist/reorder-members-panel.js",
+  platform: "browser",
+  format: "iife",
+  target: "es2022",
+  sourcemap: true,
+  logLevel: "info",
+  metafile: Boolean(localWing),
+  plugins: localWingPlugins,
+};
+
+/** @type {import('esbuild').BuildOptions} */
+const associatedRulePickerOptions = {
+  entryPoints: ["src/sidebar/associatedRulePickerEntry.ts"],
+  bundle: true,
+  outfile: "dist/associated-rule-picker.js",
+  platform: "browser",
+  format: "iife",
+  target: "es2022",
+  sourcemap: true,
+  logLevel: "info",
+  metafile: Boolean(localWing),
+  plugins: localWingPlugins,
+};
+
+/** @type {import('esbuild').BuildOptions} */
 const extensionHostSmokeOptions = {
   entryPoints: ["src/test/extensionHostSmoke.ts"],
   bundle: true,
@@ -87,8 +121,11 @@ if (watch) {
   const tableContext = await esbuild.context(codegenTableOptions);
   const controlCatalogContext = await esbuild.context(codegenControlCatalogOptions);
   const primaryPanelContext = await esbuild.context(codegenPrimaryPanelOptions);
+  const reorderMembersPanelContext = await esbuild.context(reorderMembersPanelOptions);
+  const associatedRulePickerContext = await esbuild.context(associatedRulePickerOptions);
   await Promise.all([
     extensionContext.watch(), tableContext.watch(), controlCatalogContext.watch(), primaryPanelContext.watch(),
+    reorderMembersPanelContext.watch(), associatedRulePickerContext.watch(),
   ]);
   console.log("watching extension…");
 } else {
@@ -98,6 +135,8 @@ if (watch) {
     esbuild.build(codegenTableOptions),
     esbuild.build(codegenControlCatalogOptions),
     esbuild.build(codegenPrimaryPanelOptions),
+    esbuild.build(reorderMembersPanelOptions),
+    esbuild.build(associatedRulePickerOptions),
     esbuild.build(extensionHostSmokeOptions),
   ]);
   if (localWing) {

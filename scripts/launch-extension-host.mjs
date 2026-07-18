@@ -106,7 +106,12 @@ if (localWingDevelopment && !prepareOnly) {
   console.log(dryRun
     ? `  本地快照: ${LOCAL_EXTENSION_SNAPSHOT_PREVIEW_ROOT}（dry-run，启动时创建）`
     : `  本地快照: ${extensionSnapshotRoot}（与仓库后续构建隔离）`);
-  console.log("  窗口: --new-window（不复用已激活的旧 Extension Host）");
+  console.log("  窗口: --new-window（会新建 Host；旧 Development Host 不会自动关闭，请只在刚打开的窗口测试）");
+} else {
+  console.warn(
+    "[extension-host] 当前只加载已有 dist；它可能来自 npm Registry 构建。"
+    + "如需测试并列 phoenix-wing，请停止并改用 pnpm dev。",
+  );
 }
 console.log(codegenFixture
   ? `  工作区: ${workspacePath ?? `${fixtureTemplatePath}（运行时复制到临时目录）`}`

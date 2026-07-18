@@ -131,6 +131,38 @@ Owner：KT Auto Code maintainers
 - marker、Preflight、Apply 门禁和控制符目录均未修改。责任图、自动点检与后续 Save/Revert/Editor command TODO 见 `codegen-plan/Codegen总Controller会话提炼点检表.md`。
 - 自动门禁结果：88 个测试文件、431 项测试；124 个生产源文件、22 个 pure graph、9 个 View root；64 份 Markdown；7 个 Wing Registry 0.4.2 引用；Extension typecheck 通过。
 
+## 已完成第九个切口：C++ 成员排序 Page shell
+
+- `ktc-reorder-members-panel` 现在拥有 C++ 成员排序的 Sidebar/Detail 页面壳、长路径文件列表、三态组选择、Running 禁用、blocked/applied 展示和 Realm 本地“显示无变更”筛选；组件不调用 VS Code API。
+- 纯 `reorderMembersPanelState.ts` 冻结 revision 与选择收敛：新 revision 默认 pending，同 revision 显式空选择由 Host 覆盖，同 revision 缺字段才保留本地 optimistic，并始终过滤非 pending。
+- `sidebar/panelHtml.ts` 从 2604 行降到 2388 行，只把 `ToolUiState` 投影为组件 model，再将单一带 `kind` 的语义事件精确映射回既有 `run` / `reorderAction` / `reorderSelection`；扫描、确认、fingerprint、写盘与还原仍由 Extension Host Controller 拥有。
+- 独立 bundle 已进入 build、watch 与 VSIX 制品门禁。Browser 夹具在 360px/280px 验证无页面横向溢出，并覆盖两种 presentation、Running、blocked、applied、Host 空选择和单行/批量 Apply 事件；责任图与后续真实主题 TODO 见[成员排序 Page shell 拆分点检](成员排序PageShell拆分点检表.md)。
+
+## 已完成第十个切口：Editor 语义命令 Controller
+
+- 新增 UI-neutral `editorCommandController.ts`，集中编排 ignore/control/dirty/exchange/ready/revert/cancelPreflight/preflight/apply 九类语义命令、整表三态和动作短路；VS Code、文件系统、Presenter、日志及写盘实现继续由 Host adapter 持有。
+- `Codegen/index.ts` 删除 `handleEditorMessage()` 与 `acceptActionTable()` 分支状态机，从 1,500 行收敛到 1,447 行；Router 继续只做 URI/transport 分类，Domain Model 继续独占 revision、dirty、preflight 与 `stale / accepted / unchanged` 判定。
+- Apply 的总计时与自动 Preflight 独立计时、无 plan 停止、stale 阻断均由 spy trace 和 source characterization 冻结；本切口不修改 Marker、Preflight、Apply、Save/Revert 或控制符行为。
+
+## 已完成第十一个切口：关联规则选择器 Web Component
+
+- `ktc-associated-rule-picker` 已接管原先散落在 `sidebar/panelHtml.ts` 的 Dialog DOM、Shadow DOM 样式、候选/自定义行、确认门禁、焦点以及 close/cancel/Escape；组件只接收一次性 ViewModel，并通过一个 `ktc-associated-rule-picker-action` union 事件返回 confirm/cancel。
+- Sidebar adapter 继续在确认时读取最新的 `state.replace.search` / `state.replace.extraRules`，映射为既有 `appendAssociatedRules`；候选派生、同 Source 竞争、追加去重与写盘仍属于纯 Model/Extension Host，组件不访问 VS Code API、clipboard、工作区或持久状态。
+- `SidebarViewProvider` 已把 `associatedRulePicker` 明确设为 transient：它不进入 durable `toolStates`，只投递给发起请求的 Ribbon 或 Module View，另一存活 View 只收到 durable 状态；后续状态更新和 Webview 重建都不会回弹旧 Dialog。
+- 独立 bundle 已进入 build/watch、架构 viewRoots 与 VSIX 必需制品门禁；组件、adapter、双 View transient、全仓测试、类型检查、架构和制品检查均通过。责任图与保留点检见[关联规则选择器组件化 Baseline 点检](关联规则选择器组件化Baseline点检表.md)。
+
+## 大型 UI 暂停后的 TODO（2026-07-18）
+
+用户决定暂停本轮大型 UI 拆分。以下事项只登记，不在本轮继续实施；恢复目标前不得把它们悄悄并入普通修复或发布提交。
+
+1. **关联规则真实 Browser 回执**：通过 localhost fixture 或真实 VS Code Webview 验证 430/320/280px、Tab 焦点圈、关闭后的焦点恢复、Escape、backdrop 和长候选内部滚动。本次 Browser 自动化因 `file://` URL 策略拒绝而停止；自动测试、bundle 与 VSIX 已通过，这一项是人工/真实浏览器证据缺口，不是已知产品失败。
+2. **Auto Code 后续大壳**：搜索替换完整 Page shell、`Codegen/index.ts` 剩余 Host adapter，以及“全部应用/批量报告”继续分别立 characterization 和独立小提交；不得大爆炸迁移，也不得把 Profile、工作目录、结果与 Picker 再合回一个组件。
+3. **Desk Tools 后续大页**：Unit Tests 的 Result pane 与“全部复测”语义、FCStd Map 扫描 Controller、Assembly RowGroup/样式收口、CAA Editor 剩余 session/writeback Host 边界继续留在 Desk `doc/TODO.md`；已有 RunScope/Watchlist、FCStd panes、Assembly row、CAA Controller 不返工。
+4. **Wing 后续条件项**：`KtCodegenTable` 已到首轮合理停止线；页面布局能力完成发布和 Registry 消费验证前，不为降行数继续拆。只有出现第二产品消费者或真实复用需求时，才评估公开更多 visual primitive。
+5. **跨仓人工证据**：Windows NSIS 真实回执，以及 VS Code/Desk 的浅色、深色、高对比视觉矩阵继续由用户手工并行；不阻塞当前代码归档，也不追溯提高联合评分。
+
+暂停期间联合成熟度保持 **92.00 / 100**。恢复时从本 TODO 重新选择一个最小切口，不默认续跑整套大型 UI 计划。
+
 ## 已合并的旧路线
 
 - `下一阶段实施计划.md`：已完成的 Ignore/搜索替换主体成为稳定基线，未完成 Extension Host 验收进入本路线第 3 项。
@@ -142,5 +174,5 @@ Owner：KT Auto Code maintainers
 
 - Wing 是跨宿主纯算法与契约真源；本仓只拥有 VS Code Extension Host、Webview/VSIX、工作区权限和产品编排。
 - Desk/Tauri 壳层和原生 CAD provider 不复制进入 Auto Code。
-- 用户已于 2026-07-18 接受联合成熟度 **92.00** 作为上一轮停止线；Windows 发布态回执保留为用户手工后续项。大型 UI 拆分目标已经启动，仍禁止向大文件加入新的领域算法或文件真相。
+- 用户已于 2026-07-18 接受联合成熟度 **92.00** 作为停止线；Windows 发布态回执保留为用户手工后续项。大型 UI 拆分目标已在完成若干小切口后暂停，恢复前仍禁止向大文件加入新的领域算法或文件真相。
 - 测试数量、bundle 大小和版本关系由 CI/manifest 产生，不在当前路线复制易漂移数字。

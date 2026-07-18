@@ -21,11 +21,13 @@
     "extension/src/tools/codegen/controlCatalogState.ts",
     "extension/src/tools/codegen/controlSessionController.ts",
     "extension/src/tools/codegen/editorMessageRouter.ts",
+    "extension/src/tools/codegen/editorCommandController.ts",
     "extension/src/tools/codegen/sourceScanPolicy.ts",
     "extension/src/tools/codegen/workspaceOperationCoordinator.ts",
     "extension/src/tools/codegen/workspaceDiscoveryPolicy.ts",
     "extension/src/tools/codegen/sourceApply.ts",
-    "extension/src/tools/codegen/sourceApplyTransaction.ts"
+    "extension/src/tools/codegen/sourceApplyTransaction.ts",
+    "extension/src/sidebar/reorderMembersPanelState.ts"
   ],
   "forbiddenPureImports": [
     "^(?:node:|fs$|fs/|vue$|vue/|pinia$|pinia/|element-plus$|element-plus/|vscode$|@tauri-apps/)"
@@ -40,7 +42,11 @@
     "extension/src/tools/codegen/controlCatalog.ts",
     "extension/src/tools/codegen/controlCatalogEntry.ts",
     "extension/src/tools/codegen/primaryPanel.ts",
-    "extension/src/tools/codegen/primaryPanelEntry.ts"
+    "extension/src/tools/codegen/primaryPanelEntry.ts",
+    "extension/src/sidebar/reorderMembersPanel.ts",
+    "extension/src/sidebar/reorderMembersPanelEntry.ts",
+    "extension/src/sidebar/associatedRulePicker.ts",
+    "extension/src/sidebar/associatedRulePickerEntry.ts"
   ],
   "forbiddenViewImports": ["^(?:node:fs|fs$|fs/|node:child_process|node:sqlite)"],
   "forbiddenViewCalls": ["writeFile", "writeFileSync", "rename", "renameSync", "unlink", "unlinkSync", "rm", "rmSync"],

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { getPanelHtml, ktcNextReorderSelection, ktcSearchReplaceButtonState } from "./panelHtml.js";
+import { getPanelHtml, ktcSearchReplaceButtonState } from "./panelHtml.js";
+import { ktcNextReorderSelection } from "./reorderMembersPanelState.js";
 
 describe("sidebar panel HTML", () => {
   it("与 Desk Tools 共用自动代码名称和 Operation 图标语义", () => {
@@ -24,8 +25,11 @@ describe("sidebar panel HTML", () => {
       asWebviewUri(uri: { path: string }) { return `test-webview:${uri.path}`; },
     } as unknown as Parameters<typeof getPanelHtml>[0], extensionUri);
 
-    expect(html).toContain('id="rule-picker"');
-    expect(html).toContain('dataset.customSearch');
+    expect(html).toContain('<ktc-associated-rule-picker id="rule-picker"></ktc-associated-rule-picker>');
+    expect(html).toContain("test-webview:/extension/dist/associated-rule-picker.js");
+    expect(html).toContain('"ktc-associated-rule-picker-action"');
+    expect(html).toContain("els.rulePicker.openPicker(picker)");
+    expect(html).not.toContain('id="rule-picker-list"');
     expect(html).toContain('type: "requestAssociatedRuleCandidates"');
     expect(html).toContain('type: "appendAssociatedRules"');
     expect(html).toContain('id="btn-pick-working-directory"');
@@ -54,19 +58,16 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('(item.moduleId || "code") === moduleId');
     expect(html).toContain('type: "runModuleTool"');
     expect(html).toContain('t.shortTitle || shortTitles[t.id] || t.title');
-    expect(html).toContain('body.detail-block .reorder-block h2');
-    expect(html).toContain('id="btn-reorder-apply"');
-    expect(html).toContain('id="reorder-show-unchanged"');
-    expect(html).toContain('id="reorder-groups"');
+    expect(html).toContain('<ktc-reorder-members-panel id="reorder-members-panel" hidden>');
+    expect(html).toContain("test-webview:/extension/dist/reorder-members-panel.js");
+    expect(html).toContain('els.reorderMembersPanel.model = {');
+    expect(html).toContain('"ktc-reorder-members-action"');
     expect(html).toContain('type: "reorderAction"');
     expect(html).toContain('type: "reorderSelection"');
-    expect(html).toContain('createReorderIcon("⇄", "预览排序差异"');
-    expect(html).toContain('createReorderIcon("↶", "还原本次成员排序"');
-    expect(html).toContain('acceptReorderState(msg.state)');
-    expect(html).toContain('.reorder-file-name { flex: 0 0 auto;');
-    expect(html).toContain('.reorder-file-dir { flex: 1 1 0; min-width: 0;');
-    expect(html).toContain('pending: "M", applied: "✓"');
-    expect(html).toContain('state.presentation === "detailBlock"');
+    expect(html).toContain('type: "run", toolId: "reorderMembers", action: detail.action');
+    expect(html).not.toContain('id="btn-reorder-apply"');
+    expect(html).not.toContain("function createReorderGroup");
+    expect(html).not.toContain("function renderReorderResults");
     expect(html).toContain('className = "tab" + (isOpen ? " open" : "") + (isActive ? " active" : "")');
     expect(html).toContain('已打开，当前隐藏');
     expect(html).toContain('.tab.open:not(.active)');
@@ -242,21 +243,21 @@ describe("sidebar panel HTML", () => {
       state,
       warnings: [],
     }));
-    const first = ktcNextReorderSelection(new Set(), undefined, {
+    const first = ktcNextReorderSelection({ selectedUris: [], revision: undefined }, {
       reorderRevision: 1,
       reorderResults: rows([["one", "pending"], ["two", "pending"]]),
     });
-    expect([...first.selected]).toEqual(["one", "two"]);
-    const sameRevision = ktcNextReorderSelection(new Set(["one"]), first.revision, {
+    expect(first.selectedUris).toEqual(["one", "two"]);
+    const sameRevision = ktcNextReorderSelection({ selectedUris: ["one"], revision: first.revision }, {
       reorderRevision: 1,
       reorderResults: rows([["one", "applied"], ["two", "pending"]]),
       reorderSelectedUris: [],
     });
-    expect([...sameRevision.selected]).toEqual([]);
-    const newScan = ktcNextReorderSelection(sameRevision.selected, sameRevision.revision, {
+    expect(sameRevision.selectedUris).toEqual([]);
+    const newScan = ktcNextReorderSelection(sameRevision, {
       reorderRevision: 2,
       reorderResults: rows([["two", "pending"]]),
     });
-    expect([...newScan.selected]).toEqual(["two"]);
+    expect(newScan.selectedUris).toEqual(["two"]);
   });
 });

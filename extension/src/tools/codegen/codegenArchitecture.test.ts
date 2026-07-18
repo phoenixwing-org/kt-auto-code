@@ -136,6 +136,22 @@ describe("Codegen MVC dependency boundary", () => {
     expect(view).not.toContain('from "../types.js"');
   });
 
+  it("Editor 语义命令由纯 Controller 编排，总 Controller 只装配 Host 动作", () => {
+    const workspaceController = source("./index.ts");
+    const commandController = source("./editorCommandController.ts");
+    expect(workspaceController).toContain("ktcExecuteCodegenEditorCommand");
+    expect(workspaceController).toContain("editorCommandActions(");
+    expect(workspaceController).not.toContain("private async handleEditorMessage(");
+    expect(workspaceController).not.toContain("private acceptActionTable(");
+    expect(commandController).toContain("KtcCodegenEditorCommandActions");
+    expect(commandController).toContain("ktcExecuteCodegenEditorCommand");
+    expect(commandController).toContain("actions.runPreflight()");
+    expect(commandController).toContain("actions.apply(timer)");
+    expect(commandController).not.toMatch(
+      /from ["']vscode["']|ToolRunContext|workspace\.|window\.|node:fs|readFile|writeFile|document\./,
+    );
+  });
+
   it("Editor session Presenter 统一 Model、状态、控制符与 Problems 输出端口", () => {
     const controller = source("./index.ts");
     const presenter = source("./editorSessionPresenter.ts");

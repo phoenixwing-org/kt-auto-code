@@ -22,11 +22,14 @@ Owner：KT Auto Code maintainers
 
 - [Codegen 快速原型与 MVC 边界](Codegen快速原型.md)
 - [Codegen 总 Controller 会话提炼点检](codegen-plan/Codegen总Controller会话提炼点检表.md)
+- [Codegen 编辑器语义命令 Controller 点检](codegen-plan/Codegen编辑器语义命令Controller点检表.md)
 - [Codegen 控制符目录 Tree 与范围 Combo 点检](codegen-plan/Codegen控制符目录Tree与范围Combo点检表.md)
 - [Codegen 手工验收](codegen-plan/Codegen手工验收.md)
 - [Codegen 全部应用计划](codegen-plan/Codegen全部应用与批量报告计划.md)与[点检表](codegen-plan/Codegen全部应用点检表.md)
 - [Extension Host 自动验收](ExtensionHost自动验收.md)
 - [搜索替换行为规范](搜索替换.md)、[编码规则](搜索替换编码规则.md)与[算法审计](搜索替换算法审计.md)
+- [关联规则选择器组件化 Baseline 点检](关联规则选择器组件化Baseline点检表.md)
+- [C++ 成员排序 Page shell 拆分点检](成员排序PageShell拆分点检表.md)
 - [源文件编码扫描](源文件编码扫描.md)与[编码修正](编码修正.md)
 - [CAA 命名调查](PNXCaaStudy-CAA命名规则调查.md)与[Ignore 规则总结](PNXCaaStudy-Ignore规则总结.md)
 

@@ -26,7 +26,7 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 
 **基础插件**：`pnpm ext:watch` → 本仓库 **F5** → Host 窗口打开 CAA 工程 → Side Bar **KT Auto Code**。
 
-开发环境使用 Node.js 22 LTS 与 pnpm 10。`pnpm dev` 是默认双插件联调入口，强制消费并列本地 Wing；构建完成后会把 Code/CAD 扩展复制到独立临时快照并启动全新 Host 窗口，后续普通 Registry 构建不会覆盖本次联调产物。AI 只构建验证可用 `pnpm ext:dev:prepare`。正式 npm 包行为用 `pnpm dev:registry` 对照，详见[本地 Wing 并列开发](doc/本地Wing并列开发.md)。CAD 不创建第二个 Activity Bar 图标，Code/CAD 在工具栏 Header 独立勾选，工具按钮共用同一个 Ribbon。后续可选模块按[可选模块接入契约](doc/可选模块接入契约.md)接入。
+开发环境使用 Node.js 22 LTS 与 pnpm 10。`pnpm dev` 是默认双插件联调入口，强制消费并列本地 Wing；Wing 构建后先用 PNXBomAnalysis 反例验证“2 条 missing-end、5 个后续区域、旧级联 0 条”，再把 Code/CAD 扩展复制到独立临时快照并启动全新 Host 窗口，后续普通 Registry 构建不会覆盖本次联调产物。旧 Development Host 不会自动关闭，必须只在带 `Auto · Wing 本地` 状态栏标识的窗口验收；悬停标识或查看 `KT Auto Code` Output 首行可核对临时 `extensionPath` 与 `wingRoot`。AI 只构建验证可用 `pnpm ext:dev:prepare`。正式 npm 包行为用 `pnpm dev:registry` 对照，详见[本地 Wing 并列开发](doc/本地Wing并列开发.md)。CAD 不创建第二个 Activity Bar 图标，Code/CAD 在工具栏 Header 独立勾选，工具按钮共用同一个 Ribbon。后续可选模块按[可选模块接入契约](doc/可选模块接入契约.md)接入。
 
 ## 文档
 

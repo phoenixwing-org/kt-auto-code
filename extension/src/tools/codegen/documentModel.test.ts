@@ -47,6 +47,28 @@ describe("KtcCodegenDocumentModel", () => {
     expect(model.controller.param.items[0]!.name).toBe("Changed");
   });
 
+  it("接收内容未变化的整表时只同步选中行并保留预检 checkpoint", () => {
+    const model = createModel();
+    const preflight = {
+      plan: { kind: "kt.codegen.plan" } as NonNullable<typeof model.preflight>["plan"],
+      reused: true,
+      createdAt: "2026-07-18T00:00:00.000Z",
+      markerIndexRevision: 3,
+      indexedFileCount: 5,
+      candidateFileCount: 2,
+      cachePath: "/workspace/.phoenix/cache/codegen/test.json",
+    };
+    model.setPreflight(preflight);
+    const table = { ...model.getTableData(), selectedRow: 0 };
+
+    expect(model.acceptTable(table)).toBe("unchanged");
+    expect(model.getTableData().selectedRow).toBe(0);
+    expect(model.preflight).toBe(preflight);
+    expect(model.dirty).toBe(false);
+    expect(model.revision).toBe(0);
+    expect(model.draftItemCount).toBeUndefined();
+  });
+
   it("属性、控制符和表格修改都会使旧预检失效", () => {
     const model = createModel();
     model.setPreflight({

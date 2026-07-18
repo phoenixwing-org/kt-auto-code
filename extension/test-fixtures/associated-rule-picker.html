@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>关联规则选择器点检</title>
+  <style>
+    :root {
+      --vscode-foreground: #222;
+      --vscode-descriptionForeground: #65656b;
+      --vscode-sideBar-background: #f6f6f8;
+      --vscode-editorWidget-background: #f8f8fa;
+      --vscode-editorWidget-foreground: #222;
+      --vscode-panel-border: #d5d5dc;
+      --vscode-widget-border: #c8c8ce;
+      --vscode-widget-shadow: rgba(0, 0, 0, .25);
+      --vscode-toolbar-hoverBackground: #e5e5e9;
+      --vscode-input-foreground: #222;
+      --vscode-input-background: #fff;
+      --vscode-input-border: #b7b7bd;
+      --vscode-textCodeBlock-background: #ececf0;
+      --vscode-button-foreground: #fff;
+      --vscode-button-background: #0875d1;
+      --vscode-button-hoverBackground: #0564b3;
+      --vscode-button-secondaryForeground: #222;
+      --vscode-button-secondaryBackground: #e9e9ed;
+      --vscode-button-secondaryHoverBackground: #dddde2;
+      --vscode-focusBorder: #0875d1;
+      --vscode-font-family: Arial, sans-serif;
+      --vscode-editor-font-family: Menlo, monospace;
+      color-scheme: light;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 12px; color: var(--vscode-foreground); background: var(--vscode-sideBar-background); font: 12px/1.35 var(--vscode-font-family); }
+    .fixture-tools { display: flex; flex-wrap: wrap; gap: 6px; }
+    .fixture-tools button { min-height: 28px; }
+    #event-log { min-height: 24px; margin-top: 10px; overflow-wrap: anywhere; color: var(--vscode-descriptionForeground); }
+  </style>
+</head>
+<body>
+  <div class="fixture-tools">
+    <button id="open-common" type="button">常用规则</button>
+    <button id="open-caa" type="button">CAA 规则</button>
+    <button id="open-custom" type="button">仅自定义</button>
+  </div>
+  <ktc-associated-rule-picker id="picker"></ktc-associated-rule-picker>
+  <p id="event-log" role="log">尚无事件</p>
+  <script src="../dist/associated-rule-picker.js"></script>
+  <script>
+    const draft = (id, label, search, replace, checked, relationKind) => ({
+      id,
+      label,
+      checked,
+      rule: { id, search, replace, enabled: true, source: "generated", relationKind },
+    });
+    const picker = document.getElementById("picker");
+    const common = {
+      title: "添加常用规则",
+      candidates: [
+        draft("spaced", "空格写法", "Auto Code", "Tom Build", true, "spaced"),
+        draft("prefix", "前缀替换", "KTCAutoCode", "KTMTomBuild", true, "prefix"),
+      ],
+    };
+    const caa = {
+      title: "添加 CAA 规则",
+      candidates: [
+        draft("caa-i-full", "CAA I（完整名称）", "IAutoCode", "ITomBuild", true, "caa-i-full"),
+        draft("caa-e-full", "CAA E（完整名称）", "EAutoCode", "ETomBuild", true, "caa-e-full"),
+        draft("caa-i", "CAA I（末词段）", "ICode", "IBuild", false, "caa-i"),
+        draft("caa-e", "CAA E（末词段）", "ECode", "EBuild", false, "caa-e"),
+      ],
+    };
+    const custom = { title: "添加自定义规则", candidates: [] };
+    document.getElementById("open-common").onclick = () => picker.openPicker(common);
+    document.getElementById("open-caa").onclick = () => picker.openPicker(caa);
+    document.getElementById("open-custom").onclick = () => picker.openPicker(custom);
+    picker.addEventListener("ktc-associated-rule-picker-action", (event) => {
+      document.getElementById("event-log").textContent = JSON.stringify(event.detail);
+    });
+    customElements.whenDefined("ktc-associated-rule-picker").then(() => {
+      document.body.dataset.ready = "true";
+      picker.openPicker(common);
+    });
+  </script>
+</body>
+</html>

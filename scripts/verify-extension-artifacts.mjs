@@ -77,6 +77,24 @@ for (const artifact of artifacts) {
         || primaryPanelBundle.includes("acquireVsCodeApi")) {
       throw new Error("Code VSIX is missing the UI-neutral Codegen Primary panel custom element");
     }
+    const reorderMembersPanelBundle = readText(zip, "extension/dist/reorder-members-panel.js");
+    if (!reorderMembersPanelBundle.includes("ktc-reorder-members-panel")
+        || !reorderMembersPanelBundle.includes("ktc-reorder-members-action")
+        || !reorderMembersPanelBundle.includes("reorderSelection")
+        || reorderMembersPanelBundle.includes("acquireVsCodeApi")) {
+      throw new Error("Code VSIX is missing the Host-neutral member-sort panel custom element");
+    }
+    const associatedRulePickerBundle = readText(zip, "extension/dist/associated-rule-picker.js");
+    if (!associatedRulePickerBundle.includes("ktc-associated-rule-picker")
+        || !associatedRulePickerBundle.includes("ktc-associated-rule-picker-action")
+        || associatedRulePickerBundle.includes("acquireVsCodeApi")
+        || associatedRulePickerBundle.includes("postMessage")
+        || associatedRulePickerBundle.includes("clipboard")
+        || associatedRulePickerBundle.includes("workspace.fs")
+        || associatedRulePickerBundle.includes("primarySearch")
+        || associatedRulePickerBundle.includes("existingRules")) {
+      throw new Error("Code VSIX is missing the Host-neutral associated-rule picker custom element");
+    }
     const codegenCommand = manifest.contributes?.commands?.find(
       (candidate) => candidate.command === "ktAutoCode.codegen.open",
     );

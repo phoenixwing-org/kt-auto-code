@@ -69,6 +69,10 @@ run(pnpm, ["verify:wing-dependencies"], { env: registryEnvironment });
 
 const filters = requiredPackages.flatMap((packageName) => ["--filter", packageName]);
 run(pnpm, ["--dir", wingRoot, ...filters, "run", "build"]);
+run(process.execPath, [
+  resolve(repoRoot, "scripts/verify-local-wing-marker-runtime.mjs"),
+  wingRoot,
+]);
 
 const localEnvironment = {
   ...process.env,

@@ -1,28 +1,11 @@
 import type * as vscode from "vscode";
-import type { ReorderFileResultSummary, ToolSummary, WebviewOutboundMessage } from "../tools/types.js";
+import type {
+  ToolSummary,
+  WebviewInboundMessage,
+  WebviewOutboundMessage,
+} from "../tools/types.js";
+import type { KtcReplacementRuleDraft } from "../../../src/associatedReplacementRules.js";
 import { ktcCreateWebviewSecurity } from "../webviewSupport.js";
-
-export function ktcNextReorderSelection(
-  previous: ReadonlySet<string>,
-  currentRevision: number | undefined,
-  next: { reorderResults?: readonly ReorderFileResultSummary[]; reorderRevision?: number; reorderSelectedUris?: readonly string[] },
-): { selected: Set<string>; revision: number | undefined } {
-  if (!Array.isArray(next.reorderResults)) return { selected: new Set(previous), revision: currentRevision };
-  const pending = new Set(next.reorderResults.filter((row) => row.state === "pending").map((row) => row.uri));
-  if (Array.isArray(next.reorderSelectedUris)) {
-    return {
-      selected: new Set(next.reorderSelectedUris.filter((uri) => pending.has(uri))),
-      revision: next.reorderRevision,
-    };
-  }
-  if (currentRevision === undefined || next.reorderRevision !== currentRevision) {
-    return { selected: pending, revision: next.reorderRevision };
-  }
-  return {
-    selected: new Set([...previous].filter((uri) => pending.has(uri))),
-    revision: currentRevision,
-  };
-}
 
 export function ktcSearchReplaceButtonState(input: {
   readonly running: boolean;
@@ -50,11 +33,31 @@ export function ktcSearchReplaceButtonState(input: {
   return { disabled: false, busy: false, message: "" };
 }
 
+export function ktcAssociatedRulePickerAppendMessage(input: {
+  readonly primarySearch: string;
+  readonly rules: readonly KtcReplacementRuleDraft[];
+  readonly existingRules: readonly KtcReplacementRuleDraft[];
+}): Extract<WebviewInboundMessage, { type: "appendAssociatedRules" }> {
+  return {
+    type: "appendAssociatedRules",
+    toolId: "codeRename",
+    primarySearch: input.primarySearch,
+    rules: [...input.rules],
+    existingRules: [...input.existingRules],
+  };
+}
+
 export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string {
   const { nonce, csp } = ktcCreateWebviewSecurity(webview, { allowImages: true });
   const basePath = extensionUri.path.replace(/\/$/, "");
   const codegenPrimaryPanelUri = webview.asWebviewUri(
     extensionUri.with({ path: `${basePath}/dist/codegen-primary-panel.js` }),
+  );
+  const reorderMembersPanelUri = webview.asWebviewUri(
+    extensionUri.with({ path: `${basePath}/dist/reorder-members-panel.js` }),
+  );
+  const associatedRulePickerUri = webview.asWebviewUri(
+    extensionUri.with({ path: `${basePath}/dist/associated-rule-picker.js` }),
   );
 
   return `<!DOCTYPE html>
@@ -86,12 +89,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     body.detail-block .wrap { padding-top: 7px; }
     body.detail-block .desc { display: none; }
     body.detail-block .meta { margin: 0 0 8px; }
-    body.detail-block .reorder-block { margin: 0; padding: 0; border: 0; }
-    body.detail-block .reorder-block h2,
-    body.detail-block .reorder-summary { display: none; }
     body.external-module-block .wrap > :not(#tabs):not(#module-block) { display: none !important; }
-    body.detail-block .reorder-actions .action { flex: 1 1 0; }
-    body.detail-block .reorder-block .status { margin: 6px 0 0; padding: 4px 6px; min-height: 0; font-size: 11px; }
     .wrap { padding: 8px 14px 16px; }
     .tabs {
       display: flex;
@@ -245,30 +243,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       margin-bottom: 12px;
     }
     .replace-block { margin: 10px 0 12px; }
-    .reorder-block { margin: 10px 0 12px; padding: 9px; border: 1px solid var(--vscode-panel-border); border-radius: 3px; }
-    .reorder-summary { color: var(--vscode-descriptionForeground); font-size: 11px; line-height: 1.4; margin: 6px 0; }
-    .reorder-actions { display: flex; align-items: center; gap: 6px; }
-    .reorder-options-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 7px 0 1px; }
-    .reorder-filter { display: flex; align-items: center; gap: 5px; color: var(--vscode-descriptionForeground); font-size: 11px; }
-    .reorder-groups { margin-top: 6px; }
-    .reorder-group { border-top: 1px solid var(--vscode-panel-border); }
-    .reorder-group-header { display: flex; align-items: center; gap: 5px; min-height: 29px; font-weight: 600; }
-    .reorder-group-header .detail { margin-left: auto; font-weight: 400; }
-    .reorder-list { list-style: none; padding: 0 0 0 18px; margin: 0; }
-    .reorder-file-row { display: flex; align-items: center; gap: 5px; min-width: 0; min-height: 28px; padding: 2px 3px; }
-    .reorder-file-row:hover { background: var(--vscode-list-hoverBackground); }
-    .reorder-kind { flex: 0 0 18px; color: var(--vscode-symbolIcon-classForeground, var(--vscode-foreground)); font-weight: 600; font-size: 11px; }
-    .reorder-file-main { display: flex; align-items: baseline; gap: 5px; min-width: 0; overflow: hidden; flex: 1 1 auto; cursor: pointer; }
-    .reorder-file-name { flex: 0 0 auto; overflow: visible; text-overflow: clip; white-space: nowrap; }
-    .reorder-file-dir { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--vscode-descriptionForeground); font-size: 11px; }
-    .reorder-inline { display: flex; flex: 0 0 auto; opacity: 0; }
-    .reorder-file-row:hover .reorder-inline, .reorder-inline:focus-within { opacity: 1; }
-    .reorder-icon { width: 24px; height: 24px; padding: 0; border: 0; border-radius: 3px; color: var(--vscode-foreground); background: transparent; cursor: pointer; font-size: 16px; line-height: 24px; }
-    .reorder-icon:hover { background: var(--vscode-toolbar-hoverBackground); }
-    .reorder-state { flex: 0 0 14px; width: 14px; overflow: hidden; color: var(--vscode-descriptionForeground); font-size: 12px; font-weight: 600; text-align: right; white-space: nowrap; }
-    .reorder-state.pending { color: var(--vscode-gitDecoration-modifiedResourceForeground, var(--vscode-descriptionForeground)); }
-    .reorder-state.blocked { color: var(--vscode-errorForeground); }
-    .reorder-state.applied { color: var(--vscode-testing-iconPassed, var(--vscode-descriptionForeground)); }
     .compact-tools { display: flex; justify-content: flex-end; gap: 8px; margin: -4px 0 8px; }
     .uuid-options {
       display: grid;
@@ -410,83 +384,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .rule-row button:hover { background: var(--vscode-list-hoverBackground); }
     .rule-row button:disabled { opacity: 0.45; cursor: default; }
     .rule-tools { display: flex; flex-wrap: wrap; gap: 5px 12px; margin-top: 6px; }
-    .rule-picker-dialog {
-      width: min(430px, calc(100vw - 20px));
-      max-height: calc(100vh - 24px);
-      padding: 0;
-      border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
-      border-radius: 4px;
-      color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
-      background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background));
-      box-shadow: 0 8px 24px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.35));
-    }
-    .rule-picker-dialog::backdrop { background: rgba(0, 0, 0, 0.38); }
-    .rule-picker-shell { display: flex; flex-direction: column; max-height: calc(100vh - 26px); }
-    .rule-picker-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      min-height: 38px;
-      padding: 6px 10px 6px 12px;
-      border-bottom: 1px solid var(--vscode-panel-border);
-    }
-    .rule-picker-header strong { font-size: 12px; font-weight: 600; }
-    .rule-picker-close {
-      width: 24px;
-      height: 24px;
-      padding: 0;
-      border: 0;
-      color: var(--vscode-foreground);
-      background: transparent;
-      cursor: pointer;
-      font-size: 17px;
-    }
-    .rule-picker-close:hover { background: var(--vscode-toolbar-hoverBackground); }
-    .rule-picker-list { overflow: auto; padding: 6px 12px 2px; }
-    .rule-picker-empty { margin: 7px 0; color: var(--vscode-descriptionForeground); font-size: 11px; }
-    .rule-picker-row {
-      display: grid;
-      grid-template-columns: 18px minmax(0, 1fr);
-      gap: 7px;
-      align-items: start;
-      padding: 7px 0;
-      border-bottom: 1px solid var(--vscode-panel-border);
-    }
-    .rule-picker-row > input[type="checkbox"] { margin-top: 3px; }
-    .rule-picker-label { margin-bottom: 4px; color: var(--vscode-descriptionForeground); font-size: 10px; }
-    .rule-picker-values {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-      gap: 5px;
-      align-items: center;
-    }
-    .rule-picker-values code {
-      overflow: hidden;
-      padding: 3px 5px;
-      color: var(--vscode-input-foreground);
-      background: var(--vscode-textCodeBlock-background);
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .rule-picker-values input {
-      min-width: 0;
-      height: 27px;
-      padding: 3px 6px;
-      border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
-      border-radius: 2px;
-      outline: none;
-      color: var(--vscode-input-foreground);
-      background: var(--vscode-input-background);
-      font-family: var(--vscode-editor-font-family);
-    }
-    .rule-picker-values input:focus { border-color: var(--vscode-focusBorder); }
-    .rule-picker-footer {
-      display: flex;
-      justify-content: flex-end;
-      gap: 6px;
-      padding: 8px 12px;
-      border-top: 1px solid var(--vscode-panel-border);
-    }
     @media (max-width: 320px) {
       .profile-row, .prefix-fields { grid-template-columns: minmax(0, 1fr); }
       .profile-row button { justify-self: start; }
@@ -495,8 +392,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       .rule-row > input[type="checkbox"] { grid-row: 1 / span 2; }
       .rule-row > input:not([type="checkbox"]) { grid-column: 2; }
       .rule-actions { grid-column: 3; grid-row: 1 / span 2; }
-      .rule-picker-values { grid-template-columns: minmax(0, 1fr); }
-      .rule-picker-values .prefix-arrow { display: none; }
       body .preset-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
       body .preset-row select { grid-column: 1 / -1; }
     }
@@ -772,20 +667,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         <span id="root-rename-message"></span><button class="text-button" id="btn-create-root-todo" type="button">创建 TODO</button>
       </p>
     </section>
-    <section class="reorder-block" id="reorder-block" hidden>
-      <h2>C++ 成员排序</h2>
-      <p class="reorder-summary">扫描、预览、勾选并确认写回；结果保留在当前 Block。</p>
-      <div class="reorder-actions">
-        <button class="action" id="btn-reorder-preview" type="button">扫描</button>
-        <button class="action secondary" id="btn-reorder-apply" type="button" disabled>应用所选</button>
-      </div>
-      <div class="reorder-options-row">
-        <label class="reorder-filter"><input id="reorder-show-unchanged" type="checkbox" />显示无变更文件</label>
-        <button class="text-button" id="btn-reorder-workset" type="button">加入工作集</button>
-      </div>
-      <p class="status" id="reorder-status"></p>
-      <div class="reorder-groups" id="reorder-groups" hidden></div>
-    </section>
+    <ktc-reorder-members-panel id="reorder-members-panel" hidden></ktc-reorder-members-panel>
     <div class="scope-block" id="scope-block">
       <div class="scope-title">范围</div>
       <label>
@@ -851,20 +733,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     <div class="results compact-results" id="results"></div>
     <p class="empty" id="empty-hint">点击「预检」查看头文件中的问题字节。</p>
   </div>
-  <dialog class="rule-picker-dialog" id="rule-picker" aria-labelledby="rule-picker-title">
-    <div class="rule-picker-shell">
-      <div class="rule-picker-header">
-        <strong id="rule-picker-title">添加关联规则</strong>
-        <button class="rule-picker-close" id="rule-picker-close" type="button" title="关闭" aria-label="关闭">×</button>
-      </div>
-      <div class="rule-picker-list" id="rule-picker-list"></div>
-      <div class="rule-picker-footer">
-        <button class="action secondary" id="rule-picker-cancel" type="button">取消</button>
-        <button class="action" id="rule-picker-confirm" type="button">添加</button>
-      </div>
-    </div>
-  </dialog>
+  <ktc-associated-rule-picker id="rule-picker"></ktc-associated-rule-picker>
   <script nonce="${nonce}" src="${codegenPrimaryPanelUri}"></script>
+  <script nonce="${nonce}" src="${reorderMembersPanelUri}"></script>
+  <script nonce="${nonce}" src="${associatedRulePickerUri}"></script>
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
     const saved = vscode.getState() || {};
@@ -898,7 +770,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     ));
     state.replace.defaultEncoding = state.replace.defaultEncoding === "gbk" ? "gbk" : "utf8";
     state.replace.preserveCase = false;
-    let activeRulePicker = null;
 
     const els = {
       tabs: document.getElementById("tabs"),
@@ -906,13 +777,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       title: document.getElementById("tool-title"),
       desc: document.getElementById("tool-desc"),
       replaceBlock: document.getElementById("replace-block"),
-      reorderBlock: document.getElementById("reorder-block"),
-      btnReorderPreview: document.getElementById("btn-reorder-preview"),
-      btnReorderApply: document.getElementById("btn-reorder-apply"),
-      reorderShowUnchanged: document.getElementById("reorder-show-unchanged"),
-      btnReorderWorkset: document.getElementById("btn-reorder-workset"),
-      reorderStatus: document.getElementById("reorder-status"),
-      reorderGroups: document.getElementById("reorder-groups"),
+      reorderMembersPanel: document.getElementById("reorder-members-panel"),
       replaceSearch: document.getElementById("replace-search"),
       replaceWith: document.getElementById("replace-with"),
       replaceText: document.getElementById("replace-text"),
@@ -936,11 +801,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       btnCommonRules: document.getElementById("btn-common-rules"),
       btnCaaRules: document.getElementById("btn-caa-rules"),
       rulePicker: document.getElementById("rule-picker"),
-      rulePickerTitle: document.getElementById("rule-picker-title"),
-      rulePickerList: document.getElementById("rule-picker-list"),
-      rulePickerClose: document.getElementById("rule-picker-close"),
-      rulePickerCancel: document.getElementById("rule-picker-cancel"),
-      rulePickerConfirm: document.getElementById("rule-picker-confirm"),
       replacePreview: document.getElementById("btn-replace-preview"),
       replaceApply: document.getElementById("btn-replace-apply"),
       replacePreviewTooltip: document.getElementById("replace-preview-tooltip"),
@@ -1549,160 +1409,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       return state.toolStates[state.activeToolId] || { status: "idle" };
     }
 
-    const nextReorderSelection = ${ktcNextReorderSelection.toString()};
     const searchReplaceButtonState = ${ktcSearchReplaceButtonState.toString()};
-    let reorderSelected = new Set();
-    let reorderRevision;
-
-    function acceptReorderState(ts) {
-      const next = nextReorderSelection(reorderSelected, reorderRevision, ts);
-      reorderSelected = next.selected;
-      reorderRevision = next.revision;
-    }
-
-    function reorderStateLabel(value) {
-      return ({
-        pending: "待写盘",
-        applied: "已写盘",
-        blocked: "未写入",
-        reverted: "已还原",
-        unchanged: "无变更",
-      })[value] || value;
-    }
-
-    function reorderStateMark(value) {
-      return ({ pending: "M", applied: "✓", blocked: "!", reverted: "↶", unchanged: "—" })[value] || "";
-    }
-
-    function postReorderAction(action, uris) {
-      vscode.postMessage({ type: "reorderAction", toolId: "reorderMembers", action, uris });
-    }
-
-    function postReorderSelection() {
-      vscode.postMessage({ type: "reorderSelection", toolId: "reorderMembers", uris: [...reorderSelected] });
-    }
-
-    function createReorderIcon(text, title, action, uri) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "reorder-icon";
-      button.textContent = text;
-      button.title = title;
-      button.setAttribute("aria-label", title);
-      button.onclick = (event) => {
-        event.stopPropagation();
-        postReorderAction(action, [uri]);
-      };
-      return button;
-    }
-
-    function createReorderGroup(title, rows, ts, selectable) {
-      const group = document.createElement("section");
-      group.className = "reorder-group";
-      const header = document.createElement("div");
-      header.className = "reorder-group-header";
-      if (selectable) {
-        const pending = rows.filter((row) => row.state === "pending");
-        const selected = pending.filter((row) => reorderSelected.has(row.uri));
-        const all = document.createElement("input");
-        all.type = "checkbox";
-        all.disabled = pending.length === 0 || ts.status === "running";
-        all.checked = pending.length > 0 && selected.length === pending.length;
-        all.indeterminate = selected.length > 0 && selected.length < pending.length;
-        all.setAttribute("aria-label", "选择全部待写盘文件");
-        all.onchange = () => {
-          for (const row of pending) {
-            if (all.checked) reorderSelected.add(row.uri); else reorderSelected.delete(row.uri);
-          }
-          postReorderSelection();
-          renderReorderResults(ts);
-        };
-        header.appendChild(all);
-      }
-      const label = document.createElement("span");
-      label.textContent = title + " · " + rows.length + " 个";
-      const detail = document.createElement("span");
-      detail.className = "detail";
-      detail.textContent = "扫描 " + (ts.scanned || rows.length) + " 个";
-      header.append(label, detail);
-      group.appendChild(header);
-      const list = document.createElement("ul");
-      list.className = "reorder-list";
-      for (const row of rows) {
-        const item = document.createElement("li");
-        item.className = "reorder-file-row";
-        if (selectable) {
-          const checkbox = document.createElement("input");
-          checkbox.type = "checkbox";
-          checkbox.checked = reorderSelected.has(row.uri);
-          checkbox.disabled = row.state !== "pending" || ts.status === "running";
-          checkbox.setAttribute("aria-label", "选择 " + row.relativePath);
-          checkbox.onchange = () => {
-            if (checkbox.checked) reorderSelected.add(row.uri); else reorderSelected.delete(row.uri);
-            postReorderSelection();
-            renderReorderResults(ts);
-          };
-          item.appendChild(checkbox);
-        }
-        const kind = document.createElement("span");
-        kind.className = "reorder-kind";
-        kind.textContent = row.kind === "header" ? "C" : "C++";
-        const main = document.createElement("span");
-        main.className = "reorder-file-main";
-        const parts = row.relativePath.split("/");
-        const file = parts.pop() || row.relativePath;
-        const name = document.createElement("span");
-        name.className = "reorder-file-name";
-        name.textContent = file;
-        const directory = document.createElement("span");
-        directory.className = "reorder-file-dir";
-        directory.textContent = parts.join("/");
-        main.append(name, directory);
-        main.title = [row.relativePath, row.encoding, ...(row.warnings || [])].join("\\n");
-        main.onclick = () => postReorderAction("open", [row.uri]);
-        const actions = document.createElement("span");
-        actions.className = "reorder-inline";
-        if (ts.status !== "running" && row.state === "pending") {
-          actions.append(
-            createReorderIcon("⇄", "预览排序差异", "preview", row.uri),
-            createReorderIcon("✓", "应用此文件", "apply", row.uri),
-            createReorderIcon("×", "从本次结果移除", "cancel", row.uri),
-          );
-        } else if (ts.status !== "running" && row.state === "applied") {
-          actions.append(
-            createReorderIcon("⇄", "在 VS Code Git 中查看差异", "gitDiff", row.uri),
-            createReorderIcon("↶", "还原本次成员排序", "revert", row.uri),
-          );
-        }
-        const status = document.createElement("span");
-        status.className = "reorder-state " + row.state;
-        status.textContent = reorderStateMark(row.state);
-        status.title = reorderStateLabel(row.state) + " · " + row.encoding;
-        item.append(kind, main, actions, status);
-        list.appendChild(item);
-      }
-      group.appendChild(list);
-      return group;
-    }
-
-    function renderReorderResults(ts) {
-      const hasCache = Array.isArray(ts.reorderResults);
-      const rows = hasCache ? ts.reorderResults.filter((row) => row.state !== "cancelled") : [];
-      const changed = rows.filter((row) => row.state !== "unchanged");
-      const unchanged = rows.filter((row) => row.state === "unchanged");
-      const pendingSelected = changed.filter((row) => row.state === "pending" && reorderSelected.has(row.uri));
-      els.btnReorderApply.disabled = ts.status === "running" || pendingSelected.length === 0;
-      els.btnReorderWorkset.disabled = ts.status === "running" || !hasCache;
-      els.btnReorderApply.textContent = pendingSelected.length ? "应用所选（" + pendingSelected.length + "）" : "应用所选";
-      els.reorderGroups.hidden = !hasCache;
-      els.reorderGroups.innerHTML = "";
-      if (!hasCache) return;
-      els.reorderGroups.appendChild(createReorderGroup("变更文件", changed, ts, true));
-      if (els.reorderShowUnchanged.checked) {
-        els.reorderGroups.appendChild(createReorderGroup("无变更文件", unchanged, ts, false));
-      }
-    }
-
     function renderIgnoreConfig() {
       const cfg = state.ignoreConfig;
       if (!cfg) {
@@ -1723,97 +1430,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.btnAnalyzeIgnore.disabled = false;
     }
 
-    function updateRulePickerConfirm() {
-      const selected = els.rulePickerList.querySelectorAll("[data-rule-index]:checked").length > 0;
-      const customEnabled = els.rulePickerList.querySelector("[data-custom-enabled]");
-      const customSearch = els.rulePickerList.querySelector("[data-custom-search]");
-      els.rulePickerConfirm.disabled = !selected
-        && !(customEnabled?.checked && customSearch?.value.trim());
-    }
-
-    function closeRulePicker() {
-      if (els.rulePicker.open) els.rulePicker.close();
-      activeRulePicker = null;
-      els.rulePickerList.innerHTML = "";
-    }
-
+    const associatedRulePickerAppendMessage = ${ktcAssociatedRulePickerAppendMessage.toString()};
     function openRulePicker(picker) {
-      activeRulePicker = picker;
-      els.rulePickerTitle.textContent = picker.title || "添加关联规则";
-      els.rulePickerList.innerHTML = "";
-      if (!picker.candidates.length) {
-        const empty = document.createElement("p");
-        empty.className = "rule-picker-empty";
-        empty.textContent = "没有新的推荐规则。";
-        els.rulePickerList.appendChild(empty);
-      }
-      picker.candidates.forEach((candidate, index) => {
-        const row = document.createElement("label");
-        row.className = "rule-picker-row";
-        const checked = document.createElement("input");
-        checked.type = "checkbox";
-        checked.checked = !!candidate.checked;
-        checked.dataset.ruleIndex = String(index);
-        checked.onchange = updateRulePickerConfirm;
-        const content = document.createElement("div");
-        const label = document.createElement("div");
-        label.className = "rule-picker-label";
-        label.textContent = candidate.label;
-        const values = document.createElement("div");
-        values.className = "rule-picker-values";
-        const search = document.createElement("code");
-        search.textContent = candidate.rule.search;
-        search.title = candidate.rule.search;
-        const arrow = document.createElement("span");
-        arrow.className = "prefix-arrow";
-        arrow.textContent = "→";
-        const replace = document.createElement("code");
-        replace.textContent = candidate.rule.replace;
-        replace.title = candidate.rule.replace;
-        values.append(search, arrow, replace);
-        content.append(label, values);
-        row.append(checked, content);
-        els.rulePickerList.appendChild(row);
-      });
-
-      const customRow = document.createElement("div");
-      customRow.className = "rule-picker-row";
-      const customEnabled = document.createElement("input");
-      customEnabled.type = "checkbox";
-      customEnabled.dataset.customEnabled = "true";
-      const customContent = document.createElement("div");
-      const customLabel = document.createElement("div");
-      customLabel.className = "rule-picker-label";
-      customLabel.textContent = "自定义规则";
-      const customValues = document.createElement("div");
-      customValues.className = "rule-picker-values";
-      const customSearch = document.createElement("input");
-      customSearch.placeholder = "Source";
-      customSearch.setAttribute("aria-label", "自定义规则 Source");
-      customSearch.dataset.customSearch = "true";
-      const customArrow = document.createElement("span");
-      customArrow.className = "prefix-arrow";
-      customArrow.textContent = "→";
-      const customReplace = document.createElement("input");
-      customReplace.placeholder = "Target";
-      customReplace.setAttribute("aria-label", "自定义规则 Target");
-      customReplace.dataset.customReplace = "true";
-      const updateCustom = () => {
-        if (customSearch.value.trim()) customEnabled.checked = true;
-        updateRulePickerConfirm();
-      };
-      customEnabled.onchange = updateRulePickerConfirm;
-      customSearch.oninput = updateCustom;
-      customReplace.oninput = updateCustom;
-      customSearch.onkeydown = stopTextInputEnter;
-      customReplace.onkeydown = stopTextInputEnter;
-      customValues.append(customSearch, customArrow, customReplace);
-      customContent.append(customLabel, customValues);
-      customRow.append(customEnabled, customContent);
-      els.rulePickerList.appendChild(customRow);
-      updateRulePickerConfirm();
-      if (!els.rulePicker.open) els.rulePicker.showModal();
-      if (picker.candidates.length === 0) customSearch.focus();
+      els.rulePicker.openPicker(picker);
     }
 
     function renderExtraRules() {
@@ -2050,7 +1669,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.desc.hidden = ignore;
       els.replaceBlock.hidden = !rename;
       els.codegenPanel.hidden = !codegen;
-      els.reorderBlock.hidden = !reorder;
+      els.reorderMembersPanel.hidden = !reorder;
       els.environmentBlock.hidden = !environment;
       els.generalActions.hidden = rename || codegen || ignore || reorder || environment;
       els.uuidOptions.hidden = !uuid;
@@ -2077,10 +1696,15 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       if (codegen) renderCodegen(ts, running);
 
       if (reorder) {
-        els.reorderStatus.textContent = ts.message || "";
-        els.reorderStatus.className = "status" + (ts.status === "error" ? " error" : "");
-        els.btnReorderPreview.disabled = running;
-        renderReorderResults(ts);
+        els.reorderMembersPanel.model = {
+          presentation: state.presentation,
+          status: ts.status,
+          message: ts.message,
+          scanned: ts.scanned,
+          reorderResults: ts.reorderResults,
+          reorderRevision: ts.reorderRevision,
+          reorderSelectedUris: ts.reorderSelectedUris,
+        };
       }
 
       if (rename) {
@@ -2200,17 +1824,16 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         blockKeys: event.detail.blockKeys,
       });
     });
-    els.btnReorderPreview.onclick = () => {
-      vscode.postMessage({ type: "run", toolId: "reorderMembers", action: "preview" });
-    };
-    els.btnReorderApply.onclick = () => {
-      const pending = (toolState().reorderResults || [])
-        .filter((row) => row.state === "pending" && reorderSelected.has(row.uri))
-        .map((row) => row.uri);
-      if (pending.length) postReorderAction("apply", pending);
-    };
-    els.reorderShowUnchanged.onchange = () => renderReorderResults(toolState());
-    els.btnReorderWorkset.onclick = () => vscode.postMessage({ type: "run", toolId: "reorderMembers", action: "addToWorkset" });
+    els.reorderMembersPanel.addEventListener("ktc-reorder-members-action", (event) => {
+      const detail = event.detail;
+      if (detail.kind === "run") {
+        vscode.postMessage({ type: "run", toolId: "reorderMembers", action: detail.action });
+      } else if (detail.kind === "reorderSelection") {
+        vscode.postMessage({ type: "reorderSelection", toolId: "reorderMembers", uris: [...detail.uris] });
+      } else {
+        vscode.postMessage({ type: "reorderAction", toolId: "reorderMembers", action: detail.action, uris: [...detail.uris] });
+      }
+    });
     els.btnFix.onclick = () => {
       if (isIgnoreTool()) vscode.postMessage({ type: "syncIgnoreFromGit" });
       else vscode.postMessage({
@@ -2374,41 +1997,14 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     };
     els.btnCommonRules.onclick = () => requestAssociatedRulePicker("common");
     els.btnCaaRules.onclick = () => requestAssociatedRulePicker("caa");
-    els.rulePickerClose.onclick = closeRulePicker;
-    els.rulePickerCancel.onclick = closeRulePicker;
-    els.rulePicker.addEventListener("cancel", (event) => {
-      event.preventDefault();
-      closeRulePicker();
-    });
-    els.rulePickerConfirm.onclick = () => {
-      if (!activeRulePicker) return;
-      const selectedRules = [];
-      for (const input of els.rulePickerList.querySelectorAll("[data-rule-index]:checked")) {
-        const candidate = activeRulePicker.candidates[Number(input.dataset.ruleIndex)];
-        if (candidate) selectedRules.push(candidate.rule);
-      }
-      const customEnabled = els.rulePickerList.querySelector("[data-custom-enabled]");
-      const customSearch = els.rulePickerList.querySelector("[data-custom-search]");
-      const customReplace = els.rulePickerList.querySelector("[data-custom-replace]");
-      if (customEnabled?.checked && customSearch?.value.trim()) {
-        selectedRules.push({
-          id: "custom-" + Date.now(),
-          search: customSearch.value,
-          replace: customReplace?.value || "",
-          enabled: true,
-          source: "user",
-          relationKind: "custom",
-        });
-      }
-      vscode.postMessage({
-        type: "appendAssociatedRules",
-        toolId: "codeRename",
+    els.rulePicker.addEventListener("ktc-associated-rule-picker-action", (event) => {
+      if (event.detail?.kind !== "confirm") return;
+      vscode.postMessage(associatedRulePickerAppendMessage({
         primarySearch: state.replace.search,
-        rules: selectedRules,
+        rules: event.detail.rules,
         existingRules: state.replace.extraRules,
-      });
-      closeRulePicker();
-    };
+      }));
+    });
     function clearGeneratedRulesAndSave() {
       const retained = state.replace.extraRules.filter((rule) => rule.source !== "generated");
       const changed = retained.length !== state.replace.extraRules.length;
@@ -2584,7 +2180,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
           state.uuidStrategy = msg.state.uuidStrategy;
           vscode.setState({ showDetails: state.showDetails, showEncDetails: state.showEncDetails, uuidStrategy: state.uuidStrategy, replace: state.replace });
         }
-        if (msg.toolId === "reorderMembers") acceptReorderState(msg.state);
         render();
         if (associatedRulePicker) openRulePicker(associatedRulePicker);
       }

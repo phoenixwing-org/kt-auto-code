@@ -3,7 +3,6 @@ import { basename, extname, isAbsolute, relative } from "node:path";
 import {
   type KtCodegenController,
   type KtCodegenDiagnostic,
-  type KtCodegenTableData,
 } from "@phoenix-wing/kt-codegen";
 import type {
   KtTool,
@@ -16,10 +15,13 @@ import type {
 } from "../types.js";
 import type {
   KtcCodegenControlMessage,
-  KtcCodegenEditorInboundMessage,
   KtcCodegenSidebarActionMessage,
 } from "./editorContracts.js";
 import { ktcRouteCodegenEditorMessage } from "./editorMessageRouter.js";
+import {
+  ktcExecuteCodegenEditorCommand,
+  type KtcCodegenEditorCommandActions,
+} from "./editorCommandController.js";
 import { KtcCodegenEditorSessionPresenter } from "./editorSessionPresenter.js";
 import {
   ktcRunCodegenPreflight,
@@ -161,7 +163,13 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       onMessage: (uri, message) => {
         const session = this.sessions.get(uri);
         const ctx = currentContext();
-        if (session && ctx) void this.handleEditorMessage(session, message, ctx);
+        if (!session || !ctx) return;
+        const command = ktcRouteCodegenEditorMessage(session.identity.uri, message);
+        void ktcExecuteCodegenEditorCommand(
+          session,
+          command,
+          this.editorCommandActions(session, ctx),
+        );
       },
       onActive: (uri) => {
         const session = this.sessions.get(uri);
@@ -761,85 +769,24 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     this.setActive(session, ctx);
   }
 
-  private async handleEditorMessage(
+  private editorCommandActions(
     session: KtcCodegenDocumentModel,
-    message: KtcCodegenEditorInboundMessage,
     ctx: ToolRunContext,
-  ): Promise<void> {
-    const command = ktcRouteCodegenEditorMessage(session.identity.uri, message);
-    if (command.kind === "ignore") return;
-    if (command.kind === "control") {
-      await this.handleControlMessage(command.message, ctx);
-      return;
-    }
-    if (command.kind === "dirty") {
-      session.markTableDirty(command.itemCount);
-      this.didMutate(session, ctx, `正在编辑 ${session.identity.fileName}；尚未写盘。`);
-      return;
-    }
-    if (command.kind === "exchange") {
-      const acceptance = session.acceptTable(command.model.table);
-      if (acceptance === "stale") {
-        this.sessionPresenter.post(session, {
-          type: "codegenStatus",
-          status: "error",
-          message: "文档已在其他界面更新，请先还原或重新打开后再保存。",
-        });
-        return;
-      }
-      if (acceptance === "accepted") this.didMutate(session, ctx);
-      if (command.action === "save") await this.save(session, ctx);
-      else this.publish(ctx, `已接收 ${session.identity.fileName} 的整表草稿。`);
-      return;
-    }
-    if (command.kind === "ready") {
-      this.sessionPresenter.publishModel(session);
-      return;
-    }
-    if (command.kind === "revert") {
-      await this.revert(session, ctx);
-      return;
-    }
-    if (command.kind === "cancelPreflight") {
-      this.preflightTasks.get(session.identity.uri)?.cancel();
-      return;
-    }
-    if (command.kind === "preflight") {
-      const timer = ktcStartCodegenOperationTimer();
-      if (command.table && !this.acceptActionTable(session, command.table, ctx)) return;
-      await this.runPreflight(session, ctx, timer);
-      return;
-    }
-    if (command.kind === "apply") {
-      const timer = ktcStartCodegenOperationTimer();
-      if (command.table && !this.acceptActionTable(session, command.table, ctx)) return;
-      if (!session.preflight) await this.runPreflight(session, ctx);
-      if (!session.preflight) {
-        ctx.log(`[Codegen][Apply] 自动预检未产生可用计划，Apply 已停止；耗时 ${timer.elapsedText()}。`);
-        return;
-      }
-      await this.apply(session, ctx, timer);
-    }
-  }
-
-  private acceptActionTable(
-    session: KtcCodegenDocumentModel,
-    table: KtCodegenTableData,
-    ctx: ToolRunContext,
-  ): boolean {
-    const acceptance = session.acceptTable(table);
-    if (acceptance === "stale") {
-      this.sessionPresenter.post(session, {
-        type: "codegenStatus",
-        status: "error",
-        message: "表格 revision 已过期，请先还原或重新打开。",
-      });
-      return false;
-    }
-    if (acceptance === "accepted") {
-      this.didMutate(session, ctx, `已接收 ${session.identity.fileName} 的最新整表草稿。`);
-    }
-    return true;
+  ): KtcCodegenEditorCommandActions {
+    return {
+      startTimer: () => ktcStartCodegenOperationTimer(),
+      handleControl: (message) => this.handleControlMessage(message, ctx),
+      didMutate: (message) => this.didMutate(session, ctx, message),
+      postStatus: (message) => this.sessionPresenter.post(session, message),
+      publishModel: () => this.sessionPresenter.publishModel(session),
+      publish: (message) => this.publish(ctx, message),
+      log: (line) => ctx.log(line),
+      save: () => this.save(session, ctx),
+      revert: () => this.revert(session, ctx),
+      cancelPreflight: (uri) => this.preflightTasks.get(uri)?.cancel(),
+      runPreflight: (timer) => this.runPreflight(session, ctx, timer),
+      apply: (timer) => this.apply(session, ctx, timer),
+    };
   }
 
   private async runPreflight(

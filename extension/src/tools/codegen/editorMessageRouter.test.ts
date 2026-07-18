@@ -51,8 +51,14 @@ describe("Codegen editor message router", () => {
       .toEqual({ kind: "dirty", itemCount: 4 });
     expect(route({ type: "codegenEditorExchange", toolId: "codegen", uri: URI, action: "save", model: MODEL }))
       .toEqual({ kind: "exchange", action: "save", model: MODEL });
+    expect(route({ type: "codegenEditorExchange", toolId: "codegen", uri: URI, action: "sync", model: MODEL }))
+      .toEqual({ kind: "exchange", action: "sync", model: MODEL });
+    expect(route({ type: "codegenEditorAction", toolId: "codegen", uri: URI, action: "preflight", table: TABLE }))
+      .toEqual({ kind: "preflight", table: TABLE });
     expect(route({ type: "codegenEditorAction", toolId: "codegen", uri: URI, action: "apply", table: TABLE }))
       .toEqual({ kind: "apply", table: TABLE });
+    expect(route({ type: "codegenEditorAction", toolId: "codegen", uri: URI, action: "apply" }))
+      .toEqual({ kind: "apply", table: undefined });
   });
 
   it("把控制符消息与无负载动作准确分类", () => {

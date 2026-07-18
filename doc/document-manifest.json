@@ -128,7 +128,21 @@
       "reason": "旧版本、已完成点检或阶段性共享提取证据"
     },
     {
+      "path": "doc/成员排序PageShell拆分点检表.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
       "path": "doc/代码规范.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
+      "path": "doc/关联规则选择器组件化Baseline点检表.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.5.x",
@@ -259,6 +273,13 @@
       "lastVerified": "2026-07-17",
       "sourceOfTruth": "doc/current-roadmap.md",
       "reason": "旧版本、已完成点检或阶段性共享提取证据"
+    },
+    {
+      "path": "doc/codegen-plan/Codegen编辑器语义命令Controller点检表.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
     },
     {
       "path": "doc/codegen-plan/Codegen第二轮执行评分.md",

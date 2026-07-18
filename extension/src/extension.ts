@@ -1,5 +1,10 @@
 import * as vscode from "vscode";
 import { dirname } from "node:path";
+import {
+  ktcExtensionRuntimeProvenanceLine,
+  ktcLocalWingStatusBarModel,
+} from "./buildProvenance.js";
+import { appendOutputLine } from "./output.js";
 import { SidebarViewProvider } from "./sidebar/sidebarViewProvider.js";
 import { registerTool, getTools } from "./tools/registry.js";
 import { headerAsciiTool } from "./tools/headerAscii/index.js";
@@ -26,6 +31,16 @@ let sidebarProvider: SidebarViewProvider | undefined;
 export type { KtcAutoCodeShellApiV2 } from "../../src/moduleShellContract.js";
 
 export async function activate(context: vscode.ExtensionContext): Promise<KtcAutoCodeShellApiV2> {
+  appendOutputLine(ktcExtensionRuntimeProvenanceLine(context.extensionPath));
+  const localWingStatus = ktcLocalWingStatusBarModel(context.extensionPath);
+  if (localWingStatus) {
+    const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+    item.name = localWingStatus.name;
+    item.text = localWingStatus.text;
+    item.tooltip = localWingStatus.tooltip;
+    item.show();
+    context.subscriptions.push(item);
+  }
   await vscode.commands.executeCommand("setContext", "ktAutoCode.modulePanelVisible", false);
   ktcRegisterEditorMatchHighlight(context);
   registerReorderMembersSupport(context);
