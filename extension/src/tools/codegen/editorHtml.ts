@@ -1,6 +1,6 @@
 import type * as vscode from "vscode";
 import { ktcCreateWebviewSecurity } from "../../webviewSupport.js";
-import type { KtcCodegenEditorModel } from "../types.js";
+import type { KtcCodegenEditorModel } from "./editorContracts.js";
 
 function safeJson(value: unknown): string {
   return JSON.stringify(value)
@@ -17,8 +17,11 @@ export function getCodegenEditorHtml(
 ): string {
   const { nonce, csp } = ktcCreateWebviewSecurity(webview);
   const basePath = extensionUri.path.replace(/\/$/, "");
-  const componentUri = webview.asWebviewUri(
+  const tableComponentUri = webview.asWebviewUri(
     extensionUri.with({ path: `${basePath}/dist/codegen-table.js` }),
+  );
+  const controlCatalogUri = webview.asWebviewUri(
+    extensionUri.with({ path: `${basePath}/dist/codegen-control-catalog.js` }),
   );
   const model = safeJson(initialModel);
   return `<!doctype html>
@@ -110,18 +113,6 @@ export function getCodegenEditorHtml(
     .control-drawer[open] > summary::before { transform: rotate(90deg); }
     .control-summary-title { color: var(--vscode-foreground); font-weight: 650; }
     .control-summary-meta { margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
-    .control-toolbar {
-      display: flex;
-      flex: 0 0 auto;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 8px;
-      border-top: 1px solid var(--vscode-panel-border);
-      border-bottom: 1px solid var(--vscode-panel-border);
-      background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
-    }
-    .control-toolbar .spacer { flex: 1 1 auto; }
     .control-grid {
       display: grid;
       flex: 1 1 auto;
@@ -137,6 +128,7 @@ export function getCodegenEditorHtml(
       flex-direction: column;
     }
     .control-catalog { border-right: 1px solid var(--vscode-panel-border); }
+    .control-catalog ktc-codegen-control-catalog { flex: 1 1 auto; min-height: 0; overflow: hidden; }
     .control-scroll-region {
       flex: 1 1 auto;
       min-width: 0;
@@ -166,25 +158,7 @@ export function getCodegenEditorHtml(
       font-size: 11px;
       font-weight: 650;
     }
-    .block-row {
-      display: grid;
-      grid-template-columns: 22px 30px minmax(0, 1fr) auto;
-      align-items: center;
-      gap: 5px;
-      min-width: 520px;
-      min-height: 38px;
-      padding: 3px 8px;
-      border-bottom: 1px solid var(--vscode-panel-border);
-    }
-    .block-row:hover, .hit:hover, .diagnostic:hover { background: var(--vscode-list-hoverBackground); }
-    .block-id { color: var(--vscode-descriptionForeground); font-variant-numeric: tabular-nums; }
-    .block-copy { display: grid; min-width: 0; }
-    .block-name, .block-key { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .block-name { font-weight: 600; }
-    .block-key { color: var(--vscode-descriptionForeground); font: 10px/1.3 var(--vscode-editor-font-family); }
-    .tags { display: flex; gap: 4px; }
-    .tag { padding: 1px 5px; border: 1px solid var(--vscode-panel-border); border-radius: 999px; color: var(--vscode-descriptionForeground); font-size: 10px; }
-    .tag.deprecated { color: var(--vscode-editorWarning-foreground); border-color: var(--vscode-editorWarning-foreground); }
+    .hit:hover, .diagnostic:hover { background: var(--vscode-list-hoverBackground); }
     .preflight-summary { padding: 8px 9px; color: var(--vscode-descriptionForeground); border-bottom: 1px solid var(--vscode-panel-border); }
     .hit {
       display: grid;
@@ -269,18 +243,9 @@ export function getCodegenEditorHtml(
       <span class="control-summary-title">控制符与预检</span>
       <span class="control-summary-meta" id="control-summary">尚未预检</span>
     </summary>
-    <div class="control-toolbar" aria-label="控制符选择预设">
-      <button id="control-all" type="button">全选</button>
-      <button id="control-none" type="button">全不选</button>
-      <button id="control-cpp" type="button">C++ only</button>
-      <button id="control-field" type="button">Field Code</button>
-      <span class="spacer"></span>
-      <button id="control-single" type="button" aria-pressed="false">单选</button>
-    </div>
     <div class="control-grid">
       <section class="control-section control-catalog" aria-label="控制符目录">
-        <div class="section-title"><span>控制符目录</span><span id="control-selected-count"></span></div>
-        <div id="control-blocks" class="control-scroll-region" tabindex="0" aria-label="可滚动的控制符目录列表"></div>
+        <ktc-codegen-control-catalog id="control-catalog" mode="full"></ktc-codegen-control-catalog>
       </section>
       <section class="control-section" aria-label="预检命中、诊断与 Artifact 预览">
         <div class="section-title"><span>预检命中与问题</span><span id="control-cache-state"></span></div>
@@ -295,7 +260,8 @@ export function getCodegenEditorHtml(
       </section>
     </div>
   </details>
-  <script nonce="${nonce}" src="${componentUri}"></script>
+  <script nonce="${nonce}" src="${tableComponentUri}"></script>
+  <script nonce="${nonce}" src="${controlCatalogUri}"></script>
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
     const table = document.getElementById("codegen-table");
@@ -306,10 +272,9 @@ export function getCodegenEditorHtml(
     const preflight = document.getElementById("preflight");
     const controls = document.getElementById("controls");
     const controlDrawer = document.getElementById("control-drawer");
+    const controlCatalog = document.getElementById("control-catalog");
     let model = ${model};
     let controlsModel = model.controls;
-    let selected = new Set(controlsModel.selectedBlockKeys || []);
-    let singleMode = !!controlsModel.singleSelectionMode;
     let dirtyNotified = !!model.dirty;
     let draftSyncTimer;
 
@@ -354,77 +319,6 @@ export function getCodegenEditorHtml(
       clearTimeout(draftSyncTimer);
       if (!model.dirty) return;
       post({ type: "codegenEditorExchange", action: "sync", model: currentExchangeModel() });
-    }
-
-    function updateSelectedCount() {
-      document.getElementById("control-selected-count").textContent = selected.size + " / " + controlsModel.blocks.length;
-    }
-
-    function sendSelection(selectionChanged) {
-      if (selectionChanged && controlsModel.preflight) {
-        controlsModel.preflight = undefined;
-        renderPreflight();
-      }
-      post({ type: "codegenControlSelection", blockKeys: [...selected], singleMode });
-      updateSelectedCount();
-    }
-
-    function renderBlocks() {
-      const root = document.getElementById("control-blocks");
-      const fragment = document.createDocumentFragment();
-      for (const block of controlsModel.blocks) {
-        const label = document.createElement("label");
-        label.className = "block-row";
-        const check = document.createElement("input");
-        check.type = "checkbox";
-        check.checked = selected.has(block.key);
-        check.onchange = () => {
-          if (check.checked && singleMode) selected.clear();
-          if (check.checked) selected.add(block.key); else selected.delete(block.key);
-          if (singleMode) renderBlocks();
-          sendSelection(true);
-        };
-        const id = document.createElement("span");
-        id.className = "block-id";
-        id.textContent = String(block.legacyId);
-        const copy = document.createElement("span");
-        copy.className = "block-copy";
-        const name = document.createElement("span");
-        name.className = "block-name";
-        name.textContent = block.title;
-        const key = document.createElement("span");
-        key.className = "block-key";
-        key.textContent = block.controlWords;
-        copy.title = block.notes;
-        copy.append(name, key);
-        const tags = document.createElement("span");
-        tags.className = "tags";
-        const platform = document.createElement("span");
-        platform.className = "tag";
-        platform.textContent = block.platform;
-        tags.append(platform);
-        if (block.legacyState === "legacy-deprecated") {
-          const deprecated = document.createElement("span");
-          deprecated.className = "tag deprecated";
-          deprecated.textContent = "deprecated";
-          tags.append(deprecated);
-        }
-        label.append(check, id, copy, tags);
-        fragment.append(label);
-      }
-      root.replaceChildren(fragment);
-      updateSelectedCount();
-    }
-
-    function applyPreset(keys) {
-      const next = new Set(keys);
-      const selectionChanged = next.size !== selected.size || [...next].some((key) => !selected.has(key));
-      singleMode = false;
-      document.getElementById("control-single").setAttribute("aria-pressed", "false");
-      selected.clear();
-      for (const key of keys) selected.add(key);
-      renderBlocks();
-      sendSelection(selectionChanged);
     }
 
     function renderPreflight() {
@@ -522,17 +416,14 @@ export function getCodegenEditorHtml(
       const gainedPreflight = !controlsModel.preflight && !!next.preflight;
       controlsModel = next;
       model.controls = next;
-      selected = new Set(controlsModel.selectedBlockKeys || []);
-      singleMode = !!controlsModel.singleSelectionMode;
-      document.getElementById("control-single").setAttribute("aria-pressed", String(singleMode));
-      renderBlocks();
+      controlCatalog.model = controlsModel;
       renderPreflight();
       if (gainedPreflight) controlDrawer.open = true;
     }
 
     table.setData(model.table);
     syncHeader();
-    renderBlocks();
+    controlCatalog.model = controlsModel;
     renderPreflight();
 
     table.addEventListener("kt-codegen-table-dirty-change", (event) => {
@@ -558,23 +449,32 @@ export function getCodegenEditorHtml(
     document.getElementById("apply").onclick = () => post({
       type: "codegenEditorAction", action: "apply", table: table.getData(),
     });
-    document.getElementById("control-all").onclick = () => applyPreset(controlsModel.presets.all);
-    document.getElementById("control-none").onclick = () => applyPreset(controlsModel.presets.none);
-    document.getElementById("control-cpp").onclick = () => applyPreset(controlsModel.presets.cppOnly);
-    document.getElementById("control-field").onclick = () => applyPreset(controlsModel.presets.fieldCode);
-    document.getElementById("control-single").onclick = (event) => {
-      singleMode = !singleMode;
-      event.currentTarget.setAttribute("aria-pressed", String(singleMode));
-      if (singleMode && selected.size > 1) {
-        const first = selected.values().next().value;
-        selected.clear();
-        if (first) selected.add(first);
-        renderBlocks();
-        sendSelection(true);
-      } else {
-        sendSelection(false);
-      }
-    };
+    controlCatalog.addEventListener("ktc-codegen-control-selection-change", (event) => {
+      controlsModel = {
+        ...controlsModel,
+        selectedBlockKeys: [...event.detail.blockKeys],
+        singleSelectionMode: !!event.detail.singleMode,
+        preflightAvailable: false,
+        missingTemplates: [],
+        preflight: undefined,
+      };
+      model.controls = controlsModel;
+      renderPreflight();
+      post({
+        type: "codegenControlSelection",
+        blockKeys: [...event.detail.blockKeys],
+        singleMode: !!event.detail.singleMode,
+      });
+    });
+    controlCatalog.addEventListener("ktc-codegen-control-display-change", (event) => post({
+      type: "codegenControlDisplay",
+      showMissingTemplates: !!event.detail.showMissingTemplates,
+    }));
+    controlCatalog.addEventListener("ktc-codegen-control-output", (event) => post({
+      type: "codegenControlOutput",
+      scope: event.detail.scope,
+      blockKey: event.detail.blockKey,
+    }));
 
     document.addEventListener("visibilitychange", () => { if (document.hidden) exchangeDraft(); });
     window.addEventListener("beforeunload", exchangeDraft);

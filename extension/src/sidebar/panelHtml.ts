@@ -52,6 +52,10 @@ export function ktcSearchReplaceButtonState(input: {
 
 export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string {
   const { nonce, csp } = ktcCreateWebviewSecurity(webview, { allowImages: true });
+  const basePath = extensionUri.path.replace(/\/$/, "");
+  const codegenPrimaryPanelUri = webview.asWebviewUri(
+    extensionUri.with({ path: `${basePath}/dist/codegen-primary-panel.js` }),
+  );
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -656,112 +660,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       color: var(--vscode-descriptionForeground);
       margin: -6px 0 12px;
     }
-    .codegen-block { display: grid; gap: 9px; }
-    .codegen-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-    .codegen-current {
-      display: grid;
-      gap: 3px;
-      padding: 8px 9px;
-      border: 1px solid var(--vscode-focusBorder);
-      border-radius: 5px;
-      background: color-mix(in srgb, var(--vscode-focusBorder) 9%, transparent);
-    }
-    .codegen-current strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .codegen-current span, .codegen-hint { color: var(--vscode-descriptionForeground); font-size: 11px; }
-    .codegen-properties {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 7px 8px;
-      padding: 9px;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 5px;
-      background: var(--vscode-editorWidget-background, transparent);
-    }
-    .codegen-property { display: grid; gap: 3px; min-width: 0; }
-    .codegen-property span { color: var(--vscode-descriptionForeground); font-size: 10px; }
-    .codegen-property input {
-      width: 100%;
-      min-width: 0;
-      height: 27px;
-      padding: 3px 6px;
-      color: var(--vscode-input-foreground);
-      background: var(--vscode-input-background);
-      border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
-      border-radius: 2px;
-      font: inherit;
-    }
-    .codegen-property input:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
-    .codegen-list {
-      display: grid;
-      grid-auto-rows: 48px;
-      gap: 3px;
-      max-height: 252px;
-      overflow: auto;
-      overscroll-behavior: contain;
-      scrollbar-gutter: stable;
-    }
-    .codegen-mini-block {
-      min-width: 0;
-      overflow: hidden;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 5px;
-      background: var(--vscode-editor-background);
-    }
-    .codegen-mini-block > summary {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      min-height: 30px;
-      padding: 5px 8px;
-      color: var(--vscode-descriptionForeground);
-      background: var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background));
-      font-size: 11px;
-      font-weight: 650;
-      cursor: pointer;
-      user-select: none;
-    }
-    .codegen-mini-block > summary::-webkit-details-marker { display: none; }
-    .codegen-mini-block > summary::before { content: "›"; flex: 0 0 auto; font-size: 16px; line-height: 1; }
-    .codegen-mini-block[open] > summary::before { transform: rotate(90deg); }
-    .codegen-mini-title { margin-right: auto; color: var(--vscode-foreground); }
-    .codegen-mini-count { white-space: nowrap; font-weight: 500; }
-    .codegen-mini-block[open] > .codegen-list,
-    .codegen-mini-block[open] > .codegen-candidate-list { border-top: 1px solid var(--vscode-panel-border); }
-    .codegen-candidate-list { display: grid; grid-auto-rows: 48px; gap: 2px; max-height: 252px; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
-    .codegen-row {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 3px 8px;
-      width: 100%;
-      padding: 7px 8px;
-      border: 1px solid transparent;
-      border-radius: 4px;
-      color: var(--vscode-foreground);
-      background: transparent;
-      text-align: left;
-    }
-    .codegen-row:hover { background: var(--vscode-list-hoverBackground); }
-    .codegen-row.active {
-      color: var(--vscode-list-activeSelectionForeground);
-      background: var(--vscode-list-activeSelectionBackground);
-      border-color: var(--vscode-focusBorder);
-    }
-    .codegen-row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-    .codegen-row-path { overflow: hidden; color: var(--vscode-descriptionForeground); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-    .codegen-row.active .codegen-row-path { color: inherit; opacity: .8; }
-    .codegen-tags { display: flex; align-items: center; justify-content: flex-end; gap: 4px; grid-row: 1 / span 2; grid-column: 2; }
-    .codegen-tag {
-      padding: 1px 5px;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 999px;
-      color: var(--vscode-descriptionForeground);
-      font-size: 10px;
-      white-space: nowrap;
-    }
-    .codegen-tag.dirty { color: var(--vscode-editorWarning-foreground); border-color: var(--vscode-editorWarning-foreground); }
-    .codegen-row.active .codegen-tag { color: inherit; border-color: currentColor; opacity: .86; }
-    .codegen-empty { padding: 12px 8px; color: var(--vscode-descriptionForeground); text-align: center; }
     #header-options label + .hint { display: block; }
   </style>
 </head>
@@ -784,35 +682,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       <button class="action secondary" id="btn-scan">预检</button>
       <button class="action" id="btn-fix">修复</button>
     </div>
-    <section class="codegen-block" id="codegen-block" hidden>
-      <div class="codegen-actions">
-        <button class="action" id="btn-codegen-open" type="button">打开 JSON…</button>
-        <button class="action secondary" id="btn-codegen-import" type="button">导入 CSV…</button>
-        <button class="text-button" id="btn-codegen-refresh" type="button">刷新列表</button>
-        <button class="text-button" id="btn-codegen-candidates" type="button">扫描候选源码</button>
-        <button class="text-button" id="btn-codegen-diagnostics" type="button" title="复制不含表格内容和源码内容的运行状态">复制诊断</button>
-      </div>
-      <div class="codegen-current" id="codegen-current" role="status" aria-live="polite" aria-atomic="true" hidden>
-        <strong id="codegen-current-name"></strong>
-        <span id="codegen-current-meta"></span>
-      </div>
-      <div class="codegen-properties" id="codegen-properties" hidden>
-        <label class="codegen-property"><span>Prefix</span><input id="codegen-prefix" spellcheck="false" /></label>
-        <label class="codegen-property"><span>Middle</span><input id="codegen-middle" spellcheck="false" /></label>
-        <label class="codegen-property"><span>Namespace</span><input id="codegen-namespace" spellcheck="false" /></label>
-        <label class="codegen-property"><span>Append</span><input id="codegen-append" list="codegen-append-values" spellcheck="false" /></label>
-        <datalist id="codegen-append-values"><option value="append"></option><option value="push_back"></option><option value="Append"></option></datalist>
-      </div>
-      <details class="codegen-mini-block" id="codegen-json-block" open>
-        <summary><span class="codegen-mini-title">JSON 配置</span><span class="codegen-mini-count" id="codegen-document-count" aria-live="polite"></span></summary>
-        <div class="codegen-list" id="codegen-list" aria-label="Codegen JSON 列表" tabindex="0"></div>
-      </details>
-      <details class="codegen-mini-block" id="codegen-candidate-block" open>
-        <summary><span class="codegen-mini-title">控制符候选（工作区级）</span><span class="codegen-mini-count" id="codegen-candidate-count" aria-live="polite"></span></summary>
-        <div class="codegen-candidate-list" id="codegen-candidate-list" aria-label="含控制符的源码候选列表" tabindex="0"></div>
-      </details>
-      <p class="codegen-hint">一份 JSON 对应当前编辑区一个表格 View；控制符与预检在页面下方收缩，切换标签时本 Block 自动跟随。</p>
-    </section>
+    <ktc-codegen-primary-panel id="codegen-panel" hidden></ktc-codegen-primary-panel>
     <div class="uuid-options" id="uuid-options" hidden>
       <label for="uuid-strategy">生成策略</label>
       <select id="uuid-strategy" aria-label="UUID 生成策略">
@@ -994,6 +864,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       </div>
     </div>
   </dialog>
+  <script nonce="${nonce}" src="${codegenPrimaryPanelUri}"></script>
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
     const saved = vscode.getState() || {};
@@ -1079,24 +950,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       rootRenameMessage: document.getElementById("root-rename-message"),
       btnCreateRootTodo: document.getElementById("btn-create-root-todo"),
       generalActions: document.getElementById("general-actions"),
-      codegenBlock: document.getElementById("codegen-block"),
-      codegenCurrent: document.getElementById("codegen-current"),
-      codegenCurrentName: document.getElementById("codegen-current-name"),
-      codegenCurrentMeta: document.getElementById("codegen-current-meta"),
-      codegenProperties: document.getElementById("codegen-properties"),
-      codegenPrefix: document.getElementById("codegen-prefix"),
-      codegenMiddle: document.getElementById("codegen-middle"),
-      codegenNamespace: document.getElementById("codegen-namespace"),
-      codegenAppend: document.getElementById("codegen-append"),
-      codegenDocumentCount: document.getElementById("codegen-document-count"),
-      codegenList: document.getElementById("codegen-list"),
-      codegenCandidateList: document.getElementById("codegen-candidate-list"),
-      codegenCandidateCount: document.getElementById("codegen-candidate-count"),
-      btnCodegenOpen: document.getElementById("btn-codegen-open"),
-      btnCodegenImport: document.getElementById("btn-codegen-import"),
-      btnCodegenRefresh: document.getElementById("btn-codegen-refresh"),
-      btnCodegenCandidates: document.getElementById("btn-codegen-candidates"),
-      btnCodegenDiagnostics: document.getElementById("btn-codegen-diagnostics"),
+      codegenPanel: document.getElementById("codegen-panel"),
       compactTools: document.getElementById("compact-tools"),
       uuidOptions: document.getElementById("uuid-options"),
       uuidStrategy: document.getElementById("uuid-strategy"),
@@ -2103,131 +1957,14 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     }
 
     function renderCodegen(ts, running) {
-      const documents = Array.isArray(ts.codegenDocuments) ? ts.codegenDocuments : [];
-      const active = documents.find((entry) => entry.active || entry.uri === ts.codegenActiveUri);
-      const operation = ts.codegenOperation || "";
-      const codegenBusy = !!operation;
-      els.codegenDocumentCount.textContent = documents.length ? documents.length + " 份" : "";
-      els.codegenList.setAttribute("aria-busy", String(operation === "discovery"));
-      els.codegenCandidateList.setAttribute("aria-busy", String(operation === "candidates"));
-      els.btnCodegenOpen.disabled = running || codegenBusy;
-      els.btnCodegenImport.disabled = running || codegenBusy;
-      els.btnCodegenRefresh.disabled = (running || codegenBusy) && operation !== "discovery";
-      els.btnCodegenCandidates.disabled = (running || codegenBusy) && operation !== "candidates";
-      els.btnCodegenDiagnostics.disabled = false;
-      els.btnCodegenRefresh.textContent = operation === "discovery" ? "取消扫描" : "刷新列表";
-      els.btnCodegenCandidates.textContent = operation === "candidates" ? "取消候选扫描" : "扫描候选源码";
-      els.codegenCurrent.hidden = !active;
-      els.codegenProperties.hidden = !active;
-      if (active) {
-        els.codegenCurrentName.textContent = active.fileName + (active.dirty ? " · 未保存" : "");
-        els.codegenCurrentMeta.textContent = (active.className || "未命名类")
-          + " · " + active.itemCount + " 行 · 当前编辑 View"
-          + (active.externalConflict ? " · 外部文件已变更" : "");
-        els.codegenPrefix.value = active.namePrefix || "";
-        els.codegenMiddle.value = active.nameMiddle || "";
-        els.codegenNamespace.value = active.nameSpace || "";
-        els.codegenAppend.value = active.appendFunction || "";
-      }
-      for (const input of [els.codegenPrefix, els.codegenMiddle, els.codegenNamespace, els.codegenAppend]) {
-        input.disabled = running || codegenBusy || !active;
-      }
-      const fragment = document.createDocumentFragment();
-      let activeRow;
-      for (const entry of documents) {
-        const row = document.createElement("button");
-        row.type = "button";
-        row.className = "codegen-row" + (entry.active ? " active" : "");
-        row.title = "在右侧" + (entry.open ? "切换到" : "打开") + " " + entry.displayPath;
-        row.setAttribute("aria-label", row.title + (entry.active ? "，当前显示" : ""));
-        row.setAttribute("aria-current", entry.active ? "true" : "false");
-        const name = document.createElement("span");
-        name.className = "codegen-row-name";
-        name.textContent = entry.fileName;
-        const path = document.createElement("span");
-        path.className = "codegen-row-path";
-        path.textContent = (entry.className || "未命名类") + " · " + entry.displayPath;
-        const tags = document.createElement("span");
-        tags.className = "codegen-tags";
-        const count = document.createElement("span");
-        count.className = "codegen-tag";
-        count.textContent = entry.itemCount + " 行";
-        tags.appendChild(count);
-        if (entry.open) {
-          const open = document.createElement("span");
-          open.className = "codegen-tag";
-          open.textContent = entry.active ? "当前" : "已开";
-          tags.appendChild(open);
-        }
-        if (entry.dirty) {
-          const dirty = document.createElement("span");
-          dirty.className = "codegen-tag dirty";
-          dirty.textContent = "未保存";
-          tags.appendChild(dirty);
-        }
-        if (entry.externalConflict) {
-          const conflict = document.createElement("span");
-          conflict.className = "codegen-tag dirty";
-          conflict.textContent = entry.externalState === "deleted" ? "磁盘已删除" : "外部变更";
-          tags.appendChild(conflict);
-        }
-        row.append(name, path, tags);
-        row.onclick = () => vscode.postMessage({
-          type: "codegenAction", toolId: "codegen", action: "openDocument", uri: entry.uri,
-        });
-        if (entry.active) activeRow = row;
-        fragment.appendChild(row);
-      }
-      if (!documents.length) {
-        const empty = document.createElement("div");
-        empty.className = "codegen-empty";
-        empty.textContent = operation === "discovery" ? "正在查找 Codegen JSON…" : "暂无 Codegen JSON";
-        fragment.appendChild(empty);
-      }
-      els.codegenList.replaceChildren(fragment);
-      if (activeRow && typeof activeRow.scrollIntoView === "function") {
-        activeRow.scrollIntoView({ block: "nearest", inline: "nearest" });
-      }
-
-      const candidates = Array.isArray(ts.codegenCandidates) ? ts.codegenCandidates : [];
-      els.codegenCandidateCount.textContent = candidates.length ? candidates.length + " 个" : "";
-      const candidateFragment = document.createDocumentFragment();
-      for (const candidate of candidates) {
-        const row = document.createElement("button");
-        row.type = "button";
-        row.className = "codegen-row";
-        row.title = "打开 " + candidate.displayPath;
-        row.setAttribute("aria-label", row.title + "，" + candidate.markerCount + " 个控制标记，" + candidate.encoding);
-        const name = document.createElement("span");
-        name.className = "codegen-row-name";
-        name.textContent = resultPathParts(candidate.displayPath).name;
-        const path = document.createElement("span");
-        path.className = "codegen-row-path";
-        path.textContent = candidate.displayPath;
-        const tags = document.createElement("span");
-        tags.className = "codegen-tags";
-        const count = document.createElement("span");
-        count.className = "codegen-tag";
-        count.textContent = candidate.markerCount + " 标记";
-        const encoding = document.createElement("span");
-        encoding.className = "codegen-tag";
-        encoding.textContent = candidate.encoding;
-        tags.append(count, encoding);
-        row.append(name, path, tags);
-        row.onclick = () => vscode.postMessage({
-          type: "codegenAction", toolId: "codegen", action: "openCandidate", uri: candidate.uri,
-        });
-        candidateFragment.appendChild(row);
-      }
-      if (!candidates.length) {
-        const empty = document.createElement("div");
-        empty.className = "codegen-empty";
-        empty.textContent = operation === "candidates"
-          ? "正在扫描候选源码…"
-          : "点击“扫描候选源码”建立工作区控制符列表";
-        candidateFragment.appendChild(empty);
-      }
-      els.codegenCandidateList.replaceChildren(candidateFragment);
+      els.codegenPanel.model = {
+        documents: Array.isArray(ts.codegenDocuments) ? ts.codegenDocuments : [],
+        activeUri: ts.codegenActiveUri,
+        controls: ts.codegenControls,
+        candidates: Array.isArray(ts.codegenCandidates) ? ts.codegenCandidates : [],
+        operation: ts.codegenOperation,
+        running: !!running,
+      };
     }
 
     function render() {
@@ -2312,7 +2049,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       renderWorkspaceFileScope(running);
       els.desc.hidden = ignore;
       els.replaceBlock.hidden = !rename;
-      els.codegenBlock.hidden = !codegen;
+      els.codegenPanel.hidden = !codegen;
       els.reorderBlock.hidden = !reorder;
       els.environmentBlock.hidden = !environment;
       els.generalActions.hidden = rename || codegen || ignore || reorder || environment;
@@ -2436,41 +2173,32 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         uuidStrategy: isUuidTool() ? state.uuidStrategy : undefined,
       });
     };
-    els.btnCodegenOpen.onclick = () => vscode.postMessage({
-      type: "codegenAction", toolId: "codegen", action: "openJson",
+    els.codegenPanel.addEventListener("ktc-codegen-primary-action", (event) => {
+      vscode.postMessage(Object.assign({ type: "codegenAction", toolId: "codegen" }, event.detail));
     });
-    els.btnCodegenImport.onclick = () => vscode.postMessage({
-      type: "codegenAction", toolId: "codegen", action: "importCsv",
-    });
-    els.btnCodegenRefresh.onclick = () => vscode.postMessage({
-      type: "codegenAction", toolId: "codegen",
-      action: toolState().codegenOperation === "discovery" ? "cancelOperation" : "refresh",
-    });
-    els.btnCodegenCandidates.onclick = () => vscode.postMessage({
-      type: "codegenAction", toolId: "codegen",
-      action: toolState().codegenOperation === "candidates" ? "cancelOperation" : "scanCandidates",
-    });
-    els.btnCodegenDiagnostics.onclick = () => vscode.postMessage({
-      type: "codegenAction", toolId: "codegen", action: "copyDiagnostics",
-    });
-    function updateCodegenMeta(field, value) {
-      const ts = toolState();
-      const documents = Array.isArray(ts.codegenDocuments) ? ts.codegenDocuments : [];
-      const active = documents.find((document) => document.active || document.uri === ts.codegenActiveUri);
-      if (!active) return;
-      vscode.postMessage({
-        type: "codegenAction",
-        toolId: "codegen",
-        action: "updateMeta",
-        uri: active.uri,
-        field,
-        value,
-      });
+    function postCodegenControl(type, detail) {
+      const model = els.codegenPanel.model;
+      const uri = model && model.controls && model.controls.uri;
+      if (!uri) return;
+      vscode.postMessage(Object.assign({ type, toolId: "codegen", uri }, detail));
     }
-    els.codegenPrefix.onchange = () => updateCodegenMeta("namePrefix", els.codegenPrefix.value);
-    els.codegenMiddle.onchange = () => updateCodegenMeta("nameMiddle", els.codegenMiddle.value);
-    els.codegenNamespace.onchange = () => updateCodegenMeta("nameSpace", els.codegenNamespace.value);
-    els.codegenAppend.onchange = () => updateCodegenMeta("appendFunction", els.codegenAppend.value);
+    els.codegenPanel.addEventListener("ktc-codegen-control-selection-change", (event) => {
+      postCodegenControl("codegenControlSelection", {
+        blockKeys: [...event.detail.blockKeys],
+        singleMode: !!event.detail.singleMode,
+      });
+    });
+    els.codegenPanel.addEventListener("ktc-codegen-control-display-change", (event) => {
+      postCodegenControl("codegenControlDisplay", {
+        showMissingTemplates: !!event.detail.showMissingTemplates,
+      });
+    });
+    els.codegenPanel.addEventListener("ktc-codegen-control-output", (event) => {
+      postCodegenControl("codegenControlOutput", {
+        scope: event.detail.scope,
+        blockKey: event.detail.blockKey,
+      });
+    });
     els.btnReorderPreview.onclick = () => {
       vscode.postMessage({ type: "run", toolId: "reorderMembers", action: "preview" });
     };

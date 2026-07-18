@@ -10,11 +10,14 @@ vi.mock("vscode", () => ({
 }));
 
 import type * as vscode from "vscode";
-import type { KtcCodegenEditorModel, WebviewInboundMessage } from "../types.js";
+import type {
+  KtcCodegenEditorInboundMessage,
+  KtcCodegenEditorModel,
+} from "./editorContracts.js";
 import { KtcCodegenEditorViewController } from "./editorViewController.js";
 
 interface FakePanel extends vscode.WebviewPanel {
-  fireMessage(message: WebviewInboundMessage): void;
+  fireMessage(message: KtcCodegenEditorInboundMessage): void;
   fireActive(active: boolean): void;
   fireDispose(): void;
 }
@@ -38,6 +41,9 @@ function model(uri: string, fileName: string, dirty = false): KtcCodegenEditorMo
       blocks: [],
       selectedBlockKeys: [],
       singleSelectionMode: false,
+      showMissingTemplates: false,
+      preflightAvailable: false,
+      missingTemplates: [],
       presets: { all: [], none: [], cppOnly: [], fieldCode: [] },
     },
     dirty,
@@ -46,7 +52,7 @@ function model(uri: string, fileName: string, dirty = false): KtcCodegenEditorMo
 }
 
 function fakePanel(): FakePanel {
-  let messageListener: ((message: WebviewInboundMessage) => void) | undefined;
+  let messageListener: ((message: KtcCodegenEditorInboundMessage) => void) | undefined;
   let viewStateListener: ((event: { webviewPanel: vscode.WebviewPanel }) => void) | undefined;
   let disposeListener: (() => void) | undefined;
   const webview = {
@@ -54,7 +60,7 @@ function fakePanel(): FakePanel {
     html: "",
     asWebviewUri: vi.fn((uri: vscode.Uri) => uri),
     postMessage: vi.fn(() => Promise.resolve(true)),
-    onDidReceiveMessage: vi.fn((listener: (message: WebviewInboundMessage) => void) => {
+    onDidReceiveMessage: vi.fn((listener: (message: KtcCodegenEditorInboundMessage) => void) => {
       messageListener = listener;
       return { dispose: vi.fn() };
     }),
@@ -75,7 +81,7 @@ function fakePanel(): FakePanel {
       disposeListener = listener;
       return { dispose: vi.fn() };
     }),
-    fireMessage(message: WebviewInboundMessage) { messageListener?.(message); },
+    fireMessage(message: KtcCodegenEditorInboundMessage) { messageListener?.(message); },
     fireActive(active: boolean) {
       panel.active = active;
       viewStateListener?.({ webviewPanel: panel as unknown as vscode.WebviewPanel });
@@ -151,7 +157,7 @@ describe("KtcCodegenEditorViewController", () => {
       toolId: "codegen",
       uri: "file:///workspace/A.json",
       action: "ready",
-    } as WebviewInboundMessage;
+    } as KtcCodegenEditorInboundMessage;
     first.fireMessage(message);
     expect(callbacks.onMessage).toHaveBeenCalledWith("file:///workspace/A.json", message);
 

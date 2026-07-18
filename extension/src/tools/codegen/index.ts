@@ -1,12 +1,7 @@
 import * as vscode from "vscode";
 import { basename, extname, isAbsolute, relative } from "node:path";
 import {
-  KT_CODEGEN_LEGACY_BLOCKS,
-  KT_CODEGEN_BLOCK_PRESENTATIONS,
   KtCodegenController,
-  ktCodegenBlockKeysForPreset,
-  ktCodegenIsBlockKey,
-  type KtCodegenBlockKey,
   type KtCodegenDiagnostic,
   type KtCodegenTableData,
 } from "@phoenix-wing/kt-codegen";
@@ -14,13 +9,18 @@ import type {
   KtTool,
   KtcCodegenMetaField,
   KtcCodegenDocumentSummary,
-  KtcCodegenEditorModel,
-  KtcCodegenEditorOutboundMessage,
   KtcCodegenSourceCandidateSummary,
   ToolPanelModel,
   ToolRunContext,
   WebviewInboundMessage,
 } from "../types.js";
+import type {
+  KtcCodegenControlMessage,
+  KtcCodegenEditorInboundMessage,
+  KtcCodegenSidebarActionMessage,
+} from "./editorContracts.js";
+import { ktcRouteCodegenEditorMessage } from "./editorMessageRouter.js";
+import { KtcCodegenEditorSessionPresenter } from "./editorSessionPresenter.js";
 import {
   ktcRunCodegenPreflight,
   ktcScanCodegenCandidates,
@@ -44,6 +44,7 @@ import {
   type KtcCodegenWorkspaceOperationKind,
 } from "./workspaceOperationCoordinator.js";
 import { ktcFindCodegenControlLocation } from "./controlNavigation.js";
+import { KtcCodegenControlSessionController } from "./controlSessionController.js";
 import { ktcResolveCodegenWorkspaceRoot } from "./workspaceRootResolver.js";
 import {
   ktcShouldRetainCodegenSessionInList,
@@ -76,16 +77,6 @@ import { ktcWriteCodegenApplyReceipt } from "./applyReceiptStore.js";
 
 const TOOL_ID = "codegen";
 
-const CODEGEN_BLOCK_PRESENTATION_BY_KEY = new Map(
-  KT_CODEGEN_BLOCK_PRESENTATIONS.map((item) => [item.key, item]),
-);
-const CODEGEN_CONTROL_BLOCKS = KT_CODEGEN_LEGACY_BLOCKS.map((block) => ({
-  ...block,
-  title: CODEGEN_BLOCK_PRESENTATION_BY_KEY.get(block.key)?.title ?? block.key,
-  controlWords: block.key,
-  notes: CODEGEN_BLOCK_PRESENTATION_BY_KEY.get(block.key)?.notes ?? block.legacyCall,
-}));
-
 const CODEGEN_META_FIELDS = new Set<KtcCodegenMetaField>([
   "namePrefix",
   "nameMiddle",
@@ -104,6 +95,20 @@ function currentContext(): ToolRunContext | undefined {
 }
 
 class KtcCodegenWorkspaceController implements vscode.Disposable {
+  private readonly controlSessions = new KtcCodegenControlSessionController();
+  private readonly sessionPresenter = new KtcCodegenEditorSessionPresenter({
+    showEditor: (model) => {
+      if (!this.editorViews) throw new Error("Codegen View 尚未初始化");
+      this.editorViews.show(model);
+    },
+    setDocumentState: (uri, fileName, dirty, externalConflict) => {
+      this.editorViews?.setDocumentState(uri, fileName, dirty, externalConflict);
+    },
+    postEditor: (uri, message) => this.editorViews?.post(uri, message),
+    publishProblems: (uri, fsPath, diagnostics) => {
+      this.problemReporter?.publish(uri, fsPath, diagnostics);
+    },
+  }, this.controlSessions);
   private readonly sessions = new Map<string, KtcCodegenDocumentModel>();
   private readonly discovered = new Map<string, KtcDiscoveredCodegenDocument>();
   private readonly documents = new KtcCodegenDocumentService(vscode.workspace.fs);
@@ -208,7 +213,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       this.preflightTasks.delete(uri);
       task.cancel();
       const session = this.sessions.get(uri);
-      if (session) this.postEditor(session, { type: "codegenPreflightState", running: false });
+      if (session) this.sessionPresenter.post(session, { type: "codegenPreflightState", running: false });
     }
     this.candidates = [];
     this.candidateIndexReady = false;
@@ -216,8 +221,8 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     for (const session of this.sessions.values()) {
       if (session.preflight) invalidated += 1;
       session.setPreflight(undefined);
-      this.updateControlPanel(session);
-      this.postEditor(session, {
+      this.sessionPresenter.publishControls(session);
+      this.sessionPresenter.post(session, {
         type: "codegenStatus",
         status: "idle",
         message: "工作集范围已变化，请重新扫描候选并执行预检。",
@@ -239,7 +244,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
   }
 
   async handleSidebarAction(
-    message: Extract<WebviewInboundMessage, { type: "codegenAction" }>,
+    message: KtcCodegenSidebarActionMessage,
     ctx: ToolRunContext,
   ): Promise<void> {
     if (message.action === "refresh") await this.refresh(ctx);
@@ -254,6 +259,13 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       && CODEGEN_META_FIELDS.has(message.field)) {
       this.updateMeta(message.uri, message.field, message.value ?? "", ctx);
     }
+  }
+
+  async handleSidebarControlAction(
+    message: KtcCodegenControlMessage,
+    ctx: ToolRunContext,
+  ): Promise<void> {
+    await this.handleControlMessage(message, ctx);
   }
 
   private async refresh(ctx: ToolRunContext): Promise<void> {
@@ -508,8 +520,8 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       cancelledPreflightCount += 1;
       const session = this.sessions.get(uri);
       if (session) {
-        this.postEditor(session, { type: "codegenPreflightState", running: false });
-        this.postEditor(session, {
+        this.sessionPresenter.post(session, { type: "codegenPreflightState", running: false });
+        this.sessionPresenter.post(session, {
           type: "codegenStatus",
           status: "idle",
           message: "源码在预检期间发生变化，本次预检已取消。",
@@ -519,8 +531,8 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     const sessionWithPreflight = [...this.sessions.values()].filter((session) => !!session.preflight);
     for (const session of sessionWithPreflight) {
       session.setPreflight(undefined);
-      this.updateControlPanel(session);
-      this.postEditor(session, {
+      this.sessionPresenter.publishControls(session);
+      this.sessionPresenter.post(session, {
         type: "codegenStatus",
         status: "idle",
         message: "源码已变化，原预检计划已失效。",
@@ -548,9 +560,9 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     if (!session || !ctx) return;
     if (kind === "deleted") {
       session.markExternalDeleted();
-      this.updateControlPanel(session);
-      this.notifyDocumentState(session);
-      this.postEditor(session, { type: "codegenStatus", status: "error", message: "磁盘 JSON 已被删除；保存时可选择重新创建。" });
+      this.sessionPresenter.publishControls(session);
+      this.sessionPresenter.publishDocumentState(session);
+      this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message: "磁盘 JSON 已被删除；保存时可选择重新创建。" });
       this.publish(ctx, `${session.identity.fileName} 已从磁盘删除，当前内存草稿仍保留。`, "error");
       return;
     }
@@ -559,14 +571,14 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       if (snapshot.fingerprint === session.diskFingerprint) {
         const hadConflict = session.hasExternalConflict;
         session.observeExternalFingerprint(snapshot.fingerprint);
-        if (hadConflict) this.notifyDocumentState(session);
+        if (hadConflict) this.sessionPresenter.publishDocumentState(session);
         return;
       }
       if (session.dirty) {
         session.observeExternalFingerprint(snapshot.fingerprint);
-        this.updateControlPanel(session);
-        this.notifyDocumentState(session);
-        this.postEditor(session, { type: "codegenStatus", status: "error", message: "检测到外部 JSON 变更；保存前必须选择重新加载或覆盖。" });
+        this.sessionPresenter.publishControls(session);
+        this.sessionPresenter.publishDocumentState(session);
+        this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message: "检测到外部 JSON 变更；保存前必须选择重新加载或覆盖。" });
         this.publish(ctx, `${session.identity.fileName} 存在外部修改，已阻止静默覆盖。`, "error");
         return;
       }
@@ -575,9 +587,9 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (!session.hasExternalConflict) session.markExternalChanged();
-      this.updateControlPanel(session);
-      this.notifyDocumentState(session);
-      this.postEditor(session, {
+      this.sessionPresenter.publishControls(session);
+      this.sessionPresenter.publishDocumentState(session);
+      this.sessionPresenter.post(session, {
         type: "codegenStatus",
         status: "error",
         message: `外部 JSON 无法加载，当前内存内容已保留：${message}`,
@@ -701,36 +713,30 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
   }
 
   private async showSession(session: KtcCodegenDocumentModel, ctx: ToolRunContext): Promise<void> {
-    if (!this.editorViews) throw new Error("Codegen View 尚未初始化");
-    this.editorViews.show(this.editorModel(session));
-    this.editorViews.setDocumentState(
-      session.identity.uri,
-      session.identity.fileName,
-      session.dirty,
-      session.hasExternalConflict,
-    );
+    this.sessionPresenter.show(session);
     this.setActive(session, ctx);
   }
 
   private async handleEditorMessage(
     session: KtcCodegenDocumentModel,
-    message: WebviewInboundMessage,
+    message: KtcCodegenEditorInboundMessage,
     ctx: ToolRunContext,
   ): Promise<void> {
-    if (!("uri" in message) || message.uri !== session.identity.uri) return;
-    if (message.type === "codegenControlOpen" || message.type === "codegenControlSelection") {
-      await this.handleControlMessage(message, ctx);
+    const command = ktcRouteCodegenEditorMessage(session.identity.uri, message);
+    if (command.kind === "ignore") return;
+    if (command.kind === "control") {
+      await this.handleControlMessage(command.message, ctx);
       return;
     }
-    if (message.type === "codegenEditorDirty") {
-      session.markTableDirty(message.itemCount);
+    if (command.kind === "dirty") {
+      session.markTableDirty(command.itemCount);
       this.didMutate(session, ctx, `正在编辑 ${session.identity.fileName}；尚未写盘。`);
       return;
     }
-    if (message.type === "codegenEditorExchange") {
-      const acceptance = session.acceptTable(message.model.table);
+    if (command.kind === "exchange") {
+      const acceptance = session.acceptTable(command.model.table);
       if (acceptance === "stale") {
-        this.postEditor(session, {
+        this.sessionPresenter.post(session, {
           type: "codegenStatus",
           status: "error",
           message: "文档已在其他界面更新，请先还原或重新打开后再保存。",
@@ -738,30 +744,29 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
         return;
       }
       if (acceptance === "accepted") this.didMutate(session, ctx);
-      if (message.action === "save") await this.save(session, ctx);
+      if (command.action === "save") await this.save(session, ctx);
       else this.publish(ctx, `已接收 ${session.identity.fileName} 的整表草稿。`);
       return;
     }
-    if (message.type !== "codegenEditorAction") return;
-    if (message.action === "ready") {
-      this.postModel(session);
+    if (command.kind === "ready") {
+      this.sessionPresenter.publishModel(session);
       return;
     }
-    if (message.action === "revert") {
+    if (command.kind === "revert") {
       await this.revert(session, ctx);
       return;
     }
-    if (message.action === "cancelPreflight") {
+    if (command.kind === "cancelPreflight") {
       this.preflightTasks.get(session.identity.uri)?.cancel();
       return;
     }
-    if (message.action === "preflight") {
-      if (message.table && !this.acceptActionTable(session, message.table, ctx)) return;
+    if (command.kind === "preflight") {
+      if (command.table && !this.acceptActionTable(session, command.table, ctx)) return;
       await this.runPreflight(session, ctx);
       return;
     }
-    if (message.action === "apply") {
-      if (message.table && !this.acceptActionTable(session, message.table, ctx)) return;
+    if (command.kind === "apply") {
+      if (command.table && !this.acceptActionTable(session, command.table, ctx)) return;
       if (!session.preflight) await this.runPreflight(session, ctx);
       if (!session.preflight) return;
       await this.apply(session, ctx);
@@ -775,7 +780,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
   ): boolean {
     const acceptance = session.acceptTable(table);
     if (acceptance === "stale") {
-      this.postEditor(session, {
+      this.sessionPresenter.post(session, {
         type: "codegenStatus",
         status: "error",
         message: "表格 revision 已过期，请先还原或重新打开。",
@@ -806,8 +811,8 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     const cancellation = new vscode.CancellationTokenSource();
     this.preflightTasks.set(session.identity.uri, cancellation);
     this.publish(ctx, `正在预检 ${session.identity.fileName}…`);
-    this.postEditor(session, { type: "codegenStatus", status: "idle", message: "正在扫描控制标记…" });
-    this.postEditor(session, { type: "codegenPreflightState", running: true });
+    this.sessionPresenter.post(session, { type: "codegenStatus", status: "idle", message: "正在扫描控制标记…" });
+    this.sessionPresenter.post(session, { type: "codegenPreflightState", running: true });
     try {
       const result = await ktcRunCodegenPreflight({
         workspaceRoot,
@@ -819,7 +824,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
         cancellationToken: cancellation.token,
         reportProgress: (message) => {
           if (this.preflightTasks.get(session.identity.uri) !== cancellation) return;
-          this.postEditor(session, { type: "codegenStatus", status: "idle", message });
+          this.sessionPresenter.post(session, { type: "codegenStatus", status: "idle", message });
         },
       });
       if (this.preflightTasks.get(session.identity.uri) !== cancellation) return;
@@ -829,68 +834,34 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       const message = `${result.reused ? "复用缓存" : "生成新计划"}：${result.candidateFileCount} 个候选文件，${plan.markerRegions.length} 个区域，${plan.artifacts.length} 个产物，${plan.diagnostics.length} 条诊断。`;
       ctx.log(`[Codegen][Preflight] ${session.identity.fileName}；${message}`);
       for (const line of ktcCodegenApplyPlanLogs(plan, "Preflight")) ctx.log(line);
-      this.postEditor(session, { type: "codegenStatus", status: "idle", message });
-      this.updateControlPanel(session);
+      this.sessionPresenter.post(session, { type: "codegenStatus", status: "idle", message });
+      this.sessionPresenter.publishControls(session);
       this.publish(ctx, message, plan.diagnostics.some((item) => item.severity === "error") ? "error" : "done");
     } catch (error) {
       if (error instanceof vscode.CancellationError) {
         if (this.preflightTasks.get(session.identity.uri) !== cancellation) return;
-        this.postEditor(session, { type: "codegenStatus", status: "idle", message: "预检已取消。" });
+        this.sessionPresenter.post(session, { type: "codegenStatus", status: "idle", message: "预检已取消。" });
         ctx.log(`[Codegen][Preflight][info] preflight.cancelled：${session.identity.fsPath}`);
         this.publish(ctx, `${session.identity.fileName} 的预检已取消。`);
         return;
       }
       const message = error instanceof Error ? error.message : String(error);
       session.setPreflight(undefined);
-      this.updateControlPanel(session);
-      this.postEditor(session, { type: "codegenStatus", status: "error", message: `预检失败：${message}` });
+      this.sessionPresenter.publishControls(session);
+      this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message: `预检失败：${message}` });
       ctx.log(`[Codegen][Preflight][error] preflight.failed：${message}；json=${session.identity.fsPath}`);
       this.publish(ctx, `预检失败：${message}`, "error");
     } finally {
       if (this.preflightTasks.get(session.identity.uri) === cancellation) {
         this.preflightTasks.delete(session.identity.uri);
-        this.postEditor(session, { type: "codegenPreflightState", running: false });
+        this.sessionPresenter.post(session, { type: "codegenPreflightState", running: false });
       }
       cancellation.dispose();
     }
   }
 
-  private updateControlPanel(session: KtcCodegenDocumentModel): void {
-    this.postEditor(session, { type: "codegenControlsModel", model: this.controlModel(session) });
-    this.problemReporter?.publish(
-      session.identity.uri,
-      session.identity.fsPath,
-      session.preflight?.plan.diagnostics ?? [],
-    );
-  }
-
-  private controlModel(session: KtcCodegenDocumentModel) {
-    return {
-      kind: "kt.codegen.control-view-model" as const,
-      schemaVersion: 1 as const,
-      uri: session.identity.uri,
-      fileName: session.identity.fileName,
-      blocks: CODEGEN_CONTROL_BLOCKS,
-      selectedBlockKeys: session.selectedBlockKeys,
-      singleSelectionMode: session.singleSelectionMode,
-      presets: {
-        all: ktCodegenBlockKeysForPreset("all"),
-        none: ktCodegenBlockKeysForPreset("none"),
-        cppOnly: ktCodegenBlockKeysForPreset("cpp-only"),
-        fieldCode: ktCodegenBlockKeysForPreset("field-code"),
-      },
-      ...(session.preflight ? {
-        preflight: {
-          plan: session.preflight.plan,
-          reused: session.preflight.reused,
-          createdAt: session.preflight.createdAt,
-        },
-      } : {}),
-    };
-  }
-
   private async handleControlMessage(
-    message: WebviewInboundMessage,
+    message: KtcCodegenControlMessage,
     ctx: ToolRunContext,
   ): Promise<void> {
     if (message.type === "codegenControlOpen") {
@@ -907,21 +878,18 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       await this.problemReporter?.open(location.path, location.line, location.column);
       return;
     }
-    if (message.type !== "codegenControlSelection") return;
+    if (message.type !== "codegenControlSelection"
+      && message.type !== "codegenControlDisplay"
+      && message.type !== "codegenControlOutput") return;
     const session = this.sessions.get(message.uri);
     if (!session) return;
-    const selected: KtCodegenBlockKey[] = [];
-    for (const key of message.blockKeys) {
-      if (ktCodegenIsBlockKey(key)) selected.push(key);
+    const result = this.controlSessions.handle(session, message);
+    if (result.modelChanged) this.sessionPresenter.publishControls(session);
+    for (const line of result.logLines ?? []) ctx.log(line);
+    if (result.editorStatusMessage) {
+      this.sessionPresenter.post(session, { type: "codegenStatus", status: "idle", message: result.editorStatusMessage });
     }
-    const change = session.setSelectedBlockKeys(selected, message.singleMode);
-    if (!change.selectionChanged && !change.modeChanged) return;
-    this.updateControlPanel(session);
-    const messageText = change.selectionChanged
-      ? `已选择 ${session.selectedBlockKeys.length} / ${KT_CODEGEN_LEGACY_BLOCKS.length} 个控制符；请重新预检。`
-      : `已${session.singleSelectionMode ? "开启" : "关闭"}控制符单选模式。`;
-    this.postEditor(session, { type: "codegenStatus", status: "idle", message: messageText });
-    this.publish(ctx, messageText);
+    if (result.statusMessage) this.publish(ctx, result.statusMessage);
   }
 
   private async apply(session: KtcCodegenDocumentModel, ctx: ToolRunContext): Promise<void> {
@@ -929,7 +897,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     if (!preflight) {
       const message = "自动预检没有产生可用计划，未修改源码。";
       ctx.log(`[Codegen][Apply][error] apply.preflight-missing：${message}；json=${session.identity.fsPath}`);
-      this.postEditor(session, { type: "codegenStatus", status: "error", message });
+      this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message });
       this.publish(ctx, message, "error");
       return;
     }
@@ -939,7 +907,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     for (const line of ktcCodegenApplyPlanLogs(plan)) ctx.log(line);
     if (!plan.canApply) {
       const message = "当前计划包含错误或没有可应用产物；未修改源码。";
-      this.postEditor(session, { type: "codegenStatus", status: "error", message });
+      this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message });
       this.problemReporter?.publish(session.identity.uri, session.identity.fsPath, plan.diagnostics);
       this.publish(ctx, message, "error");
       return;
@@ -1025,7 +993,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       }
       this.problemReporter?.publish(session.identity.uri, session.identity.fsPath, diagnostics);
       const message = `Apply 已阻止：${projection.diagnostics.length} 个问题；未修改源码。`;
-      this.postEditor(session, { type: "codegenStatus", status: "error", message });
+      this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message });
       this.publish(ctx, message, "error");
       return;
     }
@@ -1061,7 +1029,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
         error instanceof Error ? error.message : String(error),
       );
       this.problemReporter?.publish(session.identity.uri, session.identity.fsPath, [...diagnostics, diagnostic]);
-      this.postEditor(session, { type: "codegenStatus", status: "error", message: diagnostic.message });
+      this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message: diagnostic.message });
       ctx.log(ktcCodegenApplyDiagnosticLog(diagnostic));
       this.publish(ctx, `Apply 编码失败：${diagnostic.message}`, "error");
       return;
@@ -1095,7 +1063,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
         concurrent ? String(commit.error.target) : commit.rollbackFailures[0],
       );
       this.problemReporter?.publish(session.identity.uri, session.identity.fsPath, [...diagnostics, diagnostic]);
-      this.postEditor(session, { type: "codegenStatus", status: "error", message });
+      this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message });
       ctx.log(ktcCodegenApplyDiagnosticLog(diagnostic));
       for (const path of commit.rollbackFailures) {
         ctx.log(`[Codegen][Apply][error] apply.rollback-failed：回滚失败，请用 Git 检查；file=${path}`);
@@ -1159,7 +1127,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       }
     }
     session.setPreflight(undefined);
-    this.updateControlPanel(session);
+    this.sessionPresenter.publishControls(session);
     this.problemReporter?.publish(session.identity.uri, session.identity.fsPath, [...plan.diagnostics, ...receiptDiagnostics]);
     const regionCount = writes.reduce((total, write) => total + write.regionCount, 0);
     const message = receiptDiagnostics.length
@@ -1167,7 +1135,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       : writes.length
         ? `Apply 完成：已修改 ${writes.length} 个文件、${regionCount} 个区域；回执 ${receiptPath ?? "未生成"}。`
       : "Apply 完成：生成结果与源码一致，没有需要写入的变化。";
-    this.postEditor(session, { type: "codegenStatus", status: "idle", message });
+    this.sessionPresenter.post(session, { type: "codegenStatus", status: "idle", message });
     this.publish(ctx, message);
   }
 
@@ -1186,12 +1154,12 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
   }
 
   private async save(session: KtcCodegenDocumentModel, ctx: ToolRunContext): Promise<void> {
-    this.postEditor(session, { type: "codegenStatus", status: "saving", message: "正在校验并保存…" });
+    this.sessionPresenter.post(session, { type: "codegenStatus", status: "saving", message: "正在校验并保存…" });
     const result = session.controller.writeJson();
     if (!result.ok || result.value === null) {
       const message = ktcCodegenDiagnosticsText(result.diagnostics) || "当前表格包含无法写出的数据";
       session.recordDiagnostics(result.diagnostics.length);
-      this.postEditor(session, { type: "codegenStatus", status: "error", message });
+      this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message });
       this.publish(ctx, `保存失败：${message}`, "error");
       return;
     }
@@ -1228,7 +1196,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
           return;
         }
         if (answer !== "覆盖保存" && answer !== "重新创建文件") {
-          this.postEditor(session, { type: "codegenStatus", status: "error", message: "保存已取消，外部变更和当前草稿均保留。" });
+          this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message: "保存已取消，外部变更和当前草稿均保留。" });
           this.publish(ctx, "保存已取消：检测到外部文件变更。", "error");
           return;
         }
@@ -1237,9 +1205,9 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       this.internalWrites.add(session.identity.uri);
       const saved = await this.documents.writeValidatedJson(uri, result.value, writeGuard);
       session.markSaved(result.diagnostics.length, saved.fingerprint);
-      this.notifyDocumentState(session);
+      this.sessionPresenter.publishDocumentState(session);
       this.rememberSession(session);
-      this.postEditor(session, {
+      this.sessionPresenter.post(session, {
         type: "codegenStatus",
         status: "saved",
         message: result.diagnostics.length ? `已保存，${result.diagnostics.length} 条兼容提示` : "已保存",
@@ -1248,7 +1216,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       this.publish(ctx, `已保存 ${session.identity.fileName}。`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.postEditor(session, { type: "codegenStatus", status: "error", message: `写盘失败：${message}` });
+      this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message: `写盘失败：${message}` });
       this.publish(ctx, `写盘失败：${message}`, "error");
     } finally {
       this.internalWrites.delete(session.identity.uri);
@@ -1271,7 +1239,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       await this.reloadSnapshot(session, snapshot, ctx, "已从磁盘还原");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.postEditor(session, { type: "codegenStatus", status: "error", message });
+      this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message });
       this.publish(ctx, `还原失败：${message}`, "error");
     }
   }
@@ -1281,8 +1249,8 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     ctx: ToolRunContext,
     message = `已更新 ${session.identity.fileName} 的文档草稿。`,
   ): void {
-    this.notifyDocumentState(session);
-    this.updateControlPanel(session);
+    this.sessionPresenter.publishDocumentState(session);
+    this.sessionPresenter.publishControls(session);
     this.rememberSession(session);
     this.publish(ctx, message);
   }
@@ -1297,10 +1265,10 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     if (!result.ok || !result.value) {
       throw new Error(ktcCodegenDiagnosticsText(result.diagnostics) || "磁盘 JSON 无法读取");
     }
-    this.notifyDocumentState(session);
+    this.sessionPresenter.publishDocumentState(session);
     this.rememberSession(session);
-    this.postModel(session);
-    this.postEditor(session, {
+    this.sessionPresenter.publishModel(session);
+    this.sessionPresenter.post(session, {
       type: "codegenStatus",
       status: "saved",
       message,
@@ -1328,7 +1296,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     this.activeUri = session.identity.uri;
     this.rememberSession(session);
     this.problemReporter?.activate(session.identity.uri);
-    this.updateControlPanel(session);
+    this.sessionPresenter.publishControls(session);
     this.publish(ctx, `当前编辑区 Codegen 标签：${session.identity.fileName}。`);
   }
 
@@ -1346,54 +1314,18 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     });
   }
 
-  private editorModel(session: KtcCodegenDocumentModel): KtcCodegenEditorModel {
-    return {
-      uri: session.identity.uri,
-      fileName: session.identity.fileName,
-      table: session.getTableData(),
-      controls: this.controlModel(session),
-      dirty: session.dirty,
-      externalConflict: session.hasExternalConflict,
-    };
-  }
-
-  private notifyDocumentState(session: KtcCodegenDocumentModel): void {
-    this.editorViews?.setDocumentState(
-      session.identity.uri,
-      session.identity.fileName,
-      session.dirty,
-      session.hasExternalConflict,
-    );
-    this.postEditor(session, {
-      type: "codegenDocumentState",
-      dirty: session.dirty,
-      externalConflict: session.hasExternalConflict,
-    });
-  }
-
-  private postModel(session: KtcCodegenDocumentModel): void {
-    this.postEditor(session, { type: "codegenModel", model: this.editorModel(session) });
-    this.problemReporter?.publish(
-      session.identity.uri,
-      session.identity.fsPath,
-      session.preflight?.plan.diagnostics ?? [],
-    );
-  }
-
-  private postEditor(session: KtcCodegenDocumentModel, message: KtcCodegenEditorOutboundMessage): void {
-    this.editorViews?.post(session.identity.uri, message);
-  }
-
   private publish(
     ctx: ToolRunContext,
     message: string,
     status: "done" | "error" = "done",
   ): void {
+    const activeSession = this.activeUri ? this.sessions.get(this.activeUri) : undefined;
     ctx.postState({
       status: status === "done" && this.workspaceOperations.kind ? "running" : status,
       message,
       codegenActiveUri: this.activeUri,
       codegenDocuments: this.summaries(ctx.workspaceRoot),
+      codegenControls: activeSession ? this.controlSessions.catalogModel(activeSession) : undefined,
       codegenCandidates: this.candidates,
       codegenOperation: this.workspaceOperations.kind,
     });
@@ -1470,6 +1402,10 @@ export const codegenTool: KtTool = {
   async handleMessage(message: WebviewInboundMessage, ctx: ToolRunContext): Promise<void> {
     if (message.type === "codegenAction" && message.toolId === TOOL_ID) {
       await codegenController.handleSidebarAction(message, ctx);
+    } else if ((message.type === "codegenControlSelection"
+      || message.type === "codegenControlDisplay"
+      || message.type === "codegenControlOutput") && message.toolId === TOOL_ID) {
+      await codegenController.handleSidebarControlAction(message, ctx);
     }
   },
   async runAction(action: string, ctx: ToolRunContext): Promise<void> {

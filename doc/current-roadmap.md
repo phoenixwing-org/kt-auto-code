@@ -23,9 +23,11 @@ Owner：KT Auto Code maintainers
 4. 从 P1 去重队列提炼两个无 UI 能力；优先 workset/ignore/path 与 encoding/file-core，不迁移 VS Code 命令或 Webview 状态。
 5. 保持双 VSIX 可复现，并在 Wing 升级时先运行 Registry 防回退、全测和制品门禁。
 
-## 已讨论功能 TODO：输出 Codegen 控制符模板
+## 已完成第一波：Codegen 控制符目录与模板日志
 
 来源：旧 VB 程序可以输出全部控制文本，供新建源码尚无控制符时手工复制，也可用于排查“为什么 Apply 写不进去”。该能力作为显式辅助功能恢复，但不能把正常的未命中重新变成 warning。
+
+实现状态（2026-07-18）：Auto 内部 `ktc-codegen-control-catalog` 已由 Primary `compact` 与 JSON View `full` 两处消费；Host session 是选择、单选与“显示缺失模板”的唯一真源。单项/全部日志由纯 formatter 调用 Wing `KtCodegenMarker` 生成，组件只派发 CustomEvent。控制符 DTO、ViewModel 与消息状态机已经从 `index.ts` 提炼到 UI-neutral `controlViewModel.ts` / `controlSessionController.ts`，总 Controller 只保留 Host 导航、日志和发布适配。随后 Primary 整体页面壳进入独立 `ktc-codegen-primary-panel`，Sidebar 只投影状态并转发语义事件；JSON View 的专属消息契约、纯路由和 Editor session Presenter 也已从全工具 `types.ts` / 总 Controller 分离。全仓 396 项测试、118 源文件、22 个纯依赖图、9 个 View 根、Extension typecheck、四个发布 bundle 与 VSIX 制品检查已通过；真实 Extension Host 的点击与日志视觉回执保留到本大型 UI 目标的联合验收波次。
 
 ### 交互决定
 
@@ -39,7 +41,7 @@ Owner：KT Auto Code maintainers
 
 ### 两处消费与 Web Component 决定
 
-- Primary 当前只有工作区级候选源码列表，完整控制符目录在 JSON View。实现时把共享目录/动作抽为 Auto Code 内部 Web Component `ktc-codegen-control-catalog`，再由组合组件 `ktc-codegen-control-panel` 装配预检结果、诊断和 Artifact 预览。
+- Primary 原本只有工作区级候选源码列表，完整控制符目录只在 JSON View。当前已把共享目录/动作抽为 Auto Code 内部 Web Component `ktc-codegen-control-catalog`；JSON View 继续在外层装配预检结果、诊断和 Artifact 预览，暂不额外引入没有第二个消费者的组合组件。
 - Primary 使用 `compact` 形态消费 catalog：显示预设、选择、缺失模板 checkbox、全部日志按钮和单项日志图标；JSON View 使用 `full` 形态消费同一 catalog，并保留右侧预检/诊断/预览区域。两处不得复制 32 项 DOM、样式和事件逻辑。
 - 两个 Webview 位于不同 Realm，不能共享组件实例。Host 的 `kt.codegen.control-view-model` / 文档 session 仍是状态真源；任一处改变选择或显示状态后由 Host 更新 session 并广播新快照，另一处同步刷新。
 - Web Component 只接收结构化 model/property，并派发标准 `CustomEvent`（选择、显示缺失、输出全部、输出单项、定位）；Primary/View 的薄 wrapper 再映射为 VS Code `postMessage`。组件不得直接调用 `acquireVsCodeApi()`、Output Channel、clipboard 或文件系统。
@@ -60,6 +62,30 @@ Owner：KT Auto Code maintainers
 - Extension Host smoke 至少验证：默认无噪声、勾选只展示已选缺失项、单项/全部 Output 范围正确、Primary 改状态后 View 同步、关闭后恢复简洁日志，以及全部动作覆盖 32 个 legacy block key。
 - 文档与手工验收说明必须明确：这是首次布点/诊断工具，不代表 Apply 可以在没有 Start/End 配对时自动写入。
 
+## 已完成第二个切口：Primary Codegen 页面壳
+
+- `ktc-codegen-primary-panel` 现在拥有工具栏、活动文档摘要、四个元数据字段、compact 控制符目录、JSON 配置列表和候选源码列表；它只接收 `KtcCodegenPrimaryViewModel`，并以 `ktc-codegen-primary-action` 上报语义动作。
+- `sidebar/panelHtml.ts` 不再创建 Codegen 行、标签、输入框或按钮，也不再知道刷新/取消的显示规则；它只把 Host `ToolUiState` 投影为组件 model，并将 Primary 与内嵌 catalog 的 CustomEvent 映射回既有 Webview 消息协议。
+- `panelHtml.ts` 从本切口前 2911 行降到 2603 行；新增 295 行产品内聚组件和 37 行纯 ViewModel 契约。行数不是最终目标，但旧总页面减少 308 行且没有把 VS Code API、文件系统或 clipboard 带入组件边界。
+- characterization tests 实际挂载 Primary 组件，冻结扫描取消、文档/候选打开、元数据修改、繁忙状态、无障碍标签与 catalog model 传递；架构门禁把 `primaryViewModel.ts` 纳入纯图，把 Primary 组件/入口纳入 View Root。
+- 本地 `kt-auto-code-0.5.0.vsix` 已包含 `codegen-primary-panel.js`；产物门禁验证组件 tag、统一 action 事件及 `acquireVsCodeApi()` 隔离。当前产物为 28 个文件、414,506 字节。
+
+## 已完成第三个切口：JSON View 消息契约与纯路由
+
+- Codegen 专属 inbound、outbound、Editor Model 和控制符消息已迁入 `editorContracts.ts`；全工具 `types.ts` 从 405 行降到 331 行，只组合并再导出该产品契约，不再定义两份消息形状。
+- `editorMessageRouter.ts` 在 UI-neutral 边界按 session URI 拒绝跨文档消息，并把 transport message 收敛为 dirty、exchange、control、ready、revert、cancelPreflight、preflight 与 apply 命令。它不读取 VS Code、DOM、workspace 或领域文件。
+- `editorViewController.ts` 只接收 `KtcCodegenEditorInboundMessage`，不再依赖全工具 `WebviewInboundMessage` 总表；总 Controller 只消费路由后的语义命令。
+- 定向测试冻结跨会话拒绝、整表保存、带 table 的 Apply、控制符显示和无负载动作；全仓 81 个测试文件、392 项测试通过，架构门禁为 117 个生产源文件、22 个 pure graph、8 个 View root。
+- 本地 VSIX 仍为 28 个文件，414,672 字节，四个发布 bundle 和组件/Registry 产物门禁通过。
+
+## 已完成第四个切口：Editor session Presenter
+
+- `editorSessionPresenter.ts` 通过 `KtcCodegenEditorSessionViewPort` 统一建立 Editor Model、同步标签 dirty/conflict、发布 document state、完整 model、control model 与 Problems diagnostics；Presenter 不拥有文档或控制符状态。
+- 总 Controller 只在装配点把 `KtcCodegenEditorViewController` 与 `KtcCodegenProblemReporter` 映射为端口。`editorModel`、`notifyDocumentState`、`postModel`、`postEditor`、`updateControlPanel` 五组输出方法已从 `index.ts` 删除。
+- Presenter characterization tests 使用 fake port 验证 show、document state、model/problems、controls 和普通 Editor message 的输出次序与 payload，不需要启动 VS Code 或读取文件。
+- `Codegen/index.ts` 从本切口前 1,460 行降到 **1,418** 行；全仓 82 个测试文件、396 项测试通过，架构门禁为 118 个生产源文件、22 个 pure graph、9 个 View root。
+- 本地 VSIX 仍为 28 个文件、414,940 字节，发布 bundle 和产物门禁通过。
+
 ## 已合并的旧路线
 
 - `下一阶段实施计划.md`：已完成的 Ignore/搜索替换主体成为稳定基线，未完成 Extension Host 验收进入本路线第 3 项。
@@ -71,5 +97,5 @@ Owner：KT Auto Code maintainers
 
 - Wing 是跨宿主纯算法与契约真源；本仓只拥有 VS Code Extension Host、Webview/VSIX、工作区权限和产品编排。
 - Desk/Tauri 壳层和原生 CAD provider 不复制进入 Auto Code。
-- 用户已于 2026-07-18 接受联合成熟度 **92.00** 作为本轮停止线；Windows 发布态回执保留为用户手工后续项，不补计本轮分数，也不再阻塞另立大型 UI 拆分目标。本轮仍禁止继续向大文件加入领域算法或文件真相。
+- 用户已于 2026-07-18 接受联合成熟度 **92.00** 作为上一轮停止线；Windows 发布态回执保留为用户手工后续项。大型 UI 拆分目标已经启动，仍禁止向大文件加入新的领域算法或文件真相。
 - 测试数量、bundle 大小和版本关系由 CI/manifest 产生，不在当前路线复制易漂移数字。

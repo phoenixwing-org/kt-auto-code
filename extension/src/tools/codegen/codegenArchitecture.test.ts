@@ -73,6 +73,72 @@ describe("Codegen MVC dependency boundary", () => {
     expect(existsSync(new URL("./controlViewController.ts", import.meta.url))).toBe(false);
   });
 
+  it("Primary 与 JSON View 共用 Auto 内部控制符 Web Component", () => {
+    const editor = source("./editorHtml.ts");
+    const sidebar = source("../../sidebar/panelHtml.ts");
+    const catalog = source("./controlCatalog.ts");
+    const primary = source("./primaryPanel.ts");
+    expect(editor).toContain('<ktc-codegen-control-catalog id="control-catalog" mode="full">');
+    expect(sidebar).toContain('<ktc-codegen-primary-panel id="codegen-panel" hidden>');
+    expect(primary).toContain('catalog.setAttribute("mode", "compact")');
+    expect(editor).not.toContain("function renderBlocks");
+    expect(sidebar).not.toContain("block.controlWords");
+    expect(catalog).toContain("ktc-codegen-control-selection-change");
+    expect(catalog).toContain("ktc-codegen-control-display-change");
+    expect(catalog).toContain("ktc-codegen-control-output");
+    expect(catalog).not.toMatch(/acquireVsCodeApi|from ["']vscode["']|workspace\.fs|clipboard/);
+  });
+
+  it("Primary 页面壳拥有 Codegen DOM，Sidebar 只投影状态并转发语义事件", () => {
+    const sidebar = source("../../sidebar/panelHtml.ts");
+    const primary = source("./primaryPanel.ts");
+    expect(sidebar).toContain("els.codegenPanel.model = {");
+    expect(sidebar).toContain('"ktc-codegen-primary-action"');
+    expect(sidebar).not.toContain("for (const entry of documents)");
+    expect(sidebar).not.toContain('className = "codegen-row"');
+    expect(primary).toContain("for (const entry of model.documents)");
+    expect(primary).toContain("for (const candidate of model.candidates)");
+    expect(primary).toContain('"ktc-codegen-primary-action"');
+    expect(primary).not.toMatch(/acquireVsCodeApi|from ["']vscode["']|workspace\.fs|clipboard/);
+  });
+
+  it("控制符 ViewModel 与命令状态机独立于 VS Code 总 Controller", () => {
+    const workspaceController = source("./index.ts");
+    const controls = source("./controlSessionController.ts");
+    expect(workspaceController).toContain("KtcCodegenControlSessionController");
+    expect(workspaceController).not.toContain("ktcCodegenControlTemplateLogLines");
+    expect(controls).not.toMatch(/from ["']vscode["']|acquireVsCodeApi|document\.|window\.|workspace\.fs|OutputChannel/);
+    expect(controls).toContain("catalogModel");
+    expect(controls).toContain("viewModel");
+    expect(controls).toContain("handle(");
+  });
+
+  it("JSON View 消息先经纯路由收敛，Webview adapter 不再依赖全工具消息总表", () => {
+    const controller = source("./index.ts");
+    const router = source("./editorMessageRouter.ts");
+    const view = source("./editorViewController.ts");
+    expect(controller).toContain("ktcRouteCodegenEditorMessage");
+    expect(router).toContain('kind: "ignore"');
+    expect(router).toContain('kind: "control"');
+    expect(router).not.toMatch(/from ["']vscode["']|acquireVsCodeApi|workspace\.|document\.|window\./);
+    expect(view).toContain('from "./editorContracts.js"');
+    expect(view).not.toContain('from "../types.js"');
+  });
+
+  it("Editor session Presenter 统一 Model、状态、控制符与 Problems 输出端口", () => {
+    const controller = source("./index.ts");
+    const presenter = source("./editorSessionPresenter.ts");
+    expect(controller).toContain("KtcCodegenEditorSessionPresenter");
+    expect(controller).not.toContain("private editorModel(");
+    expect(controller).not.toContain("private postEditor(");
+    expect(controller).not.toContain("private updateControlPanel(");
+    expect(presenter).toContain("KtcCodegenEditorSessionViewPort");
+    expect(presenter).toContain("publishDocumentState");
+    expect(presenter).toContain("publishModel");
+    expect(presenter).toContain("publishControls");
+    expect(presenter).not.toMatch(/from ["']vscode["']|workspace\.|readFile|writeFile|acquireVsCodeApi/);
+  });
+
   it("预检缓存协议与 VS Code 文件系统适配解耦", () => {
     const cache = source("./preflightCache.ts");
     const preflight = source("./preflight.ts");

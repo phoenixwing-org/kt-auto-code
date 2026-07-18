@@ -90,6 +90,26 @@ describe("KtcCodegenDocumentModel", () => {
     expect(model.preflight).toBeUndefined();
   });
 
+  it("缺失模板显示开关只属于会话，不使文档变脏或预检失效", () => {
+    const model = createModel();
+    const preflight = {
+      plan: { kind: "kt.codegen.plan" } as NonNullable<typeof model.preflight>["plan"],
+      reused: true,
+      createdAt: "2026-07-18T00:00:00.000Z",
+      markerIndexRevision: 1,
+      indexedFileCount: 1,
+      candidateFileCount: 1,
+      cachePath: "/workspace/.phoenix/cache/codegen/test.json",
+    };
+    model.setPreflight(preflight);
+
+    expect(model.setShowMissingTemplates(true)).toBe(true);
+    expect(model.showMissingTemplates).toBe(true);
+    expect(model.dirty).toBe(false);
+    expect(model.preflight).toBe(preflight);
+    expect(model.setShowMissingTemplates(true)).toBe(false);
+  });
+
   it("磁盘还原原地更新共享 Param 并建立新 checkpoint", () => {
     const model = createModel();
     model.updateMeta("nameMiddle", "Draft");

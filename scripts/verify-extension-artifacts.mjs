@@ -59,6 +59,18 @@ for (const artifact of artifacts) {
     if (!tableBundle.includes("kt-codegen-table")) {
       throw new Error("Code VSIX is missing the KtCodegenTable custom element registration");
     }
+    const controlCatalogBundle = readText(zip, "extension/dist/codegen-control-catalog.js");
+    if (!controlCatalogBundle.includes("ktc-codegen-control-catalog")
+        || !controlCatalogBundle.includes("ktc-codegen-control-selection-change")
+        || controlCatalogBundle.includes("acquireVsCodeApi")) {
+      throw new Error("Code VSIX is missing the UI-neutral Codegen control catalog custom element");
+    }
+    const primaryPanelBundle = readText(zip, "extension/dist/codegen-primary-panel.js");
+    if (!primaryPanelBundle.includes("ktc-codegen-primary-panel")
+        || !primaryPanelBundle.includes("ktc-codegen-primary-action")
+        || primaryPanelBundle.includes("acquireVsCodeApi")) {
+      throw new Error("Code VSIX is missing the UI-neutral Codegen Primary panel custom element");
+    }
     const codegenCommand = manifest.contributes?.commands?.find(
       (candidate) => candidate.command === "ktAutoCode.codegen.open",
     );

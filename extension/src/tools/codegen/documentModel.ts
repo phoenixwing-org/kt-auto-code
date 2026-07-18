@@ -38,6 +38,7 @@ export class KtcCodegenDocumentModel {
   private currentDiskFingerprint: string;
   private currentExternalState: KtcCodegenExternalState = "current";
   private currentSingleSelectionMode = false;
+  private currentShowMissingTemplates = false;
   private readonly blockKeys = new Set<KtCodegenBlockKey>(
     KT_CODEGEN_LEGACY_BLOCKS.map((block) => block.key),
   );
@@ -93,6 +94,10 @@ export class KtcCodegenDocumentModel {
     return this.currentSingleSelectionMode;
   }
 
+  get showMissingTemplates(): boolean {
+    return this.currentShowMissingTemplates;
+  }
+
   /** 只记录 Web Component 的 dirty 跃迁，不进行逐单元格交换。 */
   markTableDirty(itemCount: number): void {
     this.currentDraftItemCount = Math.max(0, Math.trunc(itemCount));
@@ -134,6 +139,13 @@ export class KtcCodegenDocumentModel {
     this.currentSingleSelectionMode = singleSelectionMode;
     if (selectionChanged) this.currentPreflight = undefined;
     return { selectionChanged, modeChanged };
+  }
+
+  /** 只属于当前 Extension Host 会话，不写入 Codegen JSON。 */
+  setShowMissingTemplates(value: boolean): boolean {
+    if (this.currentShowMissingTemplates === value) return false;
+    this.currentShowMissingTemplates = value;
+    return true;
   }
 
   setPreflight(preflight: KtcCodegenPreflightResult | undefined): void {

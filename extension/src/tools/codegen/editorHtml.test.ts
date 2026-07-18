@@ -38,6 +38,9 @@ describe("codegen editor HTML", () => {
         })),
         selectedBlockKeys: KT_CODEGEN_LEGACY_BLOCKS.map((block) => block.key),
         singleSelectionMode: false,
+        showMissingTemplates: false,
+        preflightAvailable: false,
+        missingTemplates: [],
         presets: {
           all: ktCodegenBlockKeysForPreset("all"),
           none: ktCodegenBlockKeysForPreset("none"),
@@ -51,6 +54,7 @@ describe("codegen editor HTML", () => {
     expect(html).toContain("Codegen JSON 编辑 View");
     expect(html).toContain("<kt-codegen-table");
     expect(html).toContain("test-webview:/extension/dist/codegen-table.js");
+    expect(html).toContain("test-webview:/extension/dist/codegen-control-catalog.js");
     expect(html).toContain('type: "codegenEditorDirty"');
     expect(html).toContain('type: "codegenEditorExchange"');
     expect(html).toContain('action: "save"');
@@ -72,7 +76,7 @@ describe("codegen editor HTML", () => {
     expect(html).toContain('--vscode-contrastBorder');
     expect(html).toContain('@media (max-width: 800px)');
     expect(html).toContain('grid-template-rows: repeat(2, minmax(0, 1fr));');
-    expect(html).toContain('class="control-scroll-region" tabindex="0" aria-label="可滚动的控制符目录列表"');
+    expect(html).toContain('<ktc-codegen-control-catalog id="control-catalog" mode="full">');
     expect(html).toContain("height: min(44vh, 460px)");
     expect(html).toContain("overflow-y: scroll");
     expect(html).toContain("scrollbar-gutter: stable both-edges");
@@ -82,6 +86,8 @@ describe("codegen editor HTML", () => {
     expect(html).toContain('id="control-drawer"');
     expect(html).toContain("控制符与预检");
     expect(html).toContain('type: "codegenControlSelection"');
+    expect(html).toContain('type: "codegenControlDisplay"');
+    expect(html).toContain('type: "codegenControlOutput"');
     expect(html).toContain('type: "codegenControlOpen"');
     expect(html).toContain('message.type === "codegenControlsModel"');
     expect(html).toContain("controlDrawer.open = !controlDrawer.open");
@@ -105,5 +111,7 @@ describe("codegen editor HTML", () => {
     const entry = readFileSync(new URL("./tableEntry.ts", import.meta.url), "utf8");
     expect(entry).toContain('@phoenix-wing/kt-codegen/table');
     expect(entry).toContain("ktCodegenDefineTableElement()");
+    const controlEntry = readFileSync(new URL("./controlCatalogEntry.ts", import.meta.url), "utf8");
+    expect(controlEntry).toContain("ktcDefineCodegenControlCatalog()");
   });
 });

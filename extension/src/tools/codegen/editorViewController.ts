@@ -1,13 +1,13 @@
 import * as vscode from "vscode";
 import type {
+  KtcCodegenEditorInboundMessage,
   KtcCodegenEditorModel,
   KtcCodegenEditorOutboundMessage,
-  WebviewInboundMessage,
-} from "../types.js";
+} from "./editorContracts.js";
 import { getCodegenEditorHtml } from "./editorHtml.js";
 
 export interface KtcCodegenEditorViewCallbacks {
-  readonly onMessage: (uri: string, message: WebviewInboundMessage) => void;
+  readonly onMessage: (uri: string, message: KtcCodegenEditorInboundMessage) => void;
   readonly onActive: (uri: string) => void;
   readonly onDispose: (uri: string) => void;
 }
@@ -41,7 +41,7 @@ export class KtcCodegenEditorViewController implements vscode.Disposable {
     );
     this.panels.set(model.uri, panel);
     panel.webview.html = getCodegenEditorHtml(panel.webview, this.extensionUri, model);
-    panel.webview.onDidReceiveMessage((message: WebviewInboundMessage) => {
+    panel.webview.onDidReceiveMessage((message: KtcCodegenEditorInboundMessage) => {
       this.callbacks.onMessage(model.uri, message);
     });
     panel.onDidChangeViewState(({ webviewPanel }) => {

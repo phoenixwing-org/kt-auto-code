@@ -29,6 +29,30 @@ const codegenTableOptions = {
 };
 
 /** @type {import('esbuild').BuildOptions} */
+const codegenControlCatalogOptions = {
+  entryPoints: ["src/tools/codegen/controlCatalogEntry.ts"],
+  bundle: true,
+  outfile: "dist/codegen-control-catalog.js",
+  platform: "browser",
+  format: "iife",
+  target: "es2022",
+  sourcemap: true,
+  logLevel: "info",
+};
+
+/** @type {import('esbuild').BuildOptions} */
+const codegenPrimaryPanelOptions = {
+  entryPoints: ["src/tools/codegen/primaryPanelEntry.ts"],
+  bundle: true,
+  outfile: "dist/codegen-primary-panel.js",
+  platform: "browser",
+  format: "iife",
+  target: "es2022",
+  sourcemap: true,
+  logLevel: "info",
+};
+
+/** @type {import('esbuild').BuildOptions} */
 const extensionHostSmokeOptions = {
   entryPoints: ["src/test/extensionHostSmoke.ts"],
   bundle: true,
@@ -44,13 +68,19 @@ const extensionHostSmokeOptions = {
 if (watch) {
   const extensionContext = await esbuild.context(extensionOptions);
   const tableContext = await esbuild.context(codegenTableOptions);
-  await Promise.all([extensionContext.watch(), tableContext.watch()]);
+  const controlCatalogContext = await esbuild.context(codegenControlCatalogOptions);
+  const primaryPanelContext = await esbuild.context(codegenPrimaryPanelOptions);
+  await Promise.all([
+    extensionContext.watch(), tableContext.watch(), controlCatalogContext.watch(), primaryPanelContext.watch(),
+  ]);
   console.log("watching extension…");
 } else {
   await rm("dist", { recursive: true, force: true });
   await Promise.all([
     esbuild.build(extensionOptions),
     esbuild.build(codegenTableOptions),
+    esbuild.build(codegenControlCatalogOptions),
+    esbuild.build(codegenPrimaryPanelOptions),
     esbuild.build(extensionHostSmokeOptions),
   ]);
 }
