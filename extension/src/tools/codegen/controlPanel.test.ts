@@ -159,6 +159,7 @@ describe("Codegen control panel", () => {
     const hits = findNodes(panel.shadow, (node) => node.textContent === "命中 1")[0]!;
     expect(hits.attributes.get("aria-pressed")).toBe("true");
     expect(findNodes(panel.shadow, (node) => node.textContent === "PARAM DECLARATION").length).toBeGreaterThanOrEqual(2);
+    expect(findNodes(panel.shadow, (node) => node.className === "control-id" && node.textContent === "#11").length).toBeGreaterThanOrEqual(2);
     expect(findNodes(panel.shadow, (node) => node.textContent === "示例问题")).toHaveLength(0);
     expect(findNodes(panel.shadow, (node) => node.className === "result-layout")).toHaveLength(1);
     expect(findNodes(panel.shadow, (node) => node.className === "result-master")).toHaveLength(1);
@@ -213,6 +214,7 @@ describe("Codegen control panel", () => {
     ))[0]!;
     missingEndRow.onclick?.({ stopPropagation() {} });
     expect(findNodes(panel.shadow, (node) => node.textContent === "missing END before next START")).toHaveLength(1);
+    expect(findNodes(panel.shadow, (node) => node.className === "control-id" && node.textContent === "#23").length).toBeGreaterThanOrEqual(2);
     expect(findNodes(panel.shadow, (node) => node.textContent === "// END KEVIN CAA WIZARD SECTION PNXBomAnalysis CMD AGENT CONSTRUCTOR")).toHaveLength(1);
     expect(findNodes(panel.shadow, (node) => node.textContent === "插入 #error")).toHaveLength(0);
     const copyEnd = findNodes(panel.shadow, (node) => node.textContent === "复制 END")[0]!;

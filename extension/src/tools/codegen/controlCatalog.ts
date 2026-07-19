@@ -60,11 +60,14 @@ const STYLE = `
   .row:hover { background: var(--vscode-list-hoverBackground); }
   .legacy-id, .key { color: var(--vscode-descriptionForeground); }
   .copy { min-width: 0; }
+  .title-line { display: flex; min-width: 0; align-items: center; gap: 4px; overflow: hidden; white-space: nowrap; }
   .title, .key { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .title { font-weight: 600; }
+  .title { min-width: 0; font-weight: 600; }
+  .title-separator { flex: 0 0 auto; color: var(--vscode-descriptionForeground); }
   .badges { display: flex; align-items: center; justify-content: flex-end; gap: 3px; }
   .tag, .state { padding: 1px 4px; color: var(--vscode-descriptionForeground); border: 1px solid var(--vscode-panel-border); border-radius: 999px; font-size: 10px; white-space: nowrap; }
   .tag.legacy { color: var(--vscode-editorWarning-foreground, #b89500); border-color: currentColor; }
+  .inline-legacy { flex: 0 0 auto; }
   .state.hit { color: var(--vscode-testing-iconPassed, #2ea043); border-color: currentColor; }
   .state.unclosed { color: var(--vscode-errorForeground, #f14c4c); border-color: currentColor; }
   .state.missing { color: var(--vscode-editorWarning-foreground, #b89500); border-color: currentColor; }
@@ -309,17 +312,30 @@ export class KtcCodegenControlCatalog extends HTMLElement {
     if (this.focusedBlockKey === block.key) this.focusAfterRender = check;
     const id = document.createElement("span");
     id.className = "legacy-id";
-    id.textContent = String(block.legacyId);
+    id.textContent = `#${block.legacyId}`;
     const copy = document.createElement("span");
     copy.className = "copy";
     copy.title = block.notes;
+    const titleLine = document.createElement("span");
+    titleLine.className = "title-line";
     const title = document.createElement("span");
     title.className = "title";
-    title.textContent = block.title + (block.legacyState === "legacy-deprecated" ? " · 旧兼容" : "");
+    title.textContent = block.title;
+    titleLine.append(title);
+    if (block.legacyState === "legacy-deprecated") {
+      const separator = document.createElement("span");
+      separator.className = "title-separator";
+      separator.textContent = "·";
+      const legacy = document.createElement("span");
+      legacy.className = "tag legacy inline-legacy";
+      legacy.textContent = "旧兼容";
+      legacy.title = "保留用于旧项目兼容";
+      titleLine.append(separator, legacy);
+    }
     const key = document.createElement("span");
     key.className = "key";
     key.textContent = block.controlWords;
-    copy.append(title, key);
+    copy.append(titleLine, key);
     const state = document.createElement("span");
     state.className = `state ${block.status}`;
     state.textContent = this.statusLabel(block.status, block.hitCount);
@@ -329,12 +345,6 @@ export class KtcCodegenControlCatalog extends HTMLElement {
     platform.className = "tag";
     platform.textContent = block.platform.toUpperCase();
     badges.append(platform);
-    if (block.legacyState === "legacy-deprecated") {
-      const legacy = document.createElement("span");
-      legacy.className = "tag legacy";
-      legacy.textContent = "旧兼容";
-      badges.append(legacy);
-    }
     const output = document.createElement("button");
     output.type = "button";
     output.className = "output-one";

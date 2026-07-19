@@ -33,6 +33,7 @@ function plan(): KtCodegenPlan {
       severity: "error",
       message: "Start marker has no matching End marker.",
       path: { source: "source", file: "/workspace/b.cpp", row: 8, column: 0 },
+      marker: { kind: "start", classId: "Demo", blockKey: "PARAM DECLARATION" },
     }],
     hasChanges: true,
     canApply: false,
@@ -51,10 +52,21 @@ describe("Codegen Apply Output log", () => {
     expect(ktcCodegenApplyPlanLogs(plan(), "Preflight")[0]).toContain("[Codegen][Preflight]");
   });
 
-  it("诊断日志带稳定 code、文件和从1开始的行号", () => {
+  it("可关联控制符的诊断日志带同号 #legacyId、稳定 code、文件和从1开始的行号", () => {
     expect(ktcCodegenApplyDiagnosticLog(plan().diagnostics[0]!)).toBe(
-      "[Codegen][Apply][error] marker.missing-end：Start marker has no matching End marker.；file=/workspace/b.cpp:9",
+      "[Codegen][Apply][error] #11 PARAM DECLARATION · marker.missing-end：Start marker has no matching End marker.；file=/workspace/b.cpp:9",
     );
+    expect(ktcCodegenApplyDiagnosticLog(plan().diagnostics[0]!, "Preflight")).toBe(
+      "[Codegen][Preflight][error] #11 PARAM DECLARATION · marker.missing-end：Start marker has no matching End marker.；file=/workspace/b.cpp:9",
+    );
+  });
+
+  it("无法可靠关联控制符的通用诊断不猜编号", () => {
+    expect(ktcCodegenApplyDiagnosticLog({
+      code: "demo.warning",
+      severity: "warning",
+      message: "通用告警",
+    })).toBe("[Codegen][Apply][warning] demo.warning：通用告警");
   });
 
   it("真实写入日志按文件聚合，不暴露绝对路径、字节范围或区域身份", () => {

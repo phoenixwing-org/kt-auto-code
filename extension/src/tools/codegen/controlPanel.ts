@@ -49,8 +49,11 @@ const STYLE = `
   .result-row { display: grid; width: 100%; min-width: 0; min-height: 41px; grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 6px 9px; color: var(--vscode-foreground); background: transparent; border: 0; border-bottom: 1px solid var(--vscode-panel-border); text-align: left; }
   .result-row:hover { background: var(--vscode-list-hoverBackground); }
   .result-row[aria-pressed="true"] { background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground)); color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground)); }
-  .result-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .result-heading, .detail-heading { display: flex; min-width: 0; align-items: center; gap: 6px; overflow: hidden; }
+  .result-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .control-id { flex: 0 0 auto; padding: 1px 4px; color: var(--vscode-descriptionForeground); border: 1px solid var(--vscode-panel-border); border-radius: 999px; font-size: 10px; font-weight: 500; white-space: nowrap; }
   .result-row span { overflow: hidden; color: var(--vscode-descriptionForeground); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+  .result-row .result-name { color: inherit; font-size: inherit; font-weight: inherit; }
   .result-row span.path { overflow-wrap: anywhere; white-space: normal; }
   .result-row.error { border-left: 3px solid var(--vscode-errorForeground); }
   .result-row.warning { border-left: 3px solid var(--vscode-editorWarning-foreground); }
@@ -185,7 +188,7 @@ export class KtcCodegenControlPanel extends HTMLElement {
     master.setAttribute("aria-label", "预检命中与问题列表");
     const list = document.createElement("div");
     list.className = "result-list";
-    for (const item of items) list.append(this.resultRow(item, item.key === selected?.key));
+    for (const item of items) list.append(this.resultRow(model, item, item.key === selected?.key));
     if (!items.length) list.append(this.empty(
       this.resultFilter === "hits"
         ? "当前配置没有命中源码区域。可在 Primary 的控制符目录调整选择后重新预检。"
@@ -216,21 +219,31 @@ export class KtcCodegenControlPanel extends HTMLElement {
     return items;
   }
 
-  private resultRow(item: KtcCodegenResultItem, selected: boolean): HTMLButtonElement {
+  private resultRow(
+    model: KtcCodegenControlCatalogViewModel,
+    item: KtcCodegenResultItem,
+    selected: boolean,
+  ): HTMLButtonElement {
     const row = document.createElement("button");
     row.type = "button";
     row.className = item.kind === "issue" ? `result-row ${item.diagnostic.severity}` : "result-row hit";
     row.setAttribute("aria-pressed", String(selected));
     const title = document.createElement("strong");
+    title.className = "result-heading";
     const meta = document.createElement("span");
     if (item.kind === "hit") {
-      title.textContent = item.region.blockKey;
+      this.appendResultHeading(title, model, item.region.blockKey, item.region.blockKey);
       meta.textContent = this.showResultPaths
         ? `${item.region.path}:${item.region.start.line + 1} · ${item.region.classId}`
         : `${item.region.classId} · 第 ${item.region.start.line + 1} 行`;
       meta.title = `${item.region.path}:${item.region.start.line + 1}`;
     } else {
-      title.textContent = `${item.diagnostic.severity.toUpperCase()} · ${item.diagnostic.code}`;
+      this.appendResultHeading(
+        title,
+        model,
+        this.diagnosticBlockKey(model, item.diagnostic),
+        `${item.diagnostic.severity.toUpperCase()} · ${item.diagnostic.code}`,
+      );
       const location = item.diagnostic.path?.file && Number.isInteger(item.diagnostic.path.row)
         ? `${item.diagnostic.path.file}:${item.diagnostic.path.row! + 1}`
         : undefined;
@@ -256,12 +269,13 @@ export class KtcCodegenControlPanel extends HTMLElement {
     const header = document.createElement("div");
     header.className = "detail-header";
     const title = document.createElement("h3");
+    title.className = "detail-heading";
     const summary = document.createElement("p");
     summary.className = "detail-summary";
     const actions = document.createElement("div");
     actions.className = "detail-actions";
     if (item.kind === "hit") {
-      title.textContent = item.region.blockKey;
+      this.appendResultHeading(title, model, item.region.blockKey, item.region.blockKey);
       summary.textContent = `${item.region.path}:${item.region.start.line + 1} · ${item.region.classId}`;
       actions.append(this.openButton(item.region.path, item.region.start.line));
       header.append(title, summary, actions);
@@ -276,7 +290,12 @@ export class KtcCodegenControlPanel extends HTMLElement {
       return container;
     }
 
-    title.textContent = `${item.diagnostic.severity.toUpperCase()} · ${item.diagnostic.code}`;
+    this.appendResultHeading(
+      title,
+      model,
+      this.diagnosticBlockKey(model, item.diagnostic),
+      `${item.diagnostic.severity.toUpperCase()} · ${item.diagnostic.code}`,
+    );
     const message = document.createElement("p");
     message.className = "detail-message";
     message.textContent = item.diagnostic.message;
@@ -307,6 +326,38 @@ export class KtcCodegenControlPanel extends HTMLElement {
       container.append(expected);
     }
     return container;
+  }
+
+  private appendResultHeading(
+    container: HTMLElement,
+    model: KtcCodegenControlCatalogViewModel,
+    blockKey: KtCodegenBlockKey | undefined,
+    label: string,
+  ): void {
+    const block = blockKey ? model.blocks.find((candidate) => candidate.key === blockKey) : undefined;
+    if (block) {
+      const id = document.createElement("span");
+      id.className = "control-id";
+      id.textContent = `#${block.legacyId}`;
+      id.title = `内部 legacyId：${block.legacyId}`;
+      container.append(id);
+    }
+    const name = document.createElement("span");
+    name.className = "result-name";
+    name.textContent = label;
+    container.append(name);
+  }
+
+  private diagnosticBlockKey(
+    model: KtcCodegenControlCatalogViewModel,
+    diagnostic: KtcCodegenDiagnostic,
+  ): KtCodegenBlockKey | undefined {
+    const marker = (diagnostic as typeof diagnostic & {
+      readonly marker?: { readonly blockKey?: string };
+    }).marker;
+    const structured = model.blocks.find((block) => block.key === marker?.blockKey);
+    if (structured) return structured.key;
+    return this.structuredUnclosed(model, diagnostic)?.blockKey;
   }
 
   private structuredUnclosed(

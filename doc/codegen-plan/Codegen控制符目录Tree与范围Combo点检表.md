@@ -14,6 +14,8 @@ Owner：KT Auto Code maintainers
 
 目录只改变显示投影。32 个 legacy block（C++ 4、Qt 2、CAA 26）全部保留，包含 legacyId 20、21、30 三个 `legacy-deprecated` 项。任何由 Tree 发出的 `blockKeys`，以及 Host session 接受的选择和输出，都必须按全局 legacyId 顺序校验、去重，不能变成 C++ / Qt / CAA 的显示顺序。
 
+Primary 面向用户显示稳定编号 `#0–#31`，与内部 `legacyId` 完全同号；协议、排序、日志和界面不得建立第二套编号或迁移数据。旧兼容项使用标题后的独立标签，例如 `#30 Cmd Element Selected · [旧兼容]`；该标签不替代“命中/未闭合/未命中”预检状态，也不在右侧平台标签旁重复。JSON View 的预检结果在左侧命中/可关联问题和右侧详情显示同一 `#编号` 小标签；Preflight/Apply Output 的结构化控制符诊断也以前缀 `#legacyId blockKey ·` 显示同号编号，方便从日志反查页面。无法可靠关联控制符的通用诊断不猜编号。
+
 ## 责任图
 
 | 层 | 文件 | 本轮责任 | 不得承担 |
@@ -67,8 +69,10 @@ Tree 选择、显示与输出 `CustomEvent` 的 payload 由 DOM characterization
 - [ ] “全部类型”下依次显示 C++、Qt、CAA；三组标题使用“显示 X/Y · 可见已选 A/X”计数；范围切换后零项组不显示。
 - [ ] 在“未命中 + Field Code”组合下勾选某组，只改变该组当前可见项；切回“全部”确认隐藏项原选择保持。
 - [ ] 组内部分可见项已选时 checkbox 为三态；组当前无可见项时 checkbox 禁用。
-- [ ] legacyId 20、21、30 仍出现在 CAA 组并以中文标识“旧兼容”。
+- [x] legacyId 20、21、30 仍出现在 CAA 组，界面编号分别为 `#20`、`#21`、`#30`，并在标题后以中文标签标识“旧兼容”。
 - [ ] JSON View full 的目录与 Primary compact 行为一致；full 由外层页面纵向滚动，compact 在限定高度内滚动。
 - [ ] 选择后执行 Preflight / Apply，再输出当前筛选；日志中 block 顺序仍按 legacyId，而不是 Tree 分组顺序。
 
 Windows NSIS 真实回执属于并行人工后续，不阻塞本点检。
+
+2026-07-19 真实 Host 回执：用户确认 Primary `#0–#31`、旧兼容标题标签和预检结果编号效果正常；`marker.missing-end` 日志中的 `#23 CMD AGENT CONSTRUCTOR`、`#5 IMPLEMENTS HEAD SET`，以及 `marker.orphan-end` 的 `#4 IMPLEMENTS HEAD GET` 均与页面和内部 legacyId 同号。控制符目录滚到中部后勾选/取消 checkbox 仍保持内部滚动位置。

@@ -26,7 +26,7 @@ Primary 的“未闭合”行不展开诊断，完整错误统一在 JSON View�
 - [x] 控制符缺失时，Preflight / Apply 正常报告错误，其他完整区域仍可写入。
 - [x] 用户手工补齐缺失控制符后重新 Apply，写入成功且错误归零。
 - [x] 缺 END 的 `marker.missing-end` 在 Primary 显示“未闭合”，不显示“未命中”。
-- [ ] 缺 START 的 `marker.orphan-end` 在 Primary 也显示“未闭合”，等待真实 Host 复核。
+- [x] 缺 START 的 `marker.orphan-end` 在 Primary 也显示“未闭合”，真实 Host 已确认日志、预检结果与 Primary 编号一致。
 
 以下界面呈现与辅助操作仍需分别点检：
 

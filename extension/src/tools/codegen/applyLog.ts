@@ -1,4 +1,5 @@
 import {
+  KT_CODEGEN_LEGACY_BLOCKS,
   ktCodegenInspectApplyPlan,
   type KtCodegenDiagnostic,
   type KtCodegenPlan,
@@ -8,6 +9,16 @@ export type KtcCodegenPlanLogStage = "Apply" | "Preflight";
 
 function prefix(stage: KtcCodegenPlanLogStage): string {
   return `[Codegen][${stage}]`;
+}
+
+interface KtcStructuredMarkerDiagnostic {
+  readonly marker?: { readonly blockKey?: string };
+}
+
+function diagnosticControlLabel(diagnostic: KtCodegenDiagnostic): string {
+  const marker = (diagnostic as KtCodegenDiagnostic & KtcStructuredMarkerDiagnostic).marker;
+  const block = KT_CODEGEN_LEGACY_BLOCKS.find((candidate) => candidate.key === marker?.blockKey);
+  return block ? `#${block.legacyId} ${block.key} · ` : "";
 }
 
 /** 真实提交成功后，默认只为每个文件生成一行摘要；区域细节保留在结构化回执。 */
@@ -35,7 +46,7 @@ export function ktcCodegenApplyDiagnosticLog(
     : path?.field
       ? `；field=${path.field}`
       : "";
-  return `${prefix(stage)}[${diagnostic.severity}] ${diagnostic.code}：${diagnostic.message}${location}`;
+  return `${prefix(stage)}[${diagnostic.severity}] ${diagnosticControlLabel(diagnostic)}${diagnostic.code}：${diagnostic.message}${location}`;
 }
 
 /** 输出计划审计信息；当前文件未包含某个已选控制符是正常情况，不合成告警。 */

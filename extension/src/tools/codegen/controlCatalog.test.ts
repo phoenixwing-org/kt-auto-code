@@ -541,8 +541,16 @@ describe("Codegen control catalog", () => {
     list.onscroll?.();
     const groups = nodes.filter((node) => node.className === "group");
     expect(groups.map((group) => group.attributes.get("data-group-id"))).toEqual(["cpp", "qt", "caa"]);
+    expect(nodes.filter((node) => node.className === "legacy-id").map((node) => node.textContent)).toEqual([
+      "#10", "#11", "#17", "#0", "#20",
+    ]);
     expect(nodes.some((node) => node.textContent === "显示 2/2 · 可见已选 1/2")).toBe(true);
-    expect(nodes.some((node) => node.textContent === "Active Field · 旧兼容")).toBe(true);
+    expect(nodes.some((node) => node.className === "title" && node.textContent === "Active Field")).toBe(true);
+    expect(nodes.filter((node) => node.className === "tag legacy inline-legacy").map((node) => node.textContent)).toEqual([
+      "旧兼容",
+    ]);
+    expect(nodes.some((node) => node.className === "badges"
+      && node.children.some((child) => typeof child !== "string" && child.textContent === "旧兼容"))).toBe(false);
     nodes.find((node) => node.textContent === "输出筛选并复制 (5)")!.onclick?.();
     expect(element.events.at(-1)).toMatchObject({
       type: "ktc-codegen-control-output",

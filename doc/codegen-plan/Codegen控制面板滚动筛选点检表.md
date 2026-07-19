@@ -149,7 +149,7 @@ Owner：KT Auto Code maintainers
 - [x] 用户启用全局 Preview 后，候选以斜体打开并执行 A → B 替换；双击固定后保留旧标签并另开新的斜体候选。
 - [x] 候选与 checkbox 修复后的快速回归通过：当前配置折叠、预检左右比例、显示路径和右详情 sticky 高度均保持正确。
 - [x] 删除 END 后，Primary 正确显示“未闭合”而非“未命中”。
-- [ ] 只删除 START 后，`marker.orphan-end` 已自动投影为同一“未闭合”标签，等待真实 Host 复核。
+- [x] 只删除 START 后，`marker.orphan-end` 自动投影为同一“未闭合”标签；真实 Host 已确认 Primary、预检结果和 Output 的编号一致。
 - [x] VS Code 浅色主题实际滚轮/触控板、sticky、黄色高亮和焦点框。
 - [x] VS Code 深色主题实际滚轮/触控板。
 - [x] VS Code 高对比主题 separator、checkbox、按钮焦点和滚动条可见。
@@ -157,6 +157,6 @@ Owner：KT Auto Code maintainers
 - [x] 用户使用真实 JSON View 复核参数表可收起，Header 工具保留。
 - [x] 用户使用真实 `PNXCombinedCurveParam.json` 复核筛选、勾选、单项 Output/Clipboard 和真实生成内容。
 
-2026-07-19 本轮真实 Host 回执：用户已启用 VS Code 全局 Preview，确认候选斜体及 A → B 替换正常；`PNXCombinedCurveParam.json` 的筛选、checkbox、单项输出和复制真实内容正常；删除 END 后 Primary 正确显示“未闭合”；浅色主题下滚动条、sticky、黄色高亮与焦点框正常；高对比主题下 separator、checkbox、按钮焦点与滚动条均清晰可用。只删除 START 的反向边界仍按上方未勾选项单独复核。
+2026-07-19 本轮真实 Host 回执：用户已启用 VS Code 全局 Preview，确认候选斜体及 A → B 替换正常；`PNXCombinedCurveParam.json` 的筛选、checkbox、单项输出和复制真实内容正常；删除 END 后 Primary 正确显示“未闭合”；浅色主题下滚动条、sticky、黄色高亮与焦点框正常；高对比主题下 separator、checkbox、按钮焦点与滚动条均清晰可用。后续补充回执已确认只删除 START 的 `marker.orphan-end` 同样显示“未闭合”，并带与日志一致的 `#legacyId`。
 
 人工项未回执时必须明确标为“待用户/真实宿主复核”，不得用单元测试冒充视觉完成；自动门禁和浏览器真实尺寸布局由本轮实现者完成。

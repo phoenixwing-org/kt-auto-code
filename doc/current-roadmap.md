@@ -74,6 +74,7 @@ Owner：KT Auto Code maintainers
 - [x] Browser 在 1600×900、1000×650、760×480、560×420 下验证 32 行目录和 32 条结果均为 `clientHeight == scrollHeight`；560×420 页面为 `420 / 2331`，右侧宽内容为 `306 / 520` 横向滚动，左右没有纵向滚动。
 - [x] 预检完成后左目录和右结果默认只显示命中；显示筛选与 Preflight/Apply 勾选语义拆开，输出只处理当前筛选。
 - [ ] 深色、浅色、高对比真实 VS Code 中的滚轮、滚动条 thumb 和 Artifact 横向滚动仍由用户/真实宿主回执；详见 `codegen-plan/Codegen控制面板滚动筛选点检表.md` D 组。
+- [ ] 高对比主题下参数表选中行文字对比度不足：Wing 本地候选 `be6a781` 已让表格区域聚焦时使用 `list.activeSelection*`、失焦时改用 `list.inactiveSelection*`，没有引入固定颜色；kt-codegen 25 个文件、99 项测试及类型/文档门禁通过。仍待 Auto Code 本地 Wing Host 手工复测，正式完成还需随 Wing 发布并由 Auto 升级消费。来源：2026-07-19 真实 Host 截图。
 - [x] 参数表的 Header 和工具位于 Wing `KtCodegenTable` Shadow DOM；Auto 已通过公开 `layout="page" + collapsible` 属性接线，不穿透私有 DOM。折叠只隐藏 table shell/statusbar，Header 和全部工具保留；每个隐藏 JSON View 依靠 `retainContextWhenHidden` 保留本地折叠状态。正式 Registry 消费仍随 Wing 后续版本发布与依赖升级闭环。
 
 ## 已完成第二个切口：Primary Codegen 页面壳
