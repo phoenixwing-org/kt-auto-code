@@ -29,6 +29,7 @@
 
 - `pnpm verify:ci`：68 份 Markdown、137 个生产源文件、24 个 pure graph、13 个 View root、105 个测试文件与 515 项测试全部通过；Code/CAD 双 typecheck 通过。
 - `kt-auto-code-0.5.1.vsix`：30 个文件、448,030 bytes，SHA-256 为 `3829b5436972b101785f6688cbbfdad7c93896da813057c604d4ecd58092bfcf`。
+- 用户已在 VS Code 中手工安装上述 `kt-auto-code-0.5.1.vsix`，确认加载的是本轮最新版本；真实安装回执通过。
 - `kt-auto-cad-0.1.0.vsix`：9 个文件、40,148 bytes，SHA-256 为 `b9778df10c9e25c8e3de6db4849489396e716681974b2f765261d15f382708b8`；本轮不重复发布该同版本制品。
 - 隔离 macOS VS Code Extension Host 回执通过扩展激活以及 open、preview、conflict、apply、saveReload、rollback 六条代表流程；Windows 仍由用户手工验证，本文不宣称通过。
 - 中文候选提交为 `4abdbc3`，本地注释标签 `0.5.1` 正确解引用到该提交。
