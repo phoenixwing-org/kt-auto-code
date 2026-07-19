@@ -21,6 +21,20 @@
 }
 ```
 
+## 0.5.1 发布回执（2026-07-19）
+
+0.5.1 定位为既有 Codegen 流程的 patch：不新增公共命令或扩展 API。根 workspace 与 Code 扩展版本均为 0.5.1；KT Auto CAD 继续保持 0.1.0，但 Code/CAD 七个 Wing manifest 引用已全部精确升级到 Registry 0.4.3，Codegen 缓存生成器为 0.3.3。
+
+自动门禁结果：
+
+- `pnpm verify:ci`：68 份 Markdown、137 个生产源文件、24 个 pure graph、13 个 View root、105 个测试文件与 515 项测试全部通过；Code/CAD 双 typecheck 通过。
+- `kt-auto-code-0.5.1.vsix`：30 个文件、448,030 bytes，SHA-256 为 `3829b5436972b101785f6688cbbfdad7c93896da813057c604d4ecd58092bfcf`。
+- `kt-auto-cad-0.1.0.vsix`：9 个文件、40,148 bytes，SHA-256 为 `b9778df10c9e25c8e3de6db4849489396e716681974b2f765261d15f382708b8`；本轮不重复发布该同版本制品。
+- 隔离 macOS VS Code Extension Host 回执通过扩展激活以及 open、preview、conflict、apply、saveReload、rollback 六条代表流程；Windows 仍由用户手工验证，本文不宣称通过。
+- 中文候选提交为 `4abdbc3`，本地注释标签 `0.5.1` 正确解引用到该提交。
+
+Marketplace 当前公开版本仍为 0.5.0。上传 0.5.1 时本机保存的 VSCE Personal Access Token 返回 `TF400813`，上传未发生；更新 `kuntai` 登录凭据后，应直接上传上述已验证 Code VSIX，不重新构建或改动标签。上传完成后必须用 `vsce show kuntai.kt-auto-code --json` 确认 0.5.1 已出现在版本列表，再把本段改为完成态。
+
 发布前须确认 Marketplace 中已存在 `kuntai` 发布者；若使用新的发布者 ID，必须先同步修改 `extension/package.json` 的 `publisher` 字段。发布者 ID 创建后不可修改，建议使用公司或品牌的长期唯一标识。
 
 ## 首次发布准备
