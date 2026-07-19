@@ -123,9 +123,11 @@ describe("codegen editor HTML", () => {
     expect(html).toContain('blockKey: event.detail.blockKey');
     expect(html).toContain('new ResizeObserver(syncDetailStickyTop).observe(viewToolbar)');
     expect(html).toContain('"--ktc-codegen-detail-sticky-top"');
-    expect(html).not.toContain('type: "codegenEditorLayout"');
-    expect(html).not.toContain('"ktc-codegen-control-split-change"');
-    expect(html).not.toContain("controlPanel.splitRatio");
+    expect(html).toContain('"--ktc-codegen-detail-available-height"');
+    expect(html).toContain('window.addEventListener("resize", syncDetailStickyTop)');
+    expect(html).toContain('type: "codegenEditorLayout"');
+    expect(html).toContain('"ktc-codegen-control-split-change"');
+    expect(html).toContain("controlPanel.splitRatio = initialLayout.controlSplitPercent");
     expect(html).toContain('message.type === "codegenControlsModel"');
     expect(html).toContain("controlDrawer.open = !controlDrawer.open");
     expect(html).toContain('action: "apply"');
@@ -163,7 +165,7 @@ describe("codegen editor HTML", () => {
     expect(controlPanelSource).toContain(
       ':host([mode="full"]) { block-size: auto; min-block-size: 0; overflow: visible; }',
     );
-    expect(controlPanelSource).toContain(".result-detail { position: sticky;");
+    expect(controlPanelSource).toContain(".result-detail { display: flex; position: sticky;");
     expect(controlPanelSource).toContain(".result-list { min-width: 0; overflow-y: visible;");
     const layoutFixture = readFileSync(
       new URL("../../../test-fixtures/codegen-control-panel-layout.html", import.meta.url),

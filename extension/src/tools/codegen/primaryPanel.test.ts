@@ -146,7 +146,7 @@ describe("Codegen Primary panel", () => {
     const text = findNodes(element.shadow, (node) => Boolean(node.textContent)).map((node) => node.textContent);
     expect(text).toEqual(expect.arrayContaining([
       "打开", "导入", "全部应用", "取消刷新", "扫源码", "复制诊断",
-      "Demo.json · 未保存", "PNXDemo · 3 行 · 当前编辑 View", "控制符目录", "JSON 配置",
+      "Demo.json", "PNXDemo · 3 行 · 当前编辑 View · 未保存", "控制符目录", "JSON 配置",
       "控制符候选（工作区级）", "一份 JSON 对应当前编辑区一个表格 View；Primary 与 JSON View 的控制符目录由 Host session 同步。",
     ]));
     const controlPanel = findNodes(element.shadow, (node) => node.tagName === "ktc-codegen-control-panel")[0]!;
@@ -154,8 +154,12 @@ describe("Codegen Primary panel", () => {
     expect((controlPanel as FakeNode & { model?: unknown }).model).toBe(model.controls);
     const blockTitles = element.shadow.children
       .filter((node) => node.tagName === "details")
-      .map((block) => findNodes(block, (node) => node.className === "mini-title")[0]?.textContent);
-    expect(blockTitles).toEqual(["JSON 配置", "控制符目录", "控制符候选（工作区级）"]);
+      .map((block) => findNodes(block, (node) => node.className.split(/\s+/u).includes("mini-title"))[0]?.textContent);
+    expect(blockTitles).toEqual(["Demo.json", "JSON 配置", "控制符目录", "控制符候选（工作区级）"]);
+    const currentConfig = findNodes(element.shadow, (node) => node.attributes.get("aria-label") === "当前配置区")[0]!;
+    expect(currentConfig.open).toBe(true);
+    expect(findNodes(currentConfig, (node) => node.className.includes("current-file"))[0]!.title).toBe("");
+    expect(findNodes(currentConfig, (node) => node.tagName === "summary")[0]!.title).toBe("Demo.json");
     const refresh = findNodes(element.shadow, (node) => node.textContent === "取消刷新")[0]!;
     const candidateScan = findNodes(element.shadow, (node) => node.textContent === "扫源码")[0]!;
     expect(refresh.disabled).toBe(false);
@@ -164,7 +168,7 @@ describe("Codegen Primary panel", () => {
     expect(candidateScan.title).toBe("扫描工作区中含 Codegen 控制符的源码候选");
   });
 
-  it("Host 快照重绘时复用控制面板，并保留三个 Block 的折叠与列表滚动", async () => {
+  it("Host 快照重绘时复用控制面板，并保留四个 Block 的折叠与列表滚动", async () => {
     vi.resetModules();
     installFakeDom();
     const browser = await import("./primaryPanel.js");
@@ -173,11 +177,14 @@ describe("Codegen Primary panel", () => {
     };
     element.model = model;
     const firstPanel = findNodes(element.shadow, (node) => node.tagName === "ktc-codegen-control-panel")[0]!;
+    const firstCurrentConfig = findNodes(element.shadow, (node) => node.attributes.get("aria-label") === "当前配置区")[0]!;
     const firstDocuments = findNodes(element.shadow, (node) => node.attributes.get("aria-label") === "JSON 配置区")[0]!;
     const firstSection = findNodes(element.shadow, (node) => node.attributes.get("aria-label") === "控制符目录区")[0]!;
     const firstCandidates = findNodes(element.shadow, (node) => node.attributes.get("aria-label") === "控制符候选区")[0]!;
     const firstDocumentList = findNodes(element.shadow, (node) => node.className.includes("document-list"))[0]!;
     const firstCandidateList = findNodes(element.shadow, (node) => node.className.includes("candidate-list"))[0]!;
+    firstCurrentConfig.open = false;
+    firstCurrentConfig.ontoggle?.();
     firstDocuments.open = false;
     firstDocuments.ontoggle?.();
     firstSection.open = false;
@@ -191,10 +198,12 @@ describe("Codegen Primary panel", () => {
 
     element.model = { ...model, operation: undefined, running: false };
     const secondPanel = findNodes(element.shadow, (node) => node.tagName === "ktc-codegen-control-panel")[0]!;
+    const secondCurrentConfig = findNodes(element.shadow, (node) => node.attributes.get("aria-label") === "当前配置区")[0]!;
     const secondDocuments = findNodes(element.shadow, (node) => node.attributes.get("aria-label") === "JSON 配置区")[0]!;
     const secondSection = findNodes(element.shadow, (node) => node.attributes.get("aria-label") === "控制符目录区")[0]!;
     const secondCandidates = findNodes(element.shadow, (node) => node.attributes.get("aria-label") === "控制符候选区")[0]!;
     expect(secondPanel).toBe(firstPanel);
+    expect(secondCurrentConfig.open).toBe(false);
     expect(secondDocuments.open).toBe(false);
     expect(secondSection.open).toBe(false);
     expect(secondCandidates.open).toBe(false);

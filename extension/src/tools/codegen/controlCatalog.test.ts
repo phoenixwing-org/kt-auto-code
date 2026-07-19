@@ -173,7 +173,7 @@ describe("Codegen control catalog", () => {
     expect(unclosedNodes.some((node) => node.textContent === "打开位置")).toBe(false);
     expect(unclosedNodes.some((node) => node.textContent === "复制 END")).toBe(false);
     expect(unclosedNodes.some((node) => node.textContent.startsWith("已选 "))).toBe(false);
-    expect(unclosedNodes.some((node) => node.textContent.startsWith("全部 "))).toBe(false);
+    expect(unclosedNodes.some((node) => node.textContent === "全部 2")).toBe(true);
   });
 
   it("固定按 C++→Qt→CAA 分组，保留 deprecated，并只对当前筛选可见项计算三态与选择", () => {
@@ -276,12 +276,13 @@ describe("Codegen control catalog", () => {
       element.model = model;
       const buttons = findNodes(element.shadow, (node) => Boolean(node.textContent));
       expect(buttons.map((node) => node.textContent)).toEqual(expect.arrayContaining([
-        "命中 1", "未闭合 0", "未命中 0", "全部类型", "C++ only", "Field Code",
-        "输出筛选并复制 (1)", "选中当前筛选", "取消当前筛选", "全选", "全不选", "开启单选", "⧉",
+        "命中 1", "未闭合 0", "未命中 0", "全部 1", "全部类型", "C++ only", "Field Code",
+        "输出筛选并复制 (1)", "⧉",
       ]));
       expect(buttons.find((node) => node.textContent === "命中 1")?.attributes.get("aria-pressed")).toBe("true");
       expect(buttons.some((node) => node.textContent.startsWith("已选 "))).toBe(false);
-      expect(buttons.some((node) => node.textContent.startsWith("全部 "))).toBe(false);
+      expect(buttons.some((node) => node.textContent === "选择工具 · 1")).toBe(false);
+      expect(buttons.some((node) => ["选中当前筛选", "取消当前筛选", "全选", "全不选", "开启单选"].includes(node.textContent))).toBe(false);
       const outputVisible = buttons.find((node) => node.textContent === "输出筛选并复制 (1)")!;
       outputVisible.onclick?.();
       expect(element.events.at(-1)).toMatchObject({
@@ -294,16 +295,7 @@ describe("Codegen control catalog", () => {
         type: "ktc-codegen-control-output",
         detail: { scope: "block", blockKey: "PARAM DECLARATION" },
       });
-      const missing = findNodes(
-        element.shadow,
-        (node) => node.attributes.get("aria-label") === "显示已选但未命中的控制符模板",
-      )[0]!;
-      missing.checked = true;
-      missing.onchange?.();
-      expect(element.events.at(-1)).toMatchObject({
-        type: "ktc-codegen-control-display-change",
-        detail: { showMissingTemplates: true },
-      });
+      expect(buttons.some((node) => node.textContent === "展开缺失模板")).toBe(false);
     }
   });
 
@@ -404,15 +396,16 @@ describe("Codegen control catalog", () => {
     expect(nodes.find((node) => node.textContent === "未命中 1")?.attributes.get("aria-pressed")).toBe("true");
     expect(nodes.some((node) => node.textContent === "未命中项")).toBe(true);
 
-    nodes.find((node) => node.textContent === "输出筛选并复制 (1)")!.onclick?.();
+    nodes.find((node) => node.textContent === "全部 2")!.onclick?.();
+    nodes = findNodes(element.shadow, (node) => Boolean(node.textContent));
+    expect(nodes.some((node) => node.textContent === "命中项")).toBe(true);
+    expect(nodes.some((node) => node.textContent === "未命中项")).toBe(true);
+    expect(element.events).toHaveLength(0);
+
+    nodes.find((node) => node.textContent === "输出筛选并复制 (2)")!.onclick?.();
     expect(element.events.at(-1)).toMatchObject({
       type: "ktc-codegen-control-output",
-      detail: { scope: "visible", blockKeys: ["QT UPDATE DIALOG"] },
-    });
-    nodes.find((node) => node.textContent === "取消当前筛选")!.onclick?.();
-    expect(element.events.at(-1)).toMatchObject({
-      type: "ktc-codegen-control-selection-change",
-      detail: { blockKeys: ["PARAM DECLARATION"], singleMode: false },
+      detail: { scope: "visible", blockKeys: ["PARAM DECLARATION", "QT UPDATE DIALOG"] },
     });
   });
 
@@ -444,13 +437,15 @@ describe("Codegen control catalog", () => {
     list.scrollTop = 88;
     list.onscroll?.();
     const checkbox = before.find((node) => node.attributes.get("data-block-key") === "PARAM DECLARATION")!;
+    checkbox.focus();
     checkbox.checked = false;
     checkbox.onchange?.();
 
     const after = findNodes(element.shadow, () => true);
     const nextCheckbox = after.find((node) => node.attributes.get("data-block-key") === "PARAM DECLARATION")!;
+    expect(nextCheckbox).toBe(checkbox);
+    expect(after.find((node) => node.className === "list")).toBe(list);
     expect(nextCheckbox.focused).toBe(true);
-    expect(nextCheckbox.focusOptions).toEqual({ preventScroll: true });
     expect(after.find((node) => node.className === "list")?.scrollTop).toBe(88);
     expect(after.find((node) => node.textContent === "命中 1")?.attributes.get("aria-pressed")).toBe("true");
     expect(after.find((node) => node.className === "group")?.open).toBe(true);
@@ -477,9 +472,10 @@ describe("Codegen control catalog", () => {
     };
     const roundTrip = findNodes(element.shadow, () => true);
     const retainedCheckbox = roundTrip.find((node) => node.attributes.get("data-block-key") === "PARAM DECLARATION")!;
+    expect(retainedCheckbox).toBe(checkbox);
     expect(retainedCheckbox.checked).toBe(false);
     expect(retainedCheckbox.focused).toBe(true);
-    expect(retainedCheckbox.focusOptions).toEqual({ preventScroll: true });
+    expect(retainedCheckbox.focusOptions).toBeUndefined();
     expect(roundTrip.find((node) => node.textContent === "命中项")).toBeTruthy();
     expect(roundTrip.find((node) => node.className === "list")?.scrollTop).toBe(88);
   });
@@ -540,10 +536,7 @@ describe("Codegen control catalog", () => {
       "全部类型", "C++ only", "Field Code",
     ]);
 
-    const selectionTools = nodes.find((node) => node.className === "selection-tools")!;
     const list = nodes.find((node) => node.attributes.get("role") === "tree")!;
-    selectionTools.open = true;
-    selectionTools.ontoggle?.();
     list.scrollTop = 87;
     list.onscroll?.();
     const groups = nodes.filter((node) => node.className === "group");
@@ -590,27 +583,27 @@ describe("Codegen control catalog", () => {
     expect(nodes.find((node) => node.attributes.get("aria-label") === "控制符范围")?.value).toBe("cpp-only");
     expect(nodes.filter((node) => node.className === "group").map((node) => node.attributes.get("data-group-id"))).toEqual(["cpp"]);
     expect(nodes.find((node) => node.attributes.get("data-group-id") === "cpp")?.open).toBe(false);
-    expect(nodes.find((node) => node.className === "selection-tools")?.open).toBe(true);
+    expect(nodes.find((node) => node.className === "selection-tools")).toBeUndefined();
     expect(nodes.find((node) => node.attributes.get("role") === "tree")?.scrollTop).toBe(87);
   });
 
-  it("Primary 目录保留选择、显示与日志事件，full 外壳只承载预检结果", () => {
+  it("Primary 目录只保留选择与日志事件，full 外壳只承载预检结果", () => {
     const source = readFileSync(new URL("./controlCatalog.ts", import.meta.url), "utf8");
     const shellSource = readFileSync(new URL("./controlPanel.ts", import.meta.url), "utf8");
     expect(source).toContain(':host([mode="compact"])');
     expect(source).toContain('"ktc-codegen-control-selection-change"');
-    expect(source).toContain('"ktc-codegen-control-display-change"');
+    expect(source).not.toContain('"ktc-codegen-control-display-change"');
     expect(source).toContain('"ktc-codegen-control-output"');
-    expect(source).toContain("显示已选但未命中的控制符模板");
+    expect(source).not.toContain("展开缺失模板");
     expect(source).toContain("输出筛选并复制");
-    expect(source).toContain("显示筛选不会修改 Apply 勾选");
     expect(source).toContain("输出${block.title}控制块到日志并复制可粘贴源码");
     expect(source).toContain(':host([mode="compact"]) .list { max-height: 236px; overflow-y: auto; }');
     expect(source).toContain(':host([mode="full"]) .list { flex: 0 0 auto; min-block-size: 0; max-height: none; overflow: visible; }');
     expect(shellSource).toContain(':host([mode="full"]) { block-size: auto; min-block-size: 0; overflow: visible; }');
-    expect(shellSource).toContain('.result-detail { position: sticky;');
+    expect(shellSource).toContain('.result-detail { display: flex; position: sticky;');
     expect(shellSource).toContain('.result-list { min-width: 0; overflow-y: visible; }');
-    expect(shellSource).not.toContain('role", "separator"');
+    expect(shellSource).toContain('role", "separator"');
+    expect(shellSource).toContain('"显示路径"');
     expect(source).toContain("::-webkit-scrollbar-thumb");
     expect(source).toContain('document.createElement("select")');
     expect((source.match(/document\.createElement\("select"\)/gu) ?? [])).toHaveLength(1);

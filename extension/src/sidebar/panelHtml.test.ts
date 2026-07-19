@@ -89,7 +89,7 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('Object.assign({ type: "codegenAction", toolId: "codegen" }, event.detail)');
     expect(html).toContain('type, toolId: "codegen", uri');
     expect(html).toContain('postCodegenControl("codegenControlSelection"');
-    expect(html).toContain('postCodegenControl("codegenControlDisplay"');
+    expect(html).not.toContain('postCodegenControl("codegenControlDisplay"');
     expect(html).toContain('postCodegenControl("codegenControlOutput"');
     expect(html).not.toContain('id="codegen-list"');
     expect(html).not.toContain('id="codegen-prefix"');

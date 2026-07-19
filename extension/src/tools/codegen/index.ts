@@ -55,6 +55,8 @@ import {
   ktcSortCodegenDocumentList,
 } from "./workspaceSessionPolicy.js";
 import { KtcCodegenProblemReporter } from "./problemReporter.js";
+import { ktcCodegenCandidateNavigation } from "./candidateNavigation.js";
+import { ktcHighlightLiteralMatches } from "../../workbench/editorMatchHighlight.js";
 import {
   ktcDecodeCodegenSource,
   ktcEncodeCodegenSource,
@@ -710,7 +712,23 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       this.publish(ctx, "候选列表已变化，请重新扫描。", "error");
       return;
     }
-    await vscode.window.showTextDocument(vscode.Uri.parse(uriString), { preview: true });
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(uriString));
+    const navigation = ktcCodegenCandidateNavigation(document.getText());
+    const position = navigation.firstOffset === undefined
+      ? undefined
+      : document.positionAt(navigation.firstOffset);
+    const editor = await vscode.window.showTextDocument(document, {
+      preview: true,
+      viewColumn: vscode.ViewColumn.Active,
+      ...(position ? { selection: new vscode.Range(position, position) } : {}),
+    });
+    if (position) {
+      editor.revealRange(
+        new vscode.Range(position, position),
+        vscode.TextEditorRevealType.InCenterIfOutsideViewport,
+      );
+    }
+    ktcHighlightLiteralMatches(editor, navigation.highlightTerms);
   }
 
   private async copyDiagnostics(ctx: ToolRunContext): Promise<void> {

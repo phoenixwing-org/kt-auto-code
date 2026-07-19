@@ -24,9 +24,7 @@ const STYLE = `
   .action.secondary, .text-button { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border-color: var(--vscode-panel-border); }
   .text-button { min-height: 25px; padding: 2px 7px; border: 1px solid var(--vscode-panel-border); border-radius: 3px; }
   button:disabled { opacity: .5; cursor: not-allowed; }
-  .current { display: grid; gap: 3px; padding: 8px 9px; border: 1px solid var(--vscode-focusBorder); border-radius: 5px; background: color-mix(in srgb, var(--vscode-focusBorder) 9%, transparent); }
-  .current strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .current span, .hint { color: var(--vscode-descriptionForeground); font-size: 11px; }
+  .hint { color: var(--vscode-descriptionForeground); font-size: 11px; }
   .properties { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 7px 8px; padding: 9px; border: 1px solid var(--vscode-panel-border); border-radius: 5px; background: var(--vscode-editorWidget-background, transparent); }
   .property { display: grid; gap: 3px; min-width: 0; }
   .property span { color: var(--vscode-descriptionForeground); font-size: 10px; }
@@ -38,6 +36,11 @@ const STYLE = `
   .mini[open] > summary::before { transform: rotate(90deg); }
   .mini-title { margin-right: auto; color: var(--vscode-foreground); }
   .mini-count { white-space: nowrap; font-weight: 500; }
+  .current-config > summary { align-items: flex-start; justify-content: flex-start; }
+  .current-identity { display: grid; flex: 1 1 auto; min-width: 0; gap: 2px; }
+  .current-file { min-width: 0; overflow: hidden; color: var(--vscode-foreground); text-overflow: ellipsis; white-space: nowrap; }
+  .current-meta { overflow: hidden; color: var(--vscode-descriptionForeground); font-size: 10px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+  .current-config > .properties { border: 0; border-top: 1px solid var(--vscode-panel-border); border-radius: 0; }
   .mini[open] > .list { border-top: 1px solid var(--vscode-panel-border); }
   .list { display: grid; grid-auto-rows: 48px; gap: 3px; max-height: 252px; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
   .candidate-list { gap: 2px; }
@@ -63,6 +66,7 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
   /** Host snapshot 重绘时复用同一实例，保留目录自己的筛选与 Tree 展开状态。 */
   private readonly controlPanel = document.createElement("ktc-codegen-control-panel");
   private currentModel: KtcCodegenPrimaryViewModel | undefined;
+  private currentConfigExpanded = true;
   private documentsExpanded = true;
   private controlsExpanded = true;
   private candidatesExpanded = true;
@@ -114,23 +118,8 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
       this.actionButton("复制诊断", "copyDiagnostics", false, "text-button", "复制不含表格内容和源码内容的运行状态"),
     );
 
-    const current = document.createElement("div");
-    current.className = "current";
-    current.hidden = !active;
-    current.setAttribute("role", "status");
-    current.setAttribute("aria-live", "polite");
-    if (active) {
-      const name = document.createElement("strong");
-      name.textContent = active.fileName + (active.dirty ? " · 未保存" : "");
-      const meta = document.createElement("span");
-      meta.textContent = (active.className || "未命名类") + " · " + active.itemCount + " 行 · 当前编辑 View"
-        + (active.externalConflict ? " · 外部文件已变更" : "");
-      current.append(name, meta);
-    }
-
     const properties = document.createElement("div");
     properties.className = "properties";
-    properties.hidden = !active;
     if (active) {
       properties.append(
         this.property("Prefix", "namePrefix", active.namePrefix, active.uri, model.running || busy),
@@ -139,6 +128,13 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
         this.property("Append", "appendFunction", active.appendFunction, active.uri, model.running || busy),
       );
     }
+    const currentConfig = document.createElement("details");
+    currentConfig.className = "mini current-config";
+    currentConfig.open = this.currentConfigExpanded;
+    currentConfig.hidden = !active;
+    currentConfig.setAttribute("aria-label", "当前配置区");
+    currentConfig.ontoggle = () => { this.currentConfigExpanded = currentConfig.open; };
+    if (active) currentConfig.append(this.currentConfigSummary(active), properties);
 
     const controls = document.createElement("details");
     controls.className = "mini";
@@ -183,7 +179,7 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
     const overlayFile = document.createElement("span");
     overlayFile.textContent = model.batch?.fileName ?? "正在准备 JSON View…";
     overlay.append(overlayTitle, overlayFile);
-    this.root.replaceChildren(style, actions, current, properties, documents, controls, candidates, hint, overlay);
+    this.root.replaceChildren(style, actions, currentConfig, documents, controls, candidates, hint, overlay);
   }
 
   private actionButton(
@@ -233,6 +229,24 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
     value.className = "mini-count";
     value.textContent = count;
     summary.append(name, value);
+    return summary;
+  }
+
+  private currentConfigSummary(active: KtcCodegenPrimaryViewModel["documents"][number]): HTMLElement {
+    const summary = document.createElement("summary");
+    summary.title = active.fileName;
+    const identity = document.createElement("span");
+    identity.className = "current-identity";
+    const name = document.createElement("span");
+    name.className = "mini-title current-file";
+    name.textContent = active.fileName;
+    const meta = document.createElement("span");
+    meta.className = "current-meta";
+    meta.textContent = (active.className || "未命名类") + " · " + active.itemCount + " 行 · 当前编辑 View"
+      + (active.dirty ? " · 未保存" : "")
+      + (active.externalConflict ? " · 外部文件已变更" : "");
+    identity.append(name, meta);
+    summary.append(identity);
     return summary;
   }
 

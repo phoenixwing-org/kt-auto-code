@@ -92,6 +92,8 @@ flowchart TD
 | Apply | 修改文件、写入 region、receipt 状态、耗时 |
 | 说明 | 一行原因、warning/error 数量、可定位诊断引用 |
 
+真实 V1 回执表明“每 JSON 一行”信息架构可用，但 V2 必须把 error/warning 数量做成表格直接列，不能只藏在批次下方的问题列表。点击 JSON 行至少提供两种明确结果之一：打开对应 JSON View，或在报告内展开该 JSON 的问题；若存在可定位诊断，再提供“定位第一条问题”，不能让点击行为依赖隐含的当前活动 View。
+
 批次总计同时记录：JSON 总数、ready / 成功 / 跳过 / 阻止 / 失败数量、唯一修改文件数、实际文件写入次数、区域数、预检耗时、Apply 耗时和按钮点击到报告完成的总耗时。
 
 批次 warning/error 同时进入两个互不替代的出口：报告表格中的“问题”状态筛选保存完整批次证据；具有源码位置的 error/warning 进入独立的 `kt-codegen-batch` DiagnosticCollection。现有单 JSON `kt-codegen` Problems 会随活动 JSON 切换并清空自身集合，批次诊断不得复用它，否则会被任一 JSON View 切换冲掉。新批次开始时替换上一批批次诊断；普通 View 切换、单 JSON 预检和 Apply 不得清除批次集合。
@@ -106,6 +108,7 @@ V1 已复用相同标题提供一次性只读报告，以便尽早验证表格�
 
 - 完成、取消或阻断后自动打开；Primary 保留最近一次摘要与 `查看报告`。
 - 表格可筛选状态、复制 TSV/Markdown 摘要、打开 JSON 或定位第一条诊断。
+- 每个 JSON 行直接显示错误数和警告数；点击行打开/展开该 JSON 的问题详情，可定位项再跳转源码。
 - View 只消费 BatchReport ViewModel，不持有执行状态或文件系统。
 - “问题”筛选显示整批 error/warning；切换任一 JSON View 不改变批次报告和 `kt-codegen-batch` Problems。
 - Output 只写开始一行、每 JSON 一行、总计一行；详细数据留在报告。

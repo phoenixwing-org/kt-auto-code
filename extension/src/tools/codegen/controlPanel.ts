@@ -1,5 +1,6 @@
 import type { KtCodegenBlockKey } from "@phoenix-wing/kt-codegen";
 import type { KtcCodegenControlCatalogViewModel, KtcCodegenControlViewModel } from "./controlViewModel.js";
+import { ktcClampCodegenControlSplitPercent } from "./editorLayoutState.js";
 
 export const KTC_CODEGEN_CONTROL_PANEL_TAG = "ktc-codegen-control-panel";
 
@@ -10,6 +11,10 @@ export interface KtcCodegenControlOpenDetail {
 
 export interface KtcCodegenControlCopyEndDetail extends KtcCodegenControlOpenDetail {
   readonly blockKey: KtCodegenBlockKey;
+}
+
+export interface KtcCodegenControlSplitDetail {
+  readonly ratio: number;
 }
 
 type KtcCodegenControlResultFilter = "hits" | "issues" | "all";
@@ -30,30 +35,37 @@ const STYLE = `
   .section { min-width: 0; min-height: 0; overflow: visible; }
   .section-title { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; min-height: 34px; padding: 5px 8px; color: var(--vscode-descriptionForeground); background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); border-bottom: 1px solid var(--vscode-panel-border); font-size: 11px; font-weight: 650; }
   .section-title .spacer { flex: 1 1 auto; }
+  .path-toggle { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; white-space: nowrap; cursor: pointer; }
+  .path-toggle input { margin: 0; }
   .filter { min-height: 24px; padding: 2px 7px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: 1px solid var(--vscode-panel-border); border-radius: 3px; }
   .filter[aria-pressed="true"] { color: var(--vscode-button-foreground); background: var(--vscode-button-background); border-color: var(--vscode-button-background); }
   .preflight-summary { padding: 8px 9px; color: var(--vscode-descriptionForeground); border-bottom: 1px solid var(--vscode-panel-border); }
-  .result-layout { display: grid; grid-template-columns: minmax(220px, 36%) minmax(0, 1fr); min-width: 0; align-items: start; overflow: visible; }
-  .result-master { min-width: 0; overflow-x: hidden; overflow-y: visible; border-right: 1px solid var(--vscode-panel-border); }
+  .result-layout { display: grid; grid-template-columns: minmax(180px, var(--ktc-codegen-result-master, 42%)) 7px minmax(0, 1fr); min-width: 0; align-items: start; overflow: visible; }
+  .result-master { min-width: 0; overflow-x: hidden; overflow-y: visible; }
+  .result-splitter { position: relative; align-self: stretch; min-height: 100%; cursor: col-resize; touch-action: none; }
+  .result-splitter::before { content: ""; position: absolute; inset: 0 3px; background: var(--vscode-panel-border); }
+  .result-splitter:hover::before, .result-splitter:focus-visible::before { background: var(--vscode-focusBorder); }
   .result-list { min-width: 0; overflow-y: visible; }
-  .result-row { display: grid; width: 100%; min-width: 0; min-height: 47px; grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 7px 9px; color: var(--vscode-foreground); background: transparent; border: 0; border-bottom: 1px solid var(--vscode-panel-border); text-align: left; }
+  .result-row { display: grid; width: 100%; min-width: 0; min-height: 41px; grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 6px 9px; color: var(--vscode-foreground); background: transparent; border: 0; border-bottom: 1px solid var(--vscode-panel-border); text-align: left; }
   .result-row:hover { background: var(--vscode-list-hoverBackground); }
   .result-row[aria-pressed="true"] { background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground)); color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground)); }
   .result-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .result-row span { overflow-wrap: anywhere; color: var(--vscode-descriptionForeground); font-size: 10px; }
+  .result-row span { overflow: hidden; color: var(--vscode-descriptionForeground); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+  .result-row span.path { overflow-wrap: anywhere; white-space: normal; }
   .result-row.error { border-left: 3px solid var(--vscode-errorForeground); }
   .result-row.warning { border-left: 3px solid var(--vscode-editorWarning-foreground); }
-  .result-detail { position: sticky; top: var(--ktc-codegen-detail-sticky-top, 58px); align-self: start; min-width: 0; padding: 10px; overflow: visible; background: var(--vscode-editor-background); }
+  .result-detail { display: flex; position: sticky; top: var(--ktc-codegen-detail-sticky-top, 58px); align-self: start; min-width: 0; block-size: var(--ktc-codegen-detail-available-height, calc(100vh - 74px)); max-block-size: var(--ktc-codegen-detail-available-height, calc(100vh - 74px)); padding: 10px; overflow: hidden; background: var(--vscode-editor-background); }
+  .detail-content { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; flex-direction: column; }
   .detail-header { display: grid; gap: 4px; padding-bottom: 8px; border-bottom: 1px solid var(--vscode-panel-border); }
   .detail-header h3 { margin: 0; font-size: 13px; }
   .detail-summary, .detail-location, .detail-message { margin: 0; overflow-wrap: anywhere; color: var(--vscode-descriptionForeground); }
   .detail-message { color: var(--vscode-foreground); }
   .detail-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
   .detail-actions button { min-height: 25px; padding: 2px 8px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: 1px solid var(--vscode-panel-border); border-radius: 3px; }
-  .detail-preview { display: block; max-block-size: min(42vh, 420px); margin: 9px 0 0; padding: 9px; overflow: auto; overscroll-behavior: contain; color: var(--vscode-editor-foreground); background: var(--vscode-textCodeBlock-background); border: 1px solid var(--vscode-panel-border); border-radius: 5px; font: 12px/1.45 var(--vscode-editor-font-family); white-space: pre; }
+  .detail-preview { display: block; flex: 1 1 auto; min-block-size: 120px; margin: 9px 0 0; padding: 9px; overflow: auto; overscroll-behavior: contain; color: var(--vscode-editor-foreground); background: var(--vscode-textCodeBlock-background); border: 1px solid var(--vscode-panel-border); border-radius: 5px; font: 12px/1.45 var(--vscode-editor-font-family); white-space: pre; }
   .empty { padding: 22px 12px; color: var(--vscode-descriptionForeground); text-align: center; }
   @media (max-width: 680px) {
-    .result-layout { grid-template-columns: minmax(160px, 34%) minmax(0, 1fr); }
+    .result-layout { grid-template-columns: minmax(150px, var(--ktc-codegen-result-master, 42%)) 7px minmax(0, 1fr); }
     .result-detail { padding: 8px; }
   }
 `;
@@ -71,6 +83,14 @@ export class KtcCodegenControlPanel extends HTMLElement {
   private currentModel: KtcCodegenControlCatalogViewModel | undefined;
   private resultFilter: KtcCodegenControlResultFilter = "hits";
   private selectedResultKey: string | undefined;
+  private currentSplitRatio = 42;
+  private showResultPaths = false;
+
+  get splitRatio(): number { return this.currentSplitRatio; }
+  set splitRatio(value: number) {
+    this.currentSplitRatio = ktcClampCodegenControlSplitPercent(value);
+    this.render();
+  }
 
   get model(): KtcCodegenControlCatalogViewModel | undefined { return this.currentModel; }
   set model(value: KtcCodegenControlCatalogViewModel | undefined) {
@@ -128,6 +148,19 @@ export class KtcCodegenControlPanel extends HTMLElement {
       ["issues", "问题", issueCount],
       ["all", "全部", (plan?.markerRegions.length ?? 0) + issueCount],
     ] as const) title.append(this.filterButton(`${label} ${count}`, filter));
+    const pathToggle = document.createElement("label");
+    pathToggle.className = "path-toggle";
+    pathToggle.title = "仅控制左侧列表是否显示完整源码路径；右侧详情始终保留定位信息";
+    const pathCheck = document.createElement("input");
+    pathCheck.type = "checkbox";
+    pathCheck.checked = this.showResultPaths;
+    pathCheck.setAttribute("aria-label", "显示左侧源码路径");
+    pathCheck.onchange = () => {
+      this.showResultPaths = pathCheck.checked;
+      this.render();
+    };
+    pathToggle.append(pathCheck, "显示路径");
+    title.append(pathToggle);
     title.append(cache);
 
     const summary = document.createElement("div");
@@ -146,6 +179,7 @@ export class KtcCodegenControlPanel extends HTMLElement {
     this.selectedResultKey = selected?.key;
     const layout = document.createElement("div");
     layout.className = "result-layout";
+    layout.style.setProperty("--ktc-codegen-result-master", `${this.currentSplitRatio}%`);
     const master = document.createElement("section");
     master.className = "result-master";
     master.setAttribute("aria-label", "预检命中与问题列表");
@@ -160,11 +194,12 @@ export class KtcCodegenControlPanel extends HTMLElement {
           : "当前预检没有可显示的命中或问题。",
     ));
     master.append(list);
+    const splitter = this.resultSplitter(layout);
     const detail = document.createElement("aside");
     detail.className = "result-detail";
     detail.setAttribute("aria-label", "当前预检项详情");
     detail.append(selected ? this.detailNode(model, plan, selected) : this.empty("选择左侧条目查看详情。"));
-    layout.append(master, detail);
+    layout.append(master, splitter, detail);
     return [title, summary, layout];
   }
 
@@ -190,13 +225,19 @@ export class KtcCodegenControlPanel extends HTMLElement {
     const meta = document.createElement("span");
     if (item.kind === "hit") {
       title.textContent = item.region.blockKey;
-      meta.textContent = `${item.region.path}:${item.region.start.line + 1} · ${item.region.classId}`;
+      meta.textContent = this.showResultPaths
+        ? `${item.region.path}:${item.region.start.line + 1} · ${item.region.classId}`
+        : `${item.region.classId} · 第 ${item.region.start.line + 1} 行`;
+      meta.title = `${item.region.path}:${item.region.start.line + 1}`;
     } else {
       title.textContent = `${item.diagnostic.severity.toUpperCase()} · ${item.diagnostic.code}`;
-      meta.textContent = item.diagnostic.path?.file && Number.isInteger(item.diagnostic.path.row)
+      const location = item.diagnostic.path?.file && Number.isInteger(item.diagnostic.path.row)
         ? `${item.diagnostic.path.file}:${item.diagnostic.path.row! + 1}`
-        : item.diagnostic.message;
+        : undefined;
+      meta.textContent = this.showResultPaths && location ? location : item.diagnostic.message;
+      if (location) meta.title = location;
     }
+    if (this.showResultPaths) meta.className = "path";
     row.append(title, meta);
     row.onclick = () => {
       this.selectedResultKey = item.key;
@@ -211,6 +252,7 @@ export class KtcCodegenControlPanel extends HTMLElement {
     item: KtcCodegenResultItem,
   ): HTMLElement {
     const container = document.createElement("div");
+    container.className = "detail-content";
     const header = document.createElement("div");
     header.className = "detail-header";
     const title = document.createElement("h3");
@@ -305,6 +347,45 @@ export class KtcCodegenControlPanel extends HTMLElement {
     return button;
   }
 
+  private resultSplitter(layout: HTMLElement): HTMLElement {
+    const splitter = document.createElement("div");
+    splitter.className = "result-splitter";
+    splitter.tabIndex = 0;
+    splitter.setAttribute("role", "separator");
+    splitter.setAttribute("aria-label", "调整预检结果列表与详情宽度");
+    splitter.setAttribute("aria-orientation", "vertical");
+    splitter.setAttribute("aria-valuemin", "20");
+    splitter.setAttribute("aria-valuemax", "75");
+    splitter.setAttribute("aria-valuenow", String(this.currentSplitRatio));
+    const updateFromPointer = (clientX: number, emit: boolean) => {
+      const rect = layout.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      this.currentSplitRatio = ktcClampCodegenControlSplitPercent(((clientX - rect.left) / rect.width) * 100);
+      layout.style.setProperty("--ktc-codegen-result-master", `${this.currentSplitRatio}%`);
+      splitter.setAttribute("aria-valuenow", String(this.currentSplitRatio));
+      if (emit) this.emitSplitChange();
+    };
+    splitter.onpointerdown = (event) => splitter.setPointerCapture(event.pointerId);
+    splitter.onpointermove = (event) => {
+      if (splitter.hasPointerCapture(event.pointerId)) updateFromPointer(event.clientX, false);
+    };
+    splitter.onpointerup = (event) => {
+      if (!splitter.hasPointerCapture(event.pointerId)) return;
+      updateFromPointer(event.clientX, true);
+      splitter.releasePointerCapture(event.pointerId);
+    };
+    splitter.onkeydown = (event) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      event.preventDefault();
+      const delta = event.key === "ArrowLeft" ? -2 : 2;
+      this.currentSplitRatio = ktcClampCodegenControlSplitPercent(this.currentSplitRatio + delta);
+      layout.style.setProperty("--ktc-codegen-result-master", `${this.currentSplitRatio}%`);
+      splitter.setAttribute("aria-valuenow", String(this.currentSplitRatio));
+      this.emitSplitChange();
+    };
+    return splitter;
+  }
+
   private empty(text: string): HTMLElement {
     const empty = document.createElement("div");
     empty.className = "empty";
@@ -323,6 +404,13 @@ export class KtcCodegenControlPanel extends HTMLElement {
     this.dispatchEvent(new CustomEvent<KtcCodegenControlCopyEndDetail>(
       "ktc-codegen-control-copy-end",
       { bubbles: true, composed: true, detail: { blockKey, path, line } },
+    ));
+  }
+
+  private emitSplitChange(): void {
+    this.dispatchEvent(new CustomEvent<KtcCodegenControlSplitDetail>(
+      "ktc-codegen-control-split-change",
+      { bubbles: true, composed: true, detail: { ratio: this.currentSplitRatio } },
     ));
   }
 }

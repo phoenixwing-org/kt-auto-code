@@ -30,8 +30,7 @@ export function getCodegenEditorHtml(
     extensionUri.with({ path: `${basePath}/dist/codegen-control-catalog.js` }),
   );
   const model = safeJson(initialModel);
-  // 旧 controlSplitPercent schema 仍由 Host 接受；full View 已无左右分栏，不再下发消费。
-  void ktcNormalizeCodegenEditorLayout(initialLayout);
+  const layout = safeJson(ktcNormalizeCodegenEditorLayout(initialLayout));
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -227,6 +226,7 @@ export function getCodegenEditorHtml(
     const batchOverlayTitle = document.getElementById("batch-overlay-title");
     const batchOverlayFile = document.getElementById("batch-overlay-file");
     let model = ${model};
+    const initialLayout = ${layout};
     let controlsModel = model.controls;
     let dirtyNotified = !!model.dirty;
     let draftSyncTimer;
@@ -237,9 +237,15 @@ export function getCodegenEditorHtml(
 
     function syncDetailStickyTop() {
       const height = viewToolbar ? Math.ceil(viewToolbar.getBoundingClientRect().height) : 50;
-      document.body.style.setProperty("--ktc-codegen-detail-sticky-top", (height + 8) + "px");
+      const stickyTop = height + 8;
+      document.body.style.setProperty("--ktc-codegen-detail-sticky-top", stickyTop + "px");
+      document.body.style.setProperty(
+        "--ktc-codegen-detail-available-height",
+        Math.max(240, window.innerHeight - stickyTop - 8) + "px",
+      );
     }
     if (viewToolbar) new ResizeObserver(syncDetailStickyTop).observe(viewToolbar);
+    window.addEventListener("resize", syncDetailStickyTop);
     syncDetailStickyTop();
 
     function syncHeader() {
@@ -303,6 +309,7 @@ export function getCodegenEditorHtml(
 
     table.setData(model.table);
     syncHeader();
+    controlPanel.splitRatio = initialLayout.controlSplitPercent;
     controlPanel.model = controlsModel;
     syncControlSummary();
 
@@ -339,6 +346,10 @@ export function getCodegenEditorHtml(
       blockKey: event.detail.blockKey,
       path: event.detail.path,
       line: event.detail.line,
+    }));
+    controlPanel.addEventListener("ktc-codegen-control-split-change", (event) => post({
+      type: "codegenEditorLayout",
+      layout: { controlSplitPercent: event.detail.ratio },
     }));
 
     document.addEventListener("visibilitychange", () => { if (document.hidden) exchangeDraft(); });

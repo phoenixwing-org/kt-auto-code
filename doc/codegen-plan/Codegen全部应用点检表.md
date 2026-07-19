@@ -53,15 +53,15 @@ Owner：KT Auto Code maintainers
 
 ## 4. 人工点检
 
-2026-07-19 用户回执：`全部应用` 已可运行，运行遮罩表现正常；批次内容和新报告明细尚未人工核对，所以下列逐项回执仍保持未勾选。
+2026-07-19 用户回执：`全部应用` 已完成真实 11 份 JSON 的串行运行，运行遮罩正常，结束后自动打开轻量报告且 11 份 JSON 均有一行。报告的修改文件/写入区域/错误/警告已有初步效果，但尚未逐项与真实 warning 对账；逐 JSON 错误数直接展示及点击钻取明确留给 V2。
 
 - [ ] 在真实 PNX CAA 工作区点击 `全部应用`，确认弹窗准确显示 JSON 数量。
-- [ ] 确认 Primary 和逐个打开的 JSON View 均显示相同 N/M 与当前文件名，不能继续点击 Auto Code 操作。
+- [x] 确认 Primary 和逐个打开的 JSON View 运行期间由遮罩锁定，结束后正常解除。
 - [ ] 准备一份成功、一份 `missing-end` 但有安全区域、一份不可写入 JSON；确认后续 JSON 仍执行，Problems 分别保留。
-- [ ] 完成后确认遮罩立即消失，重新进入 Auto Code 不出现“正在准备 JSON View”的幽灵遮罩。
+- [x] 完成后确认遮罩消失；关闭旧 Extension Development Host 后重新运行 `pnpm dev` 不再出现幽灵遮罩。
 - [ ] 检查 Output 只有简短逐项行和总计，完成/部分完成/未写入数量与实际一致。
-- [ ] 确认批次结束后自动新开 `Codegen 全部应用报告`；上半汇总、运行明细和问题列表数量一致。
-- [ ] 选一份实际写入多个区域的 JSON，确认“修改文件/写入区域”与 Apply 日志一致，不等同套用预检命中数。
+- [x] 确认批次结束后自动新开 `Codegen 全部应用报告`；真实批次 11 份 JSON 均有一行。
+- [ ] 逐项核对“修改文件/写入区域/错误/警告”与 Apply/Problems；当前只确认报告形态和行数，尚未精确核对 warning。
 - [ ] 制造源码未保存或回执写入失败，确认问题列表分别显示 Apply error 或 warning。
 - [ ] 检查报告在深色/浅色主题和窄窗口下可读，表格只横向滚动；关闭报告后不产生 `.phoenix` HTML 文件。
 - [ ] Windows 发布态由用户后续手工点检，不冒充当前自动通过。
@@ -73,5 +73,6 @@ Owner：KT Auto Code maintainers
 - ready/blocked/skipped 精确确认表。
 - 取消协议、失败后停止策略和跨项事务语义。
 - 可重新打开的最近 BatchReport、状态筛选、打开 JSON/源码、复制 TSV/Markdown。
+- 每 JSON 行直接显示 error/warning 数量；点击行可打开对应 JSON，或在报告内展开问题并定位第一条可定位诊断。
 - 独立 `kt-codegen-batch` DiagnosticCollection，保证批次错误不随单 JSON Problems 切换。
 - V1 的临时轻量报告只记录本次预检/写入计数和最小问题定位；可重建的完整错误归档、取消/冲突/receipt 统计仍由 2.0 补齐。

@@ -1819,11 +1819,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         singleMode: !!event.detail.singleMode,
       });
     });
-    els.codegenPanel.addEventListener("ktc-codegen-control-display-change", (event) => {
-      postCodegenControl("codegenControlDisplay", {
-        showMissingTemplates: !!event.detail.showMissingTemplates,
-      });
-    });
     els.codegenPanel.addEventListener("ktc-codegen-control-output", (event) => {
       postCodegenControl("codegenControlOutput", {
         scope: event.detail.scope,

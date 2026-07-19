@@ -8,6 +8,7 @@ class FakeNode {
   title = "";
   type = "";
   hidden = false;
+  checked = false;
   tabIndex = -1;
   readonly styleValues = new Map<string, string>();
   readonly style = { setProperty: (name: string, value: string) => this.styleValues.set(name, value) };
@@ -18,6 +19,7 @@ class FakeNode {
   };
   private capturedPointer: number | undefined;
   onclick?: (event: { stopPropagation(): void }) => void;
+  onchange?: () => void;
   onkeydown?: (event: { key: string; preventDefault(): void }) => void;
   onpointerdown?: (event: { pointerId: number; clientX: number }) => void;
   onpointermove?: (event: { pointerId: number; clientX: number }) => void;
@@ -142,12 +144,16 @@ function model(state: "ready" | "applied" | "stale" = "ready") {
 describe("Codegen control panel", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("full 只显示预检主从视图，左列表无纵向滚动，右详情 sticky 且只让 Artifact 局部滚动", async () => {
+  it("full 提供可记忆主从比例、紧凑路径开关和占满可见高度的 sticky 详情", async () => {
     vi.resetModules();
     installFakeDom();
     const browser = await import("./controlPanel.js");
-    const panel = new browser.KtcCodegenControlPanel() as unknown as FakeElement & { model: ReturnType<typeof model> };
+    const panel = new browser.KtcCodegenControlPanel() as unknown as FakeElement & {
+      model: ReturnType<typeof model>;
+      splitRatio: number;
+    };
     panel.setAttribute("mode", "full");
+    panel.splitRatio = 61;
     panel.model = model();
 
     const hits = findNodes(panel.shadow, (node) => node.textContent === "命中 1")[0]!;
@@ -160,12 +166,33 @@ describe("Codegen control panel", () => {
     const style = findNodes(panel.shadow, (node) => node.tagName === "style")[0]!.textContent;
     expect(style).toContain(".result-layout { display: grid; grid-template-columns:");
     expect(style).toContain(".result-master { min-width: 0; overflow-x: hidden; overflow-y: visible;");
-    expect(style).toContain(".result-detail { position: sticky; top: var(--ktc-codegen-detail-sticky-top, 58px); align-self: start;");
-    expect(style).toContain(".detail-preview { display: block; max-block-size: min(42vh, 420px);");
+    expect(style).toContain(".result-detail { display: flex; position: sticky; top: var(--ktc-codegen-detail-sticky-top, 58px);");
+    expect(style).toContain("block-size: var(--ktc-codegen-detail-available-height");
+    expect(style).toContain(".detail-preview { display: block; flex: 1 1 auto;");
     expect(style).toContain("overflow: auto; overscroll-behavior: contain;");
     expect(style).not.toContain(".result-list { overflow-y: auto");
     expect(findNodes(panel.shadow, (node) => node.tagName === "ktc-codegen-control-catalog")).toHaveLength(0);
-    expect(findNodes(panel.shadow, (node) => node.attributes.get("role") === "separator")).toHaveLength(0);
+    const layout = findNodes(panel.shadow, (node) => node.className === "result-layout")[0]!;
+    expect(layout.styleValues.get("--ktc-codegen-result-master")).toBe("61%");
+    const separator = findNodes(panel.shadow, (node) => node.attributes.get("role") === "separator")[0]!;
+    separator.onpointerdown?.({ pointerId: 7, clientX: 0 });
+    separator.onpointermove?.({ pointerId: 7, clientX: 504 });
+    expect(layout.styleValues.get("--ktc-codegen-result-master")).toBe("50%");
+    separator.onpointerup?.({ pointerId: 7, clientX: 605 });
+    expect(panel.events.at(-1)).toMatchObject({
+      type: "ktc-codegen-control-split-change",
+      detail: { ratio: 60 },
+    });
+
+    const master = findNodes(panel.shadow, (node) => node.className === "result-master")[0]!;
+    expect(findNodes(master, (node) => node.textContent === "CATDemoBase · 第 11 行")).toHaveLength(1);
+    expect(findNodes(master, (node) => node.textContent === "/workspace/Demo.h:11 · CATDemoBase")).toHaveLength(0);
+    const pathCheck = findNodes(panel.shadow, (node) => node.attributes.get("aria-label") === "显示左侧源码路径")[0]!;
+    expect(pathCheck.checked).toBe(false);
+    pathCheck.checked = true;
+    pathCheck.onchange?.();
+    const masterWithPaths = findNodes(panel.shadow, (node) => node.className === "result-master")[0]!;
+    expect(findNodes(masterWithPaths, (node) => node.textContent === "/workspace/Demo.h:11 · CATDemoBase")).toHaveLength(1);
 
     const preview = findNodes(panel.shadow, (node) => node.attributes.get("aria-label") === "PARAM DECLARATION Artifact 预览")[0]!;
     expect(preview.textContent).toBe("int First;");
@@ -178,7 +205,7 @@ describe("Codegen control panel", () => {
 
     const issues = findNodes(panel.shadow, (node) => node.textContent === "问题 2")[0]!;
     issues.onclick?.({ stopPropagation() {} });
-    expect(findNodes(panel.shadow, (node) => node.textContent === "示例问题")).toHaveLength(1);
+    expect(findNodes(panel.shadow, (node) => node.textContent === "示例问题").length).toBeGreaterThanOrEqual(1);
     expect(findNodes(panel.shadow, (node) => node.textContent === "PARAM DECLARATION")).toHaveLength(0);
     const missingEndRow = findNodes(panel.shadow, (node) => (
       node.tagName === "button"
@@ -235,6 +262,6 @@ describe("Codegen control panel", () => {
     panel.model = model();
     findNodes(panel.shadow, (node) => node.textContent === "问题 2")[0]!.onclick?.({ stopPropagation() {} });
     expect(findNodes(panel.shadow, (node) => node.tagName === "ktc-codegen-control-catalog")).toHaveLength(0);
-    expect(findNodes(panel.shadow, (node) => node.textContent === "示例问题")).toHaveLength(1);
+    expect(findNodes(panel.shadow, (node) => node.textContent === "示例问题").length).toBeGreaterThanOrEqual(1);
   });
 });

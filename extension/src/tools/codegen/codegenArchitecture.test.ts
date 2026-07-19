@@ -66,6 +66,16 @@ describe("Codegen MVC dependency boundary", () => {
     expect(navigation).toContain("plan.diagnostics.find");
   });
 
+  it("候选预览由纯 helper 提取控制符行，Host 只负责 VS Code 定位与高亮", () => {
+    const controller = source("./index.ts");
+    const navigation = source("./candidateNavigation.ts");
+    expect(controller).toContain("ktcCodegenCandidateNavigation");
+    expect(controller).toContain("ktcHighlightLiteralMatches");
+    expect(controller).toContain("preview: true");
+    expect(navigation).not.toMatch(/from ["']vscode["']|showTextDocument|workspace\./);
+    expect(navigation).toContain("START|END");
+  });
+
   it("预检结果内嵌 JSON View，不再维护第二个 WebviewPanel", () => {
     expect(source("./editorHtml.ts")).toContain('id="control-drawer"');
     expect(source("./editorViewController.ts")).toContain("ViewColumn.Active");
@@ -104,8 +114,9 @@ describe("Codegen MVC dependency boundary", () => {
     expect(primary).toContain('controlPanel.setAttribute("mode", "compact")');
     expect(panel).toContain('document.createElement("ktc-codegen-control-catalog")');
     expect(panel).not.toContain('grid-template-rows: repeat(2, minmax(0, 1fr))');
-    expect(panel).not.toContain('"ktc-codegen-control-split-change"');
-    expect(panel).not.toContain('role", "separator"');
+    expect(panel).toContain('"ktc-codegen-control-split-change"');
+    expect(panel).toContain('role", "separator"');
+    expect(panel).toContain('"显示路径"');
     expect(panel).toContain("this.root.replaceChildren(style, results)");
     expect(catalog).toContain(':host([mode="full"]) .list');
     expect(catalog).toContain("overflow: visible");
@@ -113,7 +124,7 @@ describe("Codegen MVC dependency boundary", () => {
     expect(editor).not.toContain("function renderPreflight");
     expect(sidebar).not.toContain("block.controlWords");
     expect(catalog).toContain("ktc-codegen-control-selection-change");
-    expect(catalog).toContain("ktc-codegen-control-display-change");
+    expect(catalog).not.toContain("ktc-codegen-control-display-change");
     expect(catalog).toContain("ktc-codegen-control-output");
     expect(catalog).not.toMatch(/acquireVsCodeApi|from ["']vscode["']|workspace\.fs|clipboard/);
     expect(panel).not.toMatch(/acquireVsCodeApi|from ["']vscode["']|workspace\.fs|clipboard/);

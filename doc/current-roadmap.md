@@ -28,16 +28,16 @@ Owner：KT Auto Code maintainers
 
 来源：旧 VB 程序可以输出全部控制文本，供新建源码尚无控制符时手工复制，也可用于排查“为什么 Apply 写不进去”。该能力作为显式辅助功能恢复，但不能把正常的未命中重新变成 warning。
 
-实现状态（2026-07-18）：Auto 内部高层 `ktc-codegen-control-panel` 已由 Primary `compact` 与 JSON View `full` 两处消费，内部只保留一个 `ktc-codegen-control-catalog`；full 形态才装配 View 专属预检结果。Host session 是选择、单选与“展开缺失模板”的唯一真源，命中/未命中/已选/类型范围属于各 Webview 的本地显示筛选。单项和“输出筛选并复制”只发送结构化语义命令，Host 校验可见 blockKeys、按 legacy 顺序去重，再用当前 session 的 Wing Analyze/Renderer 生成真实完整 artifact。控制符 DTO、ViewModel 与消息状态机已经从 `index.ts` 提炼到 UI-neutral `controlViewModel.ts` / `controlSessionController.ts`，总 Controller 只保留 Host 导航、日志、剪贴板和发布适配。
+实现状态（2026-07-19）：Auto 内部高层 `ktc-codegen-control-panel` 已由 Primary `compact` 与 JSON View `full` 两处消费，内部只保留一个 `ktc-codegen-control-catalog`；full 形态才装配 View 专属预检结果。Host session 是选择真源，命中/未闭合/未命中/全部和类型范围属于 Webview 本地显示筛选。单项和“输出筛选并复制”只发送结构化语义命令，Host 校验可见 blockKeys、按 legacy 顺序去重，再用当前 session 的 Wing Analyze/Renderer 生成真实完整 artifact。控制符 DTO、ViewModel 与消息状态机已经从 `index.ts` 提炼到 UI-neutral `controlViewModel.ts` / `controlSessionController.ts`，总 Controller 只保留 Host 导航、日志、剪贴板和发布适配。
 
 ### 交互决定
 
-- 控制符工具栏增加会话级 checkbox：`展开缺失模板`，默认关闭，不写入 Codegen JSON，也不作为全局设置。checkbox 只表达持续显示状态，不承担一次性日志命令。
+- 经真实使用反馈，Primary 的 `展开缺失模板` 与控制符目录混在一起过于啰嗦，已移除 UI；底层模板生成协议暂时保留兼容，不由 Primary 消费。
 - 勾选后只在当前活动 JSON 中，为“已选且预检未命中”的控制符展开精确 Start/End；已命中项继续显示命中数量和源码定位，不重复展开模板。
 - 高频第一行只做显示筛选：状态为命中/未命中/已选/全部，范围为全部类型/C++ only/Field Code；筛选不得修改 Preflight/Apply checkbox。
-- 工具栏主动作是 `输出筛选并复制 (N)`：只输出当前可见 block，不要求用户先改勾选范围。全选、全不选、选中/取消当前筛选和单选收进低频“选择工具”。
+- 工具栏主动作是 `输出筛选并复制 (N)`：只输出当前可见 block，不要求用户先改勾选范围。经真实使用反馈，低频“选择工具”与行/分组 checkbox 重复，已删除；显示筛选恢复“全部”，选择只保留行与分组入口。
 - 每个控制符行使用一个 `⧉` 动作按钮，tooltip/aria-label 明确“输出〈友好标题〉控制块到日志并复制可粘贴源码”；它只处理该 block × 当前 Param 的去重 classId，并自动显示既有 `KT Auto Code` Output Channel。
-- 行首现有 checkbox 继续只表示“是否参与 Preflight/Apply”，不能复用成日志范围；选择状态、缺失模板显示状态和日志动作三种语义保持分离。
+- 行首现有 checkbox 继续只表示“是否参与 Preflight/Apply”，不能复用成日志范围；选择状态与日志动作保持分离。
 - 日志保留带 legacyId/blockKey/classId 的诊断标题；剪贴板只保留源码块。单项行不再堆第二个复制图标，`⧉` 同时完成两件事。
 - 首版不自动插入源码、不猜测插入位置、不生成工作区 `.txt` 文件。将来若做自动插入，必须另有 target/anchor 契约、diff 预览和单独确认，不能复用本 TODO 暗中写盘。
 
@@ -155,13 +155,14 @@ Owner：KT Auto Code maintainers
 
 - 控制符单项/筛选输出只写 Output 与 Clipboard，不再为了 Codegen 中被隐藏的通用状态区发布整份 Sidebar snapshot；成功复制不会触发 Primary 全量重绘。
 - Primary 的“JSON 配置 / 控制符目录 / 控制符候选”三个 Block 分别保存用户折叠状态，JSON 与候选列表保存各自滚动位置。活动 JSON 只更新选中样式，不再在每次 Host snapshot 后调用 `scrollIntoView()` 带动外层页面。
-- 共享控制符目录继续复用同一个 Web Component 实例，并额外保留 Tree 分组、“选择工具”的展开状态和 compact 列表滚动位置。状态只属于当前 Webview 生命周期，不写入业务 JSON。
+- 共享控制符目录继续复用同一个 Web Component 实例，并保留 Tree 分组、显示筛选和 compact 列表滚动位置。状态只属于当前 Webview 生命周期，不写入业务 JSON；checkbox 往返只原位同步，不重建当前 Tree。
 
 ## 已完成安全修复：错误区域隔离后的部分 Apply
 
 - Auto Host 不再用全局 `plan.canApply=false` 提前阻止全部写入；Apply 投影统一交给 Wing 判断可安全写入的完整 Region/Artifact。
 - Wing 只把 `marker.missing-end` / `marker.orphan-end` 视为可隔离的边界错误：错误控制块不形成 Region，完整的后续控制块仍可写入。模型、Renderer、Artifact 绑定、源码指纹、区域范围或重叠错误继续 fail-closed。
 - 部分成功后回执只记录实际写入的文件/区域，原预检错误继续进入 Problems；状态和日志显示“Apply 部分完成”，同时给出写入区域数、保留错误数和耗时。
+- 2026-07-19 真实工作区手工回执已验证：控制符缺失错误不阻断其他合法区域写入；用户补齐缺失控制符后再次 Apply 成功且诊断归零。
 
 ## 大型 UI 暂停后的 TODO（2026-07-18）
 
@@ -172,7 +173,8 @@ Owner：KT Auto Code maintainers
 3. **Desk Tools 后续大页**：Unit Tests 的 Result pane 与“全部复测”语义、FCStd Map 扫描 Controller、Assembly RowGroup/样式收口、CAA Editor 剩余 session/writeback Host 边界继续留在 Desk `doc/TODO.md`；已有 RunScope/Watchlist、FCStd panes、Assembly row、CAA Controller 不返工。
 4. **Wing 后续条件项**：`KtCodegenTable` 已到首轮合理停止线；页面布局能力完成发布和 Registry 消费验证前，不为降行数继续拆。只有出现第二产品消费者或真实复用需求时，才评估公开更多 visual primitive。
 5. **跨仓人工证据**：Windows NSIS 真实回执，以及 VS Code/Desk 的浅色、深色、高对比视觉矩阵继续由用户手工并行；不阻塞当前代码归档，也不追溯提高联合评分。
-6. **Codegen 控制符单入口与显式修复提醒**：下一轮可把 Primary 定义为控制符目录、筛选、选择和输出的唯一入口，JSON View 只保留预检结果/Artifact/问题定位；当前已验收的 full 双栏与分隔柄在新方案点检前不删除。要增加“问题 N”控制符筛选，先让 Wing 诊断提供结构化 `blockKey/classId/boundary`，不得从英文 message 猜 block。`marker.missing-end` 只允许用户在问题行 `⋯` 中显式选择“插入编译期修复提醒”，经确认后在下一条 marker 前写入可识别的 `#error`；不得预检时自动写入，也不得自动猜测补 End，且入口不能只依赖不可发现的右键菜单。
+6. **Codegen 显式修复提醒**：控制符单入口已完成，Primary 负责目录/筛选/选择/输出，JSON View 只保留预检结果、Artifact 与问题定位；预检结果自己的列表/详情 separator 不代表控制符目录回归。剩余 TODO 是“问题 N”控制符筛选与显式修复提醒：必须先由 Wing 诊断提供结构化 `blockKey/classId/boundary`，不得从英文 message 猜 block。`marker.missing-end` 只允许用户在问题详情中显式选择“插入编译期修复提醒”，经确认后在下一条 marker 前写入可识别的 `#error`；不得预检时自动写入，也不得自动猜测补 End，且入口不能只依赖不可发现的右键菜单。
+7. **Auto Code Primary 工具条**：未选择子工作目录时先隐藏空的功能区域提示，后续新增功能页统一放在工具条下方。工具条改为 Primary 内顶部 sticky，不随下方 Block 滚走；“打开、导入、全部应用、刷新、扫源码、复制诊断”等改用紧凑图标按钮，全部提供清晰 tooltip 和无障碍名称，减少横向宽度。该项属于后续 UI 小切口，本轮只登记，不与候选 Preview 或 checkbox 稳定性修复混合。
 
 暂停期间联合成熟度保持 **92.00 / 100**。恢复时从本 TODO 重新选择一个最小切口，不默认续跑整套大型 UI 计划。
 

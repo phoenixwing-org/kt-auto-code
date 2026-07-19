@@ -178,7 +178,7 @@ describe("KtcCodegenEditorViewController", () => {
     expect(callbacks.onDispose).not.toHaveBeenCalled();
   });
 
-  it("兼容旧左右比例消息但不再把比例下发给 full View", () => {
+  it("把预检结果左右比例下发给 full View 并持久化拖动结果", () => {
     const panel = fakePanel();
     createWebviewPanel.mockReturnValueOnce(panel);
     const callbacks = {
@@ -193,7 +193,7 @@ describe("KtcCodegenEditorViewController", () => {
     const views = new KtcCodegenEditorViewController(extensionUri(), callbacks, workspaceState);
     views.show(model("file:///workspace/A.json", "A.json"));
 
-    expect(panel.webview.html).not.toContain('"controlSplitPercent":61');
+    expect(panel.webview.html).toContain('"controlSplitPercent":61');
     panel.fireMessage({
       type: "codegenEditorLayout",
       toolId: "codegen",

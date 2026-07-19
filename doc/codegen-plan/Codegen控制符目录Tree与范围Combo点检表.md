@@ -10,7 +10,7 @@ Owner：KT Auto Code maintainers
 
 ## 本轮确认范围
 
-控制符选择工具维持当前初步可用形态，本轮不继续改造其交互层级。共享控制符目录改为一层 Tree：固定按 `C++ → Qt → CAA` 分组，每组可折叠，组复选框只勾选或取消**当前显示筛选与范围筛选共同可见**的组内项。当前组合筛选为零项的组不渲染，避免 `C++ only` / `Field Code` 下出现空组噪声；纯分组投影仍固定保留三组定义。状态筛选继续保留“命中 / 未命中 / 已选 / 全部”；“全部类型 / C++ only / Field Code”合并为一个原生 `select`。
+后续真实使用反馈已删除重复的“选择工具”，选择只保留行与分组 checkbox。共享控制符目录是一层 Tree：固定按 `C++ → Qt → CAA` 分组，每组可折叠，组复选框只勾选或取消**当前显示筛选与范围筛选共同可见**的组内项。当前组合筛选为零项的组不渲染，避免 `C++ only` / `Field Code` 下出现空组噪声；纯分组投影仍固定保留三组定义。状态筛选为“命中 / 未闭合 / 未命中 / 全部”；范围使用“全部类型 / C++ only / Field Code”原生 `select`。
 
 目录只改变显示投影。32 个 legacy block（C++ 4、Qt 2、CAA 26）全部保留，包含 legacyId 20、21、30 三个 `legacy-deprecated` 项。任何由 Tree 发出的 `blockKeys`，以及 Host session 接受的选择和输出，都必须按全局 legacyId 顺序校验、去重，不能变成 C++ / Qt / CAA 的显示顺序。
 
@@ -36,7 +36,7 @@ Owner：KT Auto Code maintainers
 | T6 | Host 对乱序、重复、非法 key 再校验，选择与可见输出都恢复全局 legacyId 顺序 | `controlSessionController.test.ts` |
 | T7 | Host 消息、session schema、ViewModel `schemaVersion: 1` 不变 | `hostContract.test.ts`、`editorHtml.test.ts`、`panelHtml.test.ts` |
 | T8 | full 无内部纵向滚动；compact 目录保留限定高度纵向滚动 | `controlCatalog.test.ts`、`controlPanel.test.ts`、原布局夹具 |
-| T9 | 单项/筛选输出不改变 session 时不得发布整份 Sidebar snapshot；目录保留 Tree、选择工具和滚动状态 | `codegenArchitecture.test.ts`、`controlCatalog.test.ts` |
+| T9 | 单项/筛选输出不改变 session 时不得发布整份 Sidebar snapshot；目录保留 Tree、筛选和滚动状态，选择工具已删除 | `codegenArchitecture.test.ts`、`controlCatalog.test.ts` |
 
 ## 2026-07-18 自动回执
 
@@ -61,7 +61,7 @@ Tree 选择、显示与输出 `CustomEvent` 的 payload 由 DOM characterization
 
 下列项目必须在真实 VS Code Extension Host 中执行，本轮浏览器自动回执不勾选这些项目：
 
-- [ ] 在 Primary 打开 Codegen，切换状态筛选和范围 combo，折叠任意组；触发 Host 刷新后筛选、组折叠、“选择工具”和目录滚动位置不回到默认值。
+- [ ] 在 Primary 打开 Codegen，切换状态筛选和范围 combo，折叠任意组；触发 Host 刷新后筛选、组折叠和目录滚动位置不回到默认值。
 - [ ] 把 Primary 外层页面、JSON 列表和控制符目录分别滚到中部，点击任一控制符的 `⧉`；确认源码已复制，但页面、列表、折叠状态和当前选中 JSON 都不跳动。
 - [ ] 在两份已打开 JSON View 间切换；Primary 只更新当前行选中样式，“JSON 配置 / 控制符目录 / 控制符候选”的展开状态不改变。
 - [ ] “全部类型”下依次显示 C++、Qt、CAA；三组标题使用“显示 X/Y · 可见已选 A/X”计数；范围切换后零项组不显示。

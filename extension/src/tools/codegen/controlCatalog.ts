@@ -7,7 +7,6 @@ import {
   ktcGroupCodegenControlBlocks,
   ktcNextCodegenControlSelection,
   ktcNextCodegenControlVisibleSelection,
-  ktcToggleCodegenControlSingleMode,
   type KtcCodegenControlCatalogFilter,
   type KtcCodegenControlCatalogSelection,
   type KtcCodegenControlGroupId,
@@ -19,10 +18,6 @@ export const KTC_CODEGEN_CONTROL_CATALOG_TAG = "ktc-codegen-control-catalog";
 export interface KtcCodegenControlSelectionDetail {
   readonly blockKeys: readonly KtCodegenBlockKey[];
   readonly singleMode: boolean;
-}
-
-export interface KtcCodegenControlDisplayDetail {
-  readonly showMissingTemplates: boolean;
 }
 
 export type KtcCodegenControlOutputDetail =
@@ -45,13 +40,6 @@ const STYLE = `
   .filter-label { color: var(--vscode-descriptionForeground); font-size: 11px; }
   .filter[aria-pressed="true"] { color: var(--vscode-button-foreground); background: var(--vscode-button-background); border-color: var(--vscode-button-background); }
   .scope-filter { min-height: 25px; padding: 2px 24px 2px 7px; color: var(--vscode-dropdown-foreground, var(--vscode-foreground)); background: var(--vscode-dropdown-background, var(--vscode-input-background)); border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border)); border-radius: 3px; }
-  .toolbar .spacer { flex: 1 1 auto; }
-  .toggle { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
-  .selection-tools { position: relative; }
-  .selection-tools > summary { min-height: 25px; padding: 3px 7px; list-style: none; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: 1px solid var(--vscode-panel-border); border-radius: 3px; cursor: pointer; }
-  .selection-tools > summary::-webkit-details-marker { display: none; }
-  .selection-tools[open] > .selection-menu { display: flex; }
-  .selection-menu { display: none; flex-wrap: wrap; gap: 5px; padding: 5px 0 0; }
   .summary, .hint { flex: 0 0 auto; padding: 5px 8px; color: var(--vscode-descriptionForeground); border-bottom: 1px solid var(--vscode-panel-border); }
   .list { max-height: 290px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable both-edges; scrollbar-color: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, .7)) transparent; }
   .list::-webkit-scrollbar { width: 12px; height: 12px; }
@@ -81,13 +69,10 @@ const STYLE = `
   .state.unclosed { color: var(--vscode-errorForeground, #f14c4c); border-color: currentColor; }
   .state.missing { color: var(--vscode-editorWarning-foreground, #b89500); border-color: currentColor; }
   .output-one { width: 28px; padding: 2px; }
-  .templates { grid-column: 3 / -1; display: grid; gap: 4px; padding: 3px 0 6px; }
-  .template { margin: 0; padding: 5px 7px; overflow: auto; color: var(--vscode-editor-foreground, var(--vscode-foreground)); background: var(--vscode-textCodeBlock-background); border-radius: 3px; font: 11px/1.4 var(--vscode-editor-font-family, monospace); white-space: pre; }
   :host([mode="compact"]) .list { max-height: 236px; overflow-y: auto; }
   :host([mode="compact"]) .row { grid-template-columns: 22px 24px minmax(0, 1fr) auto auto; }
   :host([mode="compact"]) .badges, :host([mode="compact"]) .key { display: none; }
   :host([mode="compact"]) .group-count { white-space: normal; text-align: right; }
-  :host([mode="compact"]) .templates { grid-column: 3 / -1; }
   :host([mode="full"]) { display: flex; block-size: auto; min-block-size: 0; overflow: visible; flex-direction: column; }
   :host([mode="full"]) .list { flex: 0 0 auto; min-block-size: 0; max-height: none; overflow: visible; }
   .empty { padding: 12px 8px; color: var(--vscode-descriptionForeground); text-align: center; }
@@ -98,10 +83,17 @@ export class KtcCodegenControlCatalog extends HTMLElement {
   private readonly root = this.attachShadow({ mode: "open" });
   private currentModel: KtcCodegenControlCatalogViewModel | undefined;
   private filter: KtcCodegenControlCatalogFilter = { status: "all", scope: "all" };
-  private selectionToolsExpanded = false;
   private listScrollTop = 0;
   private focusedBlockKey: KtCodegenBlockKey | undefined;
   private focusAfterRender: HTMLInputElement | undefined;
+  private readonly rowChecks = new Map<KtCodegenBlockKey, HTMLInputElement>();
+  private readonly groupSelection = new Map<KtcCodegenControlGroupId, {
+    readonly check: HTMLInputElement;
+    readonly count: HTMLElement;
+    readonly visibleBlockKeys: readonly KtCodegenBlockKey[];
+    readonly totalCount: number;
+  }>();
+  private selectionSummaryNode: HTMLElement | undefined;
   private readonly expandedGroups = new Set<KtcCodegenControlGroupId>(
     KTC_CODEGEN_CONTROL_GROUPS.map((group) => group.id),
   );
@@ -110,9 +102,14 @@ export class KtcCodegenControlCatalog extends HTMLElement {
   }
 
   set model(value: KtcCodegenControlCatalogViewModel | undefined) {
+    const previous = this.currentModel;
     const gainedPreflight = !this.currentModel?.preflightAvailable && Boolean(value?.preflightAvailable);
     if (gainedPreflight) this.filter = { ...this.filter, status: "hit" };
     this.currentModel = value;
+    if (previous && value && this.canPatchSelection(previous, value)) {
+      this.syncSelectionPresentation();
+      return;
+    }
     this.render();
   }
 
@@ -127,6 +124,9 @@ export class KtcCodegenControlCatalog extends HTMLElement {
   private render(): void {
     if (!this.isConnected) return;
     this.focusAfterRender = undefined;
+    this.rowChecks.clear();
+    this.groupSelection.clear();
+    this.selectionSummaryNode = undefined;
     const style = document.createElement("style");
     style.textContent = STYLE;
     const model = this.currentModel;
@@ -139,6 +139,8 @@ export class KtcCodegenControlCatalog extends HTMLElement {
     }
 
     const visibleBlocks = this.visibleBlocks(model);
+    const selected = new Set(model.selectedBlockKeys);
+    const canonicalBlockKeys = this.canonicalBlockKeys(model);
     const filters = document.createElement("div");
     filters.className = "filters";
     filters.setAttribute("aria-label", "控制符显示筛选，不改变预检和 Apply 选择");
@@ -148,6 +150,7 @@ export class KtcCodegenControlCatalog extends HTMLElement {
         ["hit", "命中"],
         ["unclosed", "未闭合"],
         ["missing", "未命中"],
+        ["all", "全部"],
       ] as const) {
         filters.append(this.filterButton(
           `${label} ${this.visibleBlocks(model, { ...this.filter, status }).length}`,
@@ -180,23 +183,7 @@ export class KtcCodegenControlCatalog extends HTMLElement {
 
     const toolbar = document.createElement("div");
     toolbar.className = "toolbar";
-    toolbar.setAttribute("aria-label", "控制符输出与低频选择工具");
-    const spacer = document.createElement("span");
-    spacer.className = "spacer";
-    const missingLabel = document.createElement("label");
-    missingLabel.className = "toggle";
-    const missing = document.createElement("input");
-    missing.type = "checkbox";
-    missing.checked = model.showMissingTemplates;
-    missing.setAttribute("aria-label", "显示已选但未命中的控制符模板");
-    missing.onchange = () => {
-      this.currentModel = { ...model, showMissingTemplates: missing.checked };
-      this.emit<KtcCodegenControlDisplayDetail>("ktc-codegen-control-display-change", {
-        showMissingTemplates: missing.checked,
-      });
-      this.render();
-    };
-    missingLabel.append(missing, "展开缺失模板");
+    toolbar.setAttribute("aria-label", "控制符输出");
     const outputVisible = document.createElement("button");
     outputVisible.type = "button";
     outputVisible.textContent = `输出筛选并复制 (${visibleBlocks.length})`;
@@ -206,50 +193,16 @@ export class KtcCodegenControlCatalog extends HTMLElement {
       "ktc-codegen-control-output",
       { scope: "visible", blockKeys: visibleBlocks.map((block) => block.key) },
     );
-    const selectionTools = document.createElement("details");
-    selectionTools.className = "selection-tools";
-    selectionTools.open = this.selectionToolsExpanded;
-    selectionTools.ontoggle = () => { this.selectionToolsExpanded = selectionTools.open; };
-    const selectionSummary = document.createElement("summary");
-    selectionSummary.textContent = `选择工具 · ${model.selectedBlockKeys.length}`;
-    selectionSummary.title = "低频操作：修改参与 Preflight/Apply 的勾选范围";
-    const selectionMenu = document.createElement("div");
-    selectionMenu.className = "selection-menu";
-    const selected = new Set(model.selectedBlockKeys);
-    const visibleBlockKeys = visibleBlocks.map((block) => block.key);
-    const canonicalBlockKeys = this.canonicalBlockKeys(model);
-    selectionMenu.append(
-      this.selectionButton("选中当前筛选", () => this.applySelection(ktcNextCodegenControlVisibleSelection(
-        this.selection(), visibleBlockKeys, true, canonicalBlockKeys,
-      ))),
-      this.selectionButton("取消当前筛选", () => this.applySelection(ktcNextCodegenControlVisibleSelection(
-        this.selection(), visibleBlockKeys, false, canonicalBlockKeys,
-      ))),
-      this.selectionButton("全选", () => this.applySelection({ blockKeys: model.presets.all, singleMode: false })),
-      this.selectionButton("全不选", () => this.applySelection({ blockKeys: model.presets.none, singleMode: false })),
-      this.selectionButton(model.singleSelectionMode ? "关闭单选" : "开启单选", () => {
-        this.applySelection(ktcToggleCodegenControlSingleMode(this.selection()));
-      }),
-    );
-    selectionTools.append(selectionSummary, selectionMenu);
-    toolbar.append(outputVisible, spacer, missingLabel, selectionTools);
+    toolbar.append(outputVisible);
 
     const summary = document.createElement("div");
     summary.className = "summary";
     summary.setAttribute("role", "status");
     summary.setAttribute("aria-live", "polite");
-    summary.textContent = `${visibleBlocks.length} / ${model.blocks.length} 显示 · ${model.selectedBlockKeys.length} 已选`
-      + (model.showMissingTemplates && model.preflightAvailable
-        ? ` · ${model.missingTemplates.length} 组缺失模板`
-        : "");
+    this.selectionSummaryNode = summary;
+    summary.textContent = `${visibleBlocks.length} / ${model.blocks.length} 显示 · ${model.selectedBlockKeys.length} 已选`;
 
     const fragment = document.createDocumentFragment();
-    if (model.showMissingTemplates && !model.preflightAvailable) {
-      const hint = document.createElement("div");
-      hint.className = "hint";
-      hint.textContent = "尚未预检；可先运行预检定位缺失项，或输出当前筛选。显示筛选不会修改 Apply 勾选。";
-      fragment.append(hint);
-    }
     const list = document.createElement("div");
     list.className = "list";
     list.tabIndex = 0;
@@ -262,9 +215,8 @@ export class KtcCodegenControlCatalog extends HTMLElement {
     for (const group of allGroups) {
       const groupVisible = visibleGroups.find((candidate) => candidate.id === group.id)?.blocks ?? [];
       if (!groupVisible.length) continue;
-      const groupState = ktcCodegenControlVisibleSelectionState(
-        groupVisible.map((block) => block.key), model.selectedBlockKeys,
-      );
+      const groupVisibleKeys = groupVisible.map((block) => block.key);
+      const groupState = ktcCodegenControlVisibleSelectionState(groupVisibleKeys, model.selectedBlockKeys);
       const details = document.createElement("details");
       details.className = "group";
       details.open = this.expandedGroups.has(group.id);
@@ -297,6 +249,12 @@ export class KtcCodegenControlCatalog extends HTMLElement {
       const groupCount = document.createElement("span");
       groupCount.className = "group-count";
       groupCount.textContent = `显示 ${groupState.visibleCount}/${group.blocks.length} · 可见已选 ${groupState.selectedCount}/${groupState.visibleCount}`;
+      this.groupSelection.set(group.id, {
+        check: groupCheck,
+        count: groupCount,
+        visibleBlockKeys: groupVisibleKeys,
+        totalCount: group.blocks.length,
+      });
       header.append(groupCheck, groupTitle, groupCount);
       const groupList = document.createElement("div");
       groupList.className = "group-list";
@@ -336,6 +294,7 @@ export class KtcCodegenControlCatalog extends HTMLElement {
     check.checked = selected.has(block.key);
     check.setAttribute("aria-label", `选择 ${block.title} 参与预检和 Apply`);
     check.setAttribute("data-block-key", block.key);
+    this.rowChecks.set(block.key, check);
     check.onfocus = () => { this.focusedBlockKey = block.key; };
     check.onblur = () => {
       if (this.focusedBlockKey === block.key) this.focusedBlockKey = undefined;
@@ -387,21 +346,6 @@ export class KtcCodegenControlCatalog extends HTMLElement {
     );
     row.append(check, id, copy, state, badges, output);
 
-    const templates = model.showMissingTemplates
-      ? model.missingTemplates.filter((template) => template.blockKey === block.key)
-      : [];
-    if (templates.length) {
-      const container = document.createElement("div");
-      container.className = "templates";
-      for (const template of templates) {
-        const pre = document.createElement("pre");
-        pre.className = "template";
-        pre.setAttribute("aria-label", `${block.title}，${template.classId} 缺失模板`);
-        pre.textContent = `${template.classId}\n${template.start}\n${template.end}`;
-        container.append(pre);
-      }
-      row.append(container);
-    }
     return row;
   }
 
@@ -418,14 +362,6 @@ export class KtcCodegenControlCatalog extends HTMLElement {
     button.className = "filter";
     button.textContent = label;
     button.setAttribute("aria-pressed", String(pressed));
-    button.onclick = action;
-    return button;
-  }
-
-  private selectionButton(label: string, action: () => void): HTMLButtonElement {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = label;
     button.onclick = action;
     return button;
   }
@@ -487,7 +423,47 @@ export class KtcCodegenControlCatalog extends HTMLElement {
       blockKeys: orderedNext.blockKeys,
       singleMode: orderedNext.singleMode,
     });
-    this.render();
+    this.syncSelectionPresentation();
+  }
+
+  private syncSelectionPresentation(): void {
+    const model = this.currentModel;
+    if (!model) return;
+    const selected = new Set(model.selectedBlockKeys);
+    for (const [blockKey, check] of this.rowChecks) check.checked = selected.has(blockKey);
+    for (const binding of this.groupSelection.values()) {
+      const state = ktcCodegenControlVisibleSelectionState(binding.visibleBlockKeys, model.selectedBlockKeys);
+      binding.check.checked = state.checked;
+      binding.check.indeterminate = state.indeterminate;
+      binding.check.disabled = state.disabled;
+      binding.count.textContent = `显示 ${state.visibleCount}/${binding.totalCount} · 可见已选 ${state.selectedCount}/${state.visibleCount}`;
+    }
+    if (this.selectionSummaryNode) {
+      const visibleCount = this.visibleBlocks(model).length;
+      this.selectionSummaryNode.textContent = `${visibleCount} / ${model.blocks.length} 显示 · ${model.selectedBlockKeys.length} 已选`;
+    }
+  }
+
+  private canPatchSelection(
+    previous: KtcCodegenControlCatalogViewModel,
+    next: KtcCodegenControlCatalogViewModel,
+  ): boolean {
+    if (previous.uri !== next.uri
+      || previous.preflightAvailable !== next.preflightAvailable
+      || previous.blocks.length !== next.blocks.length) return false;
+    if (!this.sameKeys(previous.presets.cppOnly, next.presets.cppOnly)
+      || !this.sameKeys(previous.presets.fieldCode, next.presets.fieldCode)) return false;
+    return previous.blocks.every((block, index) => {
+      const candidate = next.blocks[index];
+      return candidate?.key === block.key
+        && candidate.status === block.status
+        && candidate.hitCount === block.hitCount
+        && candidate.artifactCount === block.artifactCount;
+    });
+  }
+
+  private sameKeys(left: readonly KtCodegenBlockKey[], right: readonly KtCodegenBlockKey[]): boolean {
+    return left.length === right.length && left.every((key, index) => right[index] === key);
   }
 
   private emit<T>(type: string, detail: T): void {
