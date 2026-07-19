@@ -608,6 +608,9 @@ describe("Codegen control catalog", () => {
     expect(source).toContain('document.createElement("select")');
     expect((source.match(/document\.createElement\("select"\)/gu) ?? [])).toHaveLength(1);
     expect(source).toContain('data-group-id');
+    expect(source.indexOf("this.root.replaceChildren(style, filters, toolbar, summary, fragment);")).toBeLessThan(
+      source.indexOf("list.scrollTop = this.listScrollTop;"),
+    );
     expect(source).not.toContain("acquireVsCodeApi");
   });
 });

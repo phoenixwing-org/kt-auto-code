@@ -119,6 +119,41 @@ describe("KtcCodegenControlSessionController", () => {
     expect(blocks.find((block) => block.key === "QT UPDATE DIALOG")?.status).toBe("missing");
   });
 
+  it("把 marker.orphan-end 也投影为未闭合，但不伪造 END 建议", () => {
+    const model = session();
+    model.setSelectedBlockKeys(["CMD AGENT CONSTRUCTOR"]);
+    model.setPreflight({
+      plan: {
+        markerRegions: [],
+        artifacts: [],
+        diagnostics: [{
+          code: "marker.orphan-end",
+          severity: "error",
+          message: "End marker PNXBomAnalysis CMD AGENT CONSTRUCTOR has no preceding Start marker.",
+          path: { source: "source", file: "/workspace/PNXBomAnalysisCmd.cpp", row: 124, column: 4 },
+          marker: {
+            kind: "end",
+            classId: "PNXBomAnalysis",
+            blockKey: "CMD AGENT CONSTRUCTOR",
+          },
+        }],
+      } as unknown as NonNullable<typeof model.preflight>["plan"],
+      reused: false,
+      createdAt: "2026-07-19T00:00:00.000Z",
+      markerIndexRevision: 1,
+      indexedFileCount: 1,
+      candidateFileCount: 1,
+      cachePath: "/workspace/.phoenix/cache/codegen/test.json",
+    });
+
+    expect(new KtcCodegenControlSessionController().catalogModel(model).blocks
+      .find((block) => block.key === "CMD AGENT CONSTRUCTOR")).toMatchObject({
+      status: "unclosed",
+      hitCount: 0,
+      unclosed: [],
+    });
+  });
+
   it("Apply 后只读快照继续投影命中，选择变化后标记过期且不伪装为可执行计划", () => {
     const model = session();
     model.setSelectedBlockKeys(["PARAM DECLARATION", "QT UPDATE DIALOG"]);

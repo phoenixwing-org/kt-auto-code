@@ -206,7 +206,6 @@ export class KtcCodegenControlCatalog extends HTMLElement {
     const list = document.createElement("div");
     list.className = "list";
     list.tabIndex = 0;
-    list.scrollTop = this.listScrollTop;
     list.onscroll = () => { this.listScrollTop = list.scrollTop; };
     list.setAttribute("role", "tree");
     list.setAttribute("aria-label", "Codegen 控制符目录");
@@ -273,6 +272,8 @@ export class KtcCodegenControlCatalog extends HTMLElement {
     }
     fragment.append(list);
     this.root.replaceChildren(style, filters, toolbar, summary, fragment);
+    // Detached element 的 scrollTop 会被真实 Webview 布局丢弃；必须接回 Shadow DOM 后恢复。
+    list.scrollTop = this.listScrollTop;
     this.restoreFocusAfterRender();
   }
 

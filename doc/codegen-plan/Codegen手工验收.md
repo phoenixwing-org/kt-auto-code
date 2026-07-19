@@ -129,7 +129,7 @@ pnpm ext:verify:codegen -- <临时工作区> --checkpoint-c
 2. 再次扫描到完成。
 3. 预期索引约 1202 个源码文件，但候选列表只有 `src/PNXWidget.cpp` 与 `src/KtCourseGuard.cpp`。
    “控制符候选（工作区级）”标题可独立收缩，候选较多时只滚动内部列表。
-   点击候选后应以斜体 preview 标签打开并定位第一条 START/END，全部控制符行显示主题黄色高亮；未编辑时点击另一候选替换旧预览，编辑过的标签由 VS Code 保留。
+   先在 VS Code 用户设置中启用 `workbench.editor.enablePreview`，再点击候选：应以斜体 preview 标签打开并定位第一条 START/END，全部控制符行显示主题黄色高亮；未编辑时点击另一候选替换旧预览，编辑过或双击固定的标签由 VS Code 保留。若特意关闭该全局设置，另测插件内回退：Auto Code 只替换自己刚打开且未修改、未固定的上一普通候选，不修改用户设置。
 4. 打开 `PNXWidgetParam.json`，点击“预检”。
    首次预检期间可修改任一 `bulk-source/*.cpp`，预期当前预检自动取消并提示源码已变化；随后重新执行。
    取消后旧候选列表应立即清空，重扫完成前不得回填被取消任务的旧结果。
@@ -148,6 +148,8 @@ Primary 控制符目录在 compact 限高内独立滚动；JSON View 预检左�
 
 Problems 定位点检：在临时工作区中暂时删除一个 `PNXWidget.cpp` 的 `END KEVIN CAA WIZARD SECTION` 行，再预检。预期 Problems 出现 `marker.missing-end`，点击后打开该源码并以黄色背景定位 Start 行；随后撤销该临时修改并重新预检。
 
+反向边界点检：只删除 START、保留对应 END，再预检。该问题内部仍属于 `marker.orphan-end`，但 Primary 与缺 END 的 `marker.missing-end` 统一显示“未闭合”，不得落入普通“未命中”。
+
 完成预检和真实 Apply 后执行：
 
 ```bash
@@ -159,6 +161,8 @@ pnpm ext:verify:codegen -- <临时工作区> --checkpoint-e
 边界错误回归：若预检同时包含 `marker.missing-end` / `marker.orphan-end` 和其他完整控制块，点击 Apply 应显示“部分完成”，只写入完整区域，错误块保持原文并继续列在 Problems。其他模型、Renderer、Artifact、指纹或范围错误仍应整份阻止，不能借部分 Apply 绕过。
 
 2026-07-19 真实工作区回执：用户确认控制符缺失时，预检与 Apply 的错误提示正常，错误块未阻断其他合法区域修改；手工补齐缺失控制符后再次 Apply 成功且诊断归零。该回执完成了边界错误隔离和修复后重试闭环，不代表其他 fail-closed 错误分类已全部通过人工验证。
+
+2026-07-19 真实 Host 补充回执：全局 Preview 开启后的候选斜体和 A → B 替换通过；`PNXCombinedCurveParam.json` 的筛选、checkbox、单项输出和复制真实内容通过；缺失 END 的 Primary“未闭合”呈现通过；浅色主题的滚动条、sticky、黄色高亮和焦点框通过；高对比主题的 separator、checkbox、按钮焦点和滚动条可见性通过。缺失 START 的 `marker.orphan-end` 反向边界仍须独立点检。
 
 超大工程保护：当前 scope 超过 5000 个源码文件时，扫描应明确要求通过工作集或 Ignore 缩小范围，不得把截断结果显示为成功预检。
 

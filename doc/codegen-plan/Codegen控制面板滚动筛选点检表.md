@@ -25,7 +25,7 @@ Owner：KT Auto Code maintainers
 - 主从栏之间有 20%～75% 限幅的可拖动/键盘 separator；比例经 Host `workspaceState` 恢复和保存，不写入业务 JSON，也不与 Primary 目录宽度共享。
 - 右详情使用顶部 sticky 工具栏之后的剩余可见高度；标题、摘要和安全动作不滚动，只有代码/Artifact `<pre>` 在过长时局部 `overflow: auto`。missing-end 只有在 Host 提供结构化 marker 投影时才显示“复制 END”，不得从本地化 message 反解析；其他可定位诊断至少支持“打开位置”。
 - Primary 的 `compact` 形态不属于 JSON View：为了避免 Side Bar 无限增长，仍允许控制符目录在限定高度内独立纵向滚动。
-- Primary “控制符候选”点击后以 VS Code preview 标签打开；未编辑时下一候选替换当前预览，编辑后由 VS Code 自动保留。Host 定位第一条 START/END，并用通用主题黄色装饰高亮全部完整控制符行；打开另一候选时清除上一编辑器装饰。
+- Primary “控制符候选”点击后请求 VS Code preview 标签；未编辑时下一候选替换当前预览，编辑后由 VS Code 自动保留。若用户全局关闭 `workbench.editor.enablePreview`，VS Code 会忽略 `preview: true`，Auto Code 只替换自己刚打开且未修改、未固定的上一普通候选标签，不改用户全局设置，也不关闭原本已打开的文件。Host 定位第一条 START/END，并用通用主题黄色装饰高亮全部完整控制符行；打开另一候选时清除上一编辑器装饰。
 - 候选 ViewModel 当前只有 `markerCount`，没有结构化行号。将 START/END 作为 Tree 子行展开属于后续 DTO 小步；不得为了这项展示让 Primary 前端重新扫描源码或复制 Wing marker parser。
 
 ## 布局责任与禁止项
@@ -50,7 +50,7 @@ Owner：KT Auto Code maintainers
 | A1 | Primary / View 共用容器并分责 | 两处均装配 `ktc-codegen-control-panel`；只有 compact 装配目录，full 只装配预检结果 | `codegenArchitecture.test.ts`、`controlPanel.test.ts`、`editorHtml.test.ts` | [x] |
 | A2 | 预检前默认显示 | 未预检时显示目录与范围筛选，不显示伪造的结果状态标签；不改变 checkbox | `controlCatalog.test.ts` | [x] |
 | A3 | 预检后默认显示 | Primary 目录默认“命中”；JSON View 结果默认“命中” | `controlCatalog.test.ts`、`controlPanel.test.ts` | [x] |
-| A4 | Primary 状态筛选 | 显示命中/未闭合/未命中/全部四个互斥标签；“全部”恢复完整目录，不在行内展开诊断 | `controlCatalogState.ts` 与 `controlCatalog.test.ts` | [x] |
+| A4 | Primary 状态筛选 | 显示命中/未闭合/未命中/全部四个互斥标签；`marker.missing-end` 与 `marker.orphan-end` 都投影为“未闭合”，“全部”恢复完整目录，不在行内展开诊断 | `controlSessionController.test.ts`、`controlCatalogState.ts` 与 `controlCatalog.test.ts` | [x] |
 | A5 | 范围筛选 | 全部类型/C++ only/Field Code 只改变可见行 | `controlCatalogState.ts` 纯函数测试 | [x] |
 | A6 | Primary 工具去重复 | 删除“选择工具”及其全选/全不选/单选菜单，也删除“展开缺失模板”；只保留行/分组 checkbox、筛选和输出 | Web Component CustomEvent characterization | [x] |
 | A7 | View 主从结果 | 命中/问题/全部互斥筛选左列表；选择后右侧展示 Artifact 或完整诊断 | `controlPanel.test.ts` | [x] |
@@ -137,19 +137,26 @@ Owner：KT Auto Code maintainers
 - [x] 真实 JSON View 的整页纵向滚动、固定文档 Header 和去除重复控制符区域。
 - [x] 预检结果命中/问题/全部数量与切换、单元格 Save/Revert、窄窗口、深色主题和“打开”定位。
 - [x] 两份 JSON View 切换后 Primary 基本稳定；Primary 复制动作不再触发全页刷新跳转。
-- [ ] Primary checkbox：外层已不滚动，但 compact 目录内部仍会滚动；继续复核行、焦点、Tree 与内部 `scrollTop`。
+- [x] Primary checkbox：用户真实 Host 已确认 compact 目录取消/勾选后不再跳顶，焦点、筛选和 Tree 展开状态保持。
 - [x] Apply 后预检结果仍显示，并标记“已应用 · 需重新预检”。
 - [x] 预检结果左列表/右 sticky 详情和整页滚动初步通过。
 - [x] 拖动预检结果 separator 后切换 JSON View/重开 View，比例保持。
 - [x] “显示路径”默认关闭且左行紧凑；开启后显示完整路径，但不改变选择/筛选。
 - [x] 右详情 sticky 时基本占满工具栏下方可见高度。
 - [x] Primary“当前配置”可展开/收起，切换 JSON 后折叠状态不变；长文件名保持单行省略，按当前 Header 效果验收，不额外要求 tooltip。
-- [x] 点击候选后自动定位首个 START/END，全部控制符行显示黄色高亮，切换候选后旧高亮消失；Preview 替换仍待修正。
-- [ ] VS Code 浅色主题实际滚轮/触控板。
+- [x] 点击候选后自动定位首个 START/END，全部控制符行显示黄色高亮，切换候选后旧高亮消失。
+- [x] 用户全局关闭 Preview 时，插件内受管候选 A → B 会安全替换；A 已修改、已固定或原本已打开时保持不关闭。斜体标题需用户启用 VS Code 全局 `workbench.editor.enablePreview` 后另行观察。
+- [x] 用户启用全局 Preview 后，候选以斜体打开并执行 A → B 替换；双击固定后保留旧标签并另开新的斜体候选。
+- [x] 候选与 checkbox 修复后的快速回归通过：当前配置折叠、预检左右比例、显示路径和右详情 sticky 高度均保持正确。
+- [x] 删除 END 后，Primary 正确显示“未闭合”而非“未命中”。
+- [ ] 只删除 START 后，`marker.orphan-end` 已自动投影为同一“未闭合”标签，等待真实 Host 复核。
+- [x] VS Code 浅色主题实际滚轮/触控板、sticky、黄色高亮和焦点框。
 - [x] VS Code 深色主题实际滚轮/触控板。
-- [ ] VS Code 高对比主题可见滚动条和焦点框。
+- [x] VS Code 高对比主题 separator、checkbox、按钮焦点和滚动条可见。
 - [x] 用户使用真实 `PNXBomAnalysisParam.json` 复核 JSON View 已无控制符目录，且预检结果筛选、预览、打开与整页滚动正常。
 - [x] 用户使用真实 JSON View 复核参数表可收起，Header 工具保留。
-- [ ] 用户使用真实 `PNXCombinedCurveParam.json` 复核筛选、勾选和 Output/Clipboard。
+- [x] 用户使用真实 `PNXCombinedCurveParam.json` 复核筛选、勾选、单项 Output/Clipboard 和真实生成内容。
+
+2026-07-19 本轮真实 Host 回执：用户已启用 VS Code 全局 Preview，确认候选斜体及 A → B 替换正常；`PNXCombinedCurveParam.json` 的筛选、checkbox、单项输出和复制真实内容正常；删除 END 后 Primary 正确显示“未闭合”；浅色主题下滚动条、sticky、黄色高亮与焦点框正常；高对比主题下 separator、checkbox、按钮焦点与滚动条均清晰可用。只删除 START 的反向边界仍按上方未勾选项单独复核。
 
 人工项未回执时必须明确标为“待用户/真实宿主复核”，不得用单元测试冒充视觉完成；自动门禁和浏览器真实尺寸布局由本轮实现者完成。

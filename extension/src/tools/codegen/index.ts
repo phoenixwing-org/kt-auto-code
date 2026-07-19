@@ -55,7 +55,11 @@ import {
   ktcSortCodegenDocumentList,
 } from "./workspaceSessionPolicy.js";
 import { KtcCodegenProblemReporter } from "./problemReporter.js";
-import { ktcCodegenCandidateNavigation } from "./candidateNavigation.js";
+import {
+  ktcCodegenCandidateNavigation,
+  ktcShouldReplaceCodegenCandidateTab,
+  type KtcCodegenCandidatePreviewSession,
+} from "./candidateNavigation.js";
 import { ktcHighlightLiteralMatches } from "../../workbench/editorMatchHighlight.js";
 import {
   ktcDecodeCodegenSource,
@@ -151,6 +155,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
   private initializedRoot: string | null = null;
   private activated = false;
   private candidateIndexReady = false;
+  private candidatePreview: KtcCodegenCandidatePreviewSession | undefined;
   private readonly staleSourceRoots = new Set<string>();
   private csvConvertedInSession = 0;
   private csvDeduplicatedInSession = 0;
@@ -258,6 +263,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     this.batchApplyProgress = undefined;
     this.batchDeferredWorkspaceOperations.clear();
     this.activated = false;
+    this.candidatePreview = undefined;
     this.documentSessions.clear();
     this.discovered.clear();
     this.staleSourceRoots.clear();
@@ -279,6 +285,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     }
     this.candidates = [];
     this.candidateIndexReady = false;
+    this.candidatePreview = undefined;
     let invalidated = 0;
     for (const session of this.sessions.values()) {
       if (session.preflight) invalidated += 1;
@@ -712,6 +719,10 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       this.publish(ctx, "候选列表已变化，请重新扫描。", "error");
       return;
     }
+    const previewEnabled = vscode.workspace.getConfiguration("workbench.editor")
+      .get<boolean>("enablePreview", true);
+    const targetWasOpen = Boolean(this.findTextTab(uriString));
+    await this.closePreviousCandidatePreview(uriString);
     const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(uriString));
     const navigation = ktcCodegenCandidateNavigation(document.getText());
     const position = navigation.firstOffset === undefined
@@ -722,6 +733,11 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       viewColumn: vscode.ViewColumn.Active,
       ...(position ? { selection: new vscode.Range(position, position) } : {}),
     });
+    const openedTab = this.findTextTab(uriString);
+    this.candidatePreview = openedTab && (
+      openedTab.isPreview
+      || (!targetWasOpen && !previewEnabled && !openedTab.isDirty && !openedTab.isPinned)
+    ) ? { uri: uriString, managedRegularTab: !openedTab.isPreview } : undefined;
     if (position) {
       editor.revealRange(
         new vscode.Range(position, position),
@@ -729,6 +745,27 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       );
     }
     ktcHighlightLiteralMatches(editor, navigation.highlightTerms);
+  }
+
+  private findTextTab(uriString: string): vscode.Tab | undefined {
+    return vscode.window.tabGroups.all
+      .flatMap((group) => group.tabs)
+      .find((tab) => tab.input instanceof vscode.TabInputText && tab.input.uri.toString() === uriString);
+  }
+
+  private async closePreviousCandidatePreview(nextUri: string): Promise<void> {
+    const previous = this.candidatePreview;
+    const tab = previous ? this.findTextTab(previous.uri) : undefined;
+    const state = tab && tab.input instanceof vscode.TabInputText ? {
+      uri: tab.input.uri.toString(),
+      dirty: tab.isDirty,
+      pinned: tab.isPinned,
+      preview: tab.isPreview,
+    } : undefined;
+    this.candidatePreview = undefined;
+    if (ktcShouldReplaceCodegenCandidateTab(previous, nextUri, state) && tab) {
+      await vscode.window.tabGroups.close(tab, true);
+    }
   }
 
   private async copyDiagnostics(ctx: ToolRunContext): Promise<void> {

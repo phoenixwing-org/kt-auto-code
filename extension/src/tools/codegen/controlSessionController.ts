@@ -99,6 +99,21 @@ function unclosedForBlock(
   });
 }
 
+/** 只有 END、没有对应 START：内部保留 orphan-end，Primary 统一归入“未闭合”。 */
+function hasOrphanEndForBlock(
+  diagnostics: NonNullable<KtcCodegenDocumentModel["preflight"]>["plan"]["diagnostics"],
+  blockKey: KtCodegenBlockKey,
+): boolean {
+  return diagnostics.some((diagnostic) => {
+    const marker = (diagnostic as typeof diagnostic & KtcStructuredMarkerDiagnostic).marker;
+    return diagnostic.code === "marker.orphan-end"
+      && marker?.kind === "end"
+      && marker.blockKey === blockKey
+      && ktCodegenIsBlockKey(marker.blockKey)
+      && Boolean(marker.classId.trim());
+  });
+}
+
 /** UI-neutral 的控制符会话投影与命令状态机；不访问 VS Code、DOM、Output 或文件。 */
 export class KtcCodegenControlSessionController {
   catalogModel(session: KtcCodegenDocumentModel): KtcCodegenControlCatalogViewModel {
@@ -121,11 +136,12 @@ export class KtcCodegenControlSessionController {
       blocks: CONTROL_BLOCKS.map((block) => {
         const blockHitCount = hitCount.get(block.key) ?? 0;
         const unclosed = unclosedForBlock(displayPlan?.diagnostics ?? [], block.key);
+        const orphanEnd = hasOrphanEndForBlock(displayPlan?.diagnostics ?? [], block.key);
         return {
           ...block,
           status: !snapshot
             ? selected.has(block.key) ? "pending" as const : "unselected" as const
-            : unclosed.length > 0
+            : unclosed.length > 0 || orphanEnd
               ? "unclosed" as const
               : blockHitCount > 0
                 ? "hit" as const
