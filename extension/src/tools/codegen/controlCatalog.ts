@@ -35,11 +35,12 @@ const STYLE = `
   }
   button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); }
   button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
-  .filters, .toolbar { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; gap: 5px; padding: 6px; border-bottom: 1px solid var(--vscode-panel-border); }
-  .filters { background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); }
+  .filters { display: flex; flex: 0 0 auto; flex-wrap: nowrap; align-items: center; gap: 5px; padding: 6px; border-bottom: 1px solid var(--vscode-panel-border); background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); }
   .filter-label { color: var(--vscode-descriptionForeground); font-size: 11px; }
-  .filter[aria-pressed="true"] { color: var(--vscode-button-foreground); background: var(--vscode-button-background); border-color: var(--vscode-button-background); }
-  .scope-filter { min-height: 25px; padding: 2px 24px 2px 7px; color: var(--vscode-dropdown-foreground, var(--vscode-foreground)); background: var(--vscode-dropdown-background, var(--vscode-input-background)); border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border)); border-radius: 3px; }
+  .status-filter, .scope-filter { min-width: 0; min-height: 25px; padding: 2px 24px 2px 7px; color: var(--vscode-dropdown-foreground, var(--vscode-foreground)); background: var(--vscode-dropdown-background, var(--vscode-input-background)); border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border)); border-radius: 3px; }
+  .status-filter { flex: 1 1 116px; }
+  .scope-filter { flex: 1 1 104px; }
+  .output-visible { flex: 0 0 27px; width: 27px; min-width: 27px; padding: 2px; font-size: 15px; }
   .summary, .hint { flex: 0 0 auto; padding: 5px 8px; color: var(--vscode-descriptionForeground); border-bottom: 1px solid var(--vscode-panel-border); }
   .list { max-height: 290px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable both-edges; scrollbar-color: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, .7)) transparent; }
   .list::-webkit-scrollbar { width: 12px; height: 12px; }
@@ -55,10 +56,11 @@ const STYLE = `
   .group-title { font-weight: 700; }
   .group-count { margin-left: auto; color: var(--vscode-descriptionForeground); font-size: 10px; font-weight: 400; white-space: nowrap; }
   .group-list { border-top: 1px solid var(--vscode-panel-border); }
-  .row { display: grid; grid-template-columns: 22px 26px minmax(0, 1fr) auto auto auto; align-items: center; gap: 5px; min-height: 36px; padding: 3px 7px 3px 20px; border-bottom: 1px solid var(--vscode-panel-border); }
+  .row { display: grid; grid-template-columns: 22px 34px minmax(0, 1fr) auto auto auto; align-items: center; gap: 5px; min-height: 36px; padding: 3px 7px 3px 20px; border-bottom: 1px solid var(--vscode-panel-border); }
   .row:last-child { border-bottom: 0; }
   .row:hover { background: var(--vscode-list-hoverBackground); }
-  .legacy-id, .key { color: var(--vscode-descriptionForeground); }
+  .legacy-id { justify-self: start; padding: 1px 4px; color: var(--vscode-descriptionForeground); border: 1px solid var(--vscode-panel-border); border-radius: 999px; font-size: 10px; white-space: nowrap; }
+  .key { color: var(--vscode-descriptionForeground); }
   .copy { min-width: 0; }
   .title-line { display: flex; min-width: 0; align-items: center; gap: 4px; overflow: hidden; white-space: nowrap; }
   .title, .key { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -73,7 +75,11 @@ const STYLE = `
   .state.missing { color: var(--vscode-editorWarning-foreground, #b89500); border-color: currentColor; }
   .output-one { width: 28px; padding: 2px; }
   :host([mode="compact"]) .list { max-height: 236px; overflow-y: auto; }
-  :host([mode="compact"]) .row { grid-template-columns: 22px 24px minmax(0, 1fr) auto auto; }
+  :host([mode="compact"]) button, :host([mode="compact"]) .scope-filter { min-height: 23px; }
+  :host([mode="compact"]) .filters { gap: 3px; padding: 3px 5px; }
+  :host([mode="compact"]) .summary, :host([mode="compact"]) .hint { padding: 3px 5px; }
+  :host([mode="compact"]) .group > summary { min-height: 28px; gap: 4px; padding: 2px 5px; }
+  :host([mode="compact"]) .row { grid-template-columns: 22px 34px minmax(0, 1fr) auto auto; gap: 4px; min-height: 32px; padding: 2px 5px 2px 12px; }
   :host([mode="compact"]) .badges, :host([mode="compact"]) .key { display: none; }
   :host([mode="compact"]) .group-count { white-space: normal; text-align: right; }
   :host([mode="full"]) { display: flex; block-size: auto; min-block-size: 0; overflow: visible; flex-direction: column; }
@@ -96,7 +102,6 @@ export class KtcCodegenControlCatalog extends HTMLElement {
     readonly visibleBlockKeys: readonly KtCodegenBlockKey[];
     readonly totalCount: number;
   }>();
-  private selectionSummaryNode: HTMLElement | undefined;
   private readonly expandedGroups = new Set<KtcCodegenControlGroupId>(
     KTC_CODEGEN_CONTROL_GROUPS.map((group) => group.id),
   );
@@ -129,7 +134,6 @@ export class KtcCodegenControlCatalog extends HTMLElement {
     this.focusAfterRender = undefined;
     this.rowChecks.clear();
     this.groupSelection.clear();
-    this.selectionSummaryNode = undefined;
     const style = document.createElement("style");
     style.textContent = STYLE;
     const model = this.currentModel;
@@ -147,27 +151,34 @@ export class KtcCodegenControlCatalog extends HTMLElement {
     const filters = document.createElement("div");
     filters.className = "filters";
     filters.setAttribute("aria-label", "控制符显示筛选，不改变预检和 Apply 选择");
-    filters.append(this.label("显示"));
     if (model.preflightAvailable) {
+      const statusFilter = document.createElement("select");
+      statusFilter.className = "status-filter";
+      statusFilter.setAttribute("aria-label", "控制符状态");
+      statusFilter.title = "按预检状态筛选；不改变 checkbox 与 Apply 范围";
       for (const [status, label] of [
         ["hit", "命中"],
         ["unclosed", "未闭合"],
         ["missing", "未命中"],
         ["all", "全部"],
       ] as const) {
-        filters.append(this.filterButton(
-          `${label} ${this.visibleBlocks(model, { ...this.filter, status }).length}`,
-          this.filter.status === status,
-          () => this.setFilter({ status }),
-        ));
+        const option = document.createElement("option");
+        option.value = status;
+        option.textContent = `${label} ${this.visibleBlocks(model, { ...this.filter, status }).length}`;
+        statusFilter.append(option);
       }
+      statusFilter.value = this.filter.status;
+      statusFilter.onchange = () => this.setFilter({
+        status: statusFilter.value as KtcCodegenControlCatalogFilter["status"],
+      });
+      filters.append(statusFilter);
     } else {
       filters.append(this.label("尚未预检"));
     }
-    filters.append(this.label("范围"));
     const scopeFilter = document.createElement("select");
     scopeFilter.className = "scope-filter";
     scopeFilter.setAttribute("aria-label", "控制符范围");
+    scopeFilter.title = "按控制符类型筛选；不改变 checkbox 与 Apply 范围";
     for (const [scope, label] of [
       ["all", "全部类型"],
       ["cpp-only", "C++ only"],
@@ -184,26 +195,18 @@ export class KtcCodegenControlCatalog extends HTMLElement {
     });
     filters.append(scopeFilter);
 
-    const toolbar = document.createElement("div");
-    toolbar.className = "toolbar";
-    toolbar.setAttribute("aria-label", "控制符输出");
     const outputVisible = document.createElement("button");
     outputVisible.type = "button";
-    outputVisible.textContent = `输出筛选并复制 (${visibleBlocks.length})`;
+    outputVisible.className = "output-visible";
+    outputVisible.textContent = "⧉";
     outputVisible.disabled = visibleBlocks.length === 0;
-    outputVisible.title = "只输出当前筛选可见的控制块到日志，并复制可粘贴源码；不改变预检和 Apply 选择";
+    outputVisible.title = `输出当前筛选并复制（${visibleBlocks.length} 项）；不改变预检和 Apply 选择`;
+    outputVisible.setAttribute("aria-label", outputVisible.title);
     outputVisible.onclick = () => this.emit<KtcCodegenControlOutputDetail>(
       "ktc-codegen-control-output",
       { scope: "visible", blockKeys: visibleBlocks.map((block) => block.key) },
     );
-    toolbar.append(outputVisible);
-
-    const summary = document.createElement("div");
-    summary.className = "summary";
-    summary.setAttribute("role", "status");
-    summary.setAttribute("aria-live", "polite");
-    this.selectionSummaryNode = summary;
-    summary.textContent = `${visibleBlocks.length} / ${model.blocks.length} 显示 · ${model.selectedBlockKeys.length} 已选`;
+    filters.append(outputVisible);
 
     const fragment = document.createDocumentFragment();
     const list = document.createElement("div");
@@ -274,7 +277,7 @@ export class KtcCodegenControlCatalog extends HTMLElement {
       list.append(empty);
     }
     fragment.append(list);
-    this.root.replaceChildren(style, filters, toolbar, summary, fragment);
+    this.root.replaceChildren(style, filters, fragment);
     // Detached element 的 scrollTop 会被真实 Webview 布局丢弃；必须接回 Shadow DOM 后恢复。
     list.scrollTop = this.listScrollTop;
     this.restoreFocusAfterRender();
@@ -367,16 +370,6 @@ export class KtcCodegenControlCatalog extends HTMLElement {
     return label;
   }
 
-  private filterButton(label: string, pressed: boolean, action: () => void): HTMLButtonElement {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "filter";
-    button.textContent = label;
-    button.setAttribute("aria-pressed", String(pressed));
-    button.onclick = action;
-    return button;
-  }
-
   private setFilter(next: Partial<KtcCodegenControlCatalogFilter>): void {
     this.filter = { ...this.filter, ...next };
     this.render();
@@ -448,10 +441,6 @@ export class KtcCodegenControlCatalog extends HTMLElement {
       binding.check.indeterminate = state.indeterminate;
       binding.check.disabled = state.disabled;
       binding.count.textContent = `显示 ${state.visibleCount}/${binding.totalCount} · 可见已选 ${state.selectedCount}/${state.visibleCount}`;
-    }
-    if (this.selectionSummaryNode) {
-      const visibleCount = this.visibleBlocks(model).length;
-      this.selectionSummaryNode.textContent = `${visibleCount} / ${model.blocks.length} 显示 · ${model.selectedBlockKeys.length} 已选`;
     }
   }
 

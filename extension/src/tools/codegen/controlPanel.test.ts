@@ -197,7 +197,8 @@ describe("Codegen control panel", () => {
 
     const preview = findNodes(panel.shadow, (node) => node.attributes.get("aria-label") === "PARAM DECLARATION Artifact 预览")[0]!;
     expect(preview.textContent).toBe("int First;");
-    const open = findNodes(panel.shadow, (node) => node.textContent === "打开位置")[0]!;
+    const open = findNodes(panel.shadow, (node) => node.textContent === "打开")[0]!;
+    expect(open.title).toBe("打开源码位置");
     open.onclick?.({ stopPropagation() {} });
     expect(panel.events.at(-1)).toMatchObject({
       type: "ktc-codegen-control-open",

@@ -82,6 +82,9 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('renderEnvironment(ts)');
     expect(html).toContain('id="environment-block"');
     expect(html).toContain('<ktc-codegen-primary-panel id="codegen-panel" hidden>');
+    expect(html).toContain('document.body.classList.toggle("codegen-tool", codegen)');
+    expect(html).toContain('body.codegen-tool .wrap { padding-inline: 0; }');
+    expect(html).toContain('body.codegen-tool .meta { margin: 4px 5px 5px; }');
     expect(html).toContain("test-webview:/extension/dist/codegen-primary-panel.js");
     expect(html).toContain('els.codegenPanel.model = {');
     expect(html).toContain('els.codegenPanel.hidden = !codegen');

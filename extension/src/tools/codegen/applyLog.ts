@@ -15,7 +15,7 @@ interface KtcStructuredMarkerDiagnostic {
   readonly marker?: { readonly blockKey?: string };
 }
 
-function diagnosticControlLabel(diagnostic: KtCodegenDiagnostic): string {
+export function ktcCodegenDiagnosticControlLabel(diagnostic: KtCodegenDiagnostic): string {
   const marker = (diagnostic as KtCodegenDiagnostic & KtcStructuredMarkerDiagnostic).marker;
   const block = KT_CODEGEN_LEGACY_BLOCKS.find((candidate) => candidate.key === marker?.blockKey);
   return block ? `#${block.legacyId} ${block.key} · ` : "";
@@ -46,7 +46,7 @@ export function ktcCodegenApplyDiagnosticLog(
     : path?.field
       ? `；field=${path.field}`
       : "";
-  return `${prefix(stage)}[${diagnostic.severity}] ${diagnosticControlLabel(diagnostic)}${diagnostic.code}：${diagnostic.message}${location}`;
+  return `${prefix(stage)}[${diagnostic.severity}] ${ktcCodegenDiagnosticControlLabel(diagnostic)}${diagnostic.code}：${diagnostic.message}${location}`;
 }
 
 /** 输出计划审计信息；当前文件未包含某个已选控制符是正常情况，不合成告警。 */

@@ -74,6 +74,7 @@ vi.mock("vscode", () => {
 });
 
 import * as vscode from "vscode";
+import type { KtCodegenDiagnostic } from "@phoenix-wing/kt-codegen";
 import { KtcCodegenProblemReporter } from "./problemReporter.js";
 
 function document(path: string, lines = ["zero", "one", "two"]): vscode.TextDocument {
@@ -116,12 +117,13 @@ describe("KtcCodegenProblemReporter", () => {
 
   it("每份 JSON 独立缓存问题，切换活动会话时只发布该页诊断", () => {
     const reporter = new KtcCodegenProblemReporter();
-    reporter.publish("json:A", "/workspace/A.json", [{
+    reporter.publish("json:A", "/workspace/A.json", [({
       code: "marker.missing-end",
       severity: "error",
       message: "A missing",
       path: { source: "source", file: "/workspace/a.cpp", row: 8, column: 2 },
-    }]);
+      marker: { blockKey: "CMD AGENT CONSTRUCTOR" },
+    } as KtCodegenDiagnostic & { readonly marker: { readonly blockKey: string } })]);
     reporter.publish("json:B", "/workspace/B.json", [{
       code: "marker.warning",
       severity: "warning",
@@ -136,9 +138,9 @@ describe("KtcCodegenProblemReporter", () => {
     expect(host.collection.set.mock.calls[0]?.[0].fsPath).toBe("/workspace/a.cpp");
     expect(host.collection.set.mock.calls[0]?.[1][0]).toMatchObject({
       code: "marker.missing-end",
-      source: "KT Codegen",
+      source: "KT Auto Code",
       severity: 0,
-      message: "A missing",
+      message: "[KT Auto Code] #23 CMD AGENT CONSTRUCTOR · marker.missing-end：A missing",
     });
 
     host.collection.set.mockClear();
@@ -148,6 +150,7 @@ describe("KtcCodegenProblemReporter", () => {
     expect(host.collection.set.mock.calls[0]?.[1][0]).toMatchObject({
       code: "marker.warning",
       severity: 1,
+      message: "[KT Auto Code] marker.warning：B warning",
     });
   });
 
@@ -176,7 +179,7 @@ describe("KtcCodegenProblemReporter", () => {
     expect(textEditor.setDecorations).toHaveBeenCalledWith(
       host.decoration,
       [expect.objectContaining({
-        hoverMessage: "KT Codegen error: marker.missing-end · missing",
+        hoverMessage: "[KT Auto Code] marker.missing-end：missing",
       })],
     );
 

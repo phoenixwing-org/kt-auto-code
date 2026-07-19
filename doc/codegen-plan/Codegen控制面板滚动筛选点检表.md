@@ -14,7 +14,7 @@ Owner：KT Auto Code maintainers
 - Primary 与 JSON View 消费同一个高层 `ktc-codegen-control-panel`，但按职责投影不同内容。
 - `compact` 只显示共享控制符目录；`full` 只显示 View 专属预检命中、问题和 Artifact 预览，不复制控制符目录。
 - Primary 状态筛选显示“命中 / 未闭合 / 未命中 / 全部”；“全部”只恢复完整目录，不修改 checkbox。未闭合行不展开诊断，不放“打开位置/复制 END”等动作。Tree 展开、显示筛选和列表滚动是 Primary 本地状态；checkbox 与 Host round-trip 只原位更新选择态，不替换当前 Tree DOM。
-- Primary 的当前 JSON 身份和 Prefix/Middle/Namespace/Append 组成“当前配置”Block。Header 显示文件名、类名、行数和当前编辑状态；文件名单行省略，点击 Header 收起属性正文，折叠状态在当前 Webview 生命周期内保留。
+- Primary 的当前 JSON 身份和 Prefix/Middle/Namespace/Append 组成“当前配置”Block。Header 用一行显示文件名、类名、行数和当前编辑状态，过长内容单行省略且不叠加 tooltip；点击 Header 收起属性正文，折叠状态在当前 Webview 生命周期内保留。
 - Host `KtcCodegenDocumentModel` 是勾选、单选、预检和生成数据真源；显示筛选是各 Webview 的本地 UI 状态，不写 JSON、不改变 Apply 范围。
 - JSON View 的 `body` 是唯一纵向滚动边界。文档工具栏、参数表 Block、预检结果 Block 按内容自然叠放，总内容超过 View 高度时只滚动整个 View。
 - Apply 成功或部分成功后必须销毁可执行 Preflight Plan，下一次 Apply 仍自动重新预检；同时保留最近一次只读结果，让命中、Artifact、未闭合等问题继续可见。结果头明确显示“已应用 · 需重新预检”；参数、选择、工作区或源码变化后改为“结果已过期 · 需重新预检”，不得把旧快照伪装成可执行计划。
@@ -26,6 +26,12 @@ Owner：KT Auto Code maintainers
 - 右详情使用顶部 sticky 工具栏之后的剩余可见高度；标题、摘要和安全动作不滚动，只有代码/Artifact `<pre>` 在过长时局部 `overflow: auto`。missing-end 只有在 Host 提供结构化 marker 投影时才显示“复制 END”，不得从本地化 message 反解析；其他可定位诊断至少支持“打开位置”。
 - Primary 的 `compact` 形态不属于 JSON View：为了避免 Side Bar 无限增长，仍允许控制符目录在限定高度内独立纵向滚动。
 - Primary “控制符候选”点击后请求 VS Code preview 标签；未编辑时下一候选替换当前预览，编辑后由 VS Code 自动保留。若用户全局关闭 `workbench.editor.enablePreview`，VS Code 会忽略 `preview: true`，Auto Code 只替换自己刚打开且未修改、未固定的上一普通候选标签，不改用户全局设置，也不关闭原本已打开的文件。Host 定位第一条 START/END，并用通用主题黄色装饰高亮全部完整控制符行；打开另一候选时清除上一编辑器装饰。
+- Primary “控制符候选”使用与 Git/编码文件列表相同的紧凑一行语义：30px 行高、2px/4px padding、6px gap，左侧只使用一个连续标签显示“文件名 · 相对路径”并整体单行省略，不再对文件名和路径分别分配宽度；标记数与编码标签固定在右侧，完整路径继续保留在 tooltip/aria-label。该视觉压缩不得改变候选 Preview、打开定位、标签或列表滚动状态。
+- Primary 工具条使用 28px 图标按钮和原生 tooltip，在 Primary 内容滚动时 sticky 于顶部；工作区摘要、Block gap、Header/属性/列表 padding 和 compact 控制符行高同步压缩。第一阶段不改 Block 顺序、左右铺满方式、圆角/边框和功能分组。
+- Codegen 模式的外层 `.wrap` 去除左右 gap，Block 分隔与边框横向铺满；工作区文字和顶部图标工具条仍保留 5px 内缩，避免文字与可交互图标直接贴边。该变化只调整空间密度，不改 Block 顺序、折叠、sticky 或功能分组。
+- 控制符目录的顶部操作只保留一行：状态 Combo、范围 Combo 和“输出当前筛选并复制”图标。不再显示“显示/范围”文字、四个状态按钮、独立输出行和第三行数量摘要；Combo 与图标必须保留 aria-label/tooltip，只改显示密度，不改 checkbox、Tree、Apply 和筛选语义。
+- VS Code Problems 的 message 统一以 `[KT Auto Code]` 开头；能从结构化 marker 可靠映射时紧随 `#legacyId blockKey · diagnostic.code`，例如 `[KT Auto Code] #5 IMPLEMENTS HEAD SET · marker.missing-end：…`。不能映射时只显示插件名和错误码，不猜编号。
+- 预检右侧详情头压缩为两行：第一行是 `#legacyId + 控制符/诊断标题`，“打开”及其他安全动作固定在右侧；第二行用小字号单行省略路径与行号，完整位置保留在 title。复杂诊断的 message 可作为额外内容，不得为普通命中项额外占行。
 - 候选 ViewModel 当前只有 `markerCount`，没有结构化行号。将 START/END 作为 Tree 子行展开属于后续 DTO 小步；不得为了这项展示让 Primary 前端重新扫描源码或复制 Wing marker parser。
 
 ## 布局责任与禁止项
@@ -158,5 +164,7 @@ Owner：KT Auto Code maintainers
 - [x] 用户使用真实 `PNXCombinedCurveParam.json` 复核筛选、勾选、单项 Output/Clipboard 和真实生成内容。
 
 2026-07-19 本轮真实 Host 回执：用户已启用 VS Code 全局 Preview，确认候选斜体及 A → B 替换正常；`PNXCombinedCurveParam.json` 的筛选、checkbox、单项输出和复制真实内容正常；删除 END 后 Primary 正确显示“未闭合”；浅色主题下滚动条、sticky、黄色高亮与焦点框正常；高对比主题下 separator、checkbox、按钮焦点与滚动条均清晰可用。后续补充回执已确认只删除 START 的 `marker.orphan-end` 同样显示“未闭合”，并带与日志一致的 `#legacyId`。
+
+2026-07-19 本轮密度改造回执：用户已确认 Primary 顶部图标工具条的单行、tooltip 与 sticky 正常；控制符目录的“状态 Combo + 范围 Combo + 复制图标”单行布局和筛选不改 checkbox 正常；预检右详情的“第一行编号/标题/打开 + 第二行小号路径”正常；Problems 正确显示 `[KT Auto Code] #编号 控制符 · 错误码`；表格深色高对比选中态文字清晰可读；控制符候选按 Git/编码列表语义显示为共享省略区域内的“主色文件名 · 次要色相对路径”，右侧标记数与编码固定，Preview、定位和控制符高亮回归正常；Codegen Block 左右 gap 已去除，工作区文字与顶部工具栏保留 5px 内缩。上述项目均已通过真实 Host 复测。
 
 人工项未回执时必须明确标为“待用户/真实宿主复核”，不得用单元测试冒充视觉完成；自动门禁和浏览器真实尺寸布局由本轮实现者完成。

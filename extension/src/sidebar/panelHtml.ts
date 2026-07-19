@@ -91,6 +91,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     body.detail-block .meta { margin: 0 0 8px; }
     body.external-module-block .wrap > :not(#tabs):not(#module-block) { display: none !important; }
     .wrap { padding: 8px 14px 16px; }
+    body.codegen-tool .wrap { padding-inline: 0; }
     .tabs {
       display: flex;
       gap: 4px;
@@ -476,6 +477,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .status.error { color: var(--vscode-errorForeground); border-left-color: var(--vscode-errorForeground); }
     .meta { margin: 10px 0 12px; font-size: 11px; color: var(--vscode-descriptionForeground); }
     .meta strong { color: var(--vscode-foreground); font-weight: 500; }
+    body.codegen-tool .meta { margin: 4px 5px 5px; }
     .workspace-file-scope {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) auto;
@@ -1672,6 +1674,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       const uuid = isUuidTool();
       const caaDialog = isCaaDialogTool();
       const environment = isEnvironmentTool();
+      document.body.classList.toggle("codegen-tool", codegen);
       renderWorkspaceFileScope(running);
       els.desc.hidden = ignore;
       els.replaceBlock.hidden = !rename;

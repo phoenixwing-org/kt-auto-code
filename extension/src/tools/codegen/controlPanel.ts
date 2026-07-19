@@ -59,12 +59,13 @@ const STYLE = `
   .result-row.warning { border-left: 3px solid var(--vscode-editorWarning-foreground); }
   .result-detail { display: flex; position: sticky; top: var(--ktc-codegen-detail-sticky-top, 58px); align-self: start; min-width: 0; block-size: var(--ktc-codegen-detail-available-height, calc(100vh - 74px)); max-block-size: var(--ktc-codegen-detail-available-height, calc(100vh - 74px)); padding: 10px; overflow: hidden; background: var(--vscode-editor-background); }
   .detail-content { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; flex-direction: column; }
-  .detail-header { display: grid; gap: 4px; padding-bottom: 8px; border-bottom: 1px solid var(--vscode-panel-border); }
-  .detail-header h3 { margin: 0; font-size: 13px; }
-  .detail-summary, .detail-location, .detail-message { margin: 0; overflow-wrap: anywhere; color: var(--vscode-descriptionForeground); }
-  .detail-message { color: var(--vscode-foreground); }
-  .detail-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
-  .detail-actions button { min-height: 25px; padding: 2px 8px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: 1px solid var(--vscode-panel-border); border-radius: 3px; }
+  .detail-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 6px; padding-bottom: 5px; border-bottom: 1px solid var(--vscode-panel-border); }
+  .detail-header h3 { min-width: 0; margin: 0; overflow: hidden; font-size: 13px; }
+  .detail-summary, .detail-location, .detail-message { grid-column: 1 / -1; min-width: 0; margin: 0; overflow: hidden; color: var(--vscode-descriptionForeground); text-overflow: ellipsis; white-space: nowrap; }
+  .detail-summary { font-size: 10px; }
+  .detail-message { color: var(--vscode-foreground); white-space: normal; }
+  .detail-actions { display: flex; grid-column: 2; grid-row: 1; flex-wrap: nowrap; gap: 3px; margin: 0; }
+  .detail-actions button { min-height: 24px; padding: 2px 7px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: 1px solid var(--vscode-panel-border); border-radius: 3px; white-space: nowrap; }
   .detail-preview { display: block; flex: 1 1 auto; min-block-size: 120px; margin: 9px 0 0; padding: 9px; overflow: auto; overscroll-behavior: contain; color: var(--vscode-editor-foreground); background: var(--vscode-textCodeBlock-background); border: 1px solid var(--vscode-panel-border); border-radius: 5px; font: 12px/1.45 var(--vscode-editor-font-family); white-space: pre; }
   .empty { padding: 22px 12px; color: var(--vscode-descriptionForeground); text-align: center; }
   @media (max-width: 680px) {
@@ -277,6 +278,7 @@ export class KtcCodegenControlPanel extends HTMLElement {
     if (item.kind === "hit") {
       this.appendResultHeading(title, model, item.region.blockKey, item.region.blockKey);
       summary.textContent = `${item.region.path}:${item.region.start.line + 1} · ${item.region.classId}`;
+      summary.title = summary.textContent;
       actions.append(this.openButton(item.region.path, item.region.start.line));
       header.append(title, summary, actions);
       container.append(header);
@@ -302,6 +304,7 @@ export class KtcCodegenControlPanel extends HTMLElement {
     const located = Boolean(item.diagnostic.path?.file) && Number.isInteger(item.diagnostic.path?.row);
     if (located && item.diagnostic.path?.file !== undefined && item.diagnostic.path.row !== undefined) {
       summary.textContent = `${item.diagnostic.path.file}:${item.diagnostic.path.row + 1}`;
+      summary.title = summary.textContent;
       actions.append(this.openButton(item.diagnostic.path.file, item.diagnostic.path.row));
     } else {
       summary.textContent = "该诊断没有可打开的源码位置。";
@@ -379,7 +382,8 @@ export class KtcCodegenControlPanel extends HTMLElement {
   private openButton(path: string, line: number): HTMLButtonElement {
     const button = document.createElement("button");
     button.type = "button";
-    button.textContent = "打开位置";
+    button.textContent = "打开";
+    button.title = "打开源码位置";
     button.onclick = () => this.emitOpen(path, line);
     return button;
   }

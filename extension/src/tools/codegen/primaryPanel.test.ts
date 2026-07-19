@@ -5,6 +5,11 @@ class FakeNode {
   readonly children: FakeNode[] = [];
   readonly attributes = new Map<string, string>();
   readonly classList = {
+    add: (...names: string[]) => {
+      const current = new Set(this.className.split(/\s+/u).filter(Boolean));
+      for (const name of names) current.add(name);
+      this.className = [...current].join(" ");
+    },
     toggle: (name: string, enabled: boolean) => {
       const names = new Set(this.className.split(/\s+/u).filter(Boolean));
       if (enabled) names.add(name); else names.delete(name);
@@ -57,7 +62,10 @@ class FakeElement extends FakeNode {
 function installFakeDom(): Map<string, CustomElementConstructor> {
   const registry = new Map<string, CustomElementConstructor>();
   vi.stubGlobal("HTMLElement", FakeElement);
-  vi.stubGlobal("document", { createElement: (tagName: string) => new FakeNode(tagName) });
+  vi.stubGlobal("document", {
+    createElement: (tagName: string) => new FakeNode(tagName),
+    createElementNS: (_namespace: string, tagName: string) => new FakeNode(tagName),
+  });
   vi.stubGlobal("CustomEvent", class<T> {
     constructor(public readonly type: string, public readonly init: { detail: T }) {}
     get detail(): T { return this.init.detail; }
@@ -159,13 +167,32 @@ describe("Codegen Primary panel", () => {
     const currentConfig = findNodes(element.shadow, (node) => node.attributes.get("aria-label") === "当前配置区")[0]!;
     expect(currentConfig.open).toBe(true);
     expect(findNodes(currentConfig, (node) => node.className.includes("current-file"))[0]!.title).toBe("");
-    expect(findNodes(currentConfig, (node) => node.tagName === "summary")[0]!.title).toBe("Demo.json");
+    expect(findNodes(currentConfig, (node) => node.tagName === "summary")[0]!.title).toBe("");
     const refresh = findNodes(element.shadow, (node) => node.textContent === "取消刷新")[0]!;
     const candidateScan = findNodes(element.shadow, (node) => node.textContent === "扫源码")[0]!;
     expect(refresh.disabled).toBe(false);
     expect(candidateScan.disabled).toBe(true);
     expect(findNodes(element.shadow, (node) => node.textContent === "打开")[0]!.title).toBe("打开一份 Codegen JSON");
     expect(candidateScan.title).toBe("扫描工作区中含 Codegen 控制符的源码候选");
+    const candidateRow = findNodes(element.shadow, (node) => node.className === "row candidate-row")[0]!;
+    expect(findNodes(candidateRow, (node) => node.className === "candidate-label")).toHaveLength(1);
+    expect(findNodes(candidateRow, (node) => node.className === "candidate-name")[0]!.textContent).toBe("Demo.cpp");
+    expect(findNodes(candidateRow, (node) => node.className === "candidate-path")[0]!.textContent).toBe(" · src");
+    expect(findNodes(candidateRow, (node) => node.className === "row-name")).toHaveLength(0);
+    expect(findNodes(candidateRow, (node) => node.className === "row-path")).toHaveLength(0);
+    const style = findNodes(element.shadow, (node) => node.tagName === "style")[0]!.textContent;
+    expect(style).toContain("display: grid; gap: 4px;");
+    expect(style).toContain("position: sticky; z-index: 12; top: 0;");
+    expect(style).toContain("padding: 2px 5px 3px;");
+    expect(style).toContain("grid-auto-rows: 40px; gap: 0;");
+    expect(style).toContain(".current-identity { display: flex;");
+    expect(style).toContain(".candidate-list { grid-auto-rows: 30px; gap: 0; }");
+    expect(style).toContain(".candidate-row { display: flex;");
+    expect(style).toContain("padding: 2px 4px;");
+    expect(style).toContain(".candidate-label { flex: 1 1 auto;");
+    expect(style).toContain(".candidate-name { color: var(--vscode-foreground); font-weight: 600; }");
+    expect(style).toContain(".candidate-path { color: var(--vscode-descriptionForeground);");
+    expect(findNodes(element.shadow, (node) => node.className === "action-icon")).toHaveLength(6);
   });
 
   it("Host 快照重绘时复用控制面板，并保留四个 Block 的折叠与列表滚动", async () => {

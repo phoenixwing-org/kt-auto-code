@@ -13,3 +13,9 @@
 - Do not describe a local integration check as passed until `pnpm ext:dev:prepare` has completed successfully.
 
 See [doc/本地Wing并列开发.md](doc/本地Wing并列开发.md) for commands and the manual checklist.
+
+## Compact manager lists
+
+- Primary/sidebar manager file rows default to one continuous `file name · relative path` label. Let that single label consume the remaining width and ellipsize as a whole; do not reserve separate fixed or percentage widths for the name and path. Inline child spans may distinguish the file name (primary/semibold) from the path (secondary/smaller), but both must remain inside the same flexible truncation container.
+- Keep status/count/encoding badges in one fixed right-side tail. Preserve the full path in `title` and `aria-label`.
+- For VS Code-style manager blocks, prefer full-width section borders and very small internal padding over card-like outer horizontal gaps. Retain a small inner inset for text and icon toolbars so interactive content does not touch the edge.

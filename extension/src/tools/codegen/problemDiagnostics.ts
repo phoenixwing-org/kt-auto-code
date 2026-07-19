@@ -1,4 +1,5 @@
 import type { KtCodegenDiagnostic } from "@phoenix-wing/kt-codegen";
+import { ktcCodegenDiagnosticControlLabel } from "./applyLog.js";
 
 export interface KtcCodegenProblemLocation {
   readonly file: string;
@@ -22,7 +23,7 @@ export function ktcProjectCodegenProblems(
       column: Math.max(0, Math.trunc(diagnostic.path?.column ?? 0)),
       severity: diagnostic.severity,
       code: diagnostic.code,
-      message: diagnostic.message,
+      message: `[KT Auto Code] ${ktcCodegenDiagnosticControlLabel(diagnostic)}${diagnostic.code}：${diagnostic.message}`,
     }];
   });
 }

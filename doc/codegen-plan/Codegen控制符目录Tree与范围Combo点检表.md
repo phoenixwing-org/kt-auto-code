@@ -14,7 +14,7 @@ Owner：KT Auto Code maintainers
 
 目录只改变显示投影。32 个 legacy block（C++ 4、Qt 2、CAA 26）全部保留，包含 legacyId 20、21、30 三个 `legacy-deprecated` 项。任何由 Tree 发出的 `blockKeys`，以及 Host session 接受的选择和输出，都必须按全局 legacyId 顺序校验、去重，不能变成 C++ / Qt / CAA 的显示顺序。
 
-Primary 面向用户显示稳定编号 `#0–#31`，与内部 `legacyId` 完全同号；协议、排序、日志和界面不得建立第二套编号或迁移数据。旧兼容项使用标题后的独立标签，例如 `#30 Cmd Element Selected · [旧兼容]`；该标签不替代“命中/未闭合/未命中”预检状态，也不在右侧平台标签旁重复。JSON View 的预检结果在左侧命中/可关联问题和右侧详情显示同一 `#编号` 小标签；Preflight/Apply Output 的结构化控制符诊断也以前缀 `#legacyId blockKey ·` 显示同号编号，方便从日志反查页面。无法可靠关联控制符的通用诊断不猜编号。
+Primary 面向用户显示稳定的 `#0–#31` 小型编号标签，与内部 `legacyId` 完全同号，并与 JSON View 预检结果的编号标签保持一致；协议、排序、日志和界面不得建立第二套编号或迁移数据。旧兼容项使用标题后的独立标签，例如 `[#30] Cmd Element Selected · [旧兼容]`；该标签不替代“命中/未闭合/未命中”预检状态，也不在右侧平台标签旁重复。JSON View 的预检结果在左侧命中/可关联问题和右侧详情显示同一 `#编号` 小标签；Preflight/Apply Output 的结构化控制符诊断也以前缀 `#legacyId blockKey ·` 显示同号编号，方便从日志反查页面。无法可靠关联控制符的通用诊断不猜编号。
 
 ## 责任图
 

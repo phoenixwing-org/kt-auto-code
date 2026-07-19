@@ -14,37 +14,45 @@ export type KtcCodegenPrimaryActionDetail =
     };
 
 const STYLE = `
-  :host { position: relative; display: grid; gap: 9px; min-height: 0; color: var(--vscode-foreground); font: 12px/1.35 var(--vscode-font-family); }
+  :host { position: relative; display: grid; gap: 4px; min-height: 0; color: var(--vscode-foreground); font: 12px/1.35 var(--vscode-font-family); }
   * { box-sizing: border-box; }
   button, input { font: inherit; }
   button { cursor: pointer; }
   button:focus-visible, input:focus-visible, summary:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
-  .actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .actions { position: sticky; z-index: 12; top: 0; display: flex; flex-wrap: nowrap; gap: 2px; padding: 2px 5px 3px; overflow: hidden; background: var(--vscode-sideBar-background, var(--vscode-editor-background)); border-bottom: 1px solid var(--vscode-panel-border); }
   .action { min-height: 27px; padding: 3px 9px; color: var(--vscode-button-foreground); background: var(--vscode-button-background); border: 1px solid var(--vscode-button-background); border-radius: 3px; }
   .action.secondary, .text-button { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border-color: var(--vscode-panel-border); }
   .text-button { min-height: 25px; padding: 2px 7px; border: 1px solid var(--vscode-panel-border); border-radius: 3px; }
+  .actions .action, .actions .text-button { display: inline-grid; flex: 0 0 28px; width: 28px; height: 28px; min-height: 28px; place-items: center; padding: 0; overflow: hidden; font-size: 0; }
+  .action-icon { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
   button:disabled { opacity: .5; cursor: not-allowed; }
   .hint { color: var(--vscode-descriptionForeground); font-size: 11px; }
-  .properties { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 7px 8px; padding: 9px; border: 1px solid var(--vscode-panel-border); border-radius: 5px; background: var(--vscode-editorWidget-background, transparent); }
-  .property { display: grid; gap: 3px; min-width: 0; }
+  .properties { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 6px; padding: 5px 6px; border: 1px solid var(--vscode-panel-border); border-radius: 5px; background: var(--vscode-editorWidget-background, transparent); }
+  .property { display: grid; gap: 1px; min-width: 0; }
   .property span { color: var(--vscode-descriptionForeground); font-size: 10px; }
-  .property input { width: 100%; min-width: 0; height: 27px; padding: 3px 6px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, var(--vscode-panel-border)); border-radius: 2px; }
+  .property input { width: 100%; min-width: 0; height: 25px; padding: 2px 5px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, var(--vscode-panel-border)); border-radius: 2px; }
   .mini { min-width: 0; overflow: hidden; border: 1px solid var(--vscode-panel-border); border-radius: 5px; background: var(--vscode-editor-background); }
-  .mini > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; padding: 5px 8px; color: var(--vscode-descriptionForeground); background: var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background)); font-size: 11px; font-weight: 650; cursor: pointer; user-select: none; }
+  .mini > summary { display: flex; align-items: center; justify-content: space-between; gap: 5px; min-height: 28px; padding: 3px 5px; color: var(--vscode-descriptionForeground); background: var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background)); font-size: 11px; font-weight: 650; cursor: pointer; user-select: none; }
   .mini > summary::-webkit-details-marker { display: none; }
   .mini > summary::before { content: "›"; flex: 0 0 auto; font-size: 16px; line-height: 1; }
   .mini[open] > summary::before { transform: rotate(90deg); }
   .mini-title { margin-right: auto; color: var(--vscode-foreground); }
   .mini-count { white-space: nowrap; font-weight: 500; }
-  .current-config > summary { align-items: flex-start; justify-content: flex-start; }
-  .current-identity { display: grid; flex: 1 1 auto; min-width: 0; gap: 2px; }
-  .current-file { min-width: 0; overflow: hidden; color: var(--vscode-foreground); text-overflow: ellipsis; white-space: nowrap; }
-  .current-meta { overflow: hidden; color: var(--vscode-descriptionForeground); font-size: 10px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+  .current-config > summary { justify-content: flex-start; }
+  .current-identity { display: flex; flex: 1 1 auto; min-width: 0; align-items: baseline; gap: 6px; }
+  .current-file { flex: 0 1 52%; min-width: 0; max-width: 52%; overflow: hidden; color: var(--vscode-foreground); text-overflow: ellipsis; white-space: nowrap; }
+  .current-meta { flex: 1 1 auto; min-width: 0; overflow: hidden; color: var(--vscode-descriptionForeground); font-size: 10px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
   .current-config > .properties { border: 0; border-top: 1px solid var(--vscode-panel-border); border-radius: 0; }
   .mini[open] > .list { border-top: 1px solid var(--vscode-panel-border); }
-  .list { display: grid; grid-auto-rows: 48px; gap: 3px; max-height: 252px; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
-  .candidate-list { gap: 2px; }
-  .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 8px; width: 100%; padding: 7px 8px; border: 1px solid transparent; border-radius: 4px; color: var(--vscode-foreground); background: transparent; text-align: left; }
+  .list { display: grid; grid-auto-rows: 40px; gap: 0; max-height: 252px; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+  .candidate-list { grid-auto-rows: 30px; gap: 0; }
+  .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 6px; width: 100%; padding: 3px 5px; border: 1px solid transparent; border-radius: 4px; color: var(--vscode-foreground); background: transparent; text-align: left; }
+  .candidate-row { display: flex; min-width: 0; min-height: 30px; align-items: center; gap: 6px; padding: 2px 4px; border: 0; border-bottom: 1px solid var(--vscode-panel-border); border-radius: 0; }
+  .candidate-row:last-child { border-bottom: 0; }
+  .candidate-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .candidate-name { color: var(--vscode-foreground); font-weight: 600; }
+  .candidate-path { color: var(--vscode-descriptionForeground); font-size: 11px; font-weight: 400; }
+  .candidate-row .tags { flex: 0 0 auto; grid-row: auto; grid-column: auto; }
   .row:hover { background: var(--vscode-list-hoverBackground); }
   .row.active { color: var(--vscode-list-activeSelectionForeground); background: var(--vscode-list-activeSelectionBackground); border-color: var(--vscode-focusBorder); }
   .row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
@@ -194,9 +202,35 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
     button.className = className;
     button.textContent = label;
     button.title = title;
+    button.setAttribute("aria-label", label);
     button.disabled = disabled;
+    button.append(this.actionIcon(action));
     button.onclick = () => this.emit({ action });
     return button;
+  }
+
+  private actionIcon(action: KtcCodegenPrimaryActionDetail["action"]): SVGSVGElement {
+    type ToolbarAction = "openJson" | "importCsv" | "applyAll" | "refresh" | "scanCandidates" | "cancelOperation" | "copyDiagnostics";
+    const toolbarAction = action as ToolbarAction;
+    const paths: Record<ToolbarAction, readonly string[]> = {
+      openJson: ["M3 6h6l2 2h10v10H3z", "M15 10v6", "M12 13h6"],
+      importCsv: ["M5 3h9l5 5v13H5z", "M14 3v5h5", "M12 10v7", "M9 14l3 3 3-3"],
+      applyAll: ["M4 7h10", "M4 12h7", "M4 17h6", "M14 16l2 2 4-5"],
+      refresh: ["M20 7v5h-5", "M19 12a7 7 0 1 1-2-5"],
+      scanCandidates: ["M4 5h10", "M4 10h7", "M4 15h5", "M16 15l4 4", "M18 13a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"],
+      cancelOperation: ["M6 6l12 12", "M18 6 6 18"],
+      copyDiagnostics: ["M8 8h11v13H8z", "M5 16H3V3h11v2"],
+    };
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.classList.add("action-icon");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    for (const data of paths[toolbarAction]) {
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", data);
+      svg.append(path);
+    }
+    return svg;
   }
 
   private property(
@@ -234,7 +268,6 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
 
   private currentConfigSummary(active: KtcCodegenPrimaryViewModel["documents"][number]): HTMLElement {
     const summary = document.createElement("summary");
-    summary.title = active.fileName;
     const identity = document.createElement("span");
     identity.className = "current-identity";
     const name = document.createElement("span");
@@ -286,10 +319,28 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
     list.setAttribute("aria-busy", String(model.operation === "candidates"));
     for (const candidate of model.candidates) {
       const name = candidate.displayPath.split(/[\\/]/u).at(-1) ?? candidate.displayPath;
-      const row = this.row(name, candidate.displayPath);
+      const separatorIndex = Math.max(candidate.displayPath.lastIndexOf("/"), candidate.displayPath.lastIndexOf("\\"));
+      const directory = separatorIndex >= 0 ? candidate.displayPath.slice(0, separatorIndex) : "";
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "row candidate-row";
+      const label = document.createElement("span");
+      label.className = "candidate-label";
+      const candidateName = document.createElement("span");
+      candidateName.className = "candidate-name";
+      candidateName.textContent = name;
+      label.append(candidateName);
+      if (directory) {
+        const candidatePath = document.createElement("span");
+        candidatePath.className = "candidate-path";
+        candidatePath.textContent = ` · ${directory}`;
+        label.append(candidatePath);
+      }
+      const tags = document.createElement("span");
+      tags.className = "tags";
+      row.append(label, tags);
       row.title = `打开 ${candidate.displayPath}`;
       row.setAttribute("aria-label", `${row.title}，${candidate.markerCount} 个控制标记，${candidate.encoding}`);
-      const tags = row.querySelector<HTMLElement>(".tags")!;
       tags.append(this.tag(`${candidate.markerCount} 标记`), this.tag(candidate.encoding));
       row.onclick = () => this.emit({ action: "openCandidate", uri: candidate.uri });
       list.append(row);
