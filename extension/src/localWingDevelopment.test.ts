@@ -88,7 +88,7 @@ describe("本地 Wing 并列开发解析", () => {
     expect(() => verifyLocalWingBuildResults({
       results: [{ metafile: { inputs: {
         ...localInputs,
-        "/consumer/node_modules/.pnpm/@phoenix-wing+code-core@0.4.2/node_modules/@phoenix-wing/code-core/dist/index.js": {},
+        "/consumer/node_modules/.pnpm/@phoenix-wing+code-core@0.4.3/node_modules/@phoenix-wing/code-core/dist/index.js": {},
       } } }],
       wingRoot: root,
       expectedPackages: LOCAL_WING_ALL_PACKAGES,

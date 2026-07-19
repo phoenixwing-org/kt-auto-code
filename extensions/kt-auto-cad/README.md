@@ -20,4 +20,4 @@
 
 本插件是 thin companion，不在 VSIX 内置 Rust 二进制。Desk Tools 从 `@phoenix-wing/cad-rust-source` 编译并随桌面安装包发布 `runtime/native-provider.json`；用户执行 FCStd native 读取时才选择 Desk Tools 安装目录或该清单，插件使用 Wing `cad-contracts` v1 guard 校验平台、相对路径、SHA-256、能力及 `fcstd-read`/`fcstd-xlink` 的 `--protocol-version`。未配置 provider 时，文件名分析、工作区检索、基础 View 和已有数据库查询仍可使用。
 
-当前仓库从 npm Registry 精确消费 Wing CAD 小包 `0.4.2`，不再通过 pnpm override 解析到相邻工作副本；发布包中的算法已被 esbuild 收入 thin bundle。Workspace Schema 兼容性 fixture 直接来自 Registry，未知未来版本按 fail-closed 策略拒绝写入。完整端到端发布验收仍需与 Desk Tools 安装态 provider 完成联调。
+当前仓库从 npm Registry 精确消费 Wing CAD 小包 `0.4.3`，不再通过 pnpm override 解析到相邻工作副本；发布包中的算法已被 esbuild 收入 thin bundle。Workspace Schema 兼容性 fixture 直接来自 Registry，未知未来版本按 fail-closed 策略拒绝写入。完整端到端发布验收仍需与 Desk Tools 安装态 provider 完成联调。

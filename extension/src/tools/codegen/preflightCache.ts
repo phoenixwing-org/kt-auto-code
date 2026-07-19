@@ -4,9 +4,10 @@ export const KTC_CODEGEN_CACHE_SCHEMA_VERSION = 1 as const;
 /**
  * 解析/渲染语义变化时递增，阻止复用旧 Plan。
  * 0.3.2：Marker 边界恢复语义变化，丢弃含旧 nested/mismatched 级联诊断的缓存并重新 Analyze。
+ * 0.3.3：正式切换到 Wing 0.4.3，拒绝复用 Registry 0.4.2 生成的计划。
  * 缓存失效只负责重算计划；Apply 仍由新 Plan、指纹、dirty 与事务门禁共同决定。
  */
-export const KTC_CODEGEN_GENERATOR_VERSION = "0.3.2";
+export const KTC_CODEGEN_GENERATOR_VERSION = "0.3.3";
 
 export interface KtcCodegenMarkerIndexEntry {
   readonly path: string;
@@ -72,8 +73,8 @@ export function ktcValidCodegenPreflightCache(
     && value.markerIndexRevision === markerIndexRevision
     && value.generatorVersion === KTC_CODEGEN_GENERATOR_VERSION
     && value.plan?.kind === "kt.codegen.plan"
-    // Registry 0.4.2 与本地 Wing 曾写入同一 generatorVersion；旧扫描器的
-    // 特征诊断不能跨构建来源复用，必须交给当前嵌入的扫描器重新 Analyze。
+    // 0.3.2 期间 Registry 0.4.2 与本地 Wing 曾使用相同版本；继续保留
+    // 特征诊断兜底，防止外部或损坏缓存伪造为当前生成器版本。
     && !containsLegacyMarkerCascade;
 }
 

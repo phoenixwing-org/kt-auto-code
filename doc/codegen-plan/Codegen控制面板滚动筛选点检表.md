@@ -130,7 +130,7 @@ Owner：KT Auto Code maintainers
 | C2 | 全仓测试 | 105 files / 512 tests | [x] |
 | C3 | Extension typecheck | `pnpm --dir extension run typecheck` 通过 | [x] |
 | C4 | 架构边界 | 137 sources / 24 pure graphs / 13 view roots | [x] |
-| C5 | Wing Registry / 本地联调 | 7 references 保持 Registry 0.4.2、无 override；`pnpm ext:dev:prepare` 验证扩展实际嵌入并列 Wing dist | [x] |
+| C5 | Wing Registry / 本地联调 | 7 references 保持 Registry 0.4.3、无 override；`pnpm ext:dev:prepare` 验证扩展实际嵌入并列 Wing dist | [x] |
 | C6 | 文档 | 68 Markdown，分类与当前链接有效 | [x] |
 | C7 | VSIX | 28 files / 422,617 bytes；共享 panel 与 visible scope 门禁通过 | [x] |
 

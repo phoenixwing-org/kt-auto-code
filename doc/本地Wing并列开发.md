@@ -6,7 +6,7 @@ Owner：KT Auto Code maintainers
 
 适用版本：0.5.x
 
-最后核验：2026-07-18
+最后核验：2026-07-19
 
 ## 目标与目录约定
 
@@ -61,7 +61,7 @@ Desk Tools 是 Auto CAD 的可选 native provider，不由本命令构建或启�
 
 `pnpm dev` 会重新构建并嵌入并列 Wing，但不会直接删除真实工作区的 `.phoenix/cache/codegen`。当 Wing 的 Marker 解析或 Renderer 语义发生变化时，必须同步递增 Auto Code 的 `KTC_CODEGEN_GENERATOR_VERSION`；旧版本 Preflight Plan 才会失效并重新 Analyze。只更新 Wing、却不更新该版本，会让新 bundle 继续复用旧诊断，看起来像本地修复没有生效。
 
-当前正式 Registry 依赖仍是 Wing 0.4.2，本地并列 Wing 已含下一控制符边界恢复规则。为防止 Registry 构建与本地构建在同一工作区交叉写缓存，即使版本标签相同，只要缓存仍带有旧扫描器特有的 `marker.nested-start` 或 `marker.mismatched-end` 级联诊断，也会强制重新 Analyze。
+当前正式 Registry 依赖是 Wing 0.4.3；Codegen 生成器版本同步提升后，0.4.2 计划会强制重新 Analyze。为防止旧本地联调缓存伪装为新版本，只要缓存仍带有旧扫描器特有的 `marker.nested-start` 或 `marker.mismatched-end` 级联诊断，也会强制重算。
 
 缓存失效只触发重新预检，不会放宽 Apply：缺失 End 的坏块仍不产生可写 region，源码指纹、未保存文件、区域重叠与事务回滚门禁保持不变。
 
@@ -88,6 +88,6 @@ Desk Tools 是 Auto CAD 的可选 native provider，不由本命令构建或启�
 - Code 本地 bundle 包含新的 `marker.missing-end ... before Start/End marker` 边界恢复逻辑；旧扫描实现消息 `A foreign Start marker appears before`、`appears inside the open` 与 `does not close` 均为 0 命中。
 - 本地开发链在扩展构建前直接执行反例自检；结果为 2 条 `marker.missing-end`、5 个后续区域、`nested/mismatched=0`。
 - 本地构建激活后显示 `Auto · Wing 本地` 状态栏标识；Registry 构建不显示，也不泄漏本地路径。
-- Codegen 生成器缓存版本为 `0.3.2`；已有 `0.3.1` 计划会在下一次预检时失效并重新 Analyze。
-- `pnpm ext:dev:registry:prepare`：Registry 0.4.2 对照构建通过，未启动 GUI。
+- Codegen 生成器缓存版本为 `0.3.3`；已有 `0.3.2` 计划会在下一次预检时失效并使用 Wing 0.4.3 重新 Analyze。
+- `pnpm ext:dev:registry:prepare`：Registry 0.4.3 对照构建作为 0.5.1 发布门禁，且不启动 GUI。
 - 泄漏 `PHOENIX_WING_ROOT` 的普通 `extensions:build` 按设计失败；不存在 Wing 根目录的 `ext:dev:check` 按设计失败。

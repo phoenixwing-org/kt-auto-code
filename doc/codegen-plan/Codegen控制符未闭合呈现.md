@@ -6,7 +6,7 @@ Primary 的控制符目录采用互斥状态：`命中`、`未闭合`、`未命�
 
 当同一控制符存在 `marker.missing-end` 或 `marker.orphan-end` 时，目录状态优先显示“未闭合”，避免错误被“命中”或“未命中”掩盖。预检首次产生未闭合错误时，目录默认切到“未闭合”筛选。
 
-状态投影只消费 Wing 诊断的可选结构化 `marker` 上下文（kind、classId、blockKey、boundary），不得从英文 `message` 反向解析身份或停止位置。Registry 0.4.2 没有该字段时保持原有“未命中”显示；本地联合开发及 Wing 下一补丁版本提供结构字段后启用“未闭合”，避免文案变化破坏 UI。
+状态投影只消费 Wing 0.4.3 诊断的结构化 `marker` 上下文（kind、classId、blockKey、boundary），不得从英文 `message` 反向解析身份或停止位置。`marker.missing-end` 与 `marker.orphan-end` 均投影为“未闭合”，避免文案变化破坏 UI。
 
 ## 详情与安全操作
 

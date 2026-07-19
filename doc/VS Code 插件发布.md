@@ -9,7 +9,7 @@
 - Marketplace 发布者 ID：`kuntai`
 - Marketplace 发布者名称：`Shanghai Kuntai`
 - 当前版本：以 [`extension/package.json`](../extension/package.json) 的 `version` 为准
-- `0.1.1`：仅本地打包验证 Marketplace 图标，不上传 Marketplace；当前正在准备 `0.2.0`，未上传 Marketplace 前仍视为本地发布候选。
+- Marketplace 当前公开版本为 `0.5.0`；本轮 `0.5.1` 是 Wing 0.4.3 消费与既有 Codegen 缺陷改进的 patch 版本。
 - 开源许可：[Apache License 2.0](../LICENSE)
 
 当前扩展标识由下列清单字段组成：

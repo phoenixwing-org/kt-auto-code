@@ -12,7 +12,7 @@ Owner：KT Auto Code maintainers
 
 - Code、CAD 两个扩展可以独立 typecheck、打包为 VSIX，并由制品检查验证必要文件。
 - 自动测试覆盖纯核心、宿主 adapter、Codegen 文档模型、事务与回归场景；精确数量由 CI 结果维护，不作为源码断言。
-- Wing 依赖均锁定 Registry 0.4.2；manifest、override 与 lockfile 的本地路径回退已被 `verify:wing-dependencies` 阻止。Auto Code 直接消费 Registry 内的 Codegen、Workspace Schema 和纯能力契约 fixture，不再保留 Apply 契约副本。
+- Wing 依赖均锁定 Registry 0.4.3；manifest、override 与 lockfile 的本地路径回退已被 `verify:wing-dependencies` 阻止。Auto Code 直接消费 Registry 内的 Codegen、Workspace Schema 和纯能力契约 fixture，不再保留 Apply 契约副本。
 - 0.4 Block 工作流、Codegen 预检/Apply 与共享 workset 已进入稳定基线；旧实施清单保留为历史证据。
 
 ## 当前优先级
@@ -23,6 +23,7 @@ Owner：KT Auto Code maintainers
 4. 从 P1 去重队列提炼两个无 UI 能力；优先 workset/ignore/path 与 encoding/file-core，不迁移 VS Code 命令或 Webview 状态。
 5. 保持双 VSIX 可复现，并在 Wing 升级时先运行 Registry 防回退、全测和制品门禁。
 6. Codegen `全部应用` V1 已落地：一次确认后冻结当前 JSON 列表，逐个打开 View，串行 Preflight → Apply，并用 Primary/View 遮罩锁定 Auto Code 操作；单份错误继续后续项，最终输出简短总计并自动新开一次性轻量结构化报告。全量预检屏障、跨 JSON 冲突、独立批次 Problems、取消与可重建完整报告保留为 2.0，见 `codegen-plan/Codegen全部应用与批量报告计划.md`。
+7. 0.5.1 定位为 patch：只发布既有 Codegen 流程的安全性、状态稳定性、紧凑呈现与 Wing 0.4.3 消费升级，不新增公共命令或扩展 API。
 
 ## 已完成第一波：Codegen 控制符目录与模板日志
 
@@ -51,7 +52,7 @@ Owner：KT Auto Code maintainers
 
 ### 文本与数据真源
 
-- Start/End 必须调用 Registry `@phoenix-wing/kt-codegen@0.4.2` 的 `KtCodegenMarker.createStart()` / `createEnd()`，class identity 使用当前 `KtCodegenParam` 的 Prefix/Middle 与各行 `NameSuffix`；前端不得硬编码 Kevin marker 文本。
+- Start/End 必须调用 Registry `@phoenix-wing/kt-codegen@0.4.3` 的 `KtCodegenMarker.createStart()` / `createEnd()`，class identity 使用当前 `KtCodegenParam` 的 Prefix/Middle 与各行 `NameSuffix`；前端不得硬编码 Kevin marker 文本。
 - Primary compact 与 JSON View full 的单项/当前筛选日志动作共用同一规则：当前 JSON 已打开且 Host session 存在时，必须用该 session 的共享 `KtCodegenController` 调用 Wing Analyze/Renderer，输出包含真实参数生成代码的完整 artifact；只有没有打开 session/controller 时才允许退化为仅含 Start/End 的空框架。两处不得分别拼接正文。
 - JSON View 的输出按钮必须先交换当前整表草稿、再发送与 Primary 相同的 `codegenControlOutput` 语义命令；Extension Host 依消息顺序更新 session 后统一生成并写日志，Webview 不直接拼接或持有日志实现。Primary 直接使用 Host 中同一 session，View 是否显示不改变日志服务边界。
 - 单项和当前筛选输出同时复制可直接粘贴的源码块：剪贴板不得包含 `[Codegen]` 摘要或 `# legacyId` 标题；真实 artifact 沿用 Wing Renderer 的空行与 `clang-format off/on`，无 session 的空框架必须保持 `Start → 空行 → clang-format off → 空行 → #error \"Run KT Auto Code Apply to generate this block\" → 空行 → clang-format on → End`。显式 `#error` 防止首次布点后忘记执行 Apply 却静默编译通过，Apply 替换整个 marker 区域后自然消失。剪贴板由 Extension Host 写入，Webview 不直接访问 Clipboard API。
@@ -74,7 +75,7 @@ Owner：KT Auto Code maintainers
 - [x] Browser 在 1600×900、1000×650、760×480、560×420 下验证 32 行目录和 32 条结果均为 `clientHeight == scrollHeight`；560×420 页面为 `420 / 2331`，右侧宽内容为 `306 / 520` 横向滚动，左右没有纵向滚动。
 - [x] 预检完成后左目录和右结果默认只显示命中；显示筛选与 Preflight/Apply 勾选语义拆开，输出只处理当前筛选。
 - [ ] 深色、浅色、高对比真实 VS Code 中的滚轮、滚动条 thumb 和 Artifact 横向滚动仍由用户/真实宿主回执；详见 `codegen-plan/Codegen控制面板滚动筛选点检表.md` D 组。
-- [ ] 高对比主题下参数表选中行文字对比度不足：Wing 本地候选 `be6a781` 已让表格区域聚焦时使用 `list.activeSelection*`、失焦时改用 `list.inactiveSelection*`，没有引入固定颜色；kt-codegen 25 个文件、99 项测试及类型/文档门禁通过。仍待 Auto Code 本地 Wing Host 手工复测，正式完成还需随 Wing 发布并由 Auto 升级消费。来源：2026-07-19 真实 Host 截图。
+- [x] 高对比主题下参数表选中行改用宿主 `list.activeSelection*` / `list.inactiveSelection*` token；用户已在真实 Host 确认文字清晰，修正随 Wing 0.4.3 正式发布并由 Auto Code 0.5.1 精确消费。
 - [x] 参数表的 Header 和工具位于 Wing `KtCodegenTable` Shadow DOM；Auto 已通过公开 `layout="page" + collapsible` 属性接线，不穿透私有 DOM。折叠只隐藏 table shell/statusbar，Header 和全部工具保留；每个隐藏 JSON View 依靠 `retainContextWhenHidden` 保留本地折叠状态。正式 Registry 消费仍随 Wing 后续版本发布与依赖升级闭环。
 
 ## 已完成第二个切口：Primary Codegen 页面壳

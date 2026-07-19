@@ -47,10 +47,10 @@ describe("Codegen preflight cache data model", () => {
     expect(ktcValidCodegenPreflightCache(cache, cache.documentUri, cache.configFingerprint, 5)).toBe(false);
   });
 
-  it("0.3.2 拒绝 0.3.1 级联计划，以重新 Analyze 恢复后续完整兄弟块", () => {
-    const oldMarkerPlan = { ...cache, generatorVersion: "0.3.1" };
+  it("0.3.3 拒绝 0.3.2 计划，以 Wing 0.4.3 重新 Analyze", () => {
+    const oldMarkerPlan = { ...cache, generatorVersion: "0.3.2" };
 
-    expect(KTC_CODEGEN_GENERATOR_VERSION).toBe("0.3.2");
+    expect(KTC_CODEGEN_GENERATOR_VERSION).toBe("0.3.3");
     expect(ktcValidCodegenPreflightCache(
       oldMarkerPlan,
       oldMarkerPlan.documentUri,

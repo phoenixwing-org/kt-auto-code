@@ -25,7 +25,7 @@
 
 CAA 外部编辑默认调用 `http://127.0.0.1:5180/api/caa/dialog/open`。若希望由插件启动桌面 EXE，请配置 `Kt Auto Code › Caa › External Editor: Command`，并把参数设为 `--workspace`、`${workspace}`、`--catdlg`、`${file}`；配置 command 后优先使用 EXE。
 
-0.5.0 初步完成旧 Qt/VB Codegen 自动代码能力迁移。控制符、预检、问题和 Artifact 预览内嵌在当前 JSON View；JSON 列表与候选列表位于左侧可收缩 Block。当前版本已覆盖参数编辑、保存、预检和单份 JSON Apply，工作区级 Apply All 仍留待后续版本。
+0.5.1 将正式依赖升级到 Phoenix Wing 0.4.3，并集中修正既有 Codegen 自动代码流程：控制符缺失 Start/End 时隔离坏块、保留完整区域安全 Apply，Primary/预检/Problems 使用统一编号；参数编辑、保存、预检、单份 Apply 与带报告的简版全部应用均保持在同一工作流内。本补丁不新增公共命令或扩展 API。
 
 0.4.0 已把单 Block 工作流推广到其他模块。对于原文件为 ASCII、替换目标含中文等非 ASCII 字符的情况，可在搜索替换界面选择默认 UTF-8 或 GBK 编码。
 
