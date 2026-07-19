@@ -1,82 +1,77 @@
-# Codegen 全部应用点检表
+# Codegen 全部应用 V1 实现与点检
 
 状态：current
 
 Owner：KT Auto Code maintainers
 
-适用版本：0.5.x 后续迭代
+适用版本：0.5.x
 
-建立日期：2026-07-18
+最后核验：2026-07-19
 
-状态约定：`[x]` 只表示已经有代码或可重复证据；设计完成但尚未实现的项目仍为 `[ ]`。
+本文件是简版“全部应用”的当前行为真源。V1 的目标是复用已经验证的单 JSON View 流程，快速提供工作区级串行入口，并在本次运行结束后给出一页轻量结构化报告；全量预检屏障、跨 JSON 冲突分析、独立批次 Problems、取消协议与持久化最近报告仍属于 [`全部应用 2.0`](Codegen全部应用与批量报告计划.md)。
 
-## A. 需求与旧版边界
+## 1. V1 用户流程
 
-| ID | 点检项 | 预期 | 状态 |
+1. Primary 显示文字按钮 `全部应用`；只有当前已发现的有效 Codegen JSON 进入批次。
+2. 点击后一次确认：明确提示会逐个打开 JSON View，并逐份运行 Preflight 与 Apply。
+3. 确认后冻结当前 Primary JSON 稳定列表，严格串行处理；运行中新增 JSON 不加入本批次。
+4. 每份 JSON 都通过显式 URI 建立/切换自己的 Host session，再执行 `runPreflight(session)` 与 `apply(session)`；正确性不依赖“当前活动 View”。
+5. 单份有错误、没有计划或未写入时记录结果并继续下一份。`missing-end/orphan-end` 的安全区域仍复用 Wing 的部分 Apply；其他错误继续 fail-closed。
+6. 每份 JSON 的诊断保留在自己的 session Problems 中。V1 不建立独立批次 Problems。
+7. 完成后 Output 输出每 JSON 一行和一个简单总计；同时自动新开一个临时 `Codegen 全部应用报告` 标签。报告直接消费运行过程中的结构化 DTO，不解析 Output。
+8. 轻量报告上半部显示完成/部分完成/未写入/错误/警告/总耗时，下方显示每 JSON 的 URI、状态、预检区域/产物/诊断/错误数、实际修改文件数、实际写入区域数和单项耗时，再下方列出最小问题字段 `severity/code/message/file/line`。实际写入数来自单项 Apply 的结构化 outcome，不能用预检命中数冒充；报告不保存源码或 artifact 正文，关闭后不持久化。
+
+## 2. 运行锁与遮罩
+
+- Primary 与所有已打开/新打开的 Codegen JSON View 显示 `N / M + 当前文件名` 的运行遮罩，阻止重复点击 Auto Code 操作。
+- 遮罩只覆盖 Auto Code Primary 和 Codegen JSON View，不阻塞整个 VS Code。
+- 扩展重载、重新进入工具或批次结束后，没有有效 `{current,total,fileName}` 进度对象时不得仅凭残留 operation 显示遮罩；该幽灵状态必须自动解除。
+- watcher 触发的 JSON/源码刷新在批次期间合并延后，批次结束后再恢复，不能插入当前串行 Apply。
+- View 切换不影响批次：批次始终使用冻结 URI 查找 session。
+
+## 3. 自动点检
+
+| ID | 点检项 | 自动证据 | 状态 |
 |---|---|---|---|
-| A1 | 旧版来源 | Qt `Project.ApplyAll` 已追溯；VB 空按钮不再误当实现 | [x] |
-| A2 | 入口位置 | Primary 工作区 / JSON 列表 Block 使用文字按钮 `全部应用` | [ ] |
-| A3 | 候选范围 | 只处理点击时已发现的有效 Codegen JSON 快照 | [ ] |
-| A4 | 稳定顺序 | workspace + 相对路径 + 文件名字典序固定 | [ ] |
-| A5 | 不扰动编辑上下文 | Headless 加载，不逐个打开 View、不切换 activeUri | [ ] |
+| A1 | Primary 有 `全部应用`，无 JSON 时禁用 | `primaryPanel.test.ts` | [x] |
+| A2 | 点击前一次 modal 确认，取消时零 Preflight/Apply | Host characterization + `index.ts` | [x] |
+| A3 | 候选来自冻结的 `summaries()` 稳定列表 | `index.ts`、既有列表排序测试 | [x] |
+| A4 | 每项显式 `openKnownDocument(uri)` 后取同 URI session | Host characterization | [x] |
+| A5 | 每项严格 Preflight → Apply，异常后继续下一项 | Host characterization + 单项既有测试 | [x] |
+| A6 | 完成/部分完成/未写入总计不混淆 | `batchApplyV1.test.ts` | [x] |
+| A7 | Primary 有真实进度才显示遮罩 | `primaryPanel.test.ts`、`panelHtml.test.ts` | [x] |
+| A8 | 残留 batch operation 无进度时自动解锁 | `primaryPanel.test.ts`、`panelHtml.test.ts` | [x] |
+| A9 | JSON View 遮罩消费 `codegenBatchState` 并设置 `aria-busy` | `editorHtml.test.ts` | [x] |
+| A10 | 运行时 Editor/Primary 操作锁定，ready 仍可完成模型初始化 | Host characterization | [x] |
+| A11 | 批次期间 watcher 请求延后，结束后恢复 | Host characterization | [x] |
+| A12 | V1 不新增第二套写盘算法，仍调用既有 `apply(session)` | Host characterization | [x] |
+| A13 | 每批完成自动新建一个非持久、无脚本报告 Panel | `batchApplyReportViewController.test.ts` | [x] |
+| A14 | 报告由结构化 DTO 汇总，错误只保留最小定位字段 | `batchApplyReport.test.ts` | [x] |
+| A15 | 报告 HTML 支持主题、CSP 与不可信文本转义 | `batchApplyReportHtml.test.ts` | [x] |
+| A16 | 单项 Apply 早退返回零写入，成功返回实际修改文件/区域与完整诊断 | `applyOutcome.test.ts`、Host characterization | [x] |
+| A17 | 报告合并预检与 Apply 的 error/warning，且不重复同一问题 | `batchApplyReport.test.ts`、Host characterization | [x] |
 
-## B. 预检屏障与确认
+## 4. 人工点检
 
-| ID | 场景 | 预期 | 状态 |
-|---|---|---|---|
-| B1 | 正常批次 | 最后一个首轮 Preflight 完成后，才允许第一次 Apply | [ ] |
-| B2 | 无有效 JSON | 零写入，报告明确“无候选” | [ ] |
-| B3 | 全部无命中 | 标为 skipped，零写入，不弹空确认 | [ ] |
-| B4 | 部分 blocked | 确认框准确显示 blocked 不会应用，只确认 ready 项 | [ ] |
-| B5 | dirty/conflict | 对应 JSON blocked，不读取磁盘旧值冒充当前草稿 | [ ] |
-| B6 | 同 region 冲突 | 冲突项阻止写入，报告列出双方 JSON | [ ] |
-| B7 | 用户取消确认 | Apply 调用数为零，报告为 cancelled | [ ] |
-| B8 | 确认文案 | 显示总数、ready、跳过、阻止、预计唯一文件和区域 | [ ] |
+2026-07-19 用户回执：`全部应用` 已可运行，运行遮罩表现正常；批次内容和新报告明细尚未人工核对，所以下列逐项回执仍保持未勾选。
 
-## C. Apply 安全与取消
+- [ ] 在真实 PNX CAA 工作区点击 `全部应用`，确认弹窗准确显示 JSON 数量。
+- [ ] 确认 Primary 和逐个打开的 JSON View 均显示相同 N/M 与当前文件名，不能继续点击 Auto Code 操作。
+- [ ] 准备一份成功、一份 `missing-end` 但有安全区域、一份不可写入 JSON；确认后续 JSON 仍执行，Problems 分别保留。
+- [ ] 完成后确认遮罩立即消失，重新进入 Auto Code 不出现“正在准备 JSON View”的幽灵遮罩。
+- [ ] 检查 Output 只有简短逐项行和总计，完成/部分完成/未写入数量与实际一致。
+- [ ] 确认批次结束后自动新开 `Codegen 全部应用报告`；上半汇总、运行明细和问题列表数量一致。
+- [ ] 选一份实际写入多个区域的 JSON，确认“修改文件/写入区域”与 Apply 日志一致，不等同套用预检命中数。
+- [ ] 制造源码未保存或回执写入失败，确认问题列表分别显示 Apply error 或 warning。
+- [ ] 检查报告在深色/浅色主题和窄窗口下可读，表格只横向滚动；关闭报告后不产生 `.phoenix` HTML 文件。
+- [ ] Windows 发布态由用户后续手工点检，不冒充当前自动通过。
 
-| ID | 场景 | 预期 | 状态 |
-|---|---|---|---|
-| C1 | 串行执行 | 任意时刻最多一个 JSON 写盘；批次互斥 | [ ] |
-| C2 | 前项改过同文件 | 后项写入前重新预检或复验最新 fingerprint | [ ] |
-| C3 | JSON/source 中途变化 | 本项失败并停止剩余项，不使用过期 plan | [ ] |
-| C4 | 单项写盘失败 | 复用单项事务回滚；停止剩余项 | [ ] |
-| C5 | 回滚失败 | 批次立即停止并给出高优先级诊断 | [ ] |
-| C6 | Preflight 阶段取消 | 整批零写入 | [ ] |
-| C7 | Apply 阶段取消 | 当前事务到安全边界后停止，已成功项保留 | [ ] |
-| C8 | 单项/批量去重 | 两者调用同一个 `applyExecutor`，不存在复制的写盘算法 | [ ] |
-| C9 | 编码与 EOL | UTF-8/BOM/GBK、CRLF/LF 保持与单项 Apply 一致 | [ ] |
+## 5. V1 明确不做，转入 2.0
 
-## D. 报告与日志
-
-| ID | 点检项 | 预期 | 状态 |
-|---|---|---|---|
-| D1 | 每 JSON 行 | 状态、候选、region、artifact、诊断、文件、写入区域和耗时齐全 | [ ] |
-| D2 | 总计 | 成功/跳过/阻止/失败、唯一文件、实际写入、区域、总耗时准确 | [ ] |
-| D3 | 结构化真源 | 报告来自 BatchResult，不解析 Output 文本 | [ ] |
-| D4 | 数据最小化 | 报告不保存源码或 Artifact 正文 | [ ] |
-| D5 | 日志降噪 | 开始一行、每 JSON 一行、总计一行；详细错误按需输出 | [ ] |
-| D6 | Receipt 一致 | 报告文件/区域与各单项 receipt、实际 writes 一致 | [ ] |
-| D7 | 报告 View | 完成/取消/阻断后可查看，Primary 可重新打开最近报告 | [ ] |
-| D8 | 表格操作 | 状态筛选、打开 JSON/诊断、复制 TSV 或 Markdown 可用 | [ ] |
-
-## E. UI 与无障碍
-
-| ID | 场景 | 预期 | 状态 |
-|---|---|---|---|
-| E1 | 运行中 | `全部应用` 禁用或切换为取消，不可重复启动 | [ ] |
-| E2 | 进度 | 明确显示 Preflight / Apply 阶段和 N/M | [ ] |
-| E3 | 键盘 | 按钮、确认、报告筛选和表格行可键盘到达 | [ ] |
-| E4 | 1600×900 | 表格列和总计清晰，无页面意外横向溢出 | [ ] |
-| E5 | 760×480 / 560×420 | 报告整页纵向滚动，宽表格局部横向滚动 | [ ] |
-| E6 | 浅色/深色/高对比 | 状态色不作为唯一信息，焦点和滚动条可见 | [ ] |
-
-## F. 门禁与人工回执
-
-- [ ] 纯状态机测试覆盖全量预检屏障、稳定顺序、冲突、失败停止和取消。
-- [ ] Extension Host 测试覆盖 headless loader、确认、mutex、Problems 和真实 receipt。
-- [ ] 单项 Apply 全部既有测试继续通过。
-- [ ] Browser 记录正常、blocked、partial、cancelled 报告布局与交互。
-- [ ] VSIX 制品包含报告组件且不包含本地 Wing/link/override。
-- [ ] 用户在真实 PNX CAA 工作区手工确认预检范围、确认文案与报告统计。
-- [ ] Windows 发布态留给用户后续手工点检，不冒充自动通过。
+- 批次开始前完成所有 JSON 的全量预检屏障。
+- dirty/conflict、跨 JSON 同 Region 冲突的整批分析。
+- ready/blocked/skipped 精确确认表。
+- 取消协议、失败后停止策略和跨项事务语义。
+- 可重新打开的最近 BatchReport、状态筛选、打开 JSON/源码、复制 TSV/Markdown。
+- 独立 `kt-codegen-batch` DiagnosticCollection，保证批次错误不随单 JSON Problems 切换。
+- V1 的临时轻量报告只记录本次预检/写入计数和最小问题定位；可重建的完整错误归档、取消/冲突/receipt 统计仍由 2.0 补齐。

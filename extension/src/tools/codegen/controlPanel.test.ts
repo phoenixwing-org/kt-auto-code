@@ -66,7 +66,7 @@ function findNodes(root: FakeNode, predicate: (node: FakeNode) => boolean): Fake
   return found;
 }
 
-function model() {
+function model(state: "ready" | "applied" | "stale" = "ready") {
   return {
     kind: "kt.codegen.control-view-model" as const,
     schemaVersion: 1 as const,
@@ -84,19 +84,43 @@ function model() {
       status: "hit" as const,
       hitCount: 1,
       artifactCount: 1,
+    }, {
+      key: "CMD AGENT CONSTRUCTOR" as const,
+      legacyId: 23,
+      platform: "caa" as const,
+      legacyState: "active" as const,
+      legacyCall: "",
+      title: "Cmd Agent Constructor",
+      controlWords: "CMD AGENT CONSTRUCTOR",
+      notes: "",
+      status: "unclosed" as const,
+      hitCount: 0,
+      artifactCount: 0,
+      unclosed: [{
+        code: "marker.missing-end" as const,
+        path: "/workspace/PNXBomAnalysisCmd.cpp",
+        line: 91,
+        column: 4,
+        classId: "PNXBomAnalysis",
+        expectedEnd: "// END KEVIN CAA WIZARD SECTION PNXBomAnalysis CMD AGENT CONSTRUCTOR",
+        boundary: { kind: "start" as const, line: 125 },
+        message: "missing END before next START",
+      }],
     }],
-    selectedBlockKeys: ["PARAM DECLARATION" as const],
+    selectedBlockKeys: ["PARAM DECLARATION" as const, "CMD AGENT CONSTRUCTOR" as const],
     singleSelectionMode: false,
     showMissingTemplates: false,
     preflightAvailable: true,
     missingTemplates: [],
     presets: {
-      all: ["PARAM DECLARATION" as const], none: [],
+      all: ["PARAM DECLARATION" as const, "CMD AGENT CONSTRUCTOR" as const], none: [],
       cppOnly: ["PARAM DECLARATION" as const], fieldCode: [],
     },
     preflight: {
       reused: true,
       createdAt: "2026-07-18T00:00:00.000Z",
+      state,
+      message: "缓存计划可应用",
       plan: {
         markerRegions: [{
           id: "region-1", blockKey: "PARAM DECLARATION", classId: "CATDemoBase",
@@ -106,6 +130,9 @@ function model() {
         diagnostics: [{
           severity: "warning", code: "demo.warning", message: "示例问题",
           path: { file: "/workspace/Demo.h", row: 12 },
+        }, {
+          severity: "error", code: "marker.missing-end", message: "missing END before next START",
+          path: { file: "/workspace/PNXBomAnalysisCmd.cpp", row: 91, column: 4 },
         }],
       },
     },
@@ -115,7 +142,7 @@ function model() {
 describe("Codegen control panel", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("full 预检默认只显示命中，可切换问题，并把纵向滚动交给外层 View", async () => {
+  it("full 只显示预检主从视图，左列表无纵向滚动，右详情 sticky 且只让 Artifact 局部滚动", async () => {
     vi.resetModules();
     installFakeDom();
     const browser = await import("./controlPanel.js");
@@ -125,50 +152,67 @@ describe("Codegen control panel", () => {
 
     const hits = findNodes(panel.shadow, (node) => node.textContent === "命中 1")[0]!;
     expect(hits.attributes.get("aria-pressed")).toBe("true");
-    expect(findNodes(panel.shadow, (node) => node.textContent === "PARAM DECLARATION")).toHaveLength(1);
+    expect(findNodes(panel.shadow, (node) => node.textContent === "PARAM DECLARATION").length).toBeGreaterThanOrEqual(2);
     expect(findNodes(panel.shadow, (node) => node.textContent === "示例问题")).toHaveLength(0);
-    expect(findNodes(panel.shadow, (node) => node.attributes.get("aria-label") === "预检结果内容；宽内容可横向滚动")).toHaveLength(1);
+    expect(findNodes(panel.shadow, (node) => node.className === "result-layout")).toHaveLength(1);
+    expect(findNodes(panel.shadow, (node) => node.className === "result-master")).toHaveLength(1);
+    expect(findNodes(panel.shadow, (node) => node.className === "result-detail")).toHaveLength(1);
     const style = findNodes(panel.shadow, (node) => node.tagName === "style")[0]!.textContent;
-    expect(style).toContain("overflow-y: hidden");
-    expect(style).toContain("::-webkit-scrollbar-thumb");
-    expect(style).not.toContain("grid-template-rows: repeat(2, minmax(0, 1fr))");
-    expect(style).toContain("rgba(121, 121, 121, .7)");
-    const splitter = findNodes(panel.shadow, (node) => node.attributes.get("role") === "separator")[0]!;
-    expect(splitter.attributes.get("aria-orientation")).toBe("vertical");
-    expect(splitter.attributes.get("aria-valuenow")).toBe("42");
-    splitter.onkeydown?.({ key: "ArrowRight", preventDefault() {} });
-    expect(splitter.attributes.get("aria-valuenow")).toBe("44");
-    expect(panel.events.at(-1)).toMatchObject({
-      type: "ktc-codegen-control-split-change",
-      detail: { percent: 44 },
-    });
-    splitter.onpointerdown?.({ pointerId: 1, clientX: 440 });
-    splitter.onpointermove?.({ pointerId: 1, clientX: 600 });
-    splitter.onpointerup?.({ pointerId: 1, clientX: 600 });
-    expect(splitter.attributes.get("aria-valuenow")).toBe("60");
-    expect(panel.events.at(-1)).toMatchObject({
-      type: "ktc-codegen-control-split-change",
-      detail: { percent: 60 },
-    });
+    expect(style).toContain(".result-layout { display: grid; grid-template-columns:");
+    expect(style).toContain(".result-master { min-width: 0; overflow-x: hidden; overflow-y: visible;");
+    expect(style).toContain(".result-detail { position: sticky; top: var(--ktc-codegen-detail-sticky-top, 58px); align-self: start;");
+    expect(style).toContain(".detail-preview { display: block; max-block-size: min(42vh, 420px);");
+    expect(style).toContain("overflow: auto; overscroll-behavior: contain;");
+    expect(style).not.toContain(".result-list { overflow-y: auto");
+    expect(findNodes(panel.shadow, (node) => node.tagName === "ktc-codegen-control-catalog")).toHaveLength(0);
+    expect(findNodes(panel.shadow, (node) => node.attributes.get("role") === "separator")).toHaveLength(0);
 
-    const open = findNodes(panel.shadow, (node) => node.textContent === "打开")[0]!;
+    const preview = findNodes(panel.shadow, (node) => node.attributes.get("aria-label") === "PARAM DECLARATION Artifact 预览")[0]!;
+    expect(preview.textContent).toBe("int First;");
+    const open = findNodes(panel.shadow, (node) => node.textContent === "打开位置")[0]!;
     open.onclick?.({ stopPropagation() {} });
     expect(panel.events.at(-1)).toMatchObject({
       type: "ktc-codegen-control-open",
       detail: { path: "/workspace/Demo.h", line: 10 },
     });
-    const hitRow = findNodes(panel.shadow, (node) => node.attributes.get("role") === "button")[0]!;
-    const preview = findNodes(panel.shadow, (node) => node.tagName === "pre")[0]!;
-    expect(hitRow.tabIndex).toBe(0);
-    expect(preview.hidden).toBe(true);
-    hitRow.onkeydown?.({ key: "Enter", preventDefault() {} });
-    expect(preview.hidden).toBe(false);
-    expect(preview.textContent).toBe("int First;");
 
-    const issues = findNodes(panel.shadow, (node) => node.textContent === "问题 1")[0]!;
+    const issues = findNodes(panel.shadow, (node) => node.textContent === "问题 2")[0]!;
     issues.onclick?.({ stopPropagation() {} });
     expect(findNodes(panel.shadow, (node) => node.textContent === "示例问题")).toHaveLength(1);
     expect(findNodes(panel.shadow, (node) => node.textContent === "PARAM DECLARATION")).toHaveLength(0);
+    const missingEndRow = findNodes(panel.shadow, (node) => (
+      node.tagName === "button"
+      && findNodes(node, (child) => child.textContent === "ERROR · marker.missing-end").length > 0
+    ))[0]!;
+    missingEndRow.onclick?.({ stopPropagation() {} });
+    expect(findNodes(panel.shadow, (node) => node.textContent === "missing END before next START")).toHaveLength(1);
+    expect(findNodes(panel.shadow, (node) => node.textContent === "// END KEVIN CAA WIZARD SECTION PNXBomAnalysis CMD AGENT CONSTRUCTOR")).toHaveLength(1);
+    expect(findNodes(panel.shadow, (node) => node.textContent === "插入 #error")).toHaveLength(0);
+    const copyEnd = findNodes(panel.shadow, (node) => node.textContent === "复制 END")[0]!;
+    copyEnd.onclick?.({ stopPropagation() {} });
+    expect(panel.events.at(-1)).toMatchObject({
+      type: "ktc-codegen-control-copy-end",
+      detail: {
+        blockKey: "CMD AGENT CONSTRUCTOR", path: "/workspace/PNXBomAnalysisCmd.cpp", line: 91,
+      },
+    });
+  });
+
+  it("Apply 后保留命中与问题，并明确提示再次 Apply 需重新预检", async () => {
+    vi.resetModules();
+    installFakeDom();
+    const browser = await import("./controlPanel.js");
+    const panel = new browser.KtcCodegenControlPanel() as unknown as FakeElement & { model: ReturnType<typeof model> };
+    panel.setAttribute("mode", "full");
+    panel.model = {
+      ...model(),
+      preflight: { ...model("applied").preflight, message: "已应用；再次 Apply 前需重新预检" },
+    };
+
+    expect(findNodes(panel.shadow, (node) => node.textContent === "已应用 · 需重新预检")).toHaveLength(1);
+    expect(findNodes(panel.shadow, (node) => node.textContent.includes("已应用；再次 Apply 前需重新预检"))).toHaveLength(1);
+    expect(findNodes(panel.shadow, (node) => node.textContent === "PARAM DECLARATION").length).toBeGreaterThanOrEqual(2);
+    expect(findNodes(panel.shadow, (node) => node.textContent === "问题 2")).toHaveLength(1);
   });
 
   it("compact 只装配共享目录，不复制 View 专属预检结果", async () => {
@@ -182,15 +226,15 @@ describe("Codegen control panel", () => {
     expect(findNodes(panel.shadow, (node) => node.textContent === "预检结果")).toHaveLength(0);
   });
 
-  it("切换右侧状态筛选时复用左侧目录实例，不重置其本地筛选", async () => {
+  it("full 切换预检状态筛选时不会重新引入控制符目录", async () => {
     vi.resetModules();
     installFakeDom();
     const browser = await import("./controlPanel.js");
     const panel = new browser.KtcCodegenControlPanel() as unknown as FakeElement & { model: ReturnType<typeof model> };
     panel.setAttribute("mode", "full");
     panel.model = model();
-    const catalog = findNodes(panel.shadow, (node) => node.tagName === "ktc-codegen-control-catalog")[0]!;
-    findNodes(panel.shadow, (node) => node.textContent === "问题 1")[0]!.onclick?.({ stopPropagation() {} });
-    expect(findNodes(panel.shadow, (node) => node.tagName === "ktc-codegen-control-catalog")[0]).toBe(catalog);
+    findNodes(panel.shadow, (node) => node.textContent === "问题 2")[0]!.onclick?.({ stopPropagation() {} });
+    expect(findNodes(panel.shadow, (node) => node.tagName === "ktc-codegen-control-catalog")).toHaveLength(0);
+    expect(findNodes(panel.shadow, (node) => node.textContent === "示例问题")).toHaveLength(1);
   });
 });

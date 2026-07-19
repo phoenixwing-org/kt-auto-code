@@ -60,16 +60,57 @@ const CONTROL_BLOCKS = KT_CODEGEN_LEGACY_BLOCKS.map((block) => ({
   notes: PRESENTATION_BY_KEY.get(block.key)?.notes ?? block.legacyCall,
 }));
 
+/** Wing 0.4.3+ 的可选 marker 诊断上下文；intersection 保持 Registry 0.4.2 可编译。 */
+interface KtcStructuredMarkerDiagnostic {
+  readonly marker?: {
+    readonly kind: "start" | "end";
+    readonly classId: string;
+    readonly blockKey: string;
+    readonly boundary?: {
+      readonly kind: "start" | "end";
+      readonly line: number;
+    };
+  };
+}
+
+function unclosedForBlock(
+  diagnostics: NonNullable<KtcCodegenDocumentModel["preflight"]>["plan"]["diagnostics"],
+  blockKey: KtCodegenBlockKey,
+) {
+  return diagnostics.flatMap((diagnostic) => {
+    const marker = (diagnostic as typeof diagnostic & KtcStructuredMarkerDiagnostic).marker;
+    if (diagnostic.code !== "marker.missing-end"
+      || !diagnostic.path?.file
+      || !Number.isInteger(diagnostic.path.row)
+      || marker?.kind !== "start"
+      || marker.blockKey !== blockKey
+      || !ktCodegenIsBlockKey(marker.blockKey)
+      || !marker.classId.trim()) return [];
+    return [{
+      code: "marker.missing-end" as const,
+      path: diagnostic.path.file,
+      line: diagnostic.path.row!,
+      column: Math.max(0, diagnostic.path.column ?? 0),
+      classId: marker.classId,
+      expectedEnd: `// END KEVIN CAA WIZARD SECTION ${marker.classId} ${blockKey}`,
+      ...(marker.boundary ? { boundary: marker.boundary } : {}),
+      message: diagnostic.message,
+    }];
+  });
+}
+
 /** UI-neutral 的控制符会话投影与命令状态机；不访问 VS Code、DOM、Output 或文件。 */
 export class KtcCodegenControlSessionController {
   catalogModel(session: KtcCodegenDocumentModel): KtcCodegenControlCatalogViewModel {
+    const snapshot = session.preflightSnapshot;
+    const displayPlan = snapshot?.result.plan;
     const selected = new Set(session.selectedBlockKeys);
     const hitCount = new Map<KtCodegenBlockKey, number>();
     const artifactCount = new Map<KtCodegenBlockKey, number>();
-    for (const region of session.preflight?.plan.markerRegions ?? []) {
+    for (const region of displayPlan?.markerRegions ?? []) {
       hitCount.set(region.blockKey, (hitCount.get(region.blockKey) ?? 0) + 1);
     }
-    for (const artifact of session.preflight?.plan.artifacts ?? []) {
+    for (const artifact of displayPlan?.artifacts ?? []) {
       artifactCount.set(artifact.blockKey, (artifactCount.get(artifact.blockKey) ?? 0) + 1);
     }
     return {
@@ -79,28 +120,30 @@ export class KtcCodegenControlSessionController {
       fileName: session.identity.fileName,
       blocks: CONTROL_BLOCKS.map((block) => {
         const blockHitCount = hitCount.get(block.key) ?? 0;
+        const unclosed = unclosedForBlock(displayPlan?.diagnostics ?? [], block.key);
         return {
           ...block,
-          status: !selected.has(block.key)
-            ? "unselected" as const
-            : !session.preflight
-              ? "pending" as const
+          status: !snapshot
+            ? selected.has(block.key) ? "pending" as const : "unselected" as const
+            : unclosed.length > 0
+              ? "unclosed" as const
               : blockHitCount > 0
                 ? "hit" as const
                 : "missing" as const,
           hitCount: blockHitCount,
           artifactCount: artifactCount.get(block.key) ?? 0,
+          unclosed,
         };
       }),
       selectedBlockKeys: session.selectedBlockKeys,
       singleSelectionMode: session.singleSelectionMode,
       showMissingTemplates: session.showMissingTemplates,
-      preflightAvailable: Boolean(session.preflight),
+      preflightAvailable: Boolean(snapshot),
       missingTemplates: session.showMissingTemplates
         ? ktcCodegenMissingControlTemplates(
             session.controller.param,
             session.selectedBlockKeys,
-            session.preflight?.plan,
+            displayPlan,
           )
         : [],
       presets: {
@@ -113,13 +156,16 @@ export class KtcCodegenControlSessionController {
   }
 
   viewModel(session: KtcCodegenDocumentModel): KtcCodegenControlViewModel {
+    const snapshot = session.preflightSnapshot;
     return {
       ...this.catalogModel(session),
-      ...(session.preflight ? {
+      ...(snapshot ? {
         preflight: {
-          plan: session.preflight.plan,
-          reused: session.preflight.reused,
-          createdAt: session.preflight.createdAt,
+          plan: snapshot.result.plan,
+          reused: snapshot.result.reused,
+          createdAt: snapshot.result.createdAt,
+          state: snapshot.state,
+          message: snapshot.message,
         },
       } : {}),
     };

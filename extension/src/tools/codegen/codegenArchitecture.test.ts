@@ -66,14 +66,34 @@ describe("Codegen MVC dependency boundary", () => {
     expect(navigation).toContain("plan.diagnostics.find");
   });
 
-  it("控制符与预检内嵌 JSON View，不再维护第二个 WebviewPanel", () => {
+  it("预检结果内嵌 JSON View，不再维护第二个 WebviewPanel", () => {
     expect(source("./editorHtml.ts")).toContain('id="control-drawer"');
     expect(source("./editorViewController.ts")).toContain("ViewColumn.Active");
     expect(source("./index.ts")).not.toContain("KtcCodegenControlViewController");
     expect(existsSync(new URL("./controlViewController.ts", import.meta.url))).toBe(false);
   });
 
-  it("Primary 与 JSON View 共用 Auto 内部控制符 Web Component", () => {
+  it("简版全部应用冻结 Primary 列表并按显式 URI 串行复用单项 Preflight/Apply", () => {
+    const host = source("./index.ts");
+    expect(host).toContain('message.action === "applyAll"');
+    expect(host).toContain("const documents = this.summaries(ctx.workspaceRoot)");
+    expect(host).toContain("await this.openKnownDocument(document.uri, ctx)");
+    expect(host).toContain("const session = this.sessions.get(document.uri)");
+    expect(host).toContain("await this.runPreflight(session, ctx)");
+    expect(host).toContain("await this.apply(session, ctx)");
+    expect(host.indexOf("await this.runPreflight(session, ctx)")).toBeLessThan(
+      host.indexOf("await this.apply(session, ctx)"),
+    );
+    expect(host).toContain("batchDeferredWorkspaceOperations.add(kind)");
+    expect(host).toContain('type: "codegenBatchState" as const');
+    expect(host).toContain("const outcome = await this.apply(session, ctx)");
+    expect(host).toContain("modifiedFileCount: outcome.modifiedFileCount");
+    expect(host).toContain("writtenRegionCount: outcome.writtenRegionCount");
+    expect(host).toContain("ktcCodegenBatchApplyReportIssues");
+    expect(host).toContain("this.batchApplyReports.show(report)");
+  });
+
+  it("Primary 目录与 JSON View 预检结果共用 Auto 高层 Web Component，但 full 不复制目录", () => {
     const editor = source("./editorHtml.ts");
     const sidebar = source("../../sidebar/panelHtml.ts");
     const catalog = source("./controlCatalog.ts");
@@ -84,8 +104,9 @@ describe("Codegen MVC dependency boundary", () => {
     expect(primary).toContain('controlPanel.setAttribute("mode", "compact")');
     expect(panel).toContain('document.createElement("ktc-codegen-control-catalog")');
     expect(panel).not.toContain('grid-template-rows: repeat(2, minmax(0, 1fr))');
-    expect(panel).toContain('"ktc-codegen-control-split-change"');
-    expect(panel).toContain('role", "separator"');
+    expect(panel).not.toContain('"ktc-codegen-control-split-change"');
+    expect(panel).not.toContain('role", "separator"');
+    expect(panel).toContain("this.root.replaceChildren(style, results)");
     expect(catalog).toContain(':host([mode="full"]) .list');
     expect(catalog).toContain("overflow: visible");
     expect(editor).not.toContain("function renderBlocks");
@@ -120,6 +141,16 @@ describe("Codegen MVC dependency boundary", () => {
     expect(controls).toContain("catalogModel");
     expect(controls).toContain("viewModel");
     expect(controls).toContain("handle(");
+  });
+
+  it("控制符输出不为隐藏状态区发布整份 Primary 快照", () => {
+    const controller = source("./index.ts");
+    const start = controller.indexOf("private async handleControlMessage(");
+    const end = controller.indexOf("private async apply(", start);
+    const controlHandler = controller.slice(start, end);
+    expect(controlHandler).toContain('if (message.type === "codegenControlOutput")');
+    expect(controlHandler).toContain("output.complete");
+    expect(controlHandler).toMatch(/codegenControlOutput[\s\S]*ctx\.log[\s\S]*else \{[\s\S]*this\.publish/);
   });
 
   it("JSON View 消息先经纯路由收敛，Webview adapter 不再依赖全工具消息总表", () => {
@@ -259,6 +290,8 @@ describe("Codegen MVC dependency boundary", () => {
     expect(end).toBeGreaterThan(start);
     const apply = controller.slice(start, end);
     expect(apply).toContain("ktcProjectCodegenApply");
+    expect(apply).not.toContain("if (!plan.canApply)");
+    expect(apply).toContain("preflightErrorCount");
     expect(apply).toContain("ktcEncodeCodegenSource");
     expect(apply).toContain("ktcCommitCodegenApplyWrites");
     expect(apply).toContain("readFile");

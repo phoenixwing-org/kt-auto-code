@@ -46,5 +46,14 @@ describe("Codegen operation summaries", () => {
       receiptFailed: true,
       elapsed: "80 ms",
     })).toContain("回执缓存失败，请查看 Problems；耗时 80 ms");
+    expect(ktcCodegenApplySummary({
+      fileCount: 1,
+      regionCount: 5,
+      receiptFailed: false,
+      preflightErrorCount: 2,
+      elapsed: "90 ms",
+    })).toBe(
+      "Apply 部分完成：已修改 1 个文件、5 个区域；2 条预检错误对应内容未写入，请查看 Problems；回执已保存；耗时 90 ms。",
+    );
   });
 });

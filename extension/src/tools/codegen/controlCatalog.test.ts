@@ -25,7 +25,13 @@ class FakeNode {
   tabIndex = -1;
   onclick?: (event?: { stopPropagation(): void }) => void;
   onchange?: () => void;
+  onfocus?: () => void;
+  onblur?: () => void;
   ontoggle?: () => void;
+  onscroll?: () => void;
+  scrollTop = 0;
+  focused = false;
+  focusOptions: FocusOptions | undefined;
 
   constructor(readonly tagName = "") {}
 
@@ -34,6 +40,7 @@ class FakeNode {
     this.children.splice(0, this.children.length, ...nodes);
   }
   setAttribute(name: string, value: string): void { this.attributes.set(name, value); }
+  focus(options?: FocusOptions): void { this.focused = true; this.focusOptions = options; }
 }
 
 class FakeElement extends FakeNode {
@@ -96,6 +103,7 @@ describe("Codegen control catalog", () => {
   it("显示筛选不修改勾选，并组合状态与 C++/Field Code 范围", () => {
     const blocks = [
       { key: "PARAM DECLARATION", status: "hit" },
+      { key: "PARAM CONSTRUCTOR", status: "unclosed" },
       { key: "QT UPDATE DIALOG", status: "missing" },
       { key: "CMD ACTION PDA", status: "unselected" },
     ] as unknown as Parameters<typeof ktcFilterCodegenControlBlocks>[0];
@@ -108,9 +116,64 @@ describe("Codegen control catalog", () => {
       blocks, selected, { status: "hit", scope: "all" }, scopes,
     ).map((block) => block.key)).toEqual(["PARAM DECLARATION"]);
     expect(ktcFilterCodegenControlBlocks(
+      blocks, selected, { status: "unclosed", scope: "all" }, scopes,
+    ).map((block) => block.key)).toEqual(["PARAM CONSTRUCTOR"]);
+    expect(ktcFilterCodegenControlBlocks(
       blocks, selected, { status: "selected", scope: "field-code" }, scopes,
     ).map((block) => block.key)).toEqual(["QT UPDATE DIALOG"]);
     expect(selected).toEqual(["PARAM DECLARATION", "QT UPDATE DIALOG"]);
+  });
+
+  it("missing-end 提供未闭合筛选，但 Primary 默认仍显示命中且行内不展开诊断或安全操作", async () => {
+    vi.resetModules();
+    installFakeDom();
+    const browser = await import("./controlCatalog.js");
+    const element = new browser.KtcCodegenControlCatalog() as unknown as FakeElement & { model: unknown };
+    element.setAttribute("mode", "compact");
+    element.model = {
+      kind: "kt.codegen.control-view-model",
+      schemaVersion: 1,
+      uri: "file:///PNXBomAnalysisParam.json",
+      fileName: "PNXBomAnalysisParam.json",
+      blocks: [{
+        key: "CMD AGENT CONSTRUCTOR", legacyId: 23, platform: "caa", legacyState: "active", legacyCall: "",
+        title: "Cmd Agent Constructor", controlWords: "CMD AGENT CONSTRUCTOR", notes: "",
+        status: "unclosed", hitCount: 0, artifactCount: 0,
+        unclosed: [{
+          code: "marker.missing-end", path: "/workspace/PNXBomAnalysisCmd.cpp", line: 91, column: 4,
+          classId: "PNXBomAnalysis",
+          expectedEnd: "// END KEVIN CAA WIZARD SECTION PNXBomAnalysis CMD AGENT CONSTRUCTOR",
+          boundary: { kind: "start", line: 125 },
+          message: "Start marker PNXBomAnalysis CMD AGENT CONSTRUCTOR has no matching End marker before Start marker at line 125.",
+        }],
+      }, {
+        key: "QT UPDATE DIALOG", legacyId: 17, platform: "qt", legacyState: "active", legacyCall: "",
+        title: "Qt Dialog", controlWords: "QT UPDATE DIALOG", notes: "",
+        status: "missing", hitCount: 0, artifactCount: 0,
+      }],
+      selectedBlockKeys: ["CMD AGENT CONSTRUCTOR", "QT UPDATE DIALOG"],
+      singleSelectionMode: false,
+      showMissingTemplates: false,
+      preflightAvailable: true,
+      missingTemplates: [],
+      presets: { all: ["CMD AGENT CONSTRUCTOR", "QT UPDATE DIALOG"], none: [], cppOnly: [], fieldCode: [] },
+    };
+
+    const nodes = findNodes(element.shadow, () => true);
+    expect(nodes.find((node) => node.textContent === "命中 0")?.attributes.get("aria-pressed")).toBe("true");
+    expect(nodes.some((node) => node.textContent === "未闭合")).toBe(false);
+    nodes.find((node) => node.textContent === "未闭合 1")!.onclick?.();
+    const unclosedNodes = findNodes(element.shadow, () => true);
+    expect(unclosedNodes.find((node) => node.textContent === "未闭合 1")?.attributes.get("aria-pressed")).toBe("true");
+    expect(unclosedNodes.some((node) => node.textContent === "未闭合")).toBe(true);
+    expect(unclosedNodes.some((node) => node.textContent === "未命中")).toBe(false);
+    expect(unclosedNodes.some((node) => node.tagName === "details" && node.className === "block-item")).toBe(false);
+    expect(unclosedNodes.some((node) => node.textContent === "起始位置：/workspace/PNXBomAnalysisCmd.cpp:92")).toBe(false);
+    expect(unclosedNodes.some((node) => node.textContent === "// END KEVIN CAA WIZARD SECTION PNXBomAnalysis CMD AGENT CONSTRUCTOR")).toBe(false);
+    expect(unclosedNodes.some((node) => node.textContent === "打开位置")).toBe(false);
+    expect(unclosedNodes.some((node) => node.textContent === "复制 END")).toBe(false);
+    expect(unclosedNodes.some((node) => node.textContent.startsWith("已选 "))).toBe(false);
+    expect(unclosedNodes.some((node) => node.textContent.startsWith("全部 "))).toBe(false);
   });
 
   it("固定按 C++→Qt→CAA 分组，保留 deprecated，并只对当前筛选可见项计算三态与选择", () => {
@@ -190,14 +253,14 @@ describe("Codegen control catalog", () => {
         title: "参数声明",
         controlWords: "PARAM DECLARATION",
         notes: "test",
-        status: "pending" as const,
-        hitCount: 0,
-        artifactCount: 0,
+        status: "hit" as const,
+        hitCount: 1,
+        artifactCount: 1,
       }],
       selectedBlockKeys: ["PARAM DECLARATION" as const],
       singleSelectionMode: false,
       showMissingTemplates: false,
-      preflightAvailable: false,
+      preflightAvailable: true,
       missingTemplates: [],
       presets: {
         all: ["PARAM DECLARATION" as const], none: [],
@@ -213,10 +276,12 @@ describe("Codegen control catalog", () => {
       element.model = model;
       const buttons = findNodes(element.shadow, (node) => Boolean(node.textContent));
       expect(buttons.map((node) => node.textContent)).toEqual(expect.arrayContaining([
-        "命中 0", "未命中 0", "已选 1", "全部 1", "全部类型", "C++ only", "Field Code",
+        "命中 1", "未闭合 0", "未命中 0", "全部类型", "C++ only", "Field Code",
         "输出筛选并复制 (1)", "选中当前筛选", "取消当前筛选", "全选", "全不选", "开启单选", "⧉",
       ]));
-      expect(buttons.find((node) => node.textContent === "已选 1")?.attributes.get("aria-pressed")).toBe("true");
+      expect(buttons.find((node) => node.textContent === "命中 1")?.attributes.get("aria-pressed")).toBe("true");
+      expect(buttons.some((node) => node.textContent.startsWith("已选 "))).toBe(false);
+      expect(buttons.some((node) => node.textContent.startsWith("全部 "))).toBe(false);
       const outputVisible = buttons.find((node) => node.textContent === "输出筛选并复制 (1)")!;
       outputVisible.onclick?.();
       expect(element.events.at(-1)).toMatchObject({
@@ -351,6 +416,74 @@ describe("Codegen control catalog", () => {
     });
   });
 
+  it("行 checkbox 重绘后恢复焦点并保留命中筛选、Tree 展开与列表滚动位置", async () => {
+    vi.resetModules();
+    installFakeDom();
+    const browser = await import("./controlCatalog.js");
+    const element = new browser.KtcCodegenControlCatalog() as unknown as FakeElement & { model: unknown };
+    element.setAttribute("mode", "compact");
+    element.model = {
+      kind: "kt.codegen.control-view-model",
+      schemaVersion: 1,
+      uri: "file:///Demo.json",
+      fileName: "Demo.json",
+      blocks: [{
+        key: "PARAM DECLARATION", legacyId: 11, platform: "cpp", legacyState: "active", legacyCall: "",
+        title: "命中项", controlWords: "PARAM DECLARATION", notes: "", status: "hit", hitCount: 1, artifactCount: 1,
+      }],
+      selectedBlockKeys: ["PARAM DECLARATION"],
+      singleSelectionMode: false,
+      showMissingTemplates: false,
+      preflightAvailable: true,
+      missingTemplates: [],
+      presets: { all: ["PARAM DECLARATION"], none: [], cppOnly: ["PARAM DECLARATION"], fieldCode: [] },
+    };
+
+    const before = findNodes(element.shadow, () => true);
+    const list = before.find((node) => node.className === "list")!;
+    list.scrollTop = 88;
+    list.onscroll?.();
+    const checkbox = before.find((node) => node.attributes.get("data-block-key") === "PARAM DECLARATION")!;
+    checkbox.checked = false;
+    checkbox.onchange?.();
+
+    const after = findNodes(element.shadow, () => true);
+    const nextCheckbox = after.find((node) => node.attributes.get("data-block-key") === "PARAM DECLARATION")!;
+    expect(nextCheckbox.focused).toBe(true);
+    expect(nextCheckbox.focusOptions).toEqual({ preventScroll: true });
+    expect(after.find((node) => node.className === "list")?.scrollTop).toBe(88);
+    expect(after.find((node) => node.textContent === "命中 1")?.attributes.get("aria-pressed")).toBe("true");
+    expect(after.find((node) => node.className === "group")?.open).toBe(true);
+    expect(element.events.at(-1)).toMatchObject({
+      type: "ktc-codegen-control-selection-change",
+      detail: { blockKeys: [], singleMode: false },
+    });
+
+    element.model = {
+      kind: "kt.codegen.control-view-model",
+      schemaVersion: 1,
+      uri: "file:///Demo.json",
+      fileName: "Demo.json",
+      blocks: [{
+        key: "PARAM DECLARATION", legacyId: 11, platform: "cpp", legacyState: "active", legacyCall: "",
+        title: "命中项", controlWords: "PARAM DECLARATION", notes: "", status: "hit", hitCount: 1, artifactCount: 1,
+      }],
+      selectedBlockKeys: [],
+      singleSelectionMode: false,
+      showMissingTemplates: false,
+      preflightAvailable: true,
+      missingTemplates: [],
+      presets: { all: ["PARAM DECLARATION"], none: [], cppOnly: ["PARAM DECLARATION"], fieldCode: [] },
+    };
+    const roundTrip = findNodes(element.shadow, () => true);
+    const retainedCheckbox = roundTrip.find((node) => node.attributes.get("data-block-key") === "PARAM DECLARATION")!;
+    expect(retainedCheckbox.checked).toBe(false);
+    expect(retainedCheckbox.focused).toBe(true);
+    expect(retainedCheckbox.focusOptions).toEqual({ preventScroll: true });
+    expect(roundTrip.find((node) => node.textContent === "命中项")).toBeTruthy();
+    expect(roundTrip.find((node) => node.className === "list")?.scrollTop).toBe(88);
+  });
+
   it("渲染 native 范围 combo 与固定一层 Tree，组复选框按可见项三态选择并保留本地筛选/折叠", async () => {
     vi.resetModules();
     installFakeDom();
@@ -407,8 +540,12 @@ describe("Codegen control catalog", () => {
       "全部类型", "C++ only", "Field Code",
     ]);
 
-    nodes.find((node) => node.textContent === "全部 5")!.onclick?.();
-    nodes = findNodes(element.shadow, () => true);
+    const selectionTools = nodes.find((node) => node.className === "selection-tools")!;
+    const list = nodes.find((node) => node.attributes.get("role") === "tree")!;
+    selectionTools.open = true;
+    selectionTools.ontoggle?.();
+    list.scrollTop = 87;
+    list.onscroll?.();
     const groups = nodes.filter((node) => node.className === "group");
     expect(groups.map((group) => group.attributes.get("data-group-id"))).toEqual(["cpp", "qt", "caa"]);
     expect(nodes.some((node) => node.textContent === "显示 2/2 · 可见已选 1/2")).toBe(true);
@@ -453,9 +590,11 @@ describe("Codegen control catalog", () => {
     expect(nodes.find((node) => node.attributes.get("aria-label") === "控制符范围")?.value).toBe("cpp-only");
     expect(nodes.filter((node) => node.className === "group").map((node) => node.attributes.get("data-group-id"))).toEqual(["cpp"]);
     expect(nodes.find((node) => node.attributes.get("data-group-id") === "cpp")?.open).toBe(false);
+    expect(nodes.find((node) => node.className === "selection-tools")?.open).toBe(true);
+    expect(nodes.find((node) => node.attributes.get("role") === "tree")?.scrollTop).toBe(87);
   });
 
-  it("compact/full 共用选择、显示与日志事件，并保持无障碍标签", () => {
+  it("Primary 目录保留选择、显示与日志事件，full 外壳只承载预检结果", () => {
     const source = readFileSync(new URL("./controlCatalog.ts", import.meta.url), "utf8");
     const shellSource = readFileSync(new URL("./controlPanel.ts", import.meta.url), "utf8");
     expect(source).toContain(':host([mode="compact"])');
@@ -468,7 +607,10 @@ describe("Codegen control catalog", () => {
     expect(source).toContain("输出${block.title}控制块到日志并复制可粘贴源码");
     expect(source).toContain(':host([mode="compact"]) .list { max-height: 236px; overflow-y: auto; }');
     expect(source).toContain(':host([mode="full"]) .list { flex: 0 0 auto; min-block-size: 0; max-height: none; overflow: visible; }');
-    expect(shellSource).toContain(':host([mode="full"]) { block-size: auto; min-block-size: 0; overflow-x: auto; overflow-y: hidden; }');
+    expect(shellSource).toContain(':host([mode="full"]) { block-size: auto; min-block-size: 0; overflow: visible; }');
+    expect(shellSource).toContain('.result-detail { position: sticky;');
+    expect(shellSource).toContain('.result-list { min-width: 0; overflow-y: visible; }');
+    expect(shellSource).not.toContain('role", "separator"');
     expect(source).toContain("::-webkit-scrollbar-thumb");
     expect(source).toContain('document.createElement("select")');
     expect((source.match(/document\.createElement\("select"\)/gu) ?? [])).toHaveLength(1);

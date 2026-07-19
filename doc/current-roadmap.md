@@ -6,7 +6,7 @@ Owner：KT Auto Code maintainers
 
 适用版本：0.5.x
 
-最后核验：2026-07-18
+最后核验：2026-07-19
 
 ## 已完成基线
 
@@ -22,7 +22,7 @@ Owner：KT Auto Code maintainers
 3. 真实 Extension Host 的打开、预览、冲突、Apply、保存复读和失败回滚已进入自动 smoke；继续补齐浅色、深色、高对比、取消和 VSIX 安装的人工视觉矩阵。
 4. 从 P1 去重队列提炼两个无 UI 能力；优先 workset/ignore/path 与 encoding/file-core，不迁移 VS Code 命令或 Webview 状态。
 5. 保持双 VSIX 可复现，并在 Wing 升级时先运行 Registry 防回退、全测和制品门禁。
-6. 下一项工作区功能是 Codegen `全部应用`：先全量预检、一次确认、ready 项串行重验与 Apply，最终生成结构化批量报告；设计与点检见 `codegen-plan/Codegen全部应用与批量报告计划.md`。
+6. Codegen `全部应用` V1 已落地：一次确认后冻结当前 JSON 列表，逐个打开 View，串行 Preflight → Apply，并用 Primary/View 遮罩锁定 Auto Code 操作；单份错误继续后续项，最终输出简短总计并自动新开一次性轻量结构化报告。全量预检屏障、跨 JSON 冲突、独立批次 Problems、取消与可重建完整报告保留为 2.0，见 `codegen-plan/Codegen全部应用与批量报告计划.md`。
 
 ## 已完成第一波：Codegen 控制符目录与模板日志
 
@@ -74,11 +74,11 @@ Owner：KT Auto Code maintainers
 - [x] Browser 在 1600×900、1000×650、760×480、560×420 下验证 32 行目录和 32 条结果均为 `clientHeight == scrollHeight`；560×420 页面为 `420 / 2331`，右侧宽内容为 `306 / 520` 横向滚动，左右没有纵向滚动。
 - [x] 预检完成后左目录和右结果默认只显示命中；显示筛选与 Preflight/Apply 勾选语义拆开，输出只处理当前筛选。
 - [ ] 深色、浅色、高对比真实 VS Code 中的滚轮、滚动条 thumb 和 Artifact 横向滚动仍由用户/真实宿主回执；详见 `codegen-plan/Codegen控制面板滚动筛选点检表.md` D 组。
-- [ ] 参数表的 Header 和工具位于 Wing `KtCodegenTable` Shadow DOM；禁止 Auto 穿透私有 DOM 做高度裁剪。折叠 + `layout="page"` 作为 Wing 0.4.4 公共能力，Registry 发布并升级消费后再完成。
+- [x] 参数表的 Header 和工具位于 Wing `KtCodegenTable` Shadow DOM；Auto 已通过公开 `layout="page" + collapsible` 属性接线，不穿透私有 DOM。折叠只隐藏 table shell/statusbar，Header 和全部工具保留；每个隐藏 JSON View 依靠 `retainContextWhenHidden` 保留本地折叠状态。正式 Registry 消费仍随 Wing 后续版本发布与依赖升级闭环。
 
 ## 已完成第二个切口：Primary Codegen 页面壳
 
-- `ktc-codegen-primary-panel` 现在拥有工具栏、活动文档摘要、四个元数据字段、compact 控制符目录、JSON 配置列表和候选源码列表；它只接收 `KtcCodegenPrimaryViewModel`，并以 `ktc-codegen-primary-action` 上报语义动作。
+- `ktc-codegen-primary-panel` 现在拥有工具栏、活动文档摘要、四个元数据字段、JSON 配置列表、compact 控制符目录和候选源码列表；Primary 的工作区级阅读顺序固定为“JSON 配置 → 控制符目录 → 控制符候选”。它只接收 `KtcCodegenPrimaryViewModel`，并以 `ktc-codegen-primary-action` 上报语义动作。
 - `sidebar/panelHtml.ts` 不再创建 Codegen 行、标签、输入框或按钮，也不再知道刷新/取消的显示规则；它只把 Host `ToolUiState` 投影为组件 model，并将 Primary 与内嵌 catalog 的 CustomEvent 映射回既有 Webview 消息协议。
 - `panelHtml.ts` 从本切口前 2911 行降到 2603 行；新增 295 行产品内聚组件和 37 行纯 ViewModel 契约。行数不是最终目标，但旧总页面减少 308 行且没有把 VS Code API、文件系统或 clipboard 带入组件边界。
 - characterization tests 实际挂载 Primary 组件，冻结扫描取消、文档/候选打开、元数据修改、繁忙状态、无障碍标签与 catalog model 传递；架构门禁把 `primaryViewModel.ts` 纳入纯图，把 Primary 组件/入口纳入 View Root。
@@ -151,15 +151,28 @@ Owner：KT Auto Code maintainers
 - `SidebarViewProvider` 已把 `associatedRulePicker` 明确设为 transient：它不进入 durable `toolStates`，只投递给发起请求的 Ribbon 或 Module View，另一存活 View 只收到 durable 状态；后续状态更新和 Webview 重建都不会回弹旧 Dialog。
 - 独立 bundle 已进入 build/watch、架构 viewRoots 与 VSIX 必需制品门禁；组件、adapter、双 View transient、全仓测试、类型检查、架构和制品检查均通过。责任图与保留点检见[关联规则选择器组件化 Baseline 点检](关联规则选择器组件化Baseline点检表.md)。
 
+## 已完成稳定性修复：Primary 控制符复制与界面位置
+
+- 控制符单项/筛选输出只写 Output 与 Clipboard，不再为了 Codegen 中被隐藏的通用状态区发布整份 Sidebar snapshot；成功复制不会触发 Primary 全量重绘。
+- Primary 的“JSON 配置 / 控制符目录 / 控制符候选”三个 Block 分别保存用户折叠状态，JSON 与候选列表保存各自滚动位置。活动 JSON 只更新选中样式，不再在每次 Host snapshot 后调用 `scrollIntoView()` 带动外层页面。
+- 共享控制符目录继续复用同一个 Web Component 实例，并额外保留 Tree 分组、“选择工具”的展开状态和 compact 列表滚动位置。状态只属于当前 Webview 生命周期，不写入业务 JSON。
+
+## 已完成安全修复：错误区域隔离后的部分 Apply
+
+- Auto Host 不再用全局 `plan.canApply=false` 提前阻止全部写入；Apply 投影统一交给 Wing 判断可安全写入的完整 Region/Artifact。
+- Wing 只把 `marker.missing-end` / `marker.orphan-end` 视为可隔离的边界错误：错误控制块不形成 Region，完整的后续控制块仍可写入。模型、Renderer、Artifact 绑定、源码指纹、区域范围或重叠错误继续 fail-closed。
+- 部分成功后回执只记录实际写入的文件/区域，原预检错误继续进入 Problems；状态和日志显示“Apply 部分完成”，同时给出写入区域数、保留错误数和耗时。
+
 ## 大型 UI 暂停后的 TODO（2026-07-18）
 
 用户决定暂停本轮大型 UI 拆分。以下事项只登记，不在本轮继续实施；恢复目标前不得把它们悄悄并入普通修复或发布提交。
 
 1. **关联规则真实 Browser 回执**：通过 localhost fixture 或真实 VS Code Webview 验证 430/320/280px、Tab 焦点圈、关闭后的焦点恢复、Escape、backdrop 和长候选内部滚动。本次 Browser 自动化因 `file://` URL 策略拒绝而停止；自动测试、bundle 与 VSIX 已通过，这一项是人工/真实浏览器证据缺口，不是已知产品失败。
-2. **Auto Code 后续大壳**：搜索替换完整 Page shell、`Codegen/index.ts` 剩余 Host adapter，以及“全部应用/批量报告”继续分别立 characterization 和独立小提交；不得大爆炸迁移，也不得把 Profile、工作目录、结果与 Picker 再合回一个组件。
+2. **Auto Code 后续大壳**：搜索替换完整 Page shell、`Codegen/index.ts` 剩余 Host adapter，以及“全部应用 2.0 / 批量报告”继续分别立 characterization 和独立小提交；V1 已完成的逐 View 串行流程可演进但不冒充 2.0。2.0 的错误必须同时进入 Host 持有的批次报告与独立 `kt-codegen-batch` Problems，不能复用会被活动 JSON View 清空的单页集合。
 3. **Desk Tools 后续大页**：Unit Tests 的 Result pane 与“全部复测”语义、FCStd Map 扫描 Controller、Assembly RowGroup/样式收口、CAA Editor 剩余 session/writeback Host 边界继续留在 Desk `doc/TODO.md`；已有 RunScope/Watchlist、FCStd panes、Assembly row、CAA Controller 不返工。
 4. **Wing 后续条件项**：`KtCodegenTable` 已到首轮合理停止线；页面布局能力完成发布和 Registry 消费验证前，不为降行数继续拆。只有出现第二产品消费者或真实复用需求时，才评估公开更多 visual primitive。
 5. **跨仓人工证据**：Windows NSIS 真实回执，以及 VS Code/Desk 的浅色、深色、高对比视觉矩阵继续由用户手工并行；不阻塞当前代码归档，也不追溯提高联合评分。
+6. **Codegen 控制符单入口与显式修复提醒**：下一轮可把 Primary 定义为控制符目录、筛选、选择和输出的唯一入口，JSON View 只保留预检结果/Artifact/问题定位；当前已验收的 full 双栏与分隔柄在新方案点检前不删除。要增加“问题 N”控制符筛选，先让 Wing 诊断提供结构化 `blockKey/classId/boundary`，不得从英文 message 猜 block。`marker.missing-end` 只允许用户在问题行 `⋯` 中显式选择“插入编译期修复提醒”，经确认后在下一条 marker 前写入可识别的 `#error`；不得预检时自动写入，也不得自动猜测补 End，且入口不能只依赖不可发现的右键菜单。
 
 暂停期间联合成熟度保持 **92.00 / 100**。恢复时从本 TODO 重新选择一个最小切口，不默认续跑整套大型 UI 计划。
 

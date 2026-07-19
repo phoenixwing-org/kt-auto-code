@@ -71,8 +71,116 @@ describe("KtcCodegenControlSessionController", () => {
       status: "missing", hitCount: 0, artifactCount: 0,
     });
     expect(blocks.find((block) => block.key === "CATALOG PARAMS")).toMatchObject({
-      status: "unselected", hitCount: 0, artifactCount: 0,
+      status: "missing", hitCount: 0, artifactCount: 0,
     });
+  });
+
+  it("把 marker.missing-end 投影为互斥的未闭合状态并生成安全 END 建议", () => {
+    const model = session();
+    model.setSelectedBlockKeys(["CMD AGENT CONSTRUCTOR", "QT UPDATE DIALOG"]);
+    model.setPreflight({
+      plan: {
+        markerRegions: [{ blockKey: "CMD AGENT CONSTRUCTOR", classId: "PNXBomAnalysis" }],
+        artifacts: [],
+        diagnostics: [{
+          code: "marker.missing-end",
+          severity: "error",
+          message: "此文案可以本地化，UI 不得从 message 反解析 marker 身份。",
+          path: { source: "source", file: "/workspace/PNXBomAnalysisCmd.cpp", row: 91, column: 4 },
+          marker: {
+            kind: "start",
+            classId: "PNXBomAnalysis",
+            blockKey: "CMD AGENT CONSTRUCTOR",
+            boundary: { kind: "start", line: 125 },
+          },
+        }],
+      } as unknown as NonNullable<typeof model.preflight>["plan"],
+      reused: false,
+      createdAt: "2026-07-19T00:00:00.000Z",
+      markerIndexRevision: 1,
+      indexedFileCount: 1,
+      candidateFileCount: 1,
+      cachePath: "/workspace/.phoenix/cache/codegen/test.json",
+    });
+
+    const blocks = new KtcCodegenControlSessionController().catalogModel(model).blocks;
+    expect(blocks.find((block) => block.key === "CMD AGENT CONSTRUCTOR")).toMatchObject({
+      status: "unclosed",
+      hitCount: 1,
+      unclosed: [{
+        code: "marker.missing-end",
+        path: "/workspace/PNXBomAnalysisCmd.cpp",
+        line: 91,
+        classId: "PNXBomAnalysis",
+        expectedEnd: "// END KEVIN CAA WIZARD SECTION PNXBomAnalysis CMD AGENT CONSTRUCTOR",
+        boundary: { kind: "start", line: 125 },
+      }],
+    });
+    expect(blocks.find((block) => block.key === "QT UPDATE DIALOG")?.status).toBe("missing");
+  });
+
+  it("Apply 后只读快照继续投影命中，选择变化后标记过期且不伪装为可执行计划", () => {
+    const model = session();
+    model.setSelectedBlockKeys(["PARAM DECLARATION", "QT UPDATE DIALOG"]);
+    model.setPreflight({
+      plan: {
+        markerRegions: [{ blockKey: "PARAM DECLARATION", classId: "CATDemoBase" }],
+        artifacts: [{ blockKey: "PARAM DECLARATION", classId: "CATDemoBase" }],
+        diagnostics: [{ code: "marker.missing-end", severity: "error", message: "未闭合" }],
+      } as unknown as NonNullable<typeof model.preflight>["plan"],
+      reused: false,
+      createdAt: "2026-07-19T00:00:00.000Z",
+      markerIndexRevision: 1,
+      indexedFileCount: 1,
+      candidateFileCount: 1,
+      cachePath: "/workspace/.phoenix/cache/codegen/test.json",
+    });
+    model.markPreflightApplied();
+
+    const controls = new KtcCodegenControlSessionController();
+    expect(model.preflight).toBeUndefined();
+    expect(controls.catalogModel(model)).toMatchObject({ preflightAvailable: true });
+    expect(controls.catalogModel(model).blocks.find((block) => block.key === "PARAM DECLARATION"))
+      .toMatchObject({ status: "hit", hitCount: 1, artifactCount: 1 });
+    expect(controls.viewModel(model).preflight).toMatchObject({
+      state: "applied",
+      message: "已应用；再次 Apply 前需重新预检",
+    });
+
+    model.setSelectedBlockKeys(["QT UPDATE DIALOG"]);
+    expect(model.preflight).toBeUndefined();
+    expect(controls.viewModel(model).preflight).toMatchObject({
+      state: "stale",
+      message: "控制符选择已变化，需重新预检",
+    });
+    const unselectedHit = controls.catalogModel(model).blocks.find((block) => block.key === "PARAM DECLARATION");
+    expect(unselectedHit).toMatchObject({ status: "hit", hitCount: 1 });
+  });
+
+  it("旧 Wing 没有结构化 marker 上下文时不猜英文文案", () => {
+    const model = session();
+    model.setSelectedBlockKeys(["CMD AGENT CONSTRUCTOR"]);
+    model.setPreflight({
+      plan: {
+        markerRegions: [],
+        artifacts: [],
+        diagnostics: [{
+          code: "marker.missing-end",
+          severity: "error",
+          message: "Start marker PNXBomAnalysis CMD AGENT CONSTRUCTOR has no matching End marker.",
+          path: { source: "source", file: "/workspace/PNXBomAnalysisCmd.cpp", row: 91, column: 4 },
+        }],
+      } as unknown as NonNullable<typeof model.preflight>["plan"],
+      reused: false,
+      createdAt: "2026-07-19T00:00:00.000Z",
+      markerIndexRevision: 1,
+      indexedFileCount: 1,
+      candidateFileCount: 1,
+      cachePath: "/workspace/.phoenix/cache/codegen/test.json",
+    });
+
+    expect(new KtcCodegenControlSessionController().catalogModel(model).blocks
+      .find((block) => block.key === "CMD AGENT CONSTRUCTOR")?.status).toBe("missing");
   });
 
   it("选择和显示命令只修改会话并返回结构化 Host 动作", () => {

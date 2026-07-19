@@ -6,7 +6,7 @@ export interface KtcCodegenControlCatalogSelection {
   readonly singleMode: boolean;
 }
 
-export type KtcCodegenControlStatusFilter = "hit" | "missing" | "selected" | "all";
+export type KtcCodegenControlStatusFilter = "hit" | "unclosed" | "missing" | "selected" | "all";
 export type KtcCodegenControlScopeFilter = "all" | "cpp-only" | "field-code";
 
 export interface KtcCodegenControlCatalogFilter {

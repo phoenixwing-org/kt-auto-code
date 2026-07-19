@@ -51,7 +51,9 @@ A–F 的人工状态和 A/C/E verifier 必须同时通过，报告整体状态�
 预期：
 
 - 左侧最终显示 5 份 JSON：根目录 `PNXWidgetParam.json`、嵌套 `KtCourseGuardParam.json`、零行 `EmptyParam.json`、自动生成的 `PNXLegacyPanelParam.json`、已有的 `PNXConflictParam.json`。
-- “JSON 配置”有独立标题和数量，点击标题可收缩；列表最多显示 5 行，更多文件只在 Block 内滚动，点击文件不会改变列表顺序。
+- “JSON 配置”有独立标题和数量，位于“控制符目录”Block 之前；点击标题可收缩，列表最多显示 5 行，更多文件只在 Block 内滚动，点击文件不会改变列表顺序。
+- 折叠“JSON 配置 / 控制符目录 / 控制符候选”中的任意 Block，并把 JSON 或控制符列表滚到中部；点击控制符 `⧉` 输出并复制后，外层页面、列表位置和三个折叠状态都不得跳动。
+- 在两份已打开 JSON View 之间切换时，Primary 只改变当前 JSON 的选中样式，不自动展开/收起 Block，也不强制把当前行滚动到页面其他位置。
 - `data/not-codegen.json` 不进入列表。
 - 右侧不会自动打开任何 Codegen View。
 - `legacy/PNXLegacyPanelParam.csv` 在成功转换并复读后被删除，同名 JSON 出现。
@@ -130,15 +132,17 @@ pnpm ext:verify:codegen -- <临时工作区> --checkpoint-c
 4. 打开 `PNXWidgetParam.json`，点击“预检”。
    首次预检期间可修改任一 `bulk-source/*.cpp`，预期当前预检自动取消并提示源码已变化；随后重新执行。
    取消后旧候选列表应立即清空，重扫完成前不得回填被取消任务的旧结果。
-5. 展开当前 JSON 页面下方“控制符与预检”收缩 Block，切换全选、全不选、C++ only、Field Code 和单选模式。
-6. 点击命中区域，观察 Artifact 预览；“打开”应定位源码行。
+5. 在 Primary 的“控制符目录”切换命中/未闭合/未命中、C++ only、Field Code 以及选择工具；JSON View 不再重复显示这份目录。取消当前命中项 checkbox 后，该行仍留在命中筛选中，焦点、Tree 展开和列表滚动位置不得跳动；未闭合行不展开诊断，也没有打开/复制 END 动作。
+6. 展开当前 JSON 页面下方“预检结果”Block，切换命中/问题/全部；左侧选择命中或问题，右侧显示详情。命中详情预览 Artifact，“打开位置”定位源码；结构化 missing-end 可在右详情复制 END，普通/旧诊断不允许从 message 猜 END。
 7. 点击“Apply”；也可先清掉/失效缓存，确认 Apply 会自动预检。
+   Apply 成功或部分成功后，“预检结果”仍应保留刚才的命中、Artifact 和问题，并显示“已应用 · 需重新预检”；再次点击 Apply 必须先产生新预检，不能复用写入前旧计划。修改参数、控制符选择或源码后，旧结果可继续回看，但状态应变为“结果已过期 · 需重新预检”。
+8. 将 JSON View 滚动到页面底部，确认顶部文档栏仍固定可见；参数表和预检结果从其下方滚过，页面仍只有一个纵向滚动边界。
 
 预期：候选扫描、预检与 Apply 的完成摘要均包含扫描/命中/写入计数和从用户动作开始计算的耗时。`ready + artifacts=0` 的 Target 不占用默认 Output；非零产物、`scaffold`、`unsupported` 和诊断仍保留。Apply 成功后只用 `[Codegen][Apply][File]` 按文件名输出一行及区域数，不输出逐区域绝对路径、字节范围或 artifact 身份；这些审计明细仍完整保存在结构化回执中，Output 最后用简短的 `[Codegen][Apply][Receipt]` 确认回执已保存。源码 Start/End 标记仍保留。预检或 Apply 的 warning/error 同时进入 Problems，点击可定位并显示黄色行背景。若在多文件 Apply 期间外部再次修改尚未写入的目标，应出现 `apply.source-changed-during-write`，此前文件回滚而第三方内容不被覆盖。
 
 成功回执位于 `.phoenix/cache/codegen/apply-receipt-v1/`，一份 JSON 只保留最新一份。它只记录工作区相对路径、前后 sha256、编码/换行、字节数和已写区域身份，不保存源码正文；只有源码事务成功后才写入。回执落盘失败不会撤销已经成功的源码事务，而会以 `apply.receipt-write-failed` warning 同时进入 Output 和 Problems。
 单选模式在勾选另一项及页面重绘后仍保持；只开关单选模式不会使已有预检缓存失效，真正改变控制符选择才会失效。
-控制符目录与“预检命中与问题”必须各自出现纵向滚动能力，鼠标滚轮/触控板和键盘聚焦后滚动均能看到末项；窄窗口变成上下两区时也不能被外层裁掉。
+Primary 控制符目录在 compact 限高内独立滚动；JSON View 预检左列表不得建立内部纵向滚动，右详情 sticky 随整页滚动并在 Block 底部停止。只有详情中的代码/Artifact 预览允许在过长时局部滚动，详情标题、摘要和动作必须保持可见。窄窗口不能重新出现控制符目录或上下独立纵滚。
 
 Problems 定位点检：在临时工作区中暂时删除一个 `PNXWidget.cpp` 的 `END KEVIN CAA WIZARD SECTION` 行，再预检。预期 Problems 出现 `marker.missing-end`，点击后打开该源码并以黄色背景定位 Start 行；随后撤销该临时修改并重新预检。
 
@@ -149,6 +153,8 @@ pnpm ext:verify:codegen -- <临时工作区> --checkpoint-e
 ```
 
 预期 Marker Index、至少一份 Preflight Cache 类型正确；至少一份含控制符源码的 sha256 已改变，且每份源码 Start/End 数量仍配对。验证器还会读取 Apply Receipt，确认其 Apply 前指纹等于 fixture 基线、Apply 后指纹等于当前磁盘字节、文件属于控制符源码，并核对 `fileCount`、`regionCount` 与每个 `region/artifact/block/line` 明细。这样普通手工改动不能冒充 Apply 成功。命令只回写机器验证结果，不会冒充人工界面验收；Apply 前的基线检查省略 `--checkpoint-e` 即可。
+
+边界错误回归：若预检同时包含 `marker.missing-end` / `marker.orphan-end` 和其他完整控制块，点击 Apply 应显示“部分完成”，只写入完整区域，错误块保持原文并继续列在 Problems。其他模型、Renderer、Artifact、指纹或范围错误仍应整份阻止，不能借部分 Apply 绕过。
 
 超大工程保护：当前 scope 超过 5000 个源码文件时，扫描应明确要求通过工作集或 Ignore 缩小范围，不得把截断结果显示为成功预检。
 

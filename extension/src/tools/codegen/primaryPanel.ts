@@ -4,7 +4,7 @@ import type { KtcCodegenPrimaryViewModel } from "./primaryViewModel.js";
 export const KTC_CODEGEN_PRIMARY_PANEL_TAG = "ktc-codegen-primary-panel";
 
 export type KtcCodegenPrimaryActionDetail =
-  | { readonly action: "openJson" | "importCsv" | "refresh" | "scanCandidates" | "cancelOperation" | "copyDiagnostics" }
+  | { readonly action: "openJson" | "importCsv" | "refresh" | "scanCandidates" | "cancelOperation" | "copyDiagnostics" | "applyAll" }
   | { readonly action: "openDocument" | "openCandidate"; readonly uri: string }
   | {
       readonly action: "updateMeta";
@@ -14,7 +14,7 @@ export type KtcCodegenPrimaryActionDetail =
     };
 
 const STYLE = `
-  :host { display: grid; gap: 9px; color: var(--vscode-foreground); font: 12px/1.35 var(--vscode-font-family); }
+  :host { position: relative; display: grid; gap: 9px; min-height: 0; color: var(--vscode-foreground); font: 12px/1.35 var(--vscode-font-family); }
   * { box-sizing: border-box; }
   button, input { font: inherit; }
   button { cursor: pointer; }
@@ -52,6 +52,10 @@ const STYLE = `
   .tag.dirty { color: var(--vscode-editorWarning-foreground); border-color: var(--vscode-editorWarning-foreground); }
   .row.active .tag { color: inherit; border-color: currentColor; opacity: .86; }
   .empty { padding: 12px 8px; color: var(--vscode-descriptionForeground); text-align: center; }
+  .batch-overlay { position: absolute; z-index: 20; inset: 0; display: grid; place-content: center; gap: 6px; padding: 16px; color: var(--vscode-foreground); background: color-mix(in srgb, var(--vscode-editor-background) 88%, transparent); border: 1px solid var(--vscode-focusBorder); border-radius: 6px; text-align: center; cursor: progress; }
+  .batch-overlay[hidden] { display: none; }
+  .batch-overlay strong { font-size: 13px; }
+  .batch-overlay span { color: var(--vscode-descriptionForeground); }
 `;
 
 export class KtcCodegenPrimaryPanel extends HTMLElement {
@@ -59,7 +63,11 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
   /** Host snapshot 重绘时复用同一实例，保留目录自己的筛选与 Tree 展开状态。 */
   private readonly controlPanel = document.createElement("ktc-codegen-control-panel");
   private currentModel: KtcCodegenPrimaryViewModel | undefined;
+  private documentsExpanded = true;
   private controlsExpanded = true;
+  private candidatesExpanded = true;
+  private documentScrollTop = 0;
+  private candidateScrollTop = 0;
 
   get model(): KtcCodegenPrimaryViewModel | undefined { return this.currentModel; }
   set model(value: KtcCodegenPrimaryViewModel | undefined) {
@@ -86,10 +94,23 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
     const actions = document.createElement("div");
     actions.className = "actions";
     actions.append(
-      this.actionButton("打开 JSON…", "openJson", model.running || busy, "action"),
-      this.actionButton("导入 CSV…", "importCsv", model.running || busy, "action secondary"),
-      this.actionButton(model.operation === "discovery" ? "取消扫描" : "刷新列表", model.operation === "discovery" ? "cancelOperation" : "refresh", (model.running || busy) && model.operation !== "discovery", "text-button"),
-      this.actionButton(model.operation === "candidates" ? "取消候选扫描" : "扫描候选源码", model.operation === "candidates" ? "cancelOperation" : "scanCandidates", (model.running || busy) && model.operation !== "candidates", "text-button"),
+      this.actionButton("打开", "openJson", model.running || busy, "action", "打开一份 Codegen JSON"),
+      this.actionButton("导入", "importCsv", model.running || busy, "action secondary", "导入 CSV 并转换为 Codegen JSON"),
+      this.actionButton("全部应用", "applyAll", model.running || busy || model.documents.length === 0, "text-button", "依次打开当前列表中的全部 JSON View，并逐份运行预检与 Apply"),
+      this.actionButton(
+        model.operation === "discovery" ? "取消刷新" : "刷新",
+        model.operation === "discovery" ? "cancelOperation" : "refresh",
+        (model.running || busy) && model.operation !== "discovery",
+        "text-button",
+        model.operation === "discovery" ? "取消正在进行的 JSON 列表扫描" : "重新扫描工作区中的 Codegen JSON 列表",
+      ),
+      this.actionButton(
+        model.operation === "candidates" ? "取消扫描" : "扫源码",
+        model.operation === "candidates" ? "cancelOperation" : "scanCandidates",
+        (model.running || busy) && model.operation !== "candidates",
+        "text-button",
+        model.operation === "candidates" ? "取消正在进行的控制符源码候选扫描" : "扫描工作区中含 Codegen 控制符的源码候选",
+      ),
       this.actionButton("复制诊断", "copyDiagnostics", false, "text-button", "复制不含表格内容和源码内容的运行状态"),
     );
 
@@ -132,25 +153,42 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
 
     const documents = document.createElement("details");
     documents.className = "mini";
-    documents.open = true;
+    documents.open = this.documentsExpanded;
+    documents.setAttribute("aria-label", "JSON 配置区");
+    documents.ontoggle = () => { this.documentsExpanded = documents.open; };
     documents.append(this.summary("JSON 配置", model.documents.length ? `${model.documents.length} 份` : ""));
     documents.append(this.documentList(model));
 
     const candidates = document.createElement("details");
     candidates.className = "mini";
-    candidates.open = true;
+    candidates.open = this.candidatesExpanded;
+    candidates.setAttribute("aria-label", "控制符候选区");
+    candidates.ontoggle = () => { this.candidatesExpanded = candidates.open; };
     candidates.append(this.summary("控制符候选（工作区级）", model.candidates.length ? `${model.candidates.length} 个` : ""));
     candidates.append(this.candidateList(model));
 
     const hint = document.createElement("p");
     hint.className = "hint";
     hint.textContent = "一份 JSON 对应当前编辑区一个表格 View；Primary 与 JSON View 的控制符目录由 Host session 同步。";
-    this.root.replaceChildren(style, actions, current, properties, controls, documents, candidates, hint);
+    const overlay = document.createElement("div");
+    overlay.className = "batch-overlay";
+    overlay.hidden = model.operation !== "batch-apply" || !model.batch;
+    overlay.setAttribute("role", "status");
+    overlay.setAttribute("aria-live", "assertive");
+    overlay.setAttribute("aria-label", "全部应用正在运行，Auto Code 操作暂时锁定");
+    const overlayTitle = document.createElement("strong");
+    overlayTitle.textContent = model.batch
+      ? `正在全部应用 ${model.batch.current} / ${model.batch.total}`
+      : "正在全部应用";
+    const overlayFile = document.createElement("span");
+    overlayFile.textContent = model.batch?.fileName ?? "正在准备 JSON View…";
+    overlay.append(overlayTitle, overlayFile);
+    this.root.replaceChildren(style, actions, current, properties, documents, controls, candidates, hint, overlay);
   }
 
   private actionButton(
     label: string,
-    action: "openJson" | "importCsv" | "refresh" | "scanCandidates" | "cancelOperation" | "copyDiagnostics",
+    action: "openJson" | "importCsv" | "refresh" | "scanCandidates" | "cancelOperation" | "copyDiagnostics" | "applyAll",
     disabled: boolean,
     className: string,
     title = "",
@@ -200,8 +238,10 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
 
   private documentList(model: KtcCodegenPrimaryViewModel): HTMLElement {
     const list = document.createElement("div");
-    list.className = "list";
+    list.className = "list document-list";
     list.tabIndex = 0;
+    list.scrollTop = this.documentScrollTop;
+    list.onscroll = () => { this.documentScrollTop = list.scrollTop; };
     list.setAttribute("aria-label", "Codegen JSON 列表");
     list.setAttribute("aria-busy", String(model.operation === "discovery"));
     for (const entry of model.documents) {
@@ -219,7 +259,6 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
       list.append(row);
     }
     if (!model.documents.length) list.append(this.empty(model.operation === "discovery" ? "正在查找 Codegen JSON…" : "暂无 Codegen JSON"));
-    queueMicrotask(() => list.querySelector<HTMLElement>(".row.active")?.scrollIntoView({ block: "nearest", inline: "nearest" }));
     return list;
   }
 
@@ -227,6 +266,8 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
     const list = document.createElement("div");
     list.className = "list candidate-list";
     list.tabIndex = 0;
+    list.scrollTop = this.candidateScrollTop;
+    list.onscroll = () => { this.candidateScrollTop = list.scrollTop; };
     list.setAttribute("aria-label", "含控制符的源码候选列表");
     list.setAttribute("aria-busy", String(model.operation === "candidates"));
     for (const candidate of model.candidates) {

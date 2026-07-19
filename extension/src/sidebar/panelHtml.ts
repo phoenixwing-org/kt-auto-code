@@ -1576,13 +1576,20 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     }
 
     function renderCodegen(ts, running) {
+      const batch = ts.codegenOperation === "batch-apply"
+        && ts.codegenBatch
+        && Number(ts.codegenBatch.total) > 0
+        ? ts.codegenBatch
+        : undefined;
+      const staleBatchState = ts.codegenOperation === "batch-apply" && !batch;
       els.codegenPanel.model = {
         documents: Array.isArray(ts.codegenDocuments) ? ts.codegenDocuments : [],
         activeUri: ts.codegenActiveUri,
         controls: ts.codegenControls,
         candidates: Array.isArray(ts.codegenCandidates) ? ts.codegenCandidates : [],
-        operation: ts.codegenOperation,
-        running: !!running,
+        operation: staleBatchState ? undefined : ts.codegenOperation,
+        batch,
+        running: staleBatchState ? false : !!running,
       };
     }
 

@@ -16,6 +16,7 @@ import type {
   KtcCodegenControlCatalogViewModel,
 } from "./codegen/controlViewModel.js";
 import type {
+  KtcCodegenBatchApplyProgress,
   KtcCodegenDocumentSummary,
   KtcCodegenSourceCandidateSummary,
 } from "./codegen/primaryViewModel.js";
@@ -35,6 +36,7 @@ export type {
   KtcCodegenControlViewModel,
 } from "./codegen/controlViewModel.js";
 export type {
+  KtcCodegenBatchApplyProgress,
   KtcCodegenDocumentSummary,
   KtcCodegenPrimaryViewModel,
   KtcCodegenSourceCandidateSummary,
@@ -248,7 +250,8 @@ export interface ToolUiState {
   codegenActiveUri?: string;
   codegenControls?: KtcCodegenControlCatalogViewModel;
   codegenCandidates?: KtcCodegenSourceCandidateSummary[];
-  codegenOperation?: "discovery" | "candidates";
+  codegenOperation?: "discovery" | "candidates" | "batch-apply";
+  codegenBatch?: KtcCodegenBatchApplyProgress;
 }
 
 export interface ProjectEnvironmentValueSummary {

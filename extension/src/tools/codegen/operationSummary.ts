@@ -23,13 +23,17 @@ export function ktcCodegenApplySummary(input: {
   readonly fileCount: number;
   readonly regionCount: number;
   readonly receiptFailed: boolean;
+  readonly preflightErrorCount?: number;
   readonly elapsed: string;
 }): string {
+  const errors = input.preflightErrorCount ?? 0;
+  const prefix = errors ? "Apply 部分完成" : "Apply 完成";
+  const errorSummary = errors ? `；${errors} 条预检错误对应内容未写入，请查看 Problems` : "";
   if (!input.fileCount) {
-    return `Apply 完成：生成结果与源码一致，没有需要写入的变化；耗时 ${input.elapsed}。`;
+    return `${prefix}：安全区域的生成结果与源码一致，没有需要写入的变化${errorSummary}；耗时 ${input.elapsed}。`;
   }
   if (input.receiptFailed) {
-    return `Apply 完成：已修改 ${input.fileCount} 个文件、${input.regionCount} 个区域；回执缓存失败，请查看 Problems；耗时 ${input.elapsed}。`;
+    return `${prefix}：已修改 ${input.fileCount} 个文件、${input.regionCount} 个区域${errorSummary}；回执缓存失败，请查看 Problems；耗时 ${input.elapsed}。`;
   }
-  return `Apply 完成：已修改 ${input.fileCount} 个文件、${input.regionCount} 个区域；回执已保存；耗时 ${input.elapsed}。`;
+  return `${prefix}：已修改 ${input.fileCount} 个文件、${input.regionCount} 个区域${errorSummary}；回执已保存；耗时 ${input.elapsed}。`;
 }

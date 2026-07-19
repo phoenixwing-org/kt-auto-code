@@ -51,6 +51,9 @@
     .view-toolbar {
       display: flex;
       flex: 0 0 auto;
+      position: sticky;
+      top: 0;
+      z-index: 20;
       flex-wrap: wrap;
       align-items: center;
       gap: 6px;
@@ -59,6 +62,7 @@
       border: 1px solid var(--vscode-panel-border);
       border-radius: 6px;
       background: var(--vscode-sideBar-background);
+      box-shadow: 0 2px 0 var(--vscode-panel-border);
     }
     .document-title { flex: 1 1 180px; min-width: 120px; margin-right: auto; }
     .document-title strong, .document-title span { display: block; }
@@ -76,7 +80,7 @@
     .control-drawer {
       position: relative;
       flex: 0 0 auto;
-      overflow: hidden;
+      overflow: visible;
       border: 1px solid var(--vscode-panel-border);
       border-radius: 6px;
       background: var(--vscode-editor-background);
@@ -114,7 +118,7 @@
       <span>Codegen JSON 编辑 View · 布局点检夹具</span>
     </div>
     <button type="button">预检</button>
-    <button type="button">控制符 / 结果</button>
+    <button type="button">预检结果</button>
     <button type="button">Apply</button>
     <button type="button">保存 JSON</button>
   </header>
@@ -129,7 +133,7 @@
     <div class="fake-row">参数表第 8 行</div>
   </div>
   <details class="control-drawer" open>
-    <summary>控制符与预检 <output id="layout-event">分隔 42%</output></summary>
+    <summary>预检结果 <output id="layout-event">命中与问题</output></summary>
     <ktc-codegen-control-panel id="control-panel" mode="full"></ktc-codegen-control-panel>
   </details>
   <script src="../dist/codegen-control-catalog.js"></script>
@@ -178,7 +182,6 @@
     }));
     customElements.whenDefined("ktc-codegen-control-panel").then(() => {
       const panel = document.getElementById("control-panel");
-      panel.splitRatio = 42;
       panel.model = {
         kind: "kt.codegen.control-view-model",
         schemaVersion: 1,
@@ -197,9 +200,6 @@
           plan: { markerRegions, artifacts, diagnostics },
         },
       };
-      panel.addEventListener("ktc-codegen-control-split-change", (event) => {
-        document.getElementById("layout-event").textContent = `分隔 ${event.detail.percent}%`;
-      });
       document.body.dataset.ready = "true";
     });
   </script>

@@ -14,7 +14,7 @@ function safeJson(value: unknown): string {
     .replaceAll("\u2029", "\\u2029");
 }
 
-/** 当前编辑区 JSON View：组合文档工具栏、Wing Table 与可收缩控制符/预检 Block。 */
+/** 当前编辑区 JSON View：组合文档工具栏、Wing Table 与可收缩预检结果 Block。 */
 export function getCodegenEditorHtml(
   webview: Pick<vscode.Webview, "cspSource" | "asWebviewUri">,
   extensionUri: vscode.Uri,
@@ -30,7 +30,8 @@ export function getCodegenEditorHtml(
     extensionUri.with({ path: `${basePath}/dist/codegen-control-catalog.js` }),
   );
   const model = safeJson(initialModel);
-  const layout = safeJson(ktcNormalizeCodegenEditorLayout(initialLayout));
+  // 旧 controlSplitPercent schema 仍由 Host 接受；full View 已无左右分栏，不再下发消费。
+  void ktcNormalizeCodegenEditorLayout(initialLayout);
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -86,6 +87,9 @@ export function getCodegenEditorHtml(
     .view-toolbar {
       display: flex;
       flex: 0 0 auto;
+      position: sticky;
+      top: 0;
+      z-index: 20;
       align-items: center;
       gap: 6px;
       min-height: 42px;
@@ -93,6 +97,7 @@ export function getCodegenEditorHtml(
       border: 1px solid var(--vscode-panel-border);
       border-radius: 6px;
       background: var(--vscode-sideBar-background);
+      box-shadow: 0 2px 0 var(--vscode-panel-border);
     }
     .document-title { flex: 1 1 180px; min-width: 120px; margin-right: auto; }
     .document-title strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -100,11 +105,11 @@ export function getCodegenEditorHtml(
     .document-title span.dirty { color: var(--vscode-editorWarning-foreground); }
     .document-title span.conflict { color: var(--vscode-errorForeground); }
     .separator { width: 1px; height: 22px; margin: 0 2px; background: var(--vscode-panel-border); }
-    kt-codegen-table { flex: 1 1 auto; min-height: 120px; }
+    kt-codegen-table { flex: 0 0 auto; min-height: 0; }
     .control-drawer {
       position: relative;
       flex: 0 0 auto;
-      overflow: hidden;
+      overflow: visible;
       border: 1px solid var(--vscode-panel-border);
       border-radius: 6px;
       background: var(--vscode-editor-background);
@@ -137,6 +142,22 @@ export function getCodegenEditorHtml(
       height: auto;
       min-height: 0;
     }
+    .batch-overlay {
+      position: fixed;
+      z-index: 100;
+      inset: 0;
+      display: grid;
+      place-content: center;
+      gap: 7px;
+      padding: 24px;
+      color: var(--vscode-foreground);
+      background: color-mix(in srgb, var(--vscode-editor-background) 90%, transparent);
+      text-align: center;
+      cursor: progress;
+    }
+    .batch-overlay[hidden] { display: none; }
+    .batch-overlay strong { font-size: 14px; }
+    .batch-overlay span { color: var(--vscode-descriptionForeground); }
     body.vscode-high-contrast kt-codegen-table,
     body.vscode-high-contrast-light kt-codegen-table {
       --pnw-kt-codegen-border: var(--vscode-contrastBorder, var(--vscode-panel-border));
@@ -169,20 +190,25 @@ export function getCodegenEditorHtml(
       <span id="document-state" role="status" aria-live="polite" aria-atomic="true">Codegen JSON 编辑 View</span>
     </div>
     <button id="preflight" type="button" aria-label="运行 Codegen 预检" aria-pressed="false">预检</button>
-    <button id="controls" type="button" aria-expanded="false">控制符 / 结果</button>
+    <button id="controls" type="button" aria-expanded="false">预检结果</button>
     <button id="apply" type="button" title="没有缓存时会先自动预检；写入前重验源码指纹">Apply</button>
     <span class="separator" aria-hidden="true"></span>
     <button id="revert" type="button" disabled>↶ 还原</button>
     <button class="primary" id="save" type="button">保存 JSON</button>
   </header>
-  <kt-codegen-table id="codegen-table"></kt-codegen-table>
+  <kt-codegen-table id="codegen-table" layout="page" collapsible></kt-codegen-table>
   <details class="control-drawer" id="control-drawer">
     <summary>
-      <span class="control-summary-title">控制符与预检</span>
+      <span class="control-summary-title">预检结果</span>
       <span class="control-summary-meta" id="control-summary">尚未预检</span>
     </summary>
     <ktc-codegen-control-panel id="control-panel" mode="full"></ktc-codegen-control-panel>
   </details>
+  <div class="batch-overlay" id="batch-overlay" role="status" aria-live="assertive"
+    aria-label="全部应用正在运行，当前 JSON View 操作暂时锁定" hidden>
+    <strong id="batch-overlay-title">正在全部应用</strong>
+    <span id="batch-overlay-file">正在准备 JSON View…</span>
+  </div>
   <script nonce="${nonce}" src="${tableComponentUri}"></script>
   <script nonce="${nonce}" src="${controlCatalogUri}"></script>
   <script nonce="${nonce}">
@@ -196,8 +222,11 @@ export function getCodegenEditorHtml(
     const controls = document.getElementById("controls");
     const controlDrawer = document.getElementById("control-drawer");
     const controlPanel = document.getElementById("control-panel");
+    const viewToolbar = document.querySelector(".view-toolbar");
+    const batchOverlay = document.getElementById("batch-overlay");
+    const batchOverlayTitle = document.getElementById("batch-overlay-title");
+    const batchOverlayFile = document.getElementById("batch-overlay-file");
     let model = ${model};
-    let editorLayout = ${layout};
     let controlsModel = model.controls;
     let dirtyNotified = !!model.dirty;
     let draftSyncTimer;
@@ -206,10 +235,12 @@ export function getCodegenEditorHtml(
       vscode.postMessage(Object.assign({ toolId: "codegen", uri: model.uri }, message));
     }
 
-    function persistEditorLayout(next) {
-      editorLayout = Object.assign({}, editorLayout, next);
-      post({ type: "codegenEditorLayout", layout: editorLayout });
+    function syncDetailStickyTop() {
+      const height = viewToolbar ? Math.ceil(viewToolbar.getBoundingClientRect().height) : 50;
+      document.body.style.setProperty("--ktc-codegen-detail-sticky-top", (height + 8) + "px");
     }
+    if (viewToolbar) new ResizeObserver(syncDetailStickyTop).observe(viewToolbar);
+    syncDetailStickyTop();
 
     function syncHeader() {
       fileName.textContent = model.fileName;
@@ -273,7 +304,6 @@ export function getCodegenEditorHtml(
     table.setData(model.table);
     syncHeader();
     controlPanel.model = controlsModel;
-    controlPanel.splitRatio = editorLayout.controlSplitPercent;
     syncControlSummary();
 
     table.addEventListener("kt-codegen-table-dirty-change", (event) => {
@@ -299,54 +329,17 @@ export function getCodegenEditorHtml(
     document.getElementById("apply").onclick = () => post({
       type: "codegenEditorAction", action: "apply", table: table.getData(),
     });
-    controlPanel.addEventListener("ktc-codegen-control-selection-change", (event) => {
-      const selected = new Set(event.detail.blockKeys);
-      controlsModel = {
-        ...controlsModel,
-        selectedBlockKeys: [...event.detail.blockKeys],
-        singleSelectionMode: !!event.detail.singleMode,
-        preflightAvailable: false,
-        missingTemplates: [],
-        preflight: undefined,
-        blocks: controlsModel.blocks.map((block) => ({
-          ...block,
-          status: selected.has(block.key) ? "pending" : "unselected",
-          hitCount: 0,
-          artifactCount: 0,
-        })),
-      };
-      model.controls = controlsModel;
-      controlPanel.model = controlsModel;
-      syncControlSummary();
-      post({
-        type: "codegenControlSelection",
-        blockKeys: [...event.detail.blockKeys],
-        singleMode: !!event.detail.singleMode,
-      });
-    });
-    controlPanel.addEventListener("ktc-codegen-control-display-change", (event) => post({
-      type: "codegenControlDisplay",
-      showMissingTemplates: !!event.detail.showMissingTemplates,
-    }));
-    controlPanel.addEventListener("ktc-codegen-control-output", (event) => {
-      // 同一 Webview 中可能还有 600ms 内尚未交换的整表草稿。先同步再发语义
-      // 输出命令，Extension Host 会按消息顺序用最新 session 统一生成并写日志。
-      exchangeDraft();
-      post({
-        type: "codegenControlOutput",
-        scope: event.detail.scope,
-        blockKey: event.detail.blockKey,
-        blockKeys: event.detail.blockKeys,
-      });
-    });
     controlPanel.addEventListener("ktc-codegen-control-open", (event) => post({
       type: "codegenControlOpen",
       path: event.detail.path,
       line: event.detail.line,
     }));
-    controlPanel.addEventListener("ktc-codegen-control-split-change", (event) => {
-      persistEditorLayout({ controlSplitPercent: event.detail.percent });
-    });
+    controlPanel.addEventListener("ktc-codegen-control-copy-end", (event) => post({
+      type: "codegenControlCopyEnd",
+      blockKey: event.detail.blockKey,
+      path: event.detail.path,
+      line: event.detail.line,
+    }));
 
     document.addEventListener("visibilitychange", () => { if (document.hidden) exchangeDraft(); });
     window.addEventListener("beforeunload", exchangeDraft);
@@ -371,6 +364,13 @@ export function getCodegenEditorHtml(
         preflight.setAttribute("aria-pressed", String(!!message.running));
         preflight.setAttribute("aria-label", message.running ? "取消 Codegen 预检" : "运行 Codegen 预检");
         if (message.running) controlDrawer.open = true;
+      } else if (message.type === "codegenBatchState") {
+        batchOverlay.hidden = !message.running;
+        batchOverlayTitle.textContent = message.running && message.total
+          ? "正在全部应用 " + (message.current ?? 0) + " / " + message.total
+          : "正在全部应用";
+        batchOverlayFile.textContent = message.fileName || "正在准备 JSON View…";
+        document.body.setAttribute("aria-busy", String(!!message.running));
       } else if (message.type === "codegenStatus") {
         if (message.status === "saved") {
           clearTimeout(draftSyncTimer);

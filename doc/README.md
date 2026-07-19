@@ -25,7 +25,7 @@ Owner：KT Auto Code maintainers
 - [Codegen 编辑器语义命令 Controller 点检](codegen-plan/Codegen编辑器语义命令Controller点检表.md)
 - [Codegen 控制符目录 Tree 与范围 Combo 点检](codegen-plan/Codegen控制符目录Tree与范围Combo点检表.md)
 - [Codegen 手工验收](codegen-plan/Codegen手工验收.md)
-- [Codegen 全部应用计划](codegen-plan/Codegen全部应用与批量报告计划.md)与[点检表](codegen-plan/Codegen全部应用点检表.md)
+- [Codegen 全部应用 V1 点检](codegen-plan/Codegen全部应用点检表.md)与[2.0 批量报告计划](codegen-plan/Codegen全部应用与批量报告计划.md)
 - [Extension Host 自动验收](ExtensionHost自动验收.md)
 - [搜索替换行为规范](搜索替换.md)、[编码规则](搜索替换编码规则.md)与[算法审计](搜索替换算法审计.md)
 - [关联规则选择器组件化 Baseline 点检](关联规则选择器组件化Baseline点检表.md)

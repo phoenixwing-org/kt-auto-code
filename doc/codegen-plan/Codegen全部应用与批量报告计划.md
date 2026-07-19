@@ -1,6 +1,6 @@
-# Codegen 全部应用与批量报告计划
+# Codegen 全部应用 2.0 与批量报告计划
 
-状态：current
+状态：future（2.0）
 
 Owner：KT Auto Code maintainers
 
@@ -8,7 +8,7 @@ Owner：KT Auto Code maintainers
 
 建立日期：2026-07-18
 
-本文是“全部应用”实施的当前设计真源。实现前后均以配套的 [`Codegen全部应用点检表.md`](Codegen全部应用点检表.md) 为验收入口；旧 Qt/VB 只作为需求证据，不作为安全实现模板。
+本文是“全部应用 2.0”安全编排与完整批量报告的未来设计真源。当前已落地的简版 V1 行为与证据见 [`Codegen全部应用点检表.md`](Codegen全部应用点检表.md)：V1 已在批次结束后自动新开一次性轻量报告，并记录单项 Apply 的实际修改文件/区域数及结构化问题；它不持久化，也没有跨 JSON 冲突、取消、独立 Problems、receipt 明细/唯一文件统计和重新打开入口。不得把这页轻量报告冒充 2.0 完整批次报告。
 
 ## 1. 目标与范围
 
@@ -20,7 +20,7 @@ Owner：KT Auto Code maintainers
 4. 仅对用户确认的 ready JSON 严格串行 Apply，每项写盘前重新验证；
 5. 输出每 JSON 的预检、写入和耗时表格，并保留可复查的结构化报告。
 
-首版不追求跨 JSON 原子事务，不并行写盘，不遍历任意 `*.json`，不逐个打开 JSON View，也不把报告正文塞入 Output Channel。
+2.0 不追求跨 JSON 原子事务，不并行写盘，不遍历任意 `*.json`，不逐个打开 JSON View，也不把报告正文塞入 Output Channel。
 
 ## 2. 旧 Qt / VB 结论
 
@@ -94,13 +94,20 @@ flowchart TD
 
 批次总计同时记录：JSON 总数、ready / 成功 / 跳过 / 阻止 / 失败数量、唯一修改文件数、实际文件写入次数、区域数、预检耗时、Apply 耗时和按钮点击到报告完成的总耗时。
 
+批次 warning/error 同时进入两个互不替代的出口：报告表格中的“问题”状态筛选保存完整批次证据；具有源码位置的 error/warning 进入独立的 `kt-codegen-batch` DiagnosticCollection。现有单 JSON `kt-codegen` Problems 会随活动 JSON 切换并清空自身集合，批次诊断不得复用它，否则会被任一 JSON View 切换冲掉。新批次开始时替换上一批批次诊断；普通 View 切换、单 JSON 预检和 Apply 不得清除批次集合。
+
+`lastBatchReport` 由 Extension Host 持有，报告 WebviewPanel 只是可重建投影。关闭报告 View、切换工具或切换 JSON 都不能丢失最近一次摘要、错误与重新打开入口。
+
 ## 7. 报告 View 决定
 
-首版采用按需打开的编辑区 `Codegen 全部应用报告` WebviewPanel：
+2.0 采用按需打开的编辑区 `Codegen 全部应用报告` WebviewPanel：
+
+V1 已复用相同标题提供一次性只读报告，以便尽早验证表格信息架构。2.0 可以演进该 View，但必须替换为 Host 持有、可重建的完整 BatchReport，不能依赖 V1 Panel 仍然打开。
 
 - 完成、取消或阻断后自动打开；Primary 保留最近一次摘要与 `查看报告`。
 - 表格可筛选状态、复制 TSV/Markdown 摘要、打开 JSON 或定位第一条诊断。
 - View 只消费 BatchReport ViewModel，不持有执行状态或文件系统。
+- “问题”筛选显示整批 error/warning；切换任一 JSON View 不改变批次报告和 `kt-codegen-batch` Problems。
 - Output 只写开始一行、每 JSON 一行、总计一行；详细数据留在报告。
 
 不直接把自定义页面插入 VS Code 内置 Output。若后续确认报告需要长期常驻，再新增 `viewsContainers.panel` 下的 `应用报告` 底部 Tab；这是第二阶段 UI TODO，不能与首版执行器绑死。

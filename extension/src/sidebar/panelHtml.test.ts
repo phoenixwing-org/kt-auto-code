@@ -177,6 +177,7 @@ describe("sidebar panel HTML", () => {
       codegenDocuments: documents,
       codegenCandidates: candidates,
       codegenControls: controls,
+      codegenBatch: { current: 1, total: 2, fileName: "root.json" },
     }, true);
 
     expect(els.codegenPanel.model).toEqual({
@@ -185,7 +186,19 @@ describe("sidebar panel HTML", () => {
       controls,
       candidates,
       operation: "discovery",
+      batch: undefined,
       running: true,
+    });
+
+    renderCodegen({ codegenOperation: "batch-apply" }, true);
+    expect(els.codegenPanel.model).toEqual({
+      documents: [],
+      activeUri: undefined,
+      controls: undefined,
+      candidates: [],
+      operation: undefined,
+      batch: undefined,
+      running: false,
     });
   });
 

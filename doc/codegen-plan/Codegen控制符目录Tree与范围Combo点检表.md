@@ -6,7 +6,7 @@ Owner：KT Auto Code maintainers
 
 适用版本：0.5.x
 
-最后核验：2026-07-18
+最后核验：2026-07-19
 
 ## 本轮确认范围
 
@@ -32,10 +32,11 @@ Owner：KT Auto Code maintainers
 | T2 | 组 checkbox 的 checked / indeterminate / disabled 只由当前可见项计算 | `controlCatalog.test.ts` 纯状态测试 |
 | T3 | 组勾选只合并当前可见项，组取消只移除当前可见项，其余选择保持 | `controlCatalog.test.ts` 纯状态与事件测试 |
 | T4 | 范围使用 native combo，状态仍是四个按钮 | `controlCatalog.test.ts` 组件测试 |
-| T5 | Primary Host snapshot 重绘保持同一个 compact 控制面板实例和折叠状态 | `primaryPanel.test.ts` 实例身份测试 |
+| T5 | Primary Host snapshot 重绘保持同一个 compact 控制面板实例、三个外层 Block 折叠状态及列表滚动位置 | `primaryPanel.test.ts` 实例身份与状态测试 |
 | T6 | Host 对乱序、重复、非法 key 再校验，选择与可见输出都恢复全局 legacyId 顺序 | `controlSessionController.test.ts` |
 | T7 | Host 消息、session schema、ViewModel `schemaVersion: 1` 不变 | `hostContract.test.ts`、`editorHtml.test.ts`、`panelHtml.test.ts` |
 | T8 | full 无内部纵向滚动；compact 目录保留限定高度纵向滚动 | `controlCatalog.test.ts`、`controlPanel.test.ts`、原布局夹具 |
+| T9 | 单项/筛选输出不改变 session 时不得发布整份 Sidebar snapshot；目录保留 Tree、选择工具和滚动状态 | `codegenArchitecture.test.ts`、`controlCatalog.test.ts` |
 
 ## 2026-07-18 自动回执
 
@@ -60,7 +61,9 @@ Tree 选择、显示与输出 `CustomEvent` 的 payload 由 DOM characterization
 
 下列项目必须在真实 VS Code Extension Host 中执行，本轮浏览器自动回执不勾选这些项目：
 
-- [ ] 在 Primary 打开 Codegen，切换状态筛选和范围 combo，折叠任意组；触发 Host 刷新后筛选与组折叠不回到默认值。
+- [ ] 在 Primary 打开 Codegen，切换状态筛选和范围 combo，折叠任意组；触发 Host 刷新后筛选、组折叠、“选择工具”和目录滚动位置不回到默认值。
+- [ ] 把 Primary 外层页面、JSON 列表和控制符目录分别滚到中部，点击任一控制符的 `⧉`；确认源码已复制，但页面、列表、折叠状态和当前选中 JSON 都不跳动。
+- [ ] 在两份已打开 JSON View 间切换；Primary 只更新当前行选中样式，“JSON 配置 / 控制符目录 / 控制符候选”的展开状态不改变。
 - [ ] “全部类型”下依次显示 C++、Qt、CAA；三组标题使用“显示 X/Y · 可见已选 A/X”计数；范围切换后零项组不显示。
 - [ ] 在“未命中 + Field Code”组合下勾选某组，只改变该组当前可见项；切回“全部”确认隐藏项原选择保持。
 - [ ] 组内部分可见项已选时 checkbox 为三态；组当前无可见项时 checkbox 禁用。

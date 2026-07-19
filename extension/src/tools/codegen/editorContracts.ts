@@ -21,7 +21,7 @@ export type KtcCodegenSidebarActionMessage = {
   readonly type: "codegenAction";
   readonly toolId: "codegen";
   readonly action: "refresh" | "openJson" | "importCsv" | "openDocument" | "updateMeta"
-    | "scanCandidates" | "openCandidate" | "cancelOperation" | "copyDiagnostics";
+    | "scanCandidates" | "openCandidate" | "cancelOperation" | "copyDiagnostics" | "applyAll";
   readonly uri?: string;
   readonly field?: KtcCodegenMetaField;
   readonly value?: string;
@@ -67,6 +67,14 @@ export type KtcCodegenControlMessage =
       readonly uri: string;
       readonly path: string;
       readonly line: number;
+    }
+  | {
+      readonly type: "codegenControlCopyEnd";
+      readonly toolId: "codegen";
+      readonly uri: string;
+      readonly blockKey: KtCodegenBlockKey;
+      readonly path: string;
+      readonly line: number;
     };
 
 export type KtcCodegenEditorInboundMessage =
@@ -106,6 +114,13 @@ export type KtcCodegenEditorOutboundMessage =
   | { readonly type: "codegenControlsModel"; readonly model: KtcCodegenControlViewModel }
   | { readonly type: "codegenDocumentState"; readonly dirty: boolean; readonly externalConflict: boolean }
   | { readonly type: "codegenPreflightState"; readonly running: boolean }
+  | {
+      readonly type: "codegenBatchState";
+      readonly running: boolean;
+      readonly current?: number;
+      readonly total?: number;
+      readonly fileName?: string;
+    }
   | {
       readonly type: "codegenStatus";
       readonly status: "idle" | "saving" | "saved" | "error";

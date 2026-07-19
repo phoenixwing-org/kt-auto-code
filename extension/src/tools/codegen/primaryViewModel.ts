@@ -27,11 +27,18 @@ export interface KtcCodegenSourceCandidateSummary {
   readonly eol: "lf" | "crlf";
 }
 
+export interface KtcCodegenBatchApplyProgress {
+  readonly current: number;
+  readonly total: number;
+  readonly fileName: string;
+}
+
 export interface KtcCodegenPrimaryViewModel {
   readonly documents: readonly KtcCodegenDocumentSummary[];
   readonly activeUri?: string;
   readonly controls?: KtcCodegenControlCatalogViewModel;
   readonly candidates: readonly KtcCodegenSourceCandidateSummary[];
-  readonly operation?: "discovery" | "candidates";
+  readonly operation?: "discovery" | "candidates" | "batch-apply";
+  readonly batch?: KtcCodegenBatchApplyProgress;
   readonly running: boolean;
 }

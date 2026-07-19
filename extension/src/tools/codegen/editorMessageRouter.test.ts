@@ -69,6 +69,15 @@ describe("Codegen editor message router", () => {
       showMissingTemplates: true,
     };
     expect(route(control)).toEqual({ kind: "control", message: control });
+    const copyEnd = {
+      type: "codegenControlCopyEnd" as const,
+      toolId: "codegen" as const,
+      uri: URI,
+      blockKey: "CMD AGENT CONSTRUCTOR" as const,
+      path: "/workspace/PNXBomAnalysisCmd.cpp",
+      line: 91,
+    };
+    expect(route(copyEnd)).toEqual({ kind: "control", message: copyEnd });
     for (const action of ["ready", "revert", "cancelPreflight"] as const) {
       expect(route({ type: "codegenEditorAction", toolId: "codegen", uri: URI, action }))
         .toEqual({ kind: action });

@@ -21,6 +21,7 @@ export function ktcRouteCodegenEditorMessage(
   if (message.uri !== sessionUri) return { kind: "ignore" };
   if (message.type === "codegenEditorLayout") return { kind: "ignore" };
   if (message.type === "codegenControlOpen"
+    || message.type === "codegenControlCopyEnd"
     || message.type === "codegenControlSelection"
     || message.type === "codegenControlDisplay"
     || message.type === "codegenControlOutput") {

@@ -16,9 +16,26 @@ export interface KtcCodegenControlBlockViewModel {
   readonly controlWords: string;
   readonly notes: string;
   /** 当前 Host session 的预检状态；筛选只消费该投影，不在 Webview 猜测。 */
-  readonly status: "unselected" | "pending" | "hit" | "missing";
+  readonly status: "unselected" | "pending" | "hit" | "unclosed" | "missing";
   readonly hitCount: number;
   readonly artifactCount: number;
+  /** missing-end 的安全 UI 投影；诊断码保持不变，行号仍为 0-based。 */
+  readonly unclosed?: readonly KtcCodegenUnclosedControl[];
+}
+
+export interface KtcCodegenUnclosedControl {
+  readonly code: "marker.missing-end";
+  readonly path: string;
+  readonly line: number;
+  readonly column: number;
+  readonly classId: string;
+  readonly expectedEnd: string;
+  readonly boundary?: {
+    readonly kind: "start" | "end";
+    /** Wing 诊断文案中的用户可见 1-based 行号。 */
+    readonly line: number;
+  };
+  readonly message: string;
 }
 
 /** Primary / JSON View 共用的控制符目录与会话状态投影。 */
@@ -47,5 +64,8 @@ export interface KtcCodegenControlViewModel extends KtcCodegenControlCatalogView
     readonly plan: KtCodegenPlan;
     readonly reused: boolean;
     readonly createdAt: string;
+    /** ready 才有可执行 plan；applied/stale 只是最近结果的只读快照。 */
+    readonly state: "ready" | "applied" | "stale";
+    readonly message: string;
   };
 }

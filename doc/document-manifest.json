@@ -325,6 +325,13 @@
       "lastVerified": "2026-07-17"
     },
     {
+      "path": "doc/codegen-plan/Codegen控制符未闭合呈现.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
       "path": "doc/codegen-plan/Codegen控制面板滚动筛选点检表.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",

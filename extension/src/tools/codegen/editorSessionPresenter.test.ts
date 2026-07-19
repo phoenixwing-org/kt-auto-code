@@ -84,6 +84,49 @@ describe("Codegen editor session presenter", () => {
     );
   });
 
+  it("Apply 后向 JSON View 和 Problems 发布只读最近结果，不恢复可执行计划", () => {
+    const model = session();
+    model.setPreflight({
+      plan: {
+        markerRegions: [{ id: "region-1" }],
+        artifacts: [{ id: "artifact-1" }],
+        diagnostics: [{ code: "marker.missing-end", severity: "error", message: "未闭合" }],
+      } as unknown as NonNullable<typeof model.preflight>["plan"],
+      reused: false,
+      createdAt: "2026-07-19T00:00:00.000Z",
+      markerIndexRevision: 1,
+      indexedFileCount: 1,
+      candidateFileCount: 1,
+      cachePath: "/workspace/.phoenix/cache/codegen/test.json",
+    });
+    model.markPreflightApplied();
+    const { presenter, view, controls } = fixture();
+    controls.viewModel.mockImplementation((sessionModel) => ({
+      ...controlModel(sessionModel),
+      preflightAvailable: true,
+      preflight: {
+        plan: sessionModel.preflightSnapshot!.result.plan,
+        reused: false,
+        createdAt: "2026-07-19T00:00:00.000Z",
+        state: "applied",
+        message: "已应用；再次 Apply 前需重新预检",
+      },
+    }));
+
+    presenter.publishControls(model);
+
+    expect(model.preflight).toBeUndefined();
+    expect(view.postEditor).toHaveBeenCalledWith(model.identity.uri, expect.objectContaining({
+      type: "codegenControlsModel",
+      model: expect.objectContaining({ preflight: expect.objectContaining({ state: "applied" }) }),
+    }));
+    expect(view.publishProblems).toHaveBeenCalledWith(
+      model.identity.uri,
+      model.identity.fsPath,
+      [expect.objectContaining({ code: "marker.missing-end" })],
+    );
+  });
+
   it("控制符快照与普通 Editor 消息都只经注入端口输出", () => {
     const model = session();
     const { presenter, view, controls } = fixture();

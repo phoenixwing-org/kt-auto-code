@@ -86,7 +86,7 @@ export class KtcCodegenEditorSessionPresenter {
     this.view.publishProblems(
       session.identity.uri,
       session.identity.fsPath,
-      session.preflight?.plan.diagnostics ?? [],
+      session.preflightSnapshot?.result.plan.diagnostics ?? [],
     );
   }
 }

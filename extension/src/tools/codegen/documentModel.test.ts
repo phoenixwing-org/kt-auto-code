@@ -82,11 +82,16 @@ describe("KtcCodegenDocumentModel", () => {
     });
     expect(model.updateMeta("nameMiddle", "Assembly")).toBe(true);
     expect(model.preflight).toBeUndefined();
+    expect(model.preflightSnapshot).toMatchObject({
+      state: "stale",
+      message: "JSON 参数已修改，需重新预检",
+    });
     expect(model.dirty).toBe(true);
 
     model.setSelectedBlockKeys(["PARAM DECLARATION"]);
     expect(model.selectedBlockKeys).toEqual(["PARAM DECLARATION"]);
     expect(model.preflight).toBeUndefined();
+    expect(model.preflightSnapshot?.state).toBe("stale");
   });
 
   it("控制符单选模式属于会话状态，单独切换模式不使预检失效", () => {
@@ -210,6 +215,44 @@ describe("KtcCodegenDocumentModel", () => {
     expect(model.hasExternalConflict).toBe(true);
     expect(model.preflight).toBeUndefined();
     expect(model.controller.param.nameMiddle).toBe("Part");
+  });
+
+  it("Apply 后销毁可执行计划并保留带错误和回执警告的只读结果", () => {
+    const model = createModel();
+    const result = {
+      plan: {
+        kind: "kt.codegen.plan",
+        markerRegions: [{ id: "region-1" }],
+        artifacts: [{ id: "artifact-1" }],
+        diagnostics: [{ code: "marker.missing-end", severity: "error", message: "未闭合" }],
+      } as unknown as NonNullable<typeof model.preflight>["plan"],
+      reused: false,
+      createdAt: "2026-07-19T00:00:00.000Z",
+      markerIndexRevision: 4,
+      indexedFileCount: 9,
+      candidateFileCount: 2,
+      cachePath: "/workspace/.phoenix/cache/codegen/applied.json",
+    };
+    model.setPreflight(result);
+    model.markPreflightApplied([{
+      code: "apply.receipt-write-failed", severity: "warning", message: "回执失败",
+    }]);
+
+    expect(model.preflight).toBeUndefined();
+    expect(model.preflightSnapshot).toMatchObject({
+      state: "applied",
+      message: "已应用；再次 Apply 前需重新预检",
+      result: { plan: { diagnostics: [
+        { code: "marker.missing-end", severity: "error" },
+        { code: "apply.receipt-write-failed", severity: "warning" },
+      ] } },
+    });
+    expect(model.preflightSnapshot?.result.plan.markerRegions).toEqual([{ id: "region-1" }]);
+    expect(model.preflightSnapshot?.result.plan.artifacts).toEqual([{ id: "artifact-1" }]);
+
+    model.setPreflight({ ...result, reused: true, createdAt: "2026-07-19T00:01:00.000Z" });
+    expect(model.preflight).toBeDefined();
+    expect(model.preflightSnapshot).toMatchObject({ state: "ready", message: "缓存计划可应用" });
   });
 
   it("左侧属性和右侧整表草稿可在同一 revision 合并后一起写出", () => {

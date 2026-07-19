@@ -78,6 +78,7 @@ const STYLE = `
   .tag, .state { padding: 1px 4px; color: var(--vscode-descriptionForeground); border: 1px solid var(--vscode-panel-border); border-radius: 999px; font-size: 10px; white-space: nowrap; }
   .tag.legacy { color: var(--vscode-editorWarning-foreground, #b89500); border-color: currentColor; }
   .state.hit { color: var(--vscode-testing-iconPassed, #2ea043); border-color: currentColor; }
+  .state.unclosed { color: var(--vscode-errorForeground, #f14c4c); border-color: currentColor; }
   .state.missing { color: var(--vscode-editorWarning-foreground, #b89500); border-color: currentColor; }
   .output-one { width: 28px; padding: 2px; }
   .templates { grid-column: 3 / -1; display: grid; gap: 4px; padding: 3px 0 6px; }
@@ -96,22 +97,21 @@ export class KtcCodegenControlCatalog extends HTMLElement {
   static readonly observedAttributes = ["mode"];
   private readonly root = this.attachShadow({ mode: "open" });
   private currentModel: KtcCodegenControlCatalogViewModel | undefined;
-  private filter: KtcCodegenControlCatalogFilter = { status: "selected", scope: "all" };
+  private filter: KtcCodegenControlCatalogFilter = { status: "all", scope: "all" };
+  private selectionToolsExpanded = false;
+  private listScrollTop = 0;
+  private focusedBlockKey: KtCodegenBlockKey | undefined;
+  private focusAfterRender: HTMLInputElement | undefined;
   private readonly expandedGroups = new Set<KtcCodegenControlGroupId>(
     KTC_CODEGEN_CONTROL_GROUPS.map((group) => group.id),
   );
-
   get model(): KtcCodegenControlCatalogViewModel | undefined {
     return this.currentModel;
   }
 
   set model(value: KtcCodegenControlCatalogViewModel | undefined) {
     const gainedPreflight = !this.currentModel?.preflightAvailable && Boolean(value?.preflightAvailable);
-    const lostPreflight = Boolean(this.currentModel?.preflightAvailable) && !value?.preflightAvailable;
     if (gainedPreflight) this.filter = { ...this.filter, status: "hit" };
-    else if (!value?.preflightAvailable && (lostPreflight || !this.currentModel)) {
-      this.filter = { ...this.filter, status: "selected" };
-    }
     this.currentModel = value;
     this.render();
   }
@@ -126,6 +126,7 @@ export class KtcCodegenControlCatalog extends HTMLElement {
 
   private render(): void {
     if (!this.isConnected) return;
+    this.focusAfterRender = undefined;
     const style = document.createElement("style");
     style.textContent = STYLE;
     const model = this.currentModel;
@@ -142,17 +143,20 @@ export class KtcCodegenControlCatalog extends HTMLElement {
     filters.className = "filters";
     filters.setAttribute("aria-label", "控制符显示筛选，不改变预检和 Apply 选择");
     filters.append(this.label("显示"));
-    for (const [status, label] of [
-      ["hit", "命中"],
-      ["missing", "未命中"],
-      ["selected", "已选"],
-      ["all", "全部"],
-    ] as const) {
-      filters.append(this.filterButton(
-        `${label} ${this.visibleBlocks(model, { ...this.filter, status }).length}`,
-        this.filter.status === status,
-        () => this.setFilter({ status }),
-      ));
+    if (model.preflightAvailable) {
+      for (const [status, label] of [
+        ["hit", "命中"],
+        ["unclosed", "未闭合"],
+        ["missing", "未命中"],
+      ] as const) {
+        filters.append(this.filterButton(
+          `${label} ${this.visibleBlocks(model, { ...this.filter, status }).length}`,
+          this.filter.status === status,
+          () => this.setFilter({ status }),
+        ));
+      }
+    } else {
+      filters.append(this.label("尚未预检"));
     }
     filters.append(this.label("范围"));
     const scopeFilter = document.createElement("select");
@@ -204,6 +208,8 @@ export class KtcCodegenControlCatalog extends HTMLElement {
     );
     const selectionTools = document.createElement("details");
     selectionTools.className = "selection-tools";
+    selectionTools.open = this.selectionToolsExpanded;
+    selectionTools.ontoggle = () => { this.selectionToolsExpanded = selectionTools.open; };
     const selectionSummary = document.createElement("summary");
     selectionSummary.textContent = `选择工具 · ${model.selectedBlockKeys.length}`;
     selectionSummary.title = "低频操作：修改参与 Preflight/Apply 的勾选范围";
@@ -247,6 +253,8 @@ export class KtcCodegenControlCatalog extends HTMLElement {
     const list = document.createElement("div");
     list.className = "list";
     list.tabIndex = 0;
+    list.scrollTop = this.listScrollTop;
+    list.onscroll = () => { this.listScrollTop = list.scrollTop; };
     list.setAttribute("role", "tree");
     list.setAttribute("aria-label", "Codegen 控制符目录");
     const allGroups = ktcGroupCodegenControlBlocks(model.blocks);
@@ -301,12 +309,18 @@ export class KtcCodegenControlCatalog extends HTMLElement {
       const empty = document.createElement("div");
       empty.className = "empty";
       empty.textContent = model.preflightAvailable && this.filter.status === "hit"
-        ? "当前筛选没有命中的控制符；可切换到“未命中”或“全部”。"
+        ? "当前筛选没有命中的控制符；可切换到“未闭合”或“未命中”。"
         : "当前筛选没有控制符。";
       list.append(empty);
     }
     fragment.append(list);
     this.root.replaceChildren(style, filters, toolbar, summary, fragment);
+    this.restoreFocusAfterRender();
+  }
+
+  private restoreFocusAfterRender(): void {
+    this.focusAfterRender?.focus({ preventScroll: true });
+    this.focusAfterRender = undefined;
   }
 
   private blockRow(
@@ -321,9 +335,18 @@ export class KtcCodegenControlCatalog extends HTMLElement {
     check.type = "checkbox";
     check.checked = selected.has(block.key);
     check.setAttribute("aria-label", `选择 ${block.title} 参与预检和 Apply`);
-    check.onchange = () => this.applySelection(ktcNextCodegenControlSelection(
-      this.selection(), block.key, check.checked,
-    ));
+    check.setAttribute("data-block-key", block.key);
+    check.onfocus = () => { this.focusedBlockKey = block.key; };
+    check.onblur = () => {
+      if (this.focusedBlockKey === block.key) this.focusedBlockKey = undefined;
+    };
+    check.onchange = () => {
+      this.focusedBlockKey = block.key;
+      this.applySelection(ktcNextCodegenControlSelection(
+        this.selection(), block.key, check.checked,
+      ));
+    };
+    if (this.focusedBlockKey === block.key) this.focusAfterRender = check;
     const id = document.createElement("span");
     id.className = "legacy-id";
     id.textContent = String(block.legacyId);
@@ -434,6 +457,7 @@ export class KtcCodegenControlCatalog extends HTMLElement {
     hitCount: number,
   ): string {
     if (status === "hit") return `${hitCount} 命中`;
+    if (status === "unclosed") return "未闭合";
     if (status === "missing") return "未命中";
     if (status === "pending") return "待预检";
     return "未选择";
@@ -454,25 +478,11 @@ export class KtcCodegenControlCatalog extends HTMLElement {
       blockKeys: this.canonicalBlockKeys(model).filter((key) => requested.has(key)),
       singleMode: next.singleMode,
     };
-    const before = new Set(model.selectedBlockKeys);
-    const after = new Set(orderedNext.blockKeys);
-    const selectionChanged = before.size !== after.size || [...before].some((key) => !after.has(key));
     this.currentModel = {
       ...model,
       selectedBlockKeys: [...orderedNext.blockKeys],
       singleSelectionMode: orderedNext.singleMode,
-      ...(selectionChanged ? {
-        preflightAvailable: false,
-        missingTemplates: [],
-        blocks: model.blocks.map((block) => ({
-          ...block,
-          status: after.has(block.key) ? "pending" as const : "unselected" as const,
-          hitCount: 0,
-          artifactCount: 0,
-        })),
-      } : {}),
     };
-    if (selectionChanged) this.filter = { ...this.filter, status: "selected" };
     this.emit<KtcCodegenControlSelectionDetail>("ktc-codegen-control-selection-change", {
       blockKeys: orderedNext.blockKeys,
       singleMode: orderedNext.singleMode,
