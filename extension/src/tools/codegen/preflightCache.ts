@@ -1,8 +1,12 @@
 import type { KtCodegenPlan } from "@phoenix-wing/kt-codegen";
 
 export const KTC_CODEGEN_CACHE_SCHEMA_VERSION = 1 as const;
-/** 解析/渲染语义变化时递增，阻止复用旧 Plan（0.3.1 修复通用 Kevin block 配对）。 */
-export const KTC_CODEGEN_GENERATOR_VERSION = "0.3.1";
+/**
+ * 解析/渲染语义变化时递增，阻止复用旧 Plan。
+ * 0.3.2：Marker 边界恢复语义变化，丢弃含旧 nested/mismatched 级联诊断的缓存并重新 Analyze。
+ * 缓存失效只负责重算计划；Apply 仍由新 Plan、指纹、dirty 与事务门禁共同决定。
+ */
+export const KTC_CODEGEN_GENERATOR_VERSION = "0.3.2";
 
 export interface KtcCodegenMarkerIndexEntry {
   readonly path: string;
@@ -57,13 +61,20 @@ export function ktcValidCodegenPreflightCache(
   configFingerprint: string,
   markerIndexRevision: number,
 ): value is KtcCodegenPreflightCache {
+  const containsLegacyMarkerCascade = Array.isArray(value?.plan?.diagnostics)
+    && value.plan.diagnostics.some((diagnostic) =>
+      diagnostic.code === "marker.nested-start"
+      || diagnostic.code === "marker.mismatched-end");
   return value?.kind === "kt.codegen.preflight-cache"
     && value.schemaVersion === KTC_CODEGEN_CACHE_SCHEMA_VERSION
     && value.documentUri === documentUri
     && value.configFingerprint === configFingerprint
     && value.markerIndexRevision === markerIndexRevision
     && value.generatorVersion === KTC_CODEGEN_GENERATOR_VERSION
-    && value.plan?.kind === "kt.codegen.plan";
+    && value.plan?.kind === "kt.codegen.plan"
+    // Registry 0.4.2 与本地 Wing 曾写入同一 generatorVersion；旧扫描器的
+    // 特征诊断不能跨构建来源复用，必须交给当前嵌入的扫描器重新 Analyze。
+    && !containsLegacyMarkerCascade;
 }
 
 /** watcher 已报告源码变化时强制复读，不能只依赖可能同毫秒且同尺寸的 stat。 */

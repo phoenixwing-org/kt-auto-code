@@ -47,6 +47,37 @@ describe("Codegen preflight cache data model", () => {
     expect(ktcValidCodegenPreflightCache(cache, cache.documentUri, cache.configFingerprint, 5)).toBe(false);
   });
 
+  it("0.3.2 拒绝 0.3.1 级联计划，以重新 Analyze 恢复后续完整兄弟块", () => {
+    const oldMarkerPlan = { ...cache, generatorVersion: "0.3.1" };
+
+    expect(KTC_CODEGEN_GENERATOR_VERSION).toBe("0.3.2");
+    expect(ktcValidCodegenPreflightCache(
+      oldMarkerPlan,
+      oldMarkerPlan.documentUri,
+      oldMarkerPlan.configFingerprint,
+      oldMarkerPlan.markerIndexRevision,
+    )).toBe(false);
+  });
+
+  it("即使版本标签相同，也拒绝旧扫描器写出的级联诊断计划", () => {
+    for (const code of ["marker.nested-start", "marker.mismatched-end"] as const) {
+      const mixedSourceCache = {
+        ...cache,
+        plan: {
+          ...cache.plan,
+          diagnostics: [{ code, severity: "error", message: "legacy cascade" }],
+        } satisfies KtCodegenPlan,
+      };
+
+      expect(ktcValidCodegenPreflightCache(
+        mixedSourceCache,
+        mixedSourceCache.documentUri,
+        mixedSourceCache.configFingerprint,
+        mixedSourceCache.markerIndexRevision,
+      )).toBe(false);
+    }
+  });
+
   it("索引内容不变保留 revision，任一文件状态变化才推进", () => {
     expect(ktcNextCodegenMarkerIndexRevision(index, [...index.files])).toBe(4);
     expect(ktcNextCodegenMarkerIndexRevision(index, [{ ...index.files[0]!, mtime: 2 }])).toBe(5);

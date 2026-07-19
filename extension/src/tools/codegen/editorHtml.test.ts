@@ -35,9 +35,15 @@ describe("codegen editor HTML", () => {
           ...block,
           ...KT_CODEGEN_BLOCK_PRESENTATIONS[block.legacyId],
           controlWords: block.key,
+          status: "pending" as const,
+          hitCount: 0,
+          artifactCount: 0,
         })),
         selectedBlockKeys: KT_CODEGEN_LEGACY_BLOCKS.map((block) => block.key),
         singleSelectionMode: false,
+        showMissingTemplates: false,
+        preflightAvailable: false,
+        missingTemplates: [],
         presets: {
           all: ktCodegenBlockKeysForPreset("all"),
           none: ktCodegenBlockKeysForPreset("none"),
@@ -49,8 +55,10 @@ describe("codegen editor HTML", () => {
       externalConflict: false,
     });
     expect(html).toContain("Codegen JSON 编辑 View");
-    expect(html).toContain("<kt-codegen-table");
+    expect(html).toContain('<kt-codegen-table id="codegen-table" layout="page" collapsible>');
+    expect(html).not.toContain('<kt-codegen-table id="codegen-table" layout="contained"');
     expect(html).toContain("test-webview:/extension/dist/codegen-table.js");
+    expect(html).toContain("test-webview:/extension/dist/codegen-control-catalog.js");
     expect(html).toContain('type: "codegenEditorDirty"');
     expect(html).toContain('type: "codegenEditorExchange"');
     expect(html).toContain('action: "save"');
@@ -67,27 +75,72 @@ describe("codegen editor HTML", () => {
     expect(html).toContain('preflight.setAttribute("aria-pressed"');
     expect(html).toContain('table.setAttribute("aria-busy"');
     expect(html).toContain('flex-wrap: wrap');
+    const viewToolbarRule = html.match(/\.view-toolbar \{([^}]*)\}/u)?.[1];
+    expect(viewToolbarRule).toBeTruthy();
+    expect(viewToolbarRule).toContain("position: sticky");
+    expect(viewToolbarRule).toContain("top: 0");
+    expect(viewToolbarRule).toContain("z-index: 20");
+    expect(viewToolbarRule).toContain("background: var(--vscode-sideBar-background)");
+    expect(viewToolbarRule).toContain("box-shadow: 0 2px 0 var(--vscode-panel-border)");
     expect(html).toContain('body.vscode-high-contrast kt-codegen-table');
     expect(html).toContain('body.vscode-high-contrast-light kt-codegen-table');
     expect(html).toContain('--vscode-contrastBorder');
     expect(html).toContain('@media (max-width: 800px)');
-    expect(html).toContain('grid-template-rows: repeat(2, minmax(0, 1fr));');
-    expect(html).toContain('class="control-scroll-region" tabindex="0" aria-label="可滚动的控制符目录列表"');
-    expect(html).toContain("height: min(44vh, 460px)");
-    expect(html).toContain("overflow-y: scroll");
-    expect(html).toContain("scrollbar-gutter: stable both-edges");
-    expect(html).toContain('aria-label="可滚动的预检结果列表"');
-    expect(html).toContain('.control-results-content { min-width: 520px; }');
+    expect(html).toContain('<ktc-codegen-control-panel id="control-panel" mode="full">');
+    expect(html).not.toContain("height: min(44vh, 460px)");
+    expect(html).toContain("overflow-y: auto");
+    expect(html.match(/overflow-y: auto/g)).toHaveLength(1);
+    expect(html).toContain("scrollbar-gutter: stable");
+    expect(html).toContain("body::-webkit-scrollbar-thumb");
+    expect(html).toContain("rgba(121, 121, 121, .7)");
+    expect(html).toContain("kt-codegen-table { flex: 0 0 auto; min-height: 0; }");
+    expect(html).not.toContain("kt-codegen-table { flex: 1 1 auto");
+    expect(html).not.toContain("min-height: 230px");
+    expect(html).not.toContain('@media (max-width: 760px)');
+    expect(html).not.toContain("height: 540px; min-height: 540px");
+    expect(html).not.toContain("inset: 34px 0 0");
+    expect(html).toContain("position: static");
+    const controlDrawerPanelRule = html.match(
+      /\.control-drawer\[open\] > ktc-codegen-control-panel \{([^}]*)\}/u,
+    )?.[1];
+    expect(controlDrawerPanelRule).toBeTruthy();
+    expect(controlDrawerPanelRule).not.toContain("overflow");
+    const controlDrawerRule = html.match(/\.control-drawer \{([^}]*)\}/u)?.[1];
+    expect(controlDrawerRule).toBeTruthy();
+    expect(controlDrawerRule).toContain("overflow: visible");
+    expect(controlDrawerRule).not.toContain("overflow: hidden");
     expect(html).not.toContain('.view-toolbar button.secondary-action { display: none; }');
     expect(html).toContain('id="control-drawer"');
-    expect(html).toContain("控制符与预检");
-    expect(html).toContain('type: "codegenControlSelection"');
+    expect(html).toContain('<button id="controls" type="button" aria-expanded="false">预检结果</button>');
+    expect(html).toContain('<span class="control-summary-title">预检结果</span>');
+    expect(html).not.toContain("控制符与预检");
+    expect(html).not.toContain("控制符 / 结果");
+    expect(html).not.toContain('type: "codegenControlSelection"');
+    expect(html).not.toContain('type: "codegenControlDisplay"');
+    expect(html).not.toContain('type: "codegenControlOutput"');
     expect(html).toContain('type: "codegenControlOpen"');
+    expect(html).toContain('type: "codegenControlCopyEnd"');
+    expect(html).toContain('blockKey: event.detail.blockKey');
+    expect(html).toContain('new ResizeObserver(syncDetailStickyTop).observe(viewToolbar)');
+    expect(html).toContain('"--ktc-codegen-detail-sticky-top"');
+    expect(html).toContain('"--ktc-codegen-detail-available-height"');
+    expect(html).toContain('window.addEventListener("resize", syncDetailStickyTop)');
+    expect(html).toContain('type: "codegenEditorLayout"');
+    expect(html).toContain('"ktc-codegen-control-split-change"');
+    expect(html).toContain("controlPanel.splitRatio = initialLayout.controlSplitPercent");
     expect(html).toContain('message.type === "codegenControlsModel"');
     expect(html).toContain("controlDrawer.open = !controlDrawer.open");
     expect(html).toContain('action: "apply"');
+    expect(html).toContain('id="batch-overlay"');
+    expect(html).toContain('message.type === "codegenBatchState"');
+    expect(html).toContain('batchOverlay.hidden = !message.running');
+    expect(html).toContain('document.body.setAttribute("aria-busy"');
+    expect(html).toContain("position: fixed");
+    expect(html).toContain("cursor: progress");
     expect(html).toContain('"kt-codegen-table-dirty-change"');
     expect(html).toContain('"kt-codegen-table-change"');
+    expect(html).not.toContain('"kt-codegen-table-collapse-change"');
+    expect(html).not.toContain("table.collapsed =");
     expect(html).toContain("setTimeout(exchangeDraft, 600)");
     expect(html).toContain("if (firstDirty) exchangeDraft()");
     expect(html.indexOf("table.markCheckpoint")).toBeLessThan(
@@ -97,7 +150,7 @@ describe("codegen editor HTML", () => {
     expect(html).not.toContain('class="properties"');
     expect(html).not.toContain("PrivateWidget");
     expect(html).toContain("Apply 可自动执行");
-    expect(html).toContain("自动预检并写入源码");
+    expect(html).toContain("没有缓存时会先自动预检");
     const script = html.match(/<script nonce="[^"]+">([\s\S]*?)<\/script>/)?.[1];
     expect(script).toBeTruthy();
     expect(() => new Function(script!)).not.toThrow();
@@ -105,5 +158,23 @@ describe("codegen editor HTML", () => {
     const entry = readFileSync(new URL("./tableEntry.ts", import.meta.url), "utf8");
     expect(entry).toContain('@phoenix-wing/kt-codegen/table');
     expect(entry).toContain("ktCodegenDefineTableElement()");
+    const controlEntry = readFileSync(new URL("./controlCatalogEntry.ts", import.meta.url), "utf8");
+    expect(controlEntry).toContain("ktcDefineCodegenControlCatalog()");
+    expect(controlEntry).toContain("ktcDefineCodegenControlPanel()");
+    const controlPanelSource = readFileSync(new URL("./controlPanel.ts", import.meta.url), "utf8");
+    expect(controlPanelSource).toContain(
+      ':host([mode="full"]) { block-size: auto; min-block-size: 0; overflow: visible; }',
+    );
+    expect(controlPanelSource).toContain(".result-detail { display: flex; position: sticky;");
+    expect(controlPanelSource).toContain(".result-list { min-width: 0; overflow-y: visible;");
+    const layoutFixture = readFileSync(
+      new URL("../../../test-fixtures/codegen-control-panel-layout.html", import.meta.url),
+      "utf8",
+    );
+    const fixturePanelRule = layoutFixture.match(
+      /\.control-drawer\[open\] > ktc-codegen-control-panel \{([^}]*)\}/u,
+    )?.[1];
+    expect(fixturePanelRule).toBeTruthy();
+    expect(fixturePanelRule).not.toContain("overflow");
   });
 });

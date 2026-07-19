@@ -10,6 +10,13 @@
   ],
   "entries": [
     {
+      "path": "AGENTS.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
       "path": "doc/0.1.0-插件市场发布归档.md",
       "status": "archived",
       "owner": "KT Auto Code maintainers",
@@ -89,6 +96,13 @@
       "lastVerified": "2026-07-17"
     },
     {
+      "path": "doc/本地Wing并列开发.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
       "path": "doc/编码修正.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
@@ -114,7 +128,21 @@
       "reason": "旧版本、已完成点检或阶段性共享提取证据"
     },
     {
+      "path": "doc/成员排序PageShell拆分点检表.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
       "path": "doc/代码规范.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
+      "path": "doc/关联规则选择器组件化Baseline点检表.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.5.x",
@@ -247,6 +275,13 @@
       "reason": "旧版本、已完成点检或阶段性共享提取证据"
     },
     {
+      "path": "doc/codegen-plan/Codegen编辑器语义命令Controller点检表.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
       "path": "doc/codegen-plan/Codegen第二轮执行评分.md",
       "status": "archived",
       "owner": "KT Auto Code maintainers",
@@ -283,6 +318,41 @@
       "reason": "阶段评分证据，不代表当前全工程成熟度"
     },
     {
+      "path": "doc/codegen-plan/Codegen控制符目录Tree与范围Combo点检表.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
+      "path": "doc/codegen-plan/Codegen控制符未闭合呈现.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
+      "path": "doc/codegen-plan/Codegen控制面板滚动筛选点检表.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
+      "path": "doc/codegen-plan/Codegen全部应用点检表.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
+      "path": "doc/codegen-plan/Codegen全部应用与批量报告计划.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
       "path": "doc/codegen-plan/Codegen手工验收.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
@@ -297,6 +367,13 @@
       "lastVerified": "2026-07-17",
       "sourceOfTruth": "doc/current-roadmap.md",
       "reason": "阶段评分证据，不代表当前全工程成熟度"
+    },
+    {
+      "path": "doc/codegen-plan/Codegen总Controller会话提炼点检表.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
     },
     {
       "path": "doc/Codegen快速原型.md",

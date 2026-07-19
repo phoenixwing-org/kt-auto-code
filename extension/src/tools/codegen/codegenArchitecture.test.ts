@@ -66,11 +66,158 @@ describe("Codegen MVC dependency boundary", () => {
     expect(navigation).toContain("plan.diagnostics.find");
   });
 
-  it("控制符与预检内嵌 JSON View，不再维护第二个 WebviewPanel", () => {
+  it("候选预览由纯 helper 提取控制符行，Host 只负责 VS Code 定位与高亮", () => {
+    const controller = source("./index.ts");
+    const navigation = source("./candidateNavigation.ts");
+    expect(controller).toContain("ktcCodegenCandidateNavigation");
+    expect(controller).toContain("ktcHighlightLiteralMatches");
+    expect(controller).toContain("preview: true");
+    expect(navigation).not.toMatch(/from ["']vscode["']|showTextDocument|workspace\./);
+    expect(navigation).toContain("START|END");
+  });
+
+  it("预检结果内嵌 JSON View，不再维护第二个 WebviewPanel", () => {
     expect(source("./editorHtml.ts")).toContain('id="control-drawer"');
     expect(source("./editorViewController.ts")).toContain("ViewColumn.Active");
     expect(source("./index.ts")).not.toContain("KtcCodegenControlViewController");
     expect(existsSync(new URL("./controlViewController.ts", import.meta.url))).toBe(false);
+  });
+
+  it("简版全部应用冻结 Primary 列表并按显式 URI 串行复用单项 Preflight/Apply", () => {
+    const host = source("./index.ts");
+    expect(host).toContain('message.action === "applyAll"');
+    expect(host).toContain("const documents = this.summaries(ctx.workspaceRoot)");
+    expect(host).toContain("await this.openKnownDocument(document.uri, ctx)");
+    expect(host).toContain("const session = this.sessions.get(document.uri)");
+    expect(host).toContain("await this.runPreflight(session, ctx)");
+    expect(host).toContain("await this.apply(session, ctx)");
+    expect(host.indexOf("await this.runPreflight(session, ctx)")).toBeLessThan(
+      host.indexOf("await this.apply(session, ctx)"),
+    );
+    expect(host).toContain("batchDeferredWorkspaceOperations.add(kind)");
+    expect(host).toContain('type: "codegenBatchState" as const');
+    expect(host).toContain("const outcome = await this.apply(session, ctx)");
+    expect(host).toContain("modifiedFileCount: outcome.modifiedFileCount");
+    expect(host).toContain("writtenRegionCount: outcome.writtenRegionCount");
+    expect(host).toContain("ktcCodegenBatchApplyReportIssues");
+    expect(host).toContain("this.batchApplyReports.show(report)");
+  });
+
+  it("Primary 目录与 JSON View 预检结果共用 Auto 高层 Web Component，但 full 不复制目录", () => {
+    const editor = source("./editorHtml.ts");
+    const sidebar = source("../../sidebar/panelHtml.ts");
+    const catalog = source("./controlCatalog.ts");
+    const panel = source("./controlPanel.ts");
+    const primary = source("./primaryPanel.ts");
+    expect(editor).toContain('<ktc-codegen-control-panel id="control-panel" mode="full">');
+    expect(sidebar).toContain('<ktc-codegen-primary-panel id="codegen-panel" hidden>');
+    expect(primary).toContain('controlPanel.setAttribute("mode", "compact")');
+    expect(panel).toContain('document.createElement("ktc-codegen-control-catalog")');
+    expect(panel).not.toContain('grid-template-rows: repeat(2, minmax(0, 1fr))');
+    expect(panel).toContain('"ktc-codegen-control-split-change"');
+    expect(panel).toContain('role", "separator"');
+    expect(panel).toContain('"显示路径"');
+    expect(panel).toContain("this.root.replaceChildren(style, results)");
+    expect(catalog).toContain(':host([mode="full"]) .list');
+    expect(catalog).toContain("overflow: visible");
+    expect(editor).not.toContain("function renderBlocks");
+    expect(editor).not.toContain("function renderPreflight");
+    expect(sidebar).not.toContain("block.controlWords");
+    expect(catalog).toContain("ktc-codegen-control-selection-change");
+    expect(catalog).not.toContain("ktc-codegen-control-display-change");
+    expect(catalog).toContain("ktc-codegen-control-output");
+    expect(catalog).not.toMatch(/acquireVsCodeApi|from ["']vscode["']|workspace\.fs|clipboard/);
+    expect(panel).not.toMatch(/acquireVsCodeApi|from ["']vscode["']|workspace\.fs|clipboard/);
+  });
+
+  it("Primary 页面壳拥有 Codegen DOM，Sidebar 只投影状态并转发语义事件", () => {
+    const sidebar = source("../../sidebar/panelHtml.ts");
+    const primary = source("./primaryPanel.ts");
+    expect(sidebar).toContain("els.codegenPanel.model = {");
+    expect(sidebar).toContain('"ktc-codegen-primary-action"');
+    expect(sidebar).not.toContain("for (const entry of documents)");
+    expect(sidebar).not.toContain('className = "codegen-row"');
+    expect(primary).toContain("for (const entry of model.documents)");
+    expect(primary).toContain("for (const candidate of model.candidates)");
+    expect(primary).toContain('"ktc-codegen-primary-action"');
+    expect(primary).not.toMatch(/acquireVsCodeApi|from ["']vscode["']|workspace\.fs|clipboard/);
+  });
+
+  it("控制符 ViewModel 与命令状态机独立于 VS Code 总 Controller", () => {
+    const workspaceController = source("./index.ts");
+    const controls = source("./controlSessionController.ts");
+    expect(workspaceController).toContain("KtcCodegenControlSessionController");
+    expect(workspaceController).not.toContain("ktcCodegenControlTemplateLogLines");
+    expect(controls).not.toMatch(/from ["']vscode["']|acquireVsCodeApi|document\.|window\.|workspace\.fs|OutputChannel/);
+    expect(controls).toContain("catalogModel");
+    expect(controls).toContain("viewModel");
+    expect(controls).toContain("handle(");
+  });
+
+  it("控制符输出不为隐藏状态区发布整份 Primary 快照", () => {
+    const controller = source("./index.ts");
+    const start = controller.indexOf("private async handleControlMessage(");
+    const end = controller.indexOf("private async apply(", start);
+    const controlHandler = controller.slice(start, end);
+    expect(controlHandler).toContain('if (message.type === "codegenControlOutput")');
+    expect(controlHandler).toContain("output.complete");
+    expect(controlHandler).toMatch(/codegenControlOutput[\s\S]*ctx\.log[\s\S]*else \{[\s\S]*this\.publish/);
+  });
+
+  it("JSON View 消息先经纯路由收敛，Webview adapter 不再依赖全工具消息总表", () => {
+    const controller = source("./index.ts");
+    const router = source("./editorMessageRouter.ts");
+    const view = source("./editorViewController.ts");
+    expect(controller).toContain("ktcRouteCodegenEditorMessage");
+    expect(router).toContain('kind: "ignore"');
+    expect(router).toContain('kind: "control"');
+    expect(router).not.toMatch(/from ["']vscode["']|acquireVsCodeApi|workspace\.|document\.|window\./);
+    expect(view).toContain('from "./editorContracts.js"');
+    expect(view).toContain("KTC_CODEGEN_EDITOR_LAYOUT_STATE_KEY");
+    expect(view).toContain("workspaceState");
+    expect(view).not.toContain('from "../types.js"');
+  });
+
+  it("Editor 语义命令由纯 Controller 编排，总 Controller 只装配 Host 动作", () => {
+    const workspaceController = source("./index.ts");
+    const commandController = source("./editorCommandController.ts");
+    expect(workspaceController).toContain("ktcExecuteCodegenEditorCommand");
+    expect(workspaceController).toContain("editorCommandActions(");
+    expect(workspaceController).not.toContain("private async handleEditorMessage(");
+    expect(workspaceController).not.toContain("private acceptActionTable(");
+    expect(commandController).toContain("KtcCodegenEditorCommandActions");
+    expect(commandController).toContain("ktcExecuteCodegenEditorCommand");
+    expect(commandController).toContain("actions.runPreflight()");
+    expect(commandController).toContain("actions.apply(timer)");
+    expect(commandController).not.toMatch(
+      /from ["']vscode["']|ToolRunContext|workspace\.|window\.|node:fs|readFile|writeFile|document\./,
+    );
+  });
+
+  it("Editor session Presenter 统一 Model、状态、控制符与 Problems 输出端口", () => {
+    const controller = source("./index.ts");
+    const presenter = source("./editorSessionPresenter.ts");
+    expect(controller).toContain("KtcCodegenEditorSessionPresenter");
+    expect(controller).not.toContain("private editorModel(");
+    expect(controller).not.toContain("private postEditor(");
+    expect(controller).not.toContain("private updateControlPanel(");
+    expect(presenter).toContain("KtcCodegenEditorSessionViewPort");
+    expect(presenter).toContain("publishDocumentState");
+    expect(presenter).toContain("publishModel");
+    expect(presenter).toContain("publishControls");
+    expect(presenter).not.toMatch(/from ["']vscode["']|workspace\.|readFile|writeFile|acquireVsCodeApi/);
+  });
+
+  it("文档 session Controller 拥有打开与活动态，总 Controller 只装配 VS Code Host", () => {
+    const workspaceController = source("./index.ts");
+    const sessions = source("./documentSessionController.ts");
+    expect(workspaceController).toContain("KtcCodegenDocumentSessionController");
+    expect(workspaceController).not.toContain("new KtcCodegenDocumentModel");
+    expect(sessions).toContain("KtcCodegenDocumentSnapshotPort");
+    expect(sessions).toContain("new KtcCodegenDocumentModel");
+    expect(sessions).toContain("activeUri");
+    expect(sessions).not.toContain("./documentService");
+    expect(sessions).not.toMatch(/from ["']vscode["']|workspace\.|window\.|Webview|HTMLElement|document\.|node:fs/);
   });
 
   it("预检缓存协议与 VS Code 文件系统适配解耦", () => {
@@ -154,6 +301,8 @@ describe("Codegen MVC dependency boundary", () => {
     expect(end).toBeGreaterThan(start);
     const apply = controller.slice(start, end);
     expect(apply).toContain("ktcProjectCodegenApply");
+    expect(apply).not.toContain("if (!plan.canApply)");
+    expect(apply).toContain("preflightErrorCount");
     expect(apply).toContain("ktcEncodeCodegenSource");
     expect(apply).toContain("ktcCommitCodegenApplyWrites");
     expect(apply).toContain("readFile");
@@ -168,7 +317,8 @@ describe("Codegen MVC dependency boundary", () => {
     expect(source("./sourceApplyTransaction.ts")).not.toMatch(/from ["']vscode["']|workspace\./);
     expect(source("./applyLog.ts")).toContain("ktCodegenInspectApplyPlan");
     expect(controller).toContain('ktcCodegenApplyPlanLogs(plan, "Preflight")');
-    expect(apply).toContain("ktcCodegenApplyPlanLogs");
+    expect(apply).not.toContain("ktcCodegenApplyPlanLogs");
+    expect(apply).toContain("ktcCodegenAppliedFileLog");
     expect(apply).toContain("apply.rollback-failed");
   });
 

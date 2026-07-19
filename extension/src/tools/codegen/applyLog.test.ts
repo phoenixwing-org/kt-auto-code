@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { KtCodegenPlan } from "@phoenix-wing/kt-codegen";
 import {
-  ktcCodegenAppliedRegionLog,
+  ktcCodegenAppliedFileLog,
   ktcCodegenApplyDiagnosticLog,
   ktcCodegenApplyPlanLogs,
+  ktcCodegenApplyReceiptLog,
 } from "./applyLog.js";
 
 function plan(): KtCodegenPlan {
@@ -11,7 +12,11 @@ function plan(): KtCodegenPlan {
     kind: "kt.codegen.plan",
     schemaVersion: 1,
     phase: "preview",
-    targets: [{ target: "cpp.parameter", rendererId: "cpp", status: "ready", artifactCount: 1 }],
+    targets: [
+      { target: "cpp.parameter", rendererId: "cpp", status: "ready", artifactCount: 1 },
+      { target: "qt.parameter", rendererId: "qt", status: "ready", artifactCount: 0 },
+      { target: "qt.dialog", rendererId: "qt", status: "scaffold", artifactCount: 0 },
+    ],
     blockKeys: ["PARAM DECLARATION", "QT UPDATE DIALOG"],
     markerRegions: [{
       id: "r1",
@@ -28,6 +33,7 @@ function plan(): KtCodegenPlan {
       severity: "error",
       message: "Start marker has no matching End marker.",
       path: { source: "source", file: "/workspace/b.cpp", row: 8, column: 0 },
+      marker: { kind: "start", classId: "Demo", blockKey: "PARAM DECLARATION" },
     }],
     hasChanges: true,
     canApply: false,
@@ -35,31 +41,46 @@ function plan(): KtCodegenPlan {
 }
 
 describe("Codegen Apply Output log", () => {
-  it("列出 Target 和命中摘要，不把未出现的已选控制符合成告警", () => {
+  it("抑制 ready 且零产物 Target，保留非零或异常 Target 和命中摘要", () => {
     const logs = ktcCodegenApplyPlanLogs(plan());
     expect(logs).toContainEqual(expect.stringContaining("[Target] cpp.parameter；status=ready"));
+    expect(logs).toContainEqual(expect.stringContaining("[Target] qt.dialog；status=scaffold；artifacts=0"));
     expect(logs).toContainEqual(expect.stringContaining("[Marker] 已找到 1 个已选控制符，共 1 个区域"));
     expect(logs.join("\n")).not.toContain("marker.not-found");
     expect(logs.join("\n")).not.toContain("QT UPDATE DIALOG");
+    expect(logs.join("\n")).not.toContain("[Target] qt.parameter");
     expect(ktcCodegenApplyPlanLogs(plan(), "Preflight")[0]).toContain("[Codegen][Preflight]");
   });
 
-  it("诊断日志带稳定 code、文件和从1开始的行号", () => {
+  it("可关联控制符的诊断日志带同号 #legacyId、稳定 code、文件和从1开始的行号", () => {
     expect(ktcCodegenApplyDiagnosticLog(plan().diagnostics[0]!)).toBe(
-      "[Codegen][Apply][error] marker.missing-end：Start marker has no matching End marker.；file=/workspace/b.cpp:9",
+      "[Codegen][Apply][error] #11 PARAM DECLARATION · marker.missing-end：Start marker has no matching End marker.；file=/workspace/b.cpp:9",
+    );
+    expect(ktcCodegenApplyDiagnosticLog(plan().diagnostics[0]!, "Preflight")).toBe(
+      "[Codegen][Preflight][error] #11 PARAM DECLARATION · marker.missing-end：Start marker has no matching End marker.；file=/workspace/b.cpp:9",
     );
   });
 
-  it("真实写入成功日志逐区域包含 block、行号和稳定身份", () => {
-    expect(ktcCodegenAppliedRegionLog("/workspace/a.cpp", {
-      id: "region-1",
-      artifactId: "artifact-1",
-      blockKey: "PARAM DECLARATION",
-      classId: "PNXWidgetItem",
-      nameSuffix: "Item",
-      line: 7,
-    })).toBe(
-      "[Codegen][Apply][Region] 已写入 /workspace/a.cpp:8；block=PARAM DECLARATION；class=PNXWidgetItem；region=region-1；artifact=artifact-1",
+  it("无法可靠关联控制符的通用诊断不猜编号", () => {
+    expect(ktcCodegenApplyDiagnosticLog({
+      code: "demo.warning",
+      severity: "warning",
+      message: "通用告警",
+    })).toBe("[Codegen][Apply][warning] demo.warning：通用告警");
+  });
+
+  it("真实写入日志按文件聚合，不暴露绝对路径、字节范围或区域身份", () => {
+    expect(ktcCodegenAppliedFileLog("/workspace/src/a.cpp", 3)).toBe(
+      "[Codegen][Apply][File] a.cpp；已写入 3 个区域",
+    );
+    expect(ktcCodegenAppliedFileLog("C:\\workspace\\src\\b.cpp", 1)).toBe(
+      "[Codegen][Apply][File] b.cpp；已写入 1 个区域",
+    );
+  });
+
+  it("回执日志只报告保存结果和计数，结构化明细留在回执文件", () => {
+    expect(ktcCodegenApplyReceiptLog(2, 9)).toBe(
+      "[Codegen][Apply][Receipt] 回执已保存；2 个文件，9 个区域",
     );
   });
 });

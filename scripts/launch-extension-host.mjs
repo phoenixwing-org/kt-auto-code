@@ -15,6 +15,11 @@ import {
   writeCodegenFixtureBaseline,
   writeCodegenFixtureQaReport,
 } from "./codegen-fixture-qa.mjs";
+import {
+  isLocalWingExtensionHostEnvironment,
+  LOCAL_EXTENSION_SNAPSHOT_PREVIEW_ROOT,
+  snapshotExtensionPaths,
+} from "./extension-host-snapshot.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const codeExtensionPath = resolve(repoRoot, "extension");
@@ -26,10 +31,14 @@ const codeOnly = process.argv.includes("--code-only");
 const dryRun = process.argv.includes("--dry-run");
 const codegenFixture = process.argv.includes("--codegen-fixture");
 const prepareOnly = process.argv.includes("--prepare-only");
+const localWingDevelopment = isLocalWingExtensionHostEnvironment();
 const CODEGEN_BULK_SOURCE_COUNT = 1200;
-const extensionPaths = codeOnly
-  ? [codeExtensionPath]
-  : [codeExtensionPath, cadExtensionPath];
+const sourceExtensions = codeOnly
+  ? [{ id: "kt-auto-code", path: codeExtensionPath }]
+  : [
+      { id: "kt-auto-code", path: codeExtensionPath },
+      { id: "kt-auto-cad", path: cadExtensionPath },
+    ];
 
 if (prepareOnly && !codegenFixture) {
   console.error("--prepare-only 只能和 --codegen-fixture 一起使用");
@@ -37,12 +46,25 @@ if (prepareOnly && !codegenFixture) {
 }
 
 if (!dryRun && !prepareOnly) {
-  for (const extensionPath of extensionPaths) {
-    if (!existsSync(resolve(extensionPath, "dist/extension.js"))) {
+  for (const extension of sourceExtensions) {
+    if (!existsSync(resolve(extension.path, "dist/extension.js"))) {
       const buildCommand = codeOnly ? "pnpm ext:build" : "pnpm extensions:build";
-      console.error(`未找到 ${resolve(extensionPath, "dist/extension.js")}，请先执行: ${buildCommand}`);
+      console.error(`未找到 ${resolve(extension.path, "dist/extension.js")}，请先执行: ${buildCommand}`);
       process.exit(1);
     }
+  }
+}
+
+let extensionPaths = sourceExtensions.map((extension) => extension.path);
+let extensionSnapshotRoot;
+if (localWingDevelopment && !prepareOnly) {
+  if (dryRun) {
+    extensionPaths = sourceExtensions.map((extension) =>
+      join(LOCAL_EXTENSION_SNAPSHOT_PREVIEW_ROOT, extension.id));
+  } else {
+    const snapshot = snapshotExtensionPaths(sourceExtensions);
+    extensionPaths = snapshot.paths;
+    extensionSnapshotRoot = snapshot.snapshotRoot;
   }
 }
 
@@ -70,13 +92,27 @@ if (codegenFixture) {
   }
 }
 
-const args = extensionPaths.map((extensionPath) => `--extensionDevelopmentPath=${extensionPath}`);
+const args = [
+  ...(localWingDevelopment ? ["--new-window"] : []),
+  ...extensionPaths.map((extensionPath) => `--extensionDevelopmentPath=${extensionPath}`),
+];
 if (workspacePath) args.push(workspacePath);
 const macCode = "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code";
 const command = process.platform === "darwin" && existsSync(macCode) ? macCode : "code";
 
 console.log(prepareOnly ? "准备 Codegen 手工验收工作区 …" : "启动 VS Code Extension Development Host …");
 for (const extensionPath of extensionPaths) console.log(`  插件: ${extensionPath}`);
+if (localWingDevelopment && !prepareOnly) {
+  console.log(dryRun
+    ? `  本地快照: ${LOCAL_EXTENSION_SNAPSHOT_PREVIEW_ROOT}（dry-run，启动时创建）`
+    : `  本地快照: ${extensionSnapshotRoot}（与仓库后续构建隔离）`);
+  console.log("  窗口: --new-window（会新建 Host；旧 Development Host 不会自动关闭，请只在刚打开的窗口测试）");
+} else {
+  console.warn(
+    "[extension-host] 当前只加载已有 dist；它可能来自 npm Registry 构建。"
+    + "如需测试并列 phoenix-wing，请停止并改用 pnpm dev。",
+  );
+}
 console.log(codegenFixture
   ? `  工作区: ${workspacePath ?? `${fixtureTemplatePath}（运行时复制到临时目录）`}`
   : "  工作区: 空窗口（请选择「最近」或自行打开文件夹）");

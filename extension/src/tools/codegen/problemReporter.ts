@@ -97,7 +97,7 @@ export class KtcCodegenProblemReporter implements vscode.Disposable {
           : vscode.DiagnosticSeverity.Warning,
       );
       diagnostic.code = problem.code;
-      diagnostic.source = "KT Codegen";
+      diagnostic.source = "KT Auto Code";
       const rows = grouped.get(key) ?? [];
       rows.push(diagnostic);
       grouped.set(key, rows);
@@ -117,7 +117,7 @@ export class KtcCodegenProblemReporter implements vscode.Disposable {
         const line = Math.max(0, Math.min(editor.document.lineCount - 1, problem.line));
         return {
           range: editor.document.lineAt(line).range,
-          hoverMessage: `KT Codegen ${problem.severity}: ${problem.code} · ${problem.message}`,
+          hoverMessage: problem.message,
         } satisfies vscode.DecorationOptions;
       });
     editor.setDecorations(this.decoration, options);

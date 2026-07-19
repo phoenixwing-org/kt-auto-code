@@ -21,9 +21,15 @@ Owner：KT Auto Code maintainers
 ## Code 与 Codegen
 
 - [Codegen 快速原型与 MVC 边界](Codegen快速原型.md)
+- [Codegen 总 Controller 会话提炼点检](codegen-plan/Codegen总Controller会话提炼点检表.md)
+- [Codegen 编辑器语义命令 Controller 点检](codegen-plan/Codegen编辑器语义命令Controller点检表.md)
+- [Codegen 控制符目录 Tree 与范围 Combo 点检](codegen-plan/Codegen控制符目录Tree与范围Combo点检表.md)
 - [Codegen 手工验收](codegen-plan/Codegen手工验收.md)
+- [Codegen 全部应用 V1 点检](codegen-plan/Codegen全部应用点检表.md)与[2.0 批量报告计划](codegen-plan/Codegen全部应用与批量报告计划.md)
 - [Extension Host 自动验收](ExtensionHost自动验收.md)
 - [搜索替换行为规范](搜索替换.md)、[编码规则](搜索替换编码规则.md)与[算法审计](搜索替换算法审计.md)
+- [关联规则选择器组件化 Baseline 点检](关联规则选择器组件化Baseline点检表.md)
+- [C++ 成员排序 Page shell 拆分点检](成员排序PageShell拆分点检表.md)
 - [源文件编码扫描](源文件编码扫描.md)与[编码修正](编码修正.md)
 - [CAA 命名调查](PNXCaaStudy-CAA命名规则调查.md)与[Ignore 规则总结](PNXCaaStudy-Ignore规则总结.md)
 
@@ -31,6 +37,7 @@ Owner：KT Auto Code maintainers
 
 - [KT Auto CAD 同仓契约](KT%20Auto%20CAD同仓实施计划.md)
 - [CAA 对话框交接契约](CAA对话框-DeskTools交接契约.md)
+- [本地 Wing 并列开发](本地Wing并列开发.md)
 - [开发与测试](开发与测试.md)
 - [VS Code 插件发布](VS%20Code%20插件发布.md)
 - [0.4 Extension Host 人工验收](0.4.0-ExtensionHost人工验收清单.md)

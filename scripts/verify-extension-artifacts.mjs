@@ -59,6 +59,42 @@ for (const artifact of artifacts) {
     if (!tableBundle.includes("kt-codegen-table")) {
       throw new Error("Code VSIX is missing the KtCodegenTable custom element registration");
     }
+    const controlCatalogBundle = readText(zip, "extension/dist/codegen-control-catalog.js");
+    if (!controlCatalogBundle.includes("ktc-codegen-control-catalog")
+        || !controlCatalogBundle.includes("ktc-codegen-control-panel")
+        || !controlCatalogBundle.includes("ktc-codegen-control-selection-change")
+        || !controlCatalogBundle.includes("ktc-codegen-control-split-change")
+        || !controlCatalogBundle.includes('{ scope: "visible", blockKeys:')
+        || !controlCatalogBundle.includes(".list { max-height: 290px; overflow-x: hidden; overflow-y: auto;")
+        || !controlCatalogBundle.includes('setAttribute("role", "tree")')
+        || !controlCatalogBundle.includes("group-check")
+        || controlCatalogBundle.includes("acquireVsCodeApi")) {
+      throw new Error("Code VSIX is missing the UI-neutral shared Codegen control panel custom elements");
+    }
+    const primaryPanelBundle = readText(zip, "extension/dist/codegen-primary-panel.js");
+    if (!primaryPanelBundle.includes("ktc-codegen-primary-panel")
+        || !primaryPanelBundle.includes("ktc-codegen-primary-action")
+        || primaryPanelBundle.includes("acquireVsCodeApi")) {
+      throw new Error("Code VSIX is missing the UI-neutral Codegen Primary panel custom element");
+    }
+    const reorderMembersPanelBundle = readText(zip, "extension/dist/reorder-members-panel.js");
+    if (!reorderMembersPanelBundle.includes("ktc-reorder-members-panel")
+        || !reorderMembersPanelBundle.includes("ktc-reorder-members-action")
+        || !reorderMembersPanelBundle.includes("reorderSelection")
+        || reorderMembersPanelBundle.includes("acquireVsCodeApi")) {
+      throw new Error("Code VSIX is missing the Host-neutral member-sort panel custom element");
+    }
+    const associatedRulePickerBundle = readText(zip, "extension/dist/associated-rule-picker.js");
+    if (!associatedRulePickerBundle.includes("ktc-associated-rule-picker")
+        || !associatedRulePickerBundle.includes("ktc-associated-rule-picker-action")
+        || associatedRulePickerBundle.includes("acquireVsCodeApi")
+        || associatedRulePickerBundle.includes("postMessage")
+        || associatedRulePickerBundle.includes("clipboard")
+        || associatedRulePickerBundle.includes("workspace.fs")
+        || associatedRulePickerBundle.includes("primarySearch")
+        || associatedRulePickerBundle.includes("existingRules")) {
+      throw new Error("Code VSIX is missing the Host-neutral associated-rule picker custom element");
+    }
     const codegenCommand = manifest.contributes?.commands?.find(
       (candidate) => candidate.command === "ktAutoCode.codegen.open",
     );

@@ -10,6 +10,8 @@
     "node": ">=22"
   },
   "scripts": {
+    "dev": "pnpm ext:dev",
+    "dev:registry": "pnpm ext:dev:registry",
     "test": "vitest run",
     "scan-encoding": "tsx scripts/scan-source-encoding.ts",
     "fix-encoding": "tsx scripts/scan-source-encoding.ts --fix",
@@ -17,6 +19,12 @@
     "scan-file-encoding": "tsx scripts/scan-file-encoding.ts",
     "convert-file-encoding": "tsx scripts/scan-file-encoding.ts --convert",
     "ext:build": "pnpm -C extension build",
+    "ext:dev": "node scripts/develop-local-wing.mjs",
+    "ext:dev:code": "node scripts/develop-local-wing.mjs --code-only",
+    "ext:dev:check": "node scripts/develop-local-wing.mjs --check-only",
+    "ext:dev:prepare": "node scripts/develop-local-wing.mjs --prepare-only",
+    "ext:dev:registry": "node scripts/develop-registry-wing.mjs",
+    "ext:dev:registry:prepare": "node scripts/develop-registry-wing.mjs --prepare-only",
     "ext:watch": "pnpm -C extension watch",
     "ext:launch": "node scripts/launch-extension-host.mjs",
     "ext:launch:code": "node scripts/launch-extension-host.mjs --code-only",

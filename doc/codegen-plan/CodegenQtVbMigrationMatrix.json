@@ -2,7 +2,7 @@
   "kind": "kt.codegen.qt-vb-migration-matrix",
   "schemaVersion": 1,
   "createdAt": "2026-07-16",
-  "updatedAt": "2026-07-17",
+  "updatedAt": "2026-07-18",
   "sourceRoots": {
     "qt": "../AutoCode/KtdAutoCodeModules/KtdAutoCode",
     "vb": "../AutoCode/KtdAutoCodeModules/KtAutoCode"
@@ -81,7 +81,7 @@
     { "feature": "超大源码范围完整性保护", "source": "vscode-enhancement", "status": "migrated-enhanced", "note": "findFiles 可取消；scope 过滤后超过5000个源码时 fail closed，避免截断索引进入预检/Apply" },
     { "feature": "关闭脏文档确认/Hot Exit", "source": "qt-vscode", "status": "partial", "note": "已有600ms防抖整表草稿保留；CustomEditorProvider 待迁" },
     { "feature": "Apply 当前文档", "source": "qt", "status": "migrated-safer", "note": "无缓存时自动预检；事务内逐文件重读并比较原字节，校验工作区边界与未保存编辑器，保持原编码；批量失败时只回滚仍等于本次输出的文件" },
-    { "feature": "Apply All", "source": "qt", "status": "deferred", "note": "当前只处理活动 JSON" },
+    { "feature": "Apply All", "source": "qt", "status": "deferred", "note": "当前只处理活动 JSON；已形成全量预检屏障、一次确认、ready项串行重验与结构化报告计划，尚未实现" },
     { "feature": "通用 Search/Replace", "source": "qt", "status": "reused-existing-module" },
     { "feature": "Output Copy/Paste/Clear", "source": "qt", "status": "reused-existing-output" },
     { "feature": "Output Auto Clear / Print Codes", "source": "qt", "status": "replaced-by-host", "note": "使用 VS Code Output 历史记录 Target、命中/未命中控制符、源码复读、真实 Apply 文件/区域、并发变化、回滚和诊断，不增加第二套输出状态" },
