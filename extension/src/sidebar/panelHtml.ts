@@ -647,8 +647,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
             <option value="gbk">GBK（本地）</option>
           </select>
         </label>
-        <label class="disabled" title="自动匹配大小写待后续测试开放">
-          <input id="replace-preserve-case" type="checkbox" disabled />自动匹配大小写（待测试开放）
+        <label title="同时派生搜索词和替换词的全大写规则">
+          <input id="replace-preserve-case" type="checkbox" />同时匹配全大写
         </label>
       </div>
       <div class="replace-fields replace-scope working-directory">
@@ -799,7 +799,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       (rule.search || "").trim() || (rule.replace || "").trim()
     ));
     state.replace.defaultEncoding = state.replace.defaultEncoding === "gbk" ? "gbk" : "utf8";
-    state.replace.preserveCase = false;
+    state.replace.preserveCase = !!state.replace.preserveCase;
     const toolScrollPositions = new Map();
 
     function switchActiveTool(nextToolId) {
@@ -1515,7 +1515,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.replaceSourcePrefix.value = state.replace.sourcePrefix || "";
       els.replaceTargetPrefix.value = state.replace.targetPrefix || "";
       els.defaultEncoding.value = state.replace.defaultEncoding;
-      els.preserveCase.checked = false;
+      els.preserveCase.checked = !!state.replace.preserveCase;
       renderSearchReplaceProfiles();
       els.extraRules.innerHTML = "";
       state.replace.extraRules.forEach((rule, index) => {
@@ -1947,7 +1947,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         sourcePrefix: els.replaceSourcePrefix.value,
         targetPrefix: els.replaceTargetPrefix.value,
         defaultEncoding: els.defaultEncoding.value === "gbk" ? "gbk" : "utf8",
-        preserveCase: false,
+        preserveCase: els.preserveCase.checked,
         extraRules: state.replace.extraRules,
         profileId: state.replace.profileId || "",
         profileLabel: els.replaceProfileName.value,
@@ -2066,7 +2066,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
           targetPrefix: state.replace.targetPrefix,
           associatedRules: state.replace.extraRules,
           options: {
-            preserveCase: false,
+            preserveCase: state.replace.preserveCase,
             text: state.replace.text,
             file: state.replace.file,
             dir: state.replace.dir,
@@ -2113,7 +2113,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         });
       }
     };
-    for (const input of [els.replaceText, els.replaceFile, els.replaceDir, els.replaceIgnored]) {
+    for (const input of [els.replaceText, els.replaceFile, els.replaceDir, els.replaceIgnored, els.preserveCase]) {
       input.onchange = saveReplaceState;
     }
     for (const input of [els.replaceSearch, els.replaceWith, els.replaceScope, els.replaceSourcePrefix, els.replaceTargetPrefix]) {
@@ -2248,7 +2248,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
             with: profile.replace,
             sourcePrefix: profile.sourcePrefix,
             targetPrefix: profile.targetPrefix,
-            preserveCase: false,
+            preserveCase: !!profile.options.preserveCase,
             text: profile.options.text,
             file: profile.options.file,
             dir: profile.options.dir,

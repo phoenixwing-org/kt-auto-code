@@ -615,8 +615,15 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     }
 
     const ctx = this.createRunContext(message.toolId, source);
-    try { await tool.handleMessage(message, ctx); }
-    catch (error) { this.postUnhandledToolError(message.toolId, error); }
+    try {
+      await tool.handleMessage(message, ctx);
+      if (message.type === "setEncodingDefaultTarget") {
+        this.refreshToolOptions("encodingFix");
+        this.invalidateEncodingFixResults();
+      }
+    } catch (error) {
+      this.postUnhandledToolError(message.toolId, error);
+    }
   }
 
   async refreshWorkspaceFileScopes(): Promise<void> {

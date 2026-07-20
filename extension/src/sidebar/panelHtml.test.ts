@@ -134,6 +134,13 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('id="replace-validation"');
     expect(html).toContain('id="replace-preview-tooltip"');
     expect(html).toContain('id="replace-apply-tooltip"');
+    expect(html).toContain('<input id="replace-preserve-case" type="checkbox" />同时匹配全大写');
+    expect(html).toContain('state.replace.preserveCase = !!state.replace.preserveCase');
+    expect(html).toContain('preserveCase: els.preserveCase.checked');
+    expect(html).toContain('preserveCase: state.replace.preserveCase');
+    expect(html).toContain('preserveCase: !!profile.options.preserveCase');
+    expect(html).toContain('els.replaceIgnored, els.preserveCase');
+    expect(html).not.toContain('自动匹配大小写（待测试开放）');
     expect(html).toContain('els.replacePreviewTooltip.title = disabledReason');
     expect(html).toContain('body.task-running button.action:disabled { cursor: progress; }');
     expect(html).toContain('button.action:disabled { opacity: 0.5; cursor: not-allowed; }');

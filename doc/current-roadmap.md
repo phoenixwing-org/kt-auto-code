@@ -33,6 +33,8 @@ Owner：KT Auto Code maintainers
 - 已删除独立 CAD 连接入口遗留的 `cad-provider.svg`，VSIX 制品门禁拒绝该死资源重新进入安装包。
 - Ignore Host adapter 新增自动证据：预设操作只修改打开的文本缓冲区并保持 dirty，磁盘字节不变；保存监听使用的缓存失效路径能重新读取新规则。
 - 开源仓库 URL TODO 已按当前 Git remote 核实为 Gitee；extension manifest 的 repository、bugs 与 homepage 已存在，无需重复修改。
+- 搜索替换已开放底层原有的“同时匹配全大写”能力，状态可随 Block 和规则档案持久；真实预览/写盘回归已追加到 Extension Host 待测试列表。
+- 编码修正的 UTF-8 / GBK 默认目标在写入后立即回传 Webview，不再因旧 `toolOptions` 渲染回弹；切换后主动废弃上一目标的预检结果。
 
 ## 已完成第一波：Codegen 控制符目录与模板日志
 
