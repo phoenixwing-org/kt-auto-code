@@ -113,6 +113,9 @@ for (const artifact of artifacts) {
       && candidate.command.startsWith("ktAutoCad."))) {
       throw new Error("Code VSIX must not own CAD Header commands");
     }
+    if (names.includes("extension/media/tools/cad-provider.svg")) {
+      throw new Error("Code VSIX must not retain the removed standalone CAD provider icon");
+    }
   } else {
     assertEqual(manifest.extensionDependencies?.[0], "kuntai.kt-auto-code", "CAD base extension dependency");
     assertEqual(manifest.icon, "media/cn.kt.doc.AutoCode.Color.128.png", "CAD Marketplace icon");

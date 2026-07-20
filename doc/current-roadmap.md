@@ -24,7 +24,15 @@ Owner：KT Auto Code maintainers
 5. 保持双 VSIX 可复现，并在 Wing 升级时先运行 Registry 防回退、全测和制品门禁。
 6. Codegen `全部应用` V1 已落地：一次确认后冻结当前 JSON 列表，在后台 session 中串行 Preflight → Apply，不再铺开 JSON Panel；单份错误继续后续项。single/batch Apply 报告按规则文件名原子写入 `.phoenix/reports/codegen/`，Primary“应用报告”列表可重开；View 用结果/源码变化双轴避免把正常内容一致误报为失败，并安全进入 Codegen View 或定位问题。全量预检屏障、跨 JSON 冲突、独立批次 Problems、取消与完整 receipt 报告保留为 2.0，见 `codegen-plan/Codegen全部应用与批量报告计划.md`。
 7. **[已完成：0.5.1 发布]** 0.5.1 作为 patch 公开发布：只包含既有 Codegen 流程的安全性、状态稳定性、紧凑呈现与 Wing 0.4.3 消费升级，不新增公共命令或扩展 API；KT Auto CAD 0.1.0 同步完成 Marketplace 首发，两个公开制品哈希均与本地门禁产物一致并通过人工审查。
-8. **[进行中：0.5.2 发布]** 0.5.2 收口持久 Codegen 应用报告、Primary 历史列表、后台批量 View 生命周期、结果/变化双轴与前端筛选，并加入工作区及文件类别级 ASCII/UTF-8/GBK 编码目标；真实宿主人工点检和 540 项自动测试已通过，等待 VSIX 制品与 Marketplace 回执。
+8. **[进行中：0.5.2 发布]** 0.5.2 收口持久 Codegen 应用报告、Primary 历史列表、后台批量 View 生命周期、结果/变化双轴与前端筛选，并加入工作区及文件类别级 ASCII/UTF-8/GBK 编码目标；真实宿主人工点检、全量自动测试和双 VSIX 制品门禁已通过，等待 Marketplace 回执。
+
+## 2026-07-20 简单 TODO 收口
+
+- 旧 CAA external editor 与 Auto CAD provider 设置会在基础扩展激活时安全迁入 `ktAutoCode.deskTools.*`：只读取用户明确配置的值，新设置始终优先，默认值不迁移，失败时继续走兼容读取。
+- CAA UI 当前交接契约已改用 `service.v1.json` 动态端口，新增 Windows/macOS 联合人工验收清单，并明确区分运行中的桌面服务与无需启动窗口的 CAD 深度读取器。
+- 已删除独立 CAD 连接入口遗留的 `cad-provider.svg`，VSIX 制品门禁拒绝该死资源重新进入安装包。
+- Ignore Host adapter 新增自动证据：预设操作只修改打开的文本缓冲区并保持 dirty，磁盘字节不变；保存监听使用的缓存失效路径能重新读取新规则。
+- 开源仓库 URL TODO 已按当前 Git remote 核实为 Gitee；extension manifest 的 repository、bugs 与 homepage 已存在，无需重复修改。
 
 ## 已完成第一波：Codegen 控制符目录与模板日志
 

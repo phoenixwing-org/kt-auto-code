@@ -6,6 +6,7 @@ import {
   ktcReadDeskToolsInstallationRegistration,
   ktcReadDeskToolsServiceRegistration,
 } from "./deskToolsDiscovery.js";
+import { ktcExplicitConfigurationValue } from "./deskToolsSettingsMigration.js";
 
 const SETTINGS_QUERY = "@ext:kuntai.kt-auto-code deskTools";
 const LEGACY_ENDPOINT = "http://127.0.0.1:5180/api/caa/dialog/open";
@@ -32,12 +33,20 @@ export function ktcReadCaaExternalEditor(): KtcCaaExternalEditor {
   const legacy = vscode.workspace.getConfiguration("ktAutoCode.caa.externalEditor");
   const mode = config.get<string>("discoveryMode", "auto");
   const discoveryMode = mode === "custom" || mode === "disabled" ? mode : "auto";
-  const command = config.get<string>("executable", "").trim() || legacy.get<string>("command", "").trim();
-  const configuredArgs = config.get<readonly unknown[]>("executableArgs", []);
+  const configuredCommand = ktcExplicitConfigurationValue<unknown>(config, "executable");
+  const command = (configuredCommand.found
+    ? typeof configuredCommand.value === "string" ? configuredCommand.value : ""
+    : legacy.get<string>("command", "")).trim();
+  const configuredArgs = ktcExplicitConfigurationValue<unknown>(config, "executableArgs");
   const legacyArgs = legacy.get<readonly unknown[]>("args", ["${file}"]);
-  const args = (configuredArgs.length ? configuredArgs : legacyArgs).filter((arg): arg is string => typeof arg === "string");
-  const endpoint = config.get<string>("serviceEndpoint", "").trim()
-    || legacy.get<string>("endpoint", LEGACY_ENDPOINT).trim();
+  const argsSource = configuredArgs.found && Array.isArray(configuredArgs.value)
+    ? configuredArgs.value
+    : legacyArgs;
+  const args = argsSource.filter((arg): arg is string => typeof arg === "string");
+  const configuredEndpoint = ktcExplicitConfigurationValue<unknown>(config, "serviceEndpoint");
+  const endpoint = (configuredEndpoint.found
+    ? typeof configuredEndpoint.value === "string" ? configuredEndpoint.value : ""
+    : legacy.get<string>("endpoint", LEGACY_ENDPOINT)).trim();
   return { discoveryMode, command, args, endpoint };
 }
 
@@ -54,11 +63,13 @@ export function ktcResolveCaaOpenEndpoint(
 }
 
 export function ktcResolveDeskToolsNativeProvider(): string {
-  const configured = vscode.workspace.getConfiguration("ktAutoCode.deskTools")
-    .get<string>("nativeProviderManifest", "").trim();
+  const config = vscode.workspace.getConfiguration("ktAutoCode.deskTools");
+  const explicit = ktcExplicitConfigurationValue<unknown>(config, "nativeProviderManifest");
+  const configured = (typeof explicit.value === "string" ? explicit.value : "").trim();
   if (configured) return configured;
   const registered = ktcReadDeskToolsInstallationRegistration()?.native_provider_manifest;
   if (registered) return registered;
+  if (explicit.found) return "";
   return vscode.workspace.getConfiguration("ktAutoCad")
     .get<string>("deskToolsProviderManifest", "").trim();
 }

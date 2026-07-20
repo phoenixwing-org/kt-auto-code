@@ -36,7 +36,7 @@ Owner：KT Auto Code maintainers
 ## CAD、开发与发布
 
 - [KT Auto CAD 同仓契约](KT%20Auto%20CAD同仓实施计划.md)
-- [CAA 对话框交接契约](CAA对话框-DeskTools交接契约.md)
+- [CAA UI 交接契约](CAA对话框-DeskTools交接契约.md)与[人工验收清单](CAA-UI-DeskTools人工验收清单.md)
 - [本地 Wing 并列开发](本地Wing并列开发.md)
 - [开发与测试](开发与测试.md)
 - [VS Code 插件发布](VS%20Code%20插件发布.md)

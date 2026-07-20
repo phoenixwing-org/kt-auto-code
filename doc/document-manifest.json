@@ -250,6 +250,13 @@
       "reason": "旧版本、已完成点检或阶段性共享提取证据"
     },
     {
+      "path": "doc/CAA-UI-DeskTools人工验收清单.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
       "path": "doc/CAA对话框-DeskTools交接契约.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",

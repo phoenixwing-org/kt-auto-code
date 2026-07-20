@@ -1,8 +1,8 @@
-# CAA 对话框：VS Code → Desk Tools 交接契约
+# CAA UI：VS Code → Desk Tools 交接契约
 
 ## 边界
 
-VS Code 插件只扫描 `.CATDlg` 文件并按用户点击调用已配置的外部编辑器；不复制 Desk Tools 的 Vue 编辑器，不解析、patch 或写回 CAA 文件。真正的解析、布局编辑、NLS、Wizard 区域保护和 Git 审核继续由 Desk Tools 的 `catdlg-core` 与其宿主完成。
+VS Code 插件只扫描 `.CATDlg` 文件并按用户点击交给 Desk Tools 或已配置的外部编辑器；不复制 Desk Tools 的 Vue 编辑器，不解析、patch 或写回 CAA 文件。真正的解析、布局编辑、NLS、Wizard 区域保护和 Git 审核继续由 Desk Tools 的 `catdlg-core` 与其宿主完成。
 
 ## v1 会话交接
 
@@ -24,7 +24,17 @@ type KtcCaaDialogHandoff = {
 
 ## 已实现的本地桥接
 
-Desk Tools 提供 `POST http://127.0.0.1:5180/api/caa/dialog/open`。接口可直接接收上述 v1 handoff，也可接收单文件形式：
+Desk Tools 本地 API 首选 `127.0.0.1:48375`，占用时顺序尝试至 `48406`。实际端口不由插件扫描猜测，而由运行中的 Desk Tools 写入当前用户的平台标准注册目录：
+
+| 平台 | `service.v1.json` 目录 |
+| --- | --- |
+| Windows | `%LOCALAPPDATA%\\phoenix-wing\\phoenix\\services\\desk-tools\\` |
+| macOS | `~/Library/Application Support/phoenix-wing/phoenix/services/desk-tools/` |
+| Linux | `${XDG_CONFIG_HOME:-~/.config}/phoenix-wing/phoenix/services/desk-tools/` |
+
+插件只接受 schema/protocol v1、`127.0.0.1`、有效端口和固定 CAA 路径，随后请求 `/api/caa/health` 二次确认。注册文件不是在线证明；异常退出留下的 stale 文件只会显示离线，不会被当作可用服务。
+
+实际接口为 `POST http://127.0.0.1:<registered-port>/api/caa/dialog/open`。接口可直接接收上述 v1 handoff，也可接收单文件形式：
 
 ```json
 {
@@ -33,8 +43,12 @@ Desk Tools 提供 `POST http://127.0.0.1:5180/api/caa/dialog/open`。接口可�
 }
 ```
 
-Desk Tools 会重新验证工作空间、扩展名、文件存在性与路径边界，随后把请求交给当前 UI，必要时切换工作空间并打开 CAA 编辑 Tab。插件默认调用此接口；若用户配置了外部 editor command，则改为启动该命令。Tauri EXE 支持 `--workspace <dir> --catdlg <file>`，也支持文件关联式的单个 `.CATDlg` 参数。
+Desk Tools 会重新验证工作空间、扩展名、文件存在性与路径边界，随后把请求交给当前 UI，必要时切换工作空间并打开 CAA 编辑 Tab。插件默认自动发现此接口；若用户配置了自定义 executable，则改为启动该命令。Tauri EXE 支持 `--workspace <dir> --catdlg <file>`，也支持文件关联式的单个 `.CATDlg` 参数。
 
-插件进入 CAA Block 时会调用 `/api/caa/health` 主动探测，只有响应包含 `service: "caa"` 与 `protocol_version: 1` 才显示为在线；端口被其他 HTTP 服务占用不会误判。用户也可以在 Block 内手动重新检测。
+插件进入 CAA UI Block 时会重新读取注册并调用 `/api/caa/health`，只有响应包含 `service: "caa"` 与 `protocol_version: 1` 才显示为在线；端口被其他 HTTP 服务占用不会误判。用户也可以在 Block 内手动重新检测。
 
-UI 对打开请求采用“读取后确认”语义：`GET /api/caa/dialog/open-requests` 不删除请求，只有 CATDlg 成功打开后才调用 `POST /api/caa/dialog/open-requests/ack`。这样切换工作区或打开页面失败时可以在下次轮询重试。完整用户验收步骤见 Desk Tools 仓库 `doc/caa/CAA-VSCode交接-人工点检清单.md`。
+统一设置位于 `KT Auto Code › Desk Tools`。扩展首次激活时只迁移用户明确配置过的旧 `ktAutoCode.caa.externalEditor.*` 和 `ktAutoCad.deskToolsProviderManifest`；不会迁移默认值，也不会覆盖任何新设置。旧 key 暂时保留兼容读取。
+
+`installation.v1.json` 与运行服务注册职责不同：它持久记录 Desk Tools 安装包中的 CAD 深度读取器。Auto CAD 可以在 Desk Tools 窗口和 HTTP 服务都未运行时直接校验并执行该读取器；CAA UI 打开 CATDlg 则必须有正在运行的桌面服务。
+
+UI 对打开请求采用“读取后确认”语义：`GET /api/caa/dialog/open-requests` 不删除请求，只有 CATDlg 成功打开后才调用 `POST /api/caa/dialog/open-requests/ack`。这样切换工作区或打开页面失败时可以在下次轮询重试。当前插件侧验收步骤见 [CAA UI / Desk Tools 人工验收清单](CAA-UI-DeskTools人工验收清单.md)。
