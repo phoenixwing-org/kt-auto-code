@@ -66,7 +66,7 @@
         "id": "cadRead",
         "shortTitle": "读取",
         "title": "读取 FCStd 内容",
-        "description": "TS 轻量读取直接可用；深度对象分析可选 Desk Tools provider",
+        "description": "TS 轻量读取直接可用；CAD 深度读取器可从 Desk Tools 安装自动发现",
         "command": "ktAutoCad.block.read",
         "icon": "shell:media/tools/cad-read.svg",
         "requirement": "optional-desk-provider"
@@ -81,19 +81,10 @@
         "requirement": "workspace-database"
       },
       {
-        "id": "cadProvider",
-        "shortTitle": "连接",
-        "title": "Desk Tools Provider",
-        "description": "按需选择并校验 Desk Tools native provider",
-        "command": "ktAutoCad.block.provider",
-        "icon": "shell:media/tools/cad-provider.svg",
-        "requirement": "none"
-      },
-      {
         "id": "cadDiagnostics",
         "shortTitle": "诊断",
         "title": "CAD 能力诊断",
-        "description": "查看可直接使用和需要 provider 的能力",
+        "description": "查看轻量读取与 CAD 深度读取器状态",
         "command": "ktAutoCad.block.diagnostics",
         "icon": "shell:media/tools/cad-diagnostics.svg",
         "requirement": "none"
@@ -132,7 +123,7 @@
       },
       {
         "command": "ktAutoCad.readFcstd",
-        "title": "KT Auto CAD：Desk 深度分析 FCStd",
+        "title": "KT Auto CAD：CAD 深度分析 FCStd",
         "icon": "$(file-binary)"
       },
       {
@@ -147,7 +138,7 @@
       },
       {
         "command": "ktAutoCad.selectDeskToolsProvider",
-        "title": "KT Auto CAD：选择 Desk Tools Provider",
+        "title": "KT Auto CAD：选择 CAD 深度读取器",
         "icon": "$(folder-opened)"
       }
     ],
@@ -172,7 +163,8 @@
           "type": "string",
           "default": "",
           "scope": "machine",
-          "description": "Desk Tools 安装资源中的 runtime/native-provider.json；可通过命令选择。"
+          "description": "Desk Tools 安装资源中的 runtime/native-provider.json；可通过命令选择。",
+          "deprecationMessage": "请改用 KT Auto Code 的 ktAutoCode.deskTools.nativeProviderManifest 设置。"
         }
       }
     }

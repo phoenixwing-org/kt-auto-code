@@ -199,17 +199,22 @@
       },
       {
         "command": "ktAutoCode.caaDialog.scan",
-        "title": "KT Auto Code：扫描 CAA 对话框",
+        "title": "KT Auto Code：扫描 CAA UI 文件",
         "icon": "$(search)"
       },
       {
         "command": "ktAutoCode.caaDialog.selectFiles",
-        "title": "KT Auto Code：显示 CAA 对话框列表",
+        "title": "KT Auto Code：显示 CAA UI 文件列表",
         "icon": "$(list-tree)"
       },
       {
         "command": "ktAutoCode.caa.openSettings",
-        "title": "KT Auto Code：打开设置",
+        "title": "KT Auto Code：打开 Desk Tools 设置",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "ktAutoCode.deskTools.openSettings",
+        "title": "KT Auto Code：打开 Desk Tools 设置",
         "icon": "$(settings-gear)"
       },
       {
@@ -252,7 +257,7 @@
       },
       {
         "command": "ktAutoCode.caaDialog.addToWorkset",
-        "title": "将 CAA 对话框结果加入工作集",
+        "title": "将 CAA UI 结果加入工作集",
         "icon": "$(add)"
       },
       {
@@ -412,24 +417,60 @@
           "default": "exclusive",
           "description": "控制 Ribbon 下方 Block 的展开方式。推荐排他展开以获得更大可用高度。"
         },
+        "ktAutoCode.deskTools.discoveryMode": {
+          "type": "string",
+          "enum": ["auto", "custom", "disabled"],
+          "enumDescriptions": ["自动读取 Desk Tools 本机服务注册", "使用手动配置的服务地址", "禁用 Desk Tools 桌面服务交接"],
+          "default": "auto",
+          "scope": "machine",
+          "description": "Desk Tools 桌面服务发现方式；自动模式会读取当前用户的平台标准注册目录并执行协议健康校验。"
+        },
+        "ktAutoCode.deskTools.serviceEndpoint": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Desk Tools CAA 打开接口的高级手动覆盖。仅在发现方式为 custom 时使用，例如 http://127.0.0.1:48375/api/caa/dialog/open。"
+        },
+        "ktAutoCode.deskTools.executable": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "可选 Desk Tools/外部编辑器命令。配置后 CAA 文件交接优先直接启动该程序；不会经 shell 执行。"
+        },
+        "ktAutoCode.deskTools.executableArgs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "scope": "machine",
+          "description": "自定义程序参数，支持 ${file}、${workspace} 占位符；留空时兼容读取旧 CAA 参数设置。"
+        },
+        "ktAutoCode.deskTools.nativeProviderManifest": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Auto CAD 深度读取器 native-provider.json 的手动覆盖。留空时从 Desk Tools 安装注册自动发现。"
+        },
         "ktAutoCode.caa.externalEditor.command": {
           "type": "string",
           "default": "",
           "scope": "resource",
-          "description": "CAA 外部编辑器命令或可执行文件路径。仅在用户点击 CATDlg 行的“打开外部编辑器”图标时启动。macOS 可配置 open，Windows 可配置编辑器 .exe。"
+          "description": "CAA 外部编辑器命令或可执行文件路径。仅在用户点击 CATDlg 行的“打开外部编辑器”图标时启动。macOS 可配置 open，Windows 可配置编辑器 .exe。",
+          "deprecationMessage": "请改用 ktAutoCode.deskTools.executable。"
         },
         "ktAutoCode.caa.externalEditor.args": {
           "type": "array",
           "items": { "type": "string" },
           "default": ["${file}"],
           "scope": "resource",
-          "description": "CAA 外部编辑器参数；仅允许普通参数及 ${file}、${workspace} 占位符。不会经 shell 执行。"
+          "description": "CAA 外部编辑器参数；仅允许普通参数及 ${file}、${workspace} 占位符。不会经 shell 执行。",
+          "deprecationMessage": "请改用 ktAutoCode.deskTools.executableArgs。"
         },
         "ktAutoCode.caa.externalEditor.endpoint": {
           "type": "string",
           "default": "http://127.0.0.1:5180/api/caa/dialog/open",
           "scope": "resource",
-          "description": "Desk Tools 本地 CAA 打开接口。未配置 command 时，点击外部编辑器会把 workspaceRoot 与 CATDlg 文件路径投递到此接口。"
+          "description": "Desk Tools 本地 CAA 打开接口。未配置 command 时，点击外部编辑器会把 workspaceRoot 与 CATDlg 文件路径投递到此接口。",
+          "deprecationMessage": "请使用自动服务发现，或改用 ktAutoCode.deskTools.serviceEndpoint。"
         }
       }
     }

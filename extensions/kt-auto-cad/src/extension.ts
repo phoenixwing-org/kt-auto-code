@@ -107,9 +107,9 @@ class CadBlockProvider {
     const tool = ktcGetCadDetailTool(toolId);
     const nativeReady = this.native.status?.ready === true;
     const status = tool.requirement === "desk-provider"
-      ? (nativeReady ? "Desk Tools 已连接" : "需要 Desk Tools")
+      ? (nativeReady ? "CAD 读取器已就绪" : "需要 CAD 读取器")
       : tool.requirement === "optional-desk-provider"
-        ? (nativeReady ? "TS 可用 · 深度读取已连接" : "TS 轻量读取可用")
+        ? (nativeReady ? "TS 可用 · CAD 读取器已就绪" : "TS 轻量读取可用")
       : tool.requirement === "workspace-database"
         ? "只读数据库"
         : "直接可用";
@@ -121,10 +121,9 @@ class CadBlockProvider {
       if (tool.id === "cadRead") return [
         { id: "readFcstdLight", title: "TS 轻量读取", icon: "📄" },
         { id: "readFcstd", title: "Desk 深度读取", icon: "◈" },
-        ...(!nativeReady ? [{ id: "connectDeskTools", title: "连接 Desk Tools", icon: "🔌" }] : []),
+        ...(!nativeReady ? [{ id: "openDeskToolsSettings", title: "Desk Tools 设置", icon: "⚙" }] : []),
       ];
       if (tool.id === "cadQuery") return [{ id: "queryDatabase", title: "查询 BOM 与引用", icon: "⌕" }];
-      if (tool.id === "cadProvider") return [{ id: "connectDeskTools", title: "连接 Desk Tools", icon: "🔌" }];
       if (tool.id === "cadDiagnostics") return [{ id: "runDiagnostics", title: "刷新诊断", icon: "↻" }];
       return [];
     })();
@@ -145,7 +144,7 @@ class CadBlockProvider {
       readFcstdLight: "ktAutoCad.readFcstdLight",
       readFcstd: "ktAutoCad.readFcstd",
       queryDatabase: "ktAutoCad.queryWorkspaceDatabase",
-      connectDeskTools: "ktAutoCad.selectDeskToolsProvider",
+      openDeskToolsSettings: "ktAutoCode.deskTools.openSettings",
       runDiagnostics: "ktAutoCad.diagnostics",
     };
     const command = commands[actionId];
@@ -160,12 +159,12 @@ class CadBlockProvider {
         .map((tool) => this.native.status?.tools[tool].error)
         .filter((error): error is string => Boolean(error))
         .join("；")
-      : "尚未配置 Desk Tools provider";
+      : "未发现 CAD 深度读取器";
     const detail = !shellReady
       ? this.connection.error ?? "正在连接 KT Auto Code…"
       : nativeReady
-        ? `Wing CAD Core 已就绪；Phoenix CAD native protocol v1 与 workspace Schema v${this.native.status?.workspaceSchemaVersion} 已连接。`
-        : `Wing CAD Core 已就绪，文件名分析、扫描入库、索引搜索和基础 BOM 查询可直接使用；只有 FCStd 深度读取按需连接 Desk Tools。${nativeErrors ? ` ${nativeErrors}` : ""}`;
+        ? `Wing CAD Core 已就绪；CAD 深度读取器 protocol v1 与 workspace Schema v${this.native.status?.workspaceSchemaVersion} 已就绪。`
+        : `Wing CAD Core 已就绪，文件名分析、扫描入库、索引搜索和基础 BOM 查询可直接使用；只有 FCStd 深度读取需要 Desk Tools 安装的本机读取器。${nativeErrors ? ` ${nativeErrors}` : ""}`;
     const activeUri = vscode.window.activeTextEditor?.document.uri;
     const filenameHint = activeUri?.scheme === "file"
       ? describeCadFilename(vscode.workspace.asRelativePath(activeUri, false))
@@ -226,7 +225,7 @@ class CadBlockProvider {
         ? `查询失败：${this.native.queryError}`
         : queryResult
           ? `${queryResult.relativePath} · ${queryResult.summary.counts.flat_lines} 条 BOM · ${queryResult.summary.counts.incoming} 个入向引用 · ${queryResult.summary.counts.outgoing} 个出向引用`
-          : "尚未查询；扫描工作区可由本插件创建或更新 Schema v13 数据库，不需要 Desk Tools provider。";
+          : "尚未查询；扫描工作区可由本插件创建或更新 Schema v13 数据库，不需要 CAD 深度读取器。";
     const queryItems = queryResult
       ? [
         ...queryResult.summary.bom.slice(0, 4).map((row) => `${row.part_key} × ${row.quantity}`),
@@ -248,9 +247,9 @@ class CadBlockProvider {
       </div>`;
     const deskNotice = `
       <div class="notice warning">
-        <strong>需要 Desk Tools</strong>
-        <p>读取 FCStd 内部对象时才需要本机 native provider。请先点击 Ribbon 中的“连接”并选择 Desk Tools 安装目录。</p>
-        <p class="notice-detail">当前状态：${escapeHtml(nativeReady ? "已连接，可以读取" : nativeErrors || "尚未连接")}</p>
+        <strong>${nativeReady ? "CAD 读取器已就绪" : "需要 CAD 深度读取器"}</strong>
+        <p>读取 FCStd 内部对象时会直接调用 Desk Tools 安装目录中的读取程序；不要求 Desk Tools 桌面窗口正在运行。路径可在 Auto Code 的 Desk Tools 设置中管理。</p>
+        <p class="notice-detail">当前状态：${escapeHtml(nativeReady ? "读取器可用" : nativeErrors || "未发现读取器")}</p>
       </div>`;
     const databaseNotice = `
       <div class="notice info">
@@ -290,23 +289,6 @@ class CadBlockProvider {
       toolContent = databaseNotice
         + section("数据库查询", queryDetail, queryItems)
         + section("分析边界", "查询 BOM、入向引用和出向引用；TS 索引提供 XLink 基础 BOM，Rust 增强数据可继续写入同一 Schema。");
-    } else if (tool.id === "cadProvider") {
-      toolContent = `
-        <div class="notice ${nativeReady ? "success" : "warning"}">
-          <strong>${nativeReady ? "Desk Tools 已连接" : "Desk Tools 尚未连接"}</strong>
-          <p>只有“读取 FCStd 内容”依赖此连接；文件名、扫描入库、索引搜索和 BOM 查询均可直接使用。</p>
-        </div>`
-        + section(
-          "Provider 路径",
-          this.native.status?.providerPath || "尚未选择。点击 Ribbon 中的“连接”按钮选择 Desk Tools 安装目录或 native-provider.json。",
-          providerItems,
-        )
-        + section(
-          "契约",
-          this.native.status?.workspaceSchemaVersion
-            ? `Phoenix CAD native protocol v1 · workspace Schema v${this.native.status.workspaceSchemaVersion}`
-            : "连接后会校验平台、程序路径、protocol v1 与 workspace Schema 版本。",
-        );
     } else {
       const capabilityItems = [
         "文件名语义：TypeScript / Wing CAD Core，直接可用",
@@ -314,7 +296,7 @@ class CadBlockProvider {
         "索引入库：TypeScript + node:sqlite，创建或更新 Schema v13",
         "基础 BOM：TypeScript 解压 Document.xml 并分析 XLink",
         "BOM 与引用查询：node:sqlite，只读索引结果",
-        `FCStd 内容读取：${nativeReady ? "Desk Tools provider 已就绪" : "需要 Desk Tools provider"}`,
+        `FCStd 内容读取：${nativeReady ? "CAD 深度读取器已就绪" : "未发现 CAD 深度读取器"}`,
       ];
       toolContent = section("连接总览", detail, capabilityItems)
         + section("Native 诊断", nativeErrors || "没有发现 native provider 错误。", providerItems)
@@ -558,7 +540,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       ["ktAutoCad.block.scan", "cadScan"],
       ["ktAutoCad.block.read", "cadRead"],
       ["ktAutoCad.block.query", "cadQuery"],
-      ["ktAutoCad.block.provider", "cadProvider"],
+      ["ktAutoCad.block.provider", "cadRead"],
       ["ktAutoCad.block.diagnostics", "cadDiagnostics"],
     ] as const).map(([command, toolId]) => vscode.commands.registerCommand(command, async () => {
       await openOverview(toolId);
@@ -574,11 +556,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       return !shell.getModuleState().visible.includes("cad") || await shell.toggleModule("cad");
     }),
     vscode.commands.registerCommand("ktAutoCad.selectDeskToolsProvider", async () => {
-      if (!await openOverview("cadProvider")) return;
+      if (!await openOverview("cadRead")) return;
       if (await selectDeskToolsProvider()) {
         await refreshNative();
-        if (native.status?.ready) void vscode.window.showInformationMessage("Desk Tools native provider 已连接。");
-        else void vscode.window.showErrorMessage("Desk Tools provider 校验失败，请运行连接诊断。");
+        if (native.status?.ready) void vscode.window.showInformationMessage("CAD 深度读取器已就绪。");
+        else void vscode.window.showErrorMessage("CAD 深度读取器校验失败，请运行能力诊断。");
       }
     }),
     vscode.commands.registerCommand("ktAutoCad.scanWorkspace", async () => {
@@ -770,7 +752,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await refreshNative();
       const readTool = native.status?.tools["fcstd-read"];
       if (!native.status?.ready || !readTool?.ready) {
-        void vscode.window.showErrorMessage("请先连接并通过校验的 Desk Tools native provider。");
+        void vscode.window.showErrorMessage("未发现通过校验的 CAD 深度读取器；请打开 Desk Tools 设置。");
         return;
       }
       let selectedUri = resource?.scheme === "file" ? resource : undefined;
@@ -931,7 +913,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       blockProvider.refresh();
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration("ktAutoCad.deskToolsProviderManifest")) void refreshNative();
+      if (event.affectsConfiguration("ktAutoCode.deskTools.nativeProviderManifest")
+          || event.affectsConfiguration("ktAutoCad.deskToolsProviderManifest")) void refreshNative();
     }),
     vscode.window.onDidChangeActiveTextEditor(() => blockProvider.refresh()),
   );

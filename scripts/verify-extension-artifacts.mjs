@@ -128,8 +128,11 @@ for (const artifact of artifacts) {
     const moduleTools = manifest.ktAutoCodeModule?.id === "cad"
       ? manifest.ktAutoCodeModule.tools
       : undefined;
-    if (!Array.isArray(moduleTools) || moduleTools.length !== 6) {
-      throw new Error("CAD VSIX must publish six data-defined shared Ribbon tools");
+    if (!Array.isArray(moduleTools) || moduleTools.length !== 5) {
+      throw new Error("CAD VSIX must publish five data-defined shared Ribbon tools");
+    }
+    if (moduleTools.some((tool) => tool.id === "cadProvider")) {
+      throw new Error("CAD VSIX must not publish a standalone Desk Tools connection tool");
     }
     if (!moduleTools.every((tool) => tool.command.startsWith("ktAutoCad.block."))) {
       throw new Error("CAD Ribbon tools must open Blocks without directly running business actions");

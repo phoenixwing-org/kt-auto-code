@@ -10,7 +10,6 @@ describe("shared Ribbon module tool definitions", () => {
       ["cadScan", "none"],
       ["cadRead", "optional-desk-provider"],
       ["cadQuery", "workspace-database"],
-      ["cadProvider", "none"],
       ["cadDiagnostics", "none"],
     ]);
     expect(tools.every((tool) => tool.moduleId === "cad" && tool.command.startsWith("ktAutoCad."))).toBe(true);

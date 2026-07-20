@@ -22,6 +22,7 @@ import {
 } from "./tools/codegen/index.js";
 import { invalidateWorkspaceIgnorePatterns } from "./ignoreConfig.js";
 import { ktcOpenWorkspaceWorksets } from "./worksets.js";
+import { ktcOpenCaaSettings, ktcResolveDeskToolsNativeProvider } from "./caaSettings.js";
 import { ktcRegisterResultAccordion } from "./workbench/resultAccordion.js";
 import { ktcRegisterEditorMatchHighlight } from "./workbench/editorMatchHighlight.js";
 import type { KtcAutoCodeShellApiV2 } from "../../src/moduleShellContract.js";
@@ -74,6 +75,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<KtcAut
     vscode.commands.registerCommand("ktAutoCode.settings.scope", () => {
       void vscode.commands.executeCommand("workbench.action.openSettings", "@ext:kuntai.kt-auto-code scope");
     }),
+    vscode.commands.registerCommand("ktAutoCode.deskTools.openSettings", () => ktcOpenCaaSettings()),
+    vscode.commands.registerCommand("ktAutoCode.deskTools.resolveNativeProvider", () => ktcResolveDeskToolsNativeProvider() || undefined),
     vscode.commands.registerCommand("ktAutoCode.codeRename.openAdvanced", () => {
       void sidebarProvider?.showTool("codeRename");
     }),

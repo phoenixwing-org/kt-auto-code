@@ -48,7 +48,9 @@ export interface KtcCadNativeStatus {
   readonly tools: Readonly<Record<KtcCadNativeTool, KtcCadNativeToolStatus>>;
 }
 
-export function configuredDeskToolsProvider(): string {
+export async function configuredDeskToolsProvider(): Promise<string> {
+  const resolved = await vscode.commands.executeCommand<string | undefined>("ktAutoCode.deskTools.resolveNativeProvider");
+  if (typeof resolved === "string" && resolved.trim()) return resolved.trim();
   return vscode.workspace.getConfiguration("ktAutoCad").get<string>(PROVIDER_SETTING, "").trim();
 }
 
@@ -57,17 +59,17 @@ export async function selectDeskToolsProvider(): Promise<string | undefined> {
     canSelectFiles: true,
     canSelectFolders: true,
     canSelectMany: false,
-    openLabel: "使用此 Desk Tools provider",
-    title: "选择 Desk Tools 安装目录或 native-provider.json",
+    openLabel: "使用此 CAD 深度读取器",
+    title: "选择 Desk Tools 安装目录或 CAD 深度读取器清单",
   });
   if (!selected?.[0]) return undefined;
   const providerPath = await resolveProviderPath(selected[0].fsPath);
   if (!providerPath) {
-    void vscode.window.showErrorMessage("所选位置未找到 Desk Tools runtime/native-provider.json");
+    void vscode.window.showErrorMessage("所选位置未找到 CAD 深度读取器清单 native-provider.json");
     return undefined;
   }
-  await vscode.workspace.getConfiguration("ktAutoCad").update(
-    PROVIDER_SETTING,
+  await vscode.workspace.getConfiguration("ktAutoCode.deskTools").update(
+    "nativeProviderManifest",
     providerPath,
     vscode.ConfigurationTarget.Global,
   );
@@ -75,7 +77,7 @@ export async function selectDeskToolsProvider(): Promise<string | undefined> {
 }
 
 export async function inspectCadNativeTools(
-  configuredPath = configuredDeskToolsProvider(),
+  configuredPath?: string,
 ): Promise<KtcCadNativeStatus> {
   const platformKey = `${process.platform}-${process.arch}`;
   const unavailable = (error: string, providerPath = ""): KtcCadNativeStatus => ({
@@ -91,12 +93,13 @@ export async function inspectCadNativeTools(
   });
 
   if (vscode.env.remoteName) {
-    return unavailable(`远程 ${vscode.env.remoteName} 工作区不能使用本机 Desk Tools provider`);
+    return unavailable(`远程 ${vscode.env.remoteName} 工作区不能使用本机 CAD 深度读取器`);
   }
-  if (!configuredPath) return unavailable("尚未配置 Desk Tools native provider");
+  const selectedProvider = configuredPath?.trim() || await configuredDeskToolsProvider();
+  if (!selectedProvider) return unavailable("未发现 CAD 深度读取器；请打开 Desk Tools 设置");
 
-  const providerPath = await resolveProviderPath(configuredPath);
-  if (!providerPath) return unavailable("Desk Tools native-provider.json 路径已失效", configuredPath);
+  const providerPath = await resolveProviderPath(selectedProvider);
+  if (!providerPath) return unavailable("CAD 深度读取器 native-provider.json 路径已失效", selectedProvider);
 
   let manifest: PnwCadNativeProviderManifestV1;
   try {
@@ -142,17 +145,17 @@ async function resolveProviderPath(selectedPath: string): Promise<string | undef
 
 function validateProviderManifest(value: unknown, platformKey: string): PnwCadNativeProviderManifestV1 {
   if (!pnwIsCadNativeProviderManifestV1(value) || value.provider_id !== "phoenix-desk-tools") {
-    throw new Error("不是受支持的 Desk Tools provider manifest v1");
+    throw new Error("不是受支持的 CAD 深度读取器清单 v1");
   }
   if (`${value.platform}-${value.arch}` !== platformKey) {
-    throw new Error(`Desk Tools provider 平台不匹配：${value.platform}-${value.arch}`);
+    throw new Error(`CAD 深度读取器平台不匹配：${value.platform}-${value.arch}`);
   }
   const schema = value.workspace_schema;
   if (schema.schema_id !== PNW_WORKSPACE_SCHEMA_ID
       || schema.schema_version !== PNW_WORKSPACE_SCHEMA_VERSION
       || schema.ddl_sha256 !== PNW_WORKSPACE_SCHEMA_V13_SHA256
       || schema.database_filename !== PNW_WORKSPACE_DATABASE_FILENAME) {
-    throw new Error(`Desk Tools provider 的 workspace Schema 与插件契约不一致（需要 v${PNW_WORKSPACE_SCHEMA_VERSION}）`);
+    throw new Error(`CAD 深度读取器的 workspace Schema 与插件契约不一致（需要 v${PNW_WORKSPACE_SCHEMA_VERSION}）`);
   }
   return value;
 }
@@ -166,12 +169,12 @@ async function inspectTool(
   const binaryPath = path.resolve(providerRoot, declared.relative_path);
   const relative = path.relative(providerRoot, binaryPath);
   if (relative.startsWith("..") || path.isAbsolute(relative)) {
-    return { tool, binaryPath, ready: false, error: "provider 工具路径越界" };
+    return { tool, binaryPath, ready: false, error: "深度读取器工具路径越界" };
   }
   try {
     await access(binaryPath);
     const hash = createHash("sha256").update(await readFile(binaryPath)).digest("hex");
-    if (hash !== declared.sha256) return { tool, binaryPath, ready: false, error: "provider 工具 SHA-256 不匹配" };
+    if (hash !== declared.sha256) return { tool, binaryPath, ready: false, error: "深度读取器工具 SHA-256 不匹配" };
     const { stdout, stderr } = await execFileAsync(binaryPath, ["--protocol-version"], {
       encoding: "utf8",
       timeout: QUERY_TIMEOUT_MS,

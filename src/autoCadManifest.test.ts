@@ -60,8 +60,8 @@ describe("KT Auto CAD extension manifest", () => {
       "optional-desk-provider",
       "workspace-database",
       "none",
-      "none",
     ]);
+    expect(cad.ktAutoCodeModule?.tools.some((tool) => tool.id === "cadProvider")).toBe(false);
     expect(cad.ktAutoCodeModule?.tools.every((tool) => tool.command.startsWith("ktAutoCad.block."))).toBe(true);
     expect(cad.ktAutoCodeModule?.tools.find((tool) => tool.id === "cadQuery")?.description)
       .toMatch(/基础 BOM.*无需 Desk Tools/);

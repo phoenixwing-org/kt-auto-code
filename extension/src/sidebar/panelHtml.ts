@@ -607,7 +607,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       <p class="hint" id="uuid-strategy-hint">相同旧 UUID 在所有文件中替换为同一个新 UUID；策略在扫描时固定。</p>
     </div>
     <div class="compact-tools" id="compact-tools" hidden>
-      <button class="text-button" id="btn-caa-check-connection" type="button" hidden>检测 Desk Tools</button>
+      <button class="text-button" id="btn-caa-check-connection" type="button" hidden>连接 Desk Tools</button>
       <button class="text-button" id="btn-add-results-workset" type="button">加入工作集</button>
     </div>
     <section class="environment-block" id="environment-block" hidden>
@@ -1326,7 +1326,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     }
 
     function renderCaaResults(ts) {
-      const connection = ts.caaDeskConnection || { status: "checking", text: "等待检测 Desk Tools…" };
+      const connection = ts.caaDeskConnection || { status: "checking", text: "等待连接 Desk Tools…" };
       const connectionRow = document.createElement("div");
       connectionRow.className = "caa-connection " + connection.status;
       const connectionIcon = connection.status === "online" ? "●" : (connection.status === "checking" ? "◌" : (connection.status === "custom-command" ? "◆" : "○"));
@@ -1346,7 +1346,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
           onOpen: open,
           actions: [
             { text: "↗", title: "在 VS Code 中打开", onClick: open },
-            { text: "□", title: "在配置的外部编辑器中打开", onClick: () => vscode.postMessage({ type: "caaDialogAction", toolId: "caaDialog", action: "openExternal", uri: item.uri }) },
+            { text: "□", title: "在 Desk Tools 中打开", onClick: () => vscode.postMessage({ type: "caaDialogAction", toolId: "caaDialog", action: "openExternal", uri: item.uri }) },
           ],
           title: item.relativePath,
         });
@@ -1711,7 +1711,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
             btn.appendChild(icon);
           }
           const label = document.createElement("span");
-          const shortTitles = { headerAscii: "头文件", encodingFix: "编码", ignoreSettings: "忽略", codeRename: "替换", codegen: "自动代码", reorderMembers: "排序", uuidReplace: "UUID", caaDialog: "CAA", environmentSettings: "环境" };
+          const shortTitles = { headerAscii: "头文件", encodingFix: "编码", ignoreSettings: "忽略", codeRename: "替换", codegen: "自动代码", reorderMembers: "排序", uuidReplace: "UUID", caaDialog: "CAA UI", environmentSettings: "环境" };
           label.textContent = t.shortTitle || shortTitles[t.id] || t.title;
           btn.appendChild(label);
           const openState = isActive
@@ -1765,13 +1765,14 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.uuidStrategyHint.className = "hint" + (state.uuidStrategy === "fresh_per_hit" ? " warning" : "");
       els.compactTools.hidden = !(rename || uuid || caaDialog);
       els.btnCaaCheckConnection.hidden = !caaDialog;
+      els.btnCaaCheckConnection.textContent = ts.caaDeskConnection?.status === "online" ? "重新检测" : "连接 Desk Tools";
       els.btnAddResultsWorkset.disabled = running || (rename && !ts.codeRenameResults) || (uuid && !Array.isArray(ts.uuidResults)) || (caaDialog && !Array.isArray(ts.caaDialogResults));
       els.ignoreBlock.hidden = !ignore;
       els.btnApplyIgnoreRecommendations.hidden = true;
       els.btnScan.disabled = running;
       els.btnFix.disabled = running;
       els.btnScan.textContent = rename ? "打开" : (ignore ? "打开规则" : (uuid ? "扫描 UUID" : (caaDialog ? "扫描 CATDlg" : "预检")));
-      els.btnFix.textContent = enc ? "按目标转换" : (ignore ? "从 .gitignore 同步" : (uuid ? "替换所选" : (caaDialog ? "CAA 设置" : "修复")));
+      els.btnFix.textContent = enc ? "按目标转换" : (ignore ? "从 .gitignore 同步" : (uuid ? "替换所选" : (caaDialog ? "Desk Tools 设置" : "修复")));
       els.btnFix.style.display = rename ? "none" : "inline-block";
 
       els.targetHint.hidden = !enc;
