@@ -96,19 +96,27 @@ import {
 import { ktcWriteCodegenApplyReceipt } from "./applyReceiptStore.js";
 import {
   ktcCodegenBatchApplySummary,
-  type KtcCodegenBatchApplyItemStatus,
 } from "./batchApplyV1.js";
 import {
   ktcCodegenBatchApplyReport,
   ktcCodegenBatchApplyReportIssues,
   ktcCodegenBatchApplyReportFailure,
+  type KtcCodegenBatchApplyReport,
   type KtcCodegenBatchApplyReportIssue,
   type KtcCodegenBatchApplyReportItem,
 } from "./batchApplyReport.js";
 import { KtcCodegenBatchApplyReportViewController } from "./batchApplyReportViewController.js";
 import {
+  KtcCodegenApplyReportStore,
+  type KtcCodegenApplyReportWorkspace,
+} from "./applyReportStore.js";
+import type { KtcCodegenApplyReportSummary } from "./applyReportPersistence.js";
+import {
   ktcCodegenApplyOutcome,
+  type KtcCodegenApplyChange,
+  type KtcCodegenApplyHealth,
   type KtcCodegenApplyOutcome,
+  type KtcCodegenApplyReasonCode,
 } from "./applyOutcome.js";
 
 const TOOL_ID = "codegen";
@@ -172,7 +180,17 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
   >();
   private batchApplyProgress: KtcCodegenBatchApplyProgress | undefined;
   private readonly batchDeferredWorkspaceOperations = new Set<KtcCodegenWorkspaceOperationKind>();
-  private readonly batchApplyReports = new KtcCodegenBatchApplyReportViewController();
+  private readonly applyReportStore = new KtcCodegenApplyReportStore();
+  private applyReportSummaries: KtcCodegenApplyReportSummary[] = [];
+  private readonly applyReportStorageById = new Map<string, string>();
+  private applyReportInvalidCount = 0;
+  private readonly batchApplyReports = new KtcCodegenBatchApplyReportViewController({
+    openCodegenJson: async (uri) => {
+      const ctx = currentContext();
+      if (!ctx) throw new Error("Codegen 工作区上下文不可用");
+      await this.openKnownDocument(uri, ctx);
+    },
+  });
 
   private get sessions(): ReadonlyMap<string, KtcCodegenDocumentModel> {
     return this.documentSessions.sessions;
@@ -262,6 +280,9 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     this.workspaceOperations.reset(true);
     this.batchApplyProgress = undefined;
     this.batchDeferredWorkspaceOperations.clear();
+    this.applyReportSummaries = [];
+    this.applyReportStorageById.clear();
+    this.applyReportInvalidCount = 0;
     this.activated = false;
     this.candidatePreview = undefined;
     this.documentSessions.clear();
@@ -328,6 +349,8 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     else if (message.action === "openJson") await this.pickJson(ctx);
     else if (message.action === "importCsv") await this.importCsv(ctx);
     else if (message.action === "openDocument" && message.uri) await this.openKnownDocument(message.uri, ctx);
+    else if (message.action === "openReport" && message.reportId) await this.openStoredApplyReport(message.reportId, ctx);
+    else if (message.action === "openReportDirectory") await this.openApplyReportDirectory(ctx);
     else if (message.action === "scanCandidates") await this.scanCandidates(ctx);
     else if (message.action === "cancelOperation") this.workspaceOperations.cancelCurrent();
     else if (message.action === "copyDiagnostics") await this.copyDiagnostics(ctx);
@@ -364,10 +387,10 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       return;
     }
     const confirmed = await vscode.window.showWarningMessage(
-      `将依次打开 ${documents.length} 个 JSON View，并逐份运行预检与 Apply。`,
+      `将在后台依次处理 ${documents.length} 份 JSON，并逐份运行预检与 Apply。`,
       {
         modal: true,
-        detail: "每份 JSON 独立保留错误；单份失败不会阻止后续任务。运行期间 Auto Code 操作暂时锁定。",
+        detail: "批次不会批量创建 JSON View；完成后可从报告打开需要检查的 JSON。单份失败不会阻止后续任务。运行期间 Auto Code 操作暂时锁定。",
       },
       "全部应用",
     );
@@ -376,6 +399,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       return;
     }
 
+    const startedAt = new Date().toISOString();
     const timer = ktcStartCodegenOperationTimer();
     const results: KtcCodegenBatchApplyReportItem[] = [];
     this.batchApplyProgress = { current: 0, total: documents.length, fileName: "正在准备 JSON View…" };
@@ -391,11 +415,15 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
         this.publish(ctx, `正在全部应用 ${index + 1} / ${documents.length}：${document.fileName}`, "done");
         this.postBatchState();
         const itemTimer = ktcStartCodegenOperationTimer();
+        let batchOwnedSession = false;
         try {
-          await this.openKnownDocument(document.uri, ctx);
-          const session = this.sessions.get(document.uri);
+          const existingSession = this.sessions.get(document.uri);
+          const session = await this.ensureKnownDocument(document.uri, ctx);
+          batchOwnedSession = !existingSession && Boolean(session);
           if (!session) {
-            results.push(this.batchItem(document, "not-written", itemTimer.elapsedMilliseconds(), {
+            results.push(this.batchItem(document, {
+              health: "error", change: "not-applied", reasonCode: "session-missing",
+            }, itemTimer.elapsedMilliseconds(), {
               issues: [ktcCodegenBatchApplyReportFailure(
                 "batch.session-missing",
                 "无法建立 JSON View 会话。",
@@ -409,7 +437,9 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
           await this.runPreflight(session, ctx);
           const plan = session.preflight?.plan;
           if (!plan) {
-            results.push(this.batchItem(document, "not-written", itemTimer.elapsedMilliseconds(), {
+            results.push(this.batchItem(document, {
+              health: "error", change: "not-applied", reasonCode: "preflight-missing",
+            }, itemTimer.elapsedMilliseconds(), {
               issues: [ktcCodegenBatchApplyReportFailure(
                 "batch.preflight-missing",
                 "预检未产生可用计划。",
@@ -422,26 +452,11 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
           const errorCount = plan.diagnostics.filter((diagnostic) => diagnostic.severity === "error").length;
           const artifactCount = plan.artifacts.length;
           const outcome = await this.apply(session, ctx);
-          const status: KtcCodegenBatchApplyItemStatus = outcome.writtenRegionCount === 0
-            ? "not-written"
-            : artifactCount === 0
-              ? "not-written"
-              : errorCount > 0
-                ? "partial"
-                : "applied";
-          const projectedIssues = ktcCodegenBatchApplyReportIssues(
+          const issues = ktcCodegenBatchApplyReportIssues(
             [...plan.diagnostics, ...outcome.diagnostics],
             session.identity.fsPath,
           );
-          const issues: readonly KtcCodegenBatchApplyReportIssue[] = status === "not-written"
-            && projectedIssues.length === 0
-            ? [ktcCodegenBatchApplyReportFailure(
-                "batch.apply-not-written",
-                "Apply 未写入源码。",
-                session.identity.fsPath,
-              )]
-            : projectedIssues;
-          results.push(this.batchItem(document, status, itemTimer.elapsedMilliseconds(), {
+          results.push(this.batchItem(document, outcome, itemTimer.elapsedMilliseconds(), {
             regionCount: plan.markerRegions.length,
             artifactCount,
             diagnosticCount: plan.diagnostics.length,
@@ -451,11 +466,13 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
             issues,
           }));
           ctx.log(
-            `[Codegen][BatchApply] ${document.fileName}；status=${status}；errors=${errorCount}；耗时 ${itemTimer.elapsedText()}。`,
+            `[Codegen][BatchApply] ${document.fileName}；health=${outcome.health}；change=${outcome.change}；errors=${errorCount}；耗时 ${itemTimer.elapsedText()}。`,
           );
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          results.push(this.batchItem(document, "not-written", itemTimer.elapsedMilliseconds(), {
+          results.push(this.batchItem(document, {
+            health: "error", change: "not-applied", reasonCode: "unexpected-error",
+          }, itemTimer.elapsedMilliseconds(), {
             issues: [ktcCodegenBatchApplyReportFailure(
               "batch.item-failed",
               message,
@@ -465,6 +482,8 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
           ctx.log(
             `[Codegen][BatchApply][error] ${document.fileName}；${message}；耗时 ${itemTimer.elapsedText()}。`,
           );
+        } finally {
+          if (batchOwnedSession) this.releaseBatchOwnedSession(document.uri);
         }
       }
     } finally {
@@ -472,10 +491,14 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       this.postBatchState();
     }
 
-    const report = ktcCodegenBatchApplyReport(results, timer.elapsedMilliseconds());
+    const report = ktcCodegenBatchApplyReport(results, timer.elapsedMilliseconds(), {
+      applyKind: "batch",
+      startedAt,
+    });
     const summary = ktcCodegenBatchApplySummary(results, timer.elapsedText());
-    const hasErrors = results.some((item) => item.status !== "applied");
+    const hasErrors = results.some((item) => item.health === "error");
     ctx.log(`[Codegen][BatchApply] ${summary}`);
+    await this.persistApplyReport(report, this.primaryReportRoot(ctx), ctx);
     this.publish(ctx, summary, hasErrors ? "error" : "done");
     this.batchApplyReports.show(report);
     const deferred = [...this.batchDeferredWorkspaceOperations];
@@ -485,7 +508,11 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
 
   private batchItem(
     document: KtcCodegenDocumentSummary,
-    status: KtcCodegenBatchApplyItemStatus,
+    result: {
+      readonly health: KtcCodegenApplyHealth;
+      readonly change: KtcCodegenApplyChange;
+      readonly reasonCode: KtcCodegenApplyReasonCode;
+    },
     elapsedMilliseconds: number,
     details: {
       readonly regionCount?: number;
@@ -500,7 +527,9 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     return {
       uri: document.uri,
       fileName: document.fileName,
-      status,
+      health: result.health,
+      change: result.change,
+      reasonCode: result.reasonCode,
       errorCount: details.issues.filter((issue) => issue.severity === "error").length,
       preflightRegionCount: details.regionCount ?? 0,
       preflightArtifactCount: details.artifactCount ?? 0,
@@ -515,6 +544,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
 
   private async refresh(ctx: ToolRunContext): Promise<void> {
     const timer = ktcStartCodegenOperationTimer();
+    await this.refreshApplyReportIndex(ctx);
     if (this.initializedRoot !== this.workspaceKey(ctx)) {
       this.candidates = [];
       this.candidateIndexReady = false;
@@ -620,6 +650,98 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       .filter((uri) => uri.scheme === "file");
     if (folders.length) return folders;
     return ctx.workspaceRoot ? [vscode.Uri.file(ctx.workspaceRoot)] : [];
+  }
+
+  private reportWorkspaces(ctx: ToolRunContext): KtcCodegenApplyReportWorkspace[] {
+    const roots = this.workspaceRoots(ctx);
+    const baseNames = roots.map((root) => (
+      vscode.workspace.getWorkspaceFolder(root)?.name || basename(root.fsPath) || "workspace"
+    ));
+    return roots.map((uri, index) => {
+      const base = baseNames[index]!;
+      const duplicate = baseNames.filter((candidate) => candidate === base).length > 1;
+      return { name: duplicate ? `${base}#${index + 1}` : base, uri };
+    });
+  }
+
+  private primaryReportRoot(ctx: ToolRunContext): vscode.Uri | undefined {
+    if (ctx.workspaceRoot) return vscode.Uri.file(ctx.workspaceRoot);
+    return this.workspaceRoots(ctx)[0];
+  }
+
+  private workspaceRootForFile(file: string, ctx: ToolRunContext): vscode.Uri | undefined {
+    const root = ktcResolveCodegenWorkspaceRoot(
+      file,
+      this.workspaceRoots(ctx).map((uri) => uri.fsPath),
+      ctx.workspaceRoot,
+    );
+    return root ? vscode.Uri.file(root) : this.primaryReportRoot(ctx);
+  }
+
+  private async refreshApplyReportIndex(ctx: ToolRunContext): Promise<void> {
+    const index = await this.applyReportStore.list(this.workspaceRoots(ctx));
+    this.applyReportSummaries = index.records.map((record) => record.summary);
+    this.applyReportStorageById.clear();
+    for (const record of index.records) {
+      this.applyReportStorageById.set(record.summary.reportId, record.storageUri);
+    }
+    this.applyReportInvalidCount = index.invalidCount;
+  }
+
+  private async persistApplyReport(
+    report: KtcCodegenBatchApplyReport,
+    ownerRoot: vscode.Uri | undefined,
+    ctx: ToolRunContext,
+  ): Promise<boolean> {
+    if (!ownerRoot) {
+      ctx.log(`[Codegen][ApplyReport][warning] 当前没有可写工作区，报告仅保留在内存；reportId=${report.reportId}`);
+      void vscode.window.showWarningMessage("Apply 已完成，但当前没有可写工作区；报告只保留在本次内存中。");
+      this.batchApplyReports.show(report);
+      return false;
+    }
+    try {
+      const record = await this.applyReportStore.write(report, ownerRoot, this.reportWorkspaces(ctx));
+      const summary = record.summary;
+      this.applyReportStorageById.set(summary.reportId, record.storageUri);
+      this.applyReportSummaries = [summary, ...this.applyReportSummaries
+        .filter((candidate) => candidate.reportId !== summary.reportId)]
+        .sort((left, right) => right.startedAt.localeCompare(left.startedAt));
+      ctx.log(`[Codegen][ApplyReport] 已保存 ${summary.fileName}；reportId=${summary.reportId}`);
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      ctx.log(`[Codegen][ApplyReport][warning] 报告写入失败：${message}；reportId=${report.reportId}`);
+      void vscode.window.showWarningMessage(`Apply 已完成，但报告 JSON 写入失败：${message}`);
+      this.batchApplyReports.show(report);
+      return false;
+    }
+  }
+
+  private async openStoredApplyReport(reportId: string, ctx: ToolRunContext): Promise<void> {
+    const storageUri = this.applyReportStorageById.get(reportId);
+    if (!storageUri) {
+      this.publish(ctx, "该应用报告已不在当前列表中，请刷新后重试。", "error");
+      return;
+    }
+    try {
+      const report = await this.applyReportStore.load(storageUri, this.reportWorkspaces(ctx));
+      this.batchApplyReports.show(report);
+      this.publish(ctx, `已打开 ${new Date(report.startedAt).toLocaleString("zh-CN", { hour12: false })} 的应用报告。`);
+    } catch (error) {
+      this.publish(ctx, `无法打开应用报告：${error instanceof Error ? error.message : String(error)}`, "error");
+    }
+  }
+
+  private async openApplyReportDirectory(ctx: ToolRunContext): Promise<void> {
+    const root = this.primaryReportRoot(ctx);
+    if (!root) {
+      this.publish(ctx, "当前没有可用工作区，无法打开报告目录。", "error");
+      return;
+    }
+    const directory = this.applyReportStore.directory(root);
+    await vscode.workspace.fs.createDirectory(directory);
+    const opened = await vscode.env.openExternal(directory);
+    if (!opened) this.publish(ctx, "无法打开报告目录，请从工作区的 .phoenix/reports/codegen/ 进入。", "error");
   }
 
   private workspaceKey(ctx: ToolRunContext): string {
@@ -991,17 +1113,48 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
   }
 
   private async openKnownDocument(uriString: string, ctx: ToolRunContext): Promise<void> {
+    const session = await this.ensureKnownDocument(uriString, ctx);
+    if (session) await this.showSession(session, ctx);
+  }
+
+  private async ensureKnownDocument(
+    uriString: string,
+    ctx: ToolRunContext,
+  ): Promise<KtcCodegenDocumentModel | undefined> {
     const session = this.sessions.get(uriString);
-    if (session) {
-      await this.showSession(session, ctx);
-      return;
-    }
+    if (session) return session;
     const known = this.discovered.get(uriString);
     if (!known || known.uri.scheme !== "file") {
       ctx.postState({ status: "error", message: "该 JSON 已不在当前 Codegen 列表中，请刷新后重试。" });
-      return;
+      return undefined;
     }
-    await this.openDocument(known.uri, ctx);
+    const opened = await this.documentSessions.open({
+      identity: {
+        uri: uriString,
+        fsPath: known.uri.fsPath,
+        fileName: basename(known.uri.fsPath),
+      },
+      diagnosticCount: known.diagnosticCount,
+    });
+    if (opened.kind === "error") {
+      ctx.postState({ status: "error", message: `无法打开 ${basename(known.uri.fsPath)}：${opened.message}` });
+      return undefined;
+    }
+    if (opened.kind === "opened") this.rememberSession(opened.session);
+    return opened.session;
+  }
+
+  private releaseBatchOwnedSession(uri: string): void {
+    const session = this.sessions.get(uri);
+    if (!session || session.dirty || session.hasExternalConflict || this.editorViews?.isOpen(uri)) return;
+    const task = this.preflightTasks.get(uri);
+    if (task) {
+      this.preflightTasks.delete(uri);
+      task.cancel();
+      task.dispose();
+    }
+    this.problemReporter?.clear(uri);
+    this.documentSessions.release(uri);
   }
 
   private async openDocument(
@@ -1058,9 +1211,47 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       cancelPreflight: (uri) => this.preflightTasks.get(uri)?.cancel(),
       runPreflight: (timer) => this.runPreflight(session, ctx, timer),
       apply: async (timer) => {
-        await this.apply(session, ctx, timer);
+        await this.applySingle(session, ctx, timer);
       },
     };
+  }
+
+  private async applySingle(
+    session: KtcCodegenDocumentModel,
+    ctx: ToolRunContext,
+    timer: KtcCodegenOperationTimer,
+  ): Promise<void> {
+    const plan = session.preflight?.plan;
+    const outcome = await this.apply(session, ctx, timer);
+    const document = this.summaries(ctx.workspaceRoot)
+      .find((candidate) => candidate.uri === session.identity.uri)
+      ?? {
+        uri: session.identity.uri,
+        fileName: session.identity.fileName,
+      } as KtcCodegenDocumentSummary;
+    const issues = ktcCodegenBatchApplyReportIssues(
+      [...(plan?.diagnostics ?? []), ...outcome.diagnostics],
+      session.identity.fsPath,
+    );
+    const item = this.batchItem(document, outcome, timer.elapsedMilliseconds(), {
+      regionCount: plan?.markerRegions.length,
+      artifactCount: plan?.artifacts.length,
+      diagnosticCount: plan?.diagnostics.length,
+      preflightErrorCount: plan?.diagnostics.filter((diagnostic) => diagnostic.severity === "error").length,
+      modifiedFileCount: outcome.modifiedFileCount,
+      writtenRegionCount: outcome.writtenRegionCount,
+      issues,
+    });
+    const report = ktcCodegenBatchApplyReport([item], timer.elapsedMilliseconds(), {
+      applyKind: "single",
+    });
+    const owner = this.workspaceRootForFile(session.identity.fsPath, ctx);
+    const saved = await this.persistApplyReport(report, owner, ctx);
+    this.publish(
+      ctx,
+      `${saved ? "Apply 报告已保存" : "Apply 报告仅保留在内存"}：${session.identity.fileName} · ${healthLabel(outcome.health)} · ${changeLabel(outcome.change)}。`,
+      outcome.health === "error" ? "error" : "done",
+    );
   }
 
   private async runPreflight(
@@ -1236,7 +1427,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       ctx.log(`[Codegen][Apply][error] apply.preflight-missing：${message}；json=${session.identity.fsPath}`);
       this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message });
       this.publish(ctx, message, "error");
-      return ktcCodegenApplyOutcome([diagnostic]);
+      return ktcCodegenApplyOutcome([diagnostic], 0, 0, "preflight-missing");
     }
     const plan = preflight.plan;
     const workspaceRoot = ktcResolveCodegenWorkspaceRoot(
@@ -1321,7 +1512,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       ctx.log(`[Codegen][Apply] ${message}`);
       this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message });
       this.publish(ctx, message, "error");
-      return ktcCodegenApplyOutcome(diagnostics);
+      return ktcCodegenApplyOutcome(diagnostics, 0, 0, "apply-blocked");
     }
 
     const sourceByPath = new Map(sources.map((source) => [source.path, source]));
@@ -1360,7 +1551,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       ctx.log(ktcCodegenApplyDiagnosticLog(diagnostic));
       ctx.log(`[Codegen][Apply] Apply 编码失败；耗时 ${elapsed}。`);
       this.publish(ctx, `Apply 编码失败：${message}`, "error");
-      return ktcCodegenApplyOutcome([...diagnostics, diagnostic]);
+      return ktcCodegenApplyOutcome([...diagnostics, diagnostic], 0, 0, "encode-failed");
     }
 
     const commit = await ktcCommitCodegenApplyWrites(
@@ -1399,7 +1590,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       }
       ctx.log(`[Codegen][Apply] ${timedMessage}`);
       this.publish(ctx, timedMessage, "error");
-      return ktcCodegenApplyOutcome([...diagnostics, diagnostic]);
+      return ktcCodegenApplyOutcome([...diagnostics, diagnostic], 0, 0, "write-failed");
     }
 
     for (const write of writes) {
@@ -1478,6 +1669,15 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       [...plan.diagnostics, ...receiptDiagnostics],
       writes.length,
       regionCount,
+      preflightErrorCount
+        ? writes.length ? "partial-with-errors" : "apply-blocked"
+        : receiptDiagnostics.length
+          ? "receipt-warning"
+          : writes.length
+            ? "content-updated"
+            : plan.artifacts.length
+              ? "content-unchanged"
+              : "no-artifact",
     );
   }
 
@@ -1670,6 +1870,8 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       codegenDocuments: this.summaries(ctx.workspaceRoot),
       codegenControls: activeSession ? this.controlSessions.catalogModel(activeSession) : undefined,
       codegenCandidates: this.candidates,
+      codegenReports: this.applyReportSummaries,
+      codegenReportInvalidCount: this.applyReportInvalidCount,
       codegenOperation: batch ? "batch-apply" : this.workspaceOperations.kind,
       codegenBatch: batch,
     });
@@ -1730,6 +1932,17 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
   }
 }
 
+function healthLabel(value: KtcCodegenApplyHealth): string {
+  return value === "success" ? "正常" : value === "warning" ? "有警告" : "有错误";
+}
+
+function changeLabel(value: KtcCodegenApplyChange): string {
+  if (value === "updated") return "已更新";
+  if (value === "unchanged") return "内容一致";
+  if (value === "partial") return "部分更新";
+  return "未应用";
+}
+
 const codegenController = new KtcCodegenWorkspaceController();
 
 export function registerCodegenSupport(context: vscode.ExtensionContext): void {
@@ -1750,17 +1963,23 @@ export const codegenTool: KtTool = {
     return { summary: { id: this.id, title: this.title, description: this.description, icon: this.icon } };
   },
   registerCommands(context): void {
+    const showCodegen = async (): Promise<void> => {
+      await vscode.commands.executeCommand("ktAutoCode.tool.show", TOOL_ID);
+    };
+    const runPrimaryAction = async (
+      action: "openJson" | "importCsv" | "applyAll" | "refresh" | "scanCandidates" | "copyDiagnostics",
+    ): Promise<void> => {
+      await showCodegen();
+      const ctx = currentContext();
+      if (ctx) await codegenController.handleSidebarAction({ type: "codegenAction", toolId: TOOL_ID, action }, ctx);
+    };
     context.subscriptions.push(
-      vscode.commands.registerCommand("ktAutoCode.codegen.open", async () => {
-        await vscode.commands.executeCommand("ktAutoCode.tool.show", TOOL_ID);
-        const ctx = currentContext();
-        if (ctx) await codegenController.handleSidebarAction({ type: "codegenAction", toolId: TOOL_ID, action: "openJson" }, ctx);
-      }),
-      vscode.commands.registerCommand("ktAutoCode.codegen.importCsv", async () => {
-        await vscode.commands.executeCommand("ktAutoCode.tool.show", TOOL_ID);
-        const ctx = currentContext();
-        if (ctx) await codegenController.handleSidebarAction({ type: "codegenAction", toolId: TOOL_ID, action: "importCsv" }, ctx);
-      }),
+      vscode.commands.registerCommand("ktAutoCode.codegen.open", () => runPrimaryAction("openJson")),
+      vscode.commands.registerCommand("ktAutoCode.codegen.importCsv", () => runPrimaryAction("importCsv")),
+      vscode.commands.registerCommand("ktAutoCode.codegen.applyAll", () => runPrimaryAction("applyAll")),
+      vscode.commands.registerCommand("ktAutoCode.codegen.refresh", () => runPrimaryAction("refresh")),
+      vscode.commands.registerCommand("ktAutoCode.codegen.scanCandidates", () => runPrimaryAction("scanCandidates")),
+      vscode.commands.registerCommand("ktAutoCode.codegen.diagnostics", () => runPrimaryAction("copyDiagnostics")),
     );
   },
   async handleMessage(message: WebviewInboundMessage, ctx: ToolRunContext): Promise<void> {

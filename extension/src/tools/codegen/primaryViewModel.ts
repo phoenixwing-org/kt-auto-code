@@ -1,4 +1,7 @@
 import type { KtcCodegenControlCatalogViewModel } from "./controlViewModel.js";
+import type { KtcCodegenApplyReportSummary } from "./applyReportPersistence.js";
+
+export type { KtcCodegenApplyReportSummary } from "./applyReportPersistence.js";
 
 export interface KtcCodegenDocumentSummary {
   readonly uri: string;
@@ -38,6 +41,8 @@ export interface KtcCodegenPrimaryViewModel {
   readonly activeUri?: string;
   readonly controls?: KtcCodegenControlCatalogViewModel;
   readonly candidates: readonly KtcCodegenSourceCandidateSummary[];
+  readonly reports?: readonly KtcCodegenApplyReportSummary[];
+  readonly reportInvalidCount?: number;
   readonly operation?: "discovery" | "candidates" | "batch-apply";
   readonly batch?: KtcCodegenBatchApplyProgress;
   readonly running: boolean;

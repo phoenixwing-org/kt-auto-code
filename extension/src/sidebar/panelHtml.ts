@@ -557,6 +557,24 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       color: var(--vscode-descriptionForeground);
       margin: -6px 0 12px;
     }
+    .target-setting-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .target-setting-row label { flex: 0 0 auto; }
+    .target-setting-row select {
+      min-width: 0;
+      flex: 1 1 110px;
+      color: var(--vscode-dropdown-foreground);
+      background: var(--vscode-dropdown-background);
+      border: 1px solid var(--vscode-dropdown-border, transparent);
+      padding: 2px 4px;
+    }
+    .target-overrides {
+      margin: 5px 0 0;
+      line-height: 1.4;
+    }
     #header-options label + .hint { display: block; }
   </style>
 </head>
@@ -705,7 +723,17 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         <button class="action" id="btn-sync-ignore" type="button">从 .gitignore 追加</button>
       </div>
     </div>
-    <p class="target-hint" id="target-hint" hidden>默认目标：<strong>UTF-8</strong></p>
+    <div class="target-hint" id="target-hint" hidden>
+      <div class="target-setting-row">
+        <label for="encoding-default-target">默认目标</label>
+        <select id="encoding-default-target" aria-label="当前项目默认目标编码" title="保存到当前项目的 VS Code 工作区设置">
+          <option value="utf8">UTF-8</option>
+          <option value="gbk">GBK（本地）</option>
+        </select>
+        <button class="text-button" id="btn-encoding-settings" type="button" title="配置头文件、源文件和 Markdown 的项目级目标">更多设置…</button>
+      </div>
+      <p class="target-overrides" id="target-overrides"></p>
+    </div>
     <div class="options" id="options-panel" hidden>
       <div id="header-options">
         <label>
@@ -772,6 +800,21 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     ));
     state.replace.defaultEncoding = state.replace.defaultEncoding === "gbk" ? "gbk" : "utf8";
     state.replace.preserveCase = false;
+    const toolScrollPositions = new Map();
+
+    function switchActiveTool(nextToolId) {
+      const next = nextToolId || state.activeToolId;
+      if (!next || next === state.activeToolId) return false;
+      if (state.activeToolId) toolScrollPositions.set(state.activeToolId, window.scrollY);
+      state.activeToolId = next;
+      return true;
+    }
+
+    function restoreActiveToolScroll(changed) {
+      if (!changed) return;
+      const top = toolScrollPositions.get(state.activeToolId) || 0;
+      requestAnimationFrame(() => window.scrollTo(0, top));
+    }
 
     const els = {
       tabs: document.getElementById("tabs"),
@@ -846,6 +889,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       btnAnalyzeIgnore: document.getElementById("btn-analyze-ignore"),
       btnApplyIgnoreRecommendations: document.getElementById("btn-apply-ignore-recommendations"),
       targetHint: document.getElementById("target-hint"),
+      encodingDefaultTarget: document.getElementById("encoding-default-target"),
+      btnEncodingSettings: document.getElementById("btn-encoding-settings"),
+      targetOverrides: document.getElementById("target-overrides"),
       headerOptions: document.getElementById("header-options"),
       encodingOptions: document.getElementById("encoding-options"),
       encDetails: document.getElementById("opt-enc-details"),
@@ -917,6 +963,32 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.empty.textContent = preserve
         ? "点击「预检」检查弯引号等问题字节。"
         : "点击「预检」检查头文件中的非 ASCII 内容。";
+    }
+
+    function encodingTargetLabel(value) {
+      if (value === "ascii") return "ASCII";
+      if (value === "gbk") return "GBK";
+      return "UTF-8";
+    }
+
+    function renderEncodingTargetSettings(running) {
+      const options = toolOptions();
+      els.encodingDefaultTarget.value = options.encodingDefaultTarget === "gbk" ? "gbk" : "utf8";
+      els.encodingDefaultTarget.disabled = running;
+      const overrides = [
+        options.encodingHeaderTarget && options.encodingHeaderTarget !== "inherit"
+          ? "头文件 " + encodingTargetLabel(options.encodingHeaderTarget)
+          : "",
+        options.encodingSourceTarget && options.encodingSourceTarget !== "inherit"
+          ? "源文件 " + encodingTargetLabel(options.encodingSourceTarget)
+          : "",
+        options.encodingMarkdownTarget && options.encodingMarkdownTarget !== "inherit"
+          ? "Markdown " + encodingTargetLabel(options.encodingMarkdownTarget)
+          : "",
+      ].filter(Boolean);
+      els.targetOverrides.textContent = overrides.length
+        ? "项目覆盖：" + overrides.join(" · ")
+        : "头文件、源文件和 Markdown 均继承默认目标。";
     }
 
     function resultPathParts(value) {
@@ -1112,7 +1184,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       if (items.length === 0) {
         els.empty.style.display = ts.status === "done" ? "block" : (ts.status === "idle" ? "block" : "none");
         if (ts.status === "done" && ts.issueFiles === 0) {
-          els.empty.textContent = "所有文件均符合 UTF-8 目标（含 ASCII）。";
+          els.empty.textContent = "所有文件均符合当前项目编码目标。";
         }
         return;
       }
@@ -1589,6 +1661,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         activeUri: ts.codegenActiveUri,
         controls: ts.codegenControls,
         candidates: Array.isArray(ts.codegenCandidates) ? ts.codegenCandidates : [],
+        reports: Array.isArray(ts.codegenReports) ? ts.codegenReports : [],
+        reportInvalidCount: Number(ts.codegenReportInvalidCount) || 0,
         operation: staleBatchState ? undefined : ts.codegenOperation,
         batch,
         running: staleBatchState ? false : !!running,
@@ -1697,10 +1771,11 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.btnScan.disabled = running;
       els.btnFix.disabled = running;
       els.btnScan.textContent = rename ? "打开" : (ignore ? "打开规则" : (uuid ? "扫描 UUID" : (caaDialog ? "扫描 CATDlg" : "预检")));
-      els.btnFix.textContent = enc ? "转换" : (ignore ? "从 .gitignore 同步" : (uuid ? "替换所选" : (caaDialog ? "CAA 设置" : "修复")));
+      els.btnFix.textContent = enc ? "按目标转换" : (ignore ? "从 .gitignore 同步" : (uuid ? "替换所选" : (caaDialog ? "CAA 设置" : "修复")));
       els.btnFix.style.display = rename ? "none" : "inline-block";
 
       els.targetHint.hidden = !enc;
+      if (enc) renderEncodingTargetSettings(running);
       els.scopeBlock.hidden = rename || codegen || ignore || reorder || uuid || caaDialog || environment;
 
       if (codegen) renderCodegen(ts, running);
@@ -2077,6 +2152,15 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       key: "stripBom",
       value: els.stripBom.checked,
     });
+    els.encodingDefaultTarget.onchange = () => vscode.postMessage({
+      type: "setEncodingDefaultTarget",
+      toolId: "encodingFix",
+      target: els.encodingDefaultTarget.value === "gbk" ? "gbk" : "utf8",
+    });
+    els.btnEncodingSettings.onclick = () => vscode.postMessage({
+      type: "openEncodingSettings",
+      toolId: "encodingFix",
+    });
     els.showDetails.onchange = () => {
       state.showDetails = els.showDetails.checked;
       vscode.setState({ showDetails: state.showDetails, showEncDetails: state.showEncDetails, replace: state.replace });
@@ -2091,8 +2175,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     window.addEventListener("message", (e) => {
       const msg = e.data;
       if (msg.type === "init") {
+        const activeToolChanged = switchActiveTool(msg.activeToolId);
         state.tools = msg.tools;
-        state.activeToolId = msg.activeToolId;
         state.openToolIds = msg.openToolIds || [];
         state.toolOptions = msg.toolOptions || {};
         state.scope = msg.scope || state.scope;
@@ -2108,6 +2192,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         state.moduleState = msg.moduleState || state.moduleState;
         els.workspace.textContent = msg.workspaceLabel;
         render();
+        restoreActiveToolScroll(activeToolChanged);
       } else if (msg.type === "workspace") {
         els.workspace.textContent = msg.label;
       } else if (msg.type === "scope") {
@@ -2123,9 +2208,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         state.sidebarStyle = msg.style || "ribbon";
         render();
       } else if (msg.type === "openTools") {
-        state.activeToolId = msg.activeToolId || state.activeToolId;
+        const activeToolChanged = switchActiveTool(msg.activeToolId);
         state.openToolIds = msg.openToolIds || [];
         render();
+        restoreActiveToolScroll(activeToolChanged);
       } else if (msg.type === "modules") {
         state.moduleState = msg.moduleState || state.moduleState;
         render();
@@ -2138,8 +2224,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         state.workspaceFileScopeError = msg.error || "";
         render();
       } else if (msg.type === "requestSearchReplacePreview") {
-        state.activeToolId = "codeRename";
+        const activeToolChanged = switchActiveTool("codeRename");
         render();
+        restoreActiveToolScroll(activeToolChanged);
         runSearchReplace("preview");
       } else if (msg.type === "recentWorkingDirectories") {
         state.recentWorkingDirectories = msg.directories || { workspace: [], external: [] };

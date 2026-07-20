@@ -98,6 +98,12 @@ export class KtcCodegenDocumentSessionController {
     return true;
   }
 
+  /** 释放不再由 View/用户持有的后台 session。调用方负责先检查 dirty/conflict。 */
+  release(uri: string): boolean {
+    if (this.currentActiveUri === uri) this.currentActiveUri = undefined;
+    return this.registry.delete(uri);
+  }
+
   clear(): void {
     this.registry.clear();
     this.currentActiveUri = undefined;

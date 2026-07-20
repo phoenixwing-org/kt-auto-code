@@ -6,7 +6,7 @@ Owner：KT Auto Code maintainers
 
 适用版本：0.5.x
 
-最后核验：2026-07-19
+最后核验：2026-07-20
 
 ## 已完成基线
 
@@ -22,8 +22,9 @@ Owner：KT Auto Code maintainers
 3. 真实 Extension Host 的打开、预览、冲突、Apply、保存复读和失败回滚已进入自动 smoke；继续补齐浅色、深色、高对比、取消和 VSIX 安装的人工视觉矩阵。
 4. 从 P1 去重队列提炼两个无 UI 能力；优先 workset/ignore/path 与 encoding/file-core，不迁移 VS Code 命令或 Webview 状态。
 5. 保持双 VSIX 可复现，并在 Wing 升级时先运行 Registry 防回退、全测和制品门禁。
-6. Codegen `全部应用` V1 已落地：一次确认后冻结当前 JSON 列表，逐个打开 View，串行 Preflight → Apply，并用 Primary/View 遮罩锁定 Auto Code 操作；单份错误继续后续项，最终输出简短总计并自动新开一次性轻量结构化报告。全量预检屏障、跨 JSON 冲突、独立批次 Problems、取消与可重建完整报告保留为 2.0，见 `codegen-plan/Codegen全部应用与批量报告计划.md`。
-7. 0.5.1 定位为 patch：只发布既有 Codegen 流程的安全性、状态稳定性、紧凑呈现与 Wing 0.4.3 消费升级，不新增公共命令或扩展 API。
+6. Codegen `全部应用` V1 已落地：一次确认后冻结当前 JSON 列表，在后台 session 中串行 Preflight → Apply，不再铺开 JSON Panel；单份错误继续后续项。single/batch Apply 报告按规则文件名原子写入 `.phoenix/reports/codegen/`，Primary“应用报告”列表可重开；View 用结果/源码变化双轴避免把正常内容一致误报为失败，并安全进入 Codegen View 或定位问题。全量预检屏障、跨 JSON 冲突、独立批次 Problems、取消与完整 receipt 报告保留为 2.0，见 `codegen-plan/Codegen全部应用与批量报告计划.md`。
+7. **[已完成：0.5.1 发布]** 0.5.1 作为 patch 公开发布：只包含既有 Codegen 流程的安全性、状态稳定性、紧凑呈现与 Wing 0.4.3 消费升级，不新增公共命令或扩展 API；KT Auto CAD 0.1.0 同步完成 Marketplace 首发，两个公开制品哈希均与本地门禁产物一致并通过人工审查。
+8. **[进行中：0.5.2 发布]** 0.5.2 收口持久 Codegen 应用报告、Primary 历史列表、后台批量 View 生命周期、结果/变化双轴与前端筛选，并加入工作区及文件类别级 ASCII/UTF-8/GBK 编码目标；真实宿主人工点检和 540 项自动测试已通过，等待 VSIX 制品与 Marketplace 回执。
 
 ## 已完成第一波：Codegen 控制符目录与模板日志
 
@@ -171,6 +172,13 @@ Owner：KT Auto Code maintainers
 - 2026-07-19 真实工作区回执：候选扫描覆盖 1 个工作区根、49 个源码文件，命中 7 个控制符候选，耗时 30 ms；带 1 条隔离预检错误的部分 Apply 耗时 7 ms，相关诊断操作约 32 ms。
 - 当前文件检索、候选打开、诊断与安全写入的用户可感知延迟已经足够低，不再引入 Rust/原生扫描器，也不增加双实现、跨进程协议和发布复杂度；除非用户再次发现性能问题，才基于新的真实回执和 profiling 重新评估。
 
+## 已完成稳定性修复：Primary 编码日志与混合源码
+
+- Primary 的头文件/源码编码预检不再把问题行固定按 Latin-1 输出；严格 UTF-8 优先，失败后仅接受可无损往返的 CP936/GBK，CAA 本地源码与 Qt UTF-8/GBK 源码均按各自编码分析。
+- “保留多字节”模式不再把合法 GBK 中文逐字节误报成 `invalid_utf8`，也不再把合法 UTF-8 中文误报成不可 GBK 编码；“纯 ASCII”模式保留中文问题，但日志上下文仍显示正确文字。
+- UTF-8 修复走 Unicode 字符映射并保持 UTF-8，避免复用 GBK 字节清理器破坏 Qt 中文；Primary 日志使用界面“修复”提示，扫描范围文案同时覆盖头文件和源文件。
+- 2026-07-20 用户真实 Extension Development Host 已完成五项点检：CAA/GBK 日志、纯 ASCII 诊断、Qt/UTF-8 标点修复与编码保持、Primary 修复提示均通过。
+
 ## 大型 UI 暂停后的 TODO（2026-07-18）
 
 用户决定暂停本轮大型 UI 拆分。以下事项只登记，不在本轮继续实施；恢复目标前不得把它们悄悄并入普通修复或发布提交。
@@ -181,7 +189,8 @@ Owner：KT Auto Code maintainers
 4. **Wing 后续条件项**：`KtCodegenTable` 已到首轮合理停止线；页面布局能力完成发布和 Registry 消费验证前，不为降行数继续拆。只有出现第二产品消费者或真实复用需求时，才评估公开更多 visual primitive。
 5. **跨仓人工证据**：Windows NSIS 真实回执，以及 VS Code/Desk 的浅色、深色、高对比视觉矩阵继续由用户手工并行；不阻塞当前代码归档，也不追溯提高联合评分。
 6. **Codegen 显式修复提醒**：控制符单入口已完成，Primary 负责目录/筛选/选择/输出，JSON View 只保留预检结果、Artifact 与问题定位；预检结果自己的列表/详情 separator 不代表控制符目录回归。剩余 TODO 是“问题 N”控制符筛选与显式修复提醒：必须先由 Wing 诊断提供结构化 `blockKey/classId/boundary`，不得从英文 message 猜 block。`marker.missing-end` 只允许用户在问题详情中显式选择“插入编译期修复提醒”，经确认后在下一条 marker 前写入可识别的 `#error`；不得预检时自动写入，也不得自动猜测补 End，且入口不能只依赖不可发现的右键菜单。
-7. **Auto Code Primary 工具条**：未选择子工作目录时先隐藏空的功能区域提示，后续新增功能页统一放在工具条下方。工具条改为 Primary 内顶部 sticky，不随下方 Block 滚走；“打开、导入、全部应用、刷新、扫源码、复制诊断”等改用紧凑图标按钮，全部提供清晰 tooltip 和无障碍名称，减少横向宽度。该项属于后续 UI 小切口，本轮只登记，不与候选 Preview 或 checkbox 稳定性修复混合。
+7. **Auto Code Primary 工具条**：顶部 sticky、紧凑图标、tooltip 和无障碍名称已完成；未选择子工作目录时的空提示保持隐藏。工具界面标题右上角 `…` 原生菜单按工具条顺序提供打开、导入、全部应用、刷新和扫描命令，最后提供“复制运行诊断”，全部使用 VS Code Product Icon 并复用既有 Host Action；`X` 继续负责关闭当前工具界面，Primary 不再保留重复诊断图标。
+8. **共享 Block 标题菜单接口（TODO）**：当前 `…` 仅在 Host 上下文 `ktAutoCode.modulePanel.activeTool == codegen` 时显示，先阻止其他共享 Block 误用 Codegen 菜单；共享 Panel 对已可见 Block 的重复 `show` 已做幂等保护，真实切换则按 `toolId` 保存和恢复外层滚动。后续目标模型是“Block 自描述、共享 Panel 投影、Host 路由”：内置 `KtTool` 与可选模块 `ktAutoCodeModule.tools[]` 提供有序 `titleActions`（`actionId / title / icon / order`）以及必要的 Block 视图状态；共享 Panel 获取当前 Block 的声明，空数组或无法获取时不显示 `…`，有动作时才放置菜单；用户点击后，Host 只把 `actionId` 发给当前 Block 的既有 action handler，不复制业务命令。实施前必须先验证 VS Code 原生 `view/title` 菜单的静态 contribution 限制：优先采用“共享 submenu + 各扩展静态贡献命令 + `activeTool / hasTitleMenu` context”适配层；若动态标题/数量无法投影，再单独评估通用 Quick Pick 或 Webview 内部菜单，不假设公共 API 可以运行时任意注册原生菜单项。
 
 暂停期间联合成熟度保持 **92.00 / 100**。恢复时从本 TODO 重新选择一个最小切口，不默认续跑整套大型 UI 计划。
 

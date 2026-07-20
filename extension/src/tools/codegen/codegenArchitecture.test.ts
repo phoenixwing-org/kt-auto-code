@@ -87,8 +87,9 @@ describe("Codegen MVC dependency boundary", () => {
     const host = source("./index.ts");
     expect(host).toContain('message.action === "applyAll"');
     expect(host).toContain("const documents = this.summaries(ctx.workspaceRoot)");
-    expect(host).toContain("await this.openKnownDocument(document.uri, ctx)");
-    expect(host).toContain("const session = this.sessions.get(document.uri)");
+    expect(host).toContain("await this.ensureKnownDocument(document.uri, ctx)");
+    expect(host).toContain("batchOwnedSession = !existingSession && Boolean(session)");
+    expect(host).toContain("this.releaseBatchOwnedSession(document.uri)");
     expect(host).toContain("await this.runPreflight(session, ctx)");
     expect(host).toContain("await this.apply(session, ctx)");
     expect(host.indexOf("await this.runPreflight(session, ctx)")).toBeLessThan(
@@ -101,6 +102,13 @@ describe("Codegen MVC dependency boundary", () => {
     expect(host).toContain("writtenRegionCount: outcome.writtenRegionCount");
     expect(host).toContain("ktcCodegenBatchApplyReportIssues");
     expect(host).toContain("this.batchApplyReports.show(report)");
+    expect(host).toContain("await this.persistApplyReport(report, this.primaryReportRoot(ctx), ctx)");
+  });
+
+  it("报告目录入口直接打开目录内容，不在系统文件管理器中只选中上级目录", () => {
+    const host = source("./index.ts");
+    expect(host).toContain("vscode.env.openExternal(directory)");
+    expect(host).not.toContain('executeCommand("revealFileInOS", directory)');
   });
 
   it("Primary 目录与 JSON View 预检结果共用 Auto 高层 Web Component，但 full 不复制目录", () => {

@@ -4,7 +4,8 @@ import type { KtcCodegenPrimaryViewModel } from "./primaryViewModel.js";
 export const KTC_CODEGEN_PRIMARY_PANEL_TAG = "ktc-codegen-primary-panel";
 
 export type KtcCodegenPrimaryActionDetail =
-  | { readonly action: "openJson" | "importCsv" | "refresh" | "scanCandidates" | "cancelOperation" | "copyDiagnostics" | "applyAll" }
+  | { readonly action: "openJson" | "importCsv" | "refresh" | "scanCandidates" | "cancelOperation" | "copyDiagnostics" | "applyAll" | "openReportDirectory" }
+  | { readonly action: "openReport"; readonly reportId: string }
   | { readonly action: "openDocument" | "openCandidate"; readonly uri: string }
   | {
       readonly action: "updateMeta";
@@ -23,8 +24,8 @@ const STYLE = `
   .action { min-height: 27px; padding: 3px 9px; color: var(--vscode-button-foreground); background: var(--vscode-button-background); border: 1px solid var(--vscode-button-background); border-radius: 3px; }
   .action.secondary, .text-button { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border-color: var(--vscode-panel-border); }
   .text-button { min-height: 25px; padding: 2px 7px; border: 1px solid var(--vscode-panel-border); border-radius: 3px; }
-  .actions .action, .actions .text-button { display: inline-grid; flex: 0 0 28px; width: 28px; height: 28px; min-height: 28px; place-items: center; padding: 0; overflow: hidden; font-size: 0; }
-  .action-icon { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+  .actions .action, .actions .text-button { display: inline-grid; flex: 0 0 32px; width: 32px; height: 32px; min-height: 32px; place-items: center; padding: 0; overflow: hidden; font-size: 0; }
+  .action-icon { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
   button:disabled { opacity: .5; cursor: not-allowed; }
   .hint { color: var(--vscode-descriptionForeground); font-size: 11px; }
   .properties { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 6px; padding: 5px 6px; border: 1px solid var(--vscode-panel-border); border-radius: 5px; background: var(--vscode-editorWidget-background, transparent); }
@@ -61,6 +62,11 @@ const STYLE = `
   .tags { display: flex; align-items: center; justify-content: flex-end; gap: 4px; grid-row: 1 / span 2; grid-column: 2; }
   .tag { padding: 1px 5px; border: 1px solid var(--vscode-panel-border); border-radius: 999px; color: var(--vscode-descriptionForeground); font-size: 10px; white-space: nowrap; }
   .tag.dirty { color: var(--vscode-editorWarning-foreground); border-color: var(--vscode-editorWarning-foreground); }
+  .tag.success { color: var(--vscode-testing-iconPassed); border-color: currentColor; }
+  .tag.warning { color: var(--vscode-editorWarning-foreground); border-color: currentColor; }
+  .tag.error { color: var(--vscode-errorForeground); border-color: currentColor; }
+  .report-list { max-height: 240px; }
+  .report-directory { margin: 5px; justify-self: start; }
   .row.active .tag { color: inherit; border-color: currentColor; opacity: .86; }
   .empty { padding: 12px 8px; color: var(--vscode-descriptionForeground); text-align: center; }
   .batch-overlay { position: absolute; z-index: 20; inset: 0; display: grid; place-content: center; gap: 6px; padding: 16px; color: var(--vscode-foreground); background: color-mix(in srgb, var(--vscode-editor-background) 88%, transparent); border: 1px solid var(--vscode-focusBorder); border-radius: 6px; text-align: center; cursor: progress; }
@@ -76,6 +82,7 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
   private currentModel: KtcCodegenPrimaryViewModel | undefined;
   private currentConfigExpanded = true;
   private documentsExpanded = true;
+  private reportsExpanded = true;
   private controlsExpanded = true;
   private candidatesExpanded = true;
   private documentScrollTop = 0;
@@ -123,7 +130,6 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
         "text-button",
         model.operation === "candidates" ? "取消正在进行的控制符源码候选扫描" : "扫描工作区中含 Codegen 控制符的源码候选",
       ),
-      this.actionButton("复制诊断", "copyDiagnostics", false, "text-button", "复制不含表格内容和源码内容的运行状态"),
     );
 
     const properties = document.createElement("div");
@@ -163,6 +169,19 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
     documents.append(this.summary("JSON 配置", model.documents.length ? `${model.documents.length} 份` : ""));
     documents.append(this.documentList(model));
 
+    const reports = document.createElement("details");
+    reports.className = "mini";
+    reports.open = this.reportsExpanded;
+    reports.setAttribute("aria-label", "应用报告区");
+    reports.ontoggle = () => { this.reportsExpanded = reports.open; };
+    const reportCount = model.reports?.length ?? 0;
+    const invalidCount = model.reportInvalidCount ?? 0;
+    reports.append(this.summary(
+      "应用报告",
+      reportCount ? `${reportCount} 份${invalidCount ? ` · ${invalidCount} 份无效` : ""}` : invalidCount ? `${invalidCount} 份无效` : "",
+    ));
+    reports.append(this.reportList(model));
+
     const candidates = document.createElement("details");
     candidates.className = "mini";
     candidates.open = this.candidatesExpanded;
@@ -187,7 +206,7 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
     const overlayFile = document.createElement("span");
     overlayFile.textContent = model.batch?.fileName ?? "正在准备 JSON View…";
     overlay.append(overlayTitle, overlayFile);
-    this.root.replaceChildren(style, actions, currentConfig, documents, controls, candidates, hint, overlay);
+    this.root.replaceChildren(style, actions, currentConfig, documents, reports, controls, candidates, hint, overlay);
   }
 
   private actionButton(
@@ -210,7 +229,7 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
   }
 
   private actionIcon(action: KtcCodegenPrimaryActionDetail["action"]): SVGSVGElement {
-    type ToolbarAction = "openJson" | "importCsv" | "applyAll" | "refresh" | "scanCandidates" | "cancelOperation" | "copyDiagnostics";
+    type ToolbarAction = "openJson" | "importCsv" | "applyAll" | "refresh" | "scanCandidates" | "cancelOperation";
     const toolbarAction = action as ToolbarAction;
     const paths: Record<ToolbarAction, readonly string[]> = {
       openJson: ["M3 6h6l2 2h10v10H3z", "M15 10v6", "M12 13h6"],
@@ -219,7 +238,6 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
       refresh: ["M20 7v5h-5", "M19 12a7 7 0 1 1-2-5"],
       scanCandidates: ["M4 5h10", "M4 10h7", "M4 15h5", "M16 15l4 4", "M18 13a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"],
       cancelOperation: ["M6 6l12 12", "M18 6 6 18"],
-      copyDiagnostics: ["M8 8h11v13H8z", "M5 16H3V3h11v2"],
     };
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.classList.add("action-icon");
@@ -351,6 +369,43 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
     return list;
   }
 
+  private reportList(model: KtcCodegenPrimaryViewModel): HTMLElement {
+    const wrapper = document.createElement("div");
+    const list = document.createElement("div");
+    list.className = "list report-list";
+    list.setAttribute("aria-label", "Codegen 应用报告列表");
+    for (const report of (model.reports ?? []).slice(0, 20)) {
+      const startedAt = new Date(report.startedAt);
+      const time = Number.isNaN(startedAt.getTime())
+        ? report.startedAt
+        : startedAt.toLocaleString("zh-CN", { hour12: false });
+      const row = this.row(report.subject, time);
+      row.title = `打开 ${time} 的 Codegen ${report.applyKind === "batch" ? "全部应用" : "应用"}报告`;
+      row.setAttribute("aria-label", row.title);
+      const tags = row.querySelector<HTMLElement>(".tags")!;
+      tags.append(
+        this.tag(report.applyKind === "batch" ? `批量 ${report.itemCount}` : "单次"),
+        this.stateTag(healthLabel(report.health), report.health),
+        this.stateTag(
+          changeLabel(report.change),
+          report.change === "not-applied" ? "error" : report.change === "partial" ? "warning" : "success",
+        ),
+      );
+      row.onclick = () => this.emit({ action: "openReport", reportId: report.reportId });
+      list.append(row);
+    }
+    if (!(model.reports?.length)) list.append(this.empty(
+      model.reportInvalidCount ? "没有可读取的应用报告。" : "执行 Apply 后会在这里保留报告。",
+    ));
+    const directory = document.createElement("button");
+    directory.type = "button";
+    directory.className = "text-button report-directory";
+    directory.textContent = "打开报告目录";
+    directory.onclick = () => this.emit({ action: "openReportDirectory" });
+    wrapper.append(list, directory);
+    return wrapper;
+  }
+
   private row(nameText: string, pathText: string): HTMLButtonElement {
     const row = document.createElement("button");
     row.type = "button";
@@ -374,6 +429,12 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
     return tag;
   }
 
+  private stateTag(text: string, state: "success" | "warning" | "error"): HTMLElement {
+    const tag = this.tag(text);
+    tag.classList.add(state);
+    return tag;
+  }
+
   private empty(text: string): HTMLElement {
     const empty = document.createElement("div");
     empty.className = "empty";
@@ -387,6 +448,17 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
       { bubbles: true, composed: true, detail },
     ));
   }
+}
+
+function healthLabel(value: "success" | "warning" | "error"): string {
+  return value === "success" ? "正常" : value === "warning" ? "有警告" : "有错误";
+}
+
+function changeLabel(value: "updated" | "unchanged" | "partial" | "not-applied"): string {
+  if (value === "updated") return "已更新";
+  if (value === "unchanged") return "内容一致";
+  if (value === "partial") return "部分更新";
+  return "未应用";
 }
 
 export function ktcDefineCodegenPrimaryPanel(

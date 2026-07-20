@@ -18,10 +18,11 @@ import {
 } from "./fileBom.js";
 import {
   formatSourceEncodingReport,
-  sanitizeSourceForGbk,
+  sanitizeSourcePreservingEncoding,
   scanSourceEncoding,
   type SourceEncodingIssue,
 } from "./sourceEncodingScan.js";
+import { detectFileEncoding } from "./fileEncoding.js";
 
 export { HEADER_EXTENSIONS, CPP_SOURCE_EXTENSIONS, SOURCE_EXTENSIONS };
 
@@ -93,7 +94,14 @@ function scanFileBytes(
 
   const scanStart = bom.bomLength;
   const slice = scanStart > 0 ? buf.subarray(scanStart) : buf;
-  const byteIssues = scanSourceEncoding(slice, { requireAscii: asciiOnly });
+  const detected = detectFileEncoding(slice).detected;
+  const byteIssues = scanSourceEncoding(slice, {
+    requireAscii: asciiOnly,
+    // 一份文档只按它实际检测到的编码校验：CAA 本地 GBK 与 Qt UTF-8/GBK
+    // 都是合法输入，不能再用另一套编码规则制造整行误报。
+    checkGbk: detected === "gbk" || detected === "unknown",
+    checkUtf8: detected === "ascii" || detected === "utf8" || detected === "unknown",
+  });
   if (scanStart === 0) {
     return [...bomIssues, ...byteIssues];
   }
@@ -147,7 +155,7 @@ export function scanWorkspace(opts: ScanWorkspaceOptions = {}): FileEncodingResu
         const slice = scanStart > 0 ? buf.subarray(scanStart) : buf;
         const innerIssues = scanSourceEncoding(slice, { requireAscii: asciiOnly });
         if (innerIssues.length > 0) {
-          const cleaned = sanitizeSourceForGbk(slice, { preserveGbk: !asciiOnly });
+          const cleaned = sanitizeSourcePreservingEncoding(slice, { preserveGbk: !asciiOnly });
           workBuf =
             scanStart > 0
               ? Uint8Array.from([...buf.subarray(0, scanStart), ...cleaned])
@@ -161,7 +169,7 @@ export function scanWorkspace(opts: ScanWorkspaceOptions = {}): FileEncodingResu
         if (!postBom.skipByteSanitize) {
           const innerIssues = scanSourceEncoding(workBuf, { requireAscii: asciiOnly });
           if (innerIssues.length > 0) {
-            workBuf = sanitizeSourceForGbk(workBuf, { preserveGbk: !asciiOnly });
+            workBuf = sanitizeSourcePreservingEncoding(workBuf, { preserveGbk: !asciiOnly });
           }
         }
       }
@@ -200,7 +208,11 @@ export function runWorkspaceEncodingScan(opts: ScanWorkspaceOptions = {}): Works
   };
 }
 
-export function formatWorkspaceReport(report: WorkspaceReport, fix: boolean): string {
+export function formatWorkspaceReport(
+  report: WorkspaceReport,
+  fix: boolean,
+  options: { readonly fixInstruction?: string } = {},
+): string {
   const lines: string[] = [];
   if (report.results.length === 0) {
     const scope =
@@ -224,7 +236,7 @@ export function formatWorkspaceReport(report: WorkspaceReport, fix: boolean): st
   if (fix) {
     lines.push(`共 ${report.issueFiles} 个文件有问题，已修复 ${report.fixedFiles} 个。`);
   } else {
-    lines.push(`共 ${report.issueFiles} 个文件有问题。加 --fix 可自动替换为 ASCII。`);
+    lines.push(`共 ${report.issueFiles} 个文件有问题。${options.fixInstruction ?? "加 --fix 可自动替换为 ASCII。"}`);
   }
   return lines.join("\n");
 }

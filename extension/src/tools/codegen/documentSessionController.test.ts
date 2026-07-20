@@ -123,4 +123,16 @@ describe("Codegen document session controller", () => {
     expect(sessions.activeUri).toBeUndefined();
     expect([...sessions.values()]).toEqual([]);
   });
+
+  it("后台 session 可按 URI 释放，并同步清理活动态", async () => {
+    const { sessions } = fixture();
+    const opened = await sessions.open(request());
+    if (opened.kind === "error") throw new Error(opened.message);
+    sessions.activate(opened.session);
+
+    expect(sessions.release("file:///workspace/Other.json")).toBe(false);
+    expect(sessions.release(IDENTITY.uri)).toBe(true);
+    expect(sessions.activeUri).toBeUndefined();
+    expect(sessions.get(IDENTITY.uri)).toBeUndefined();
+  });
 });

@@ -41,6 +41,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<KtcAut
     item.show();
     context.subscriptions.push(item);
   }
+  await vscode.commands.executeCommand("setContext", "ktAutoCode.modulePanel.activeTool", "");
   await vscode.commands.executeCommand("setContext", "ktAutoCode.modulePanelVisible", false);
   ktcRegisterEditorMatchHighlight(context);
   registerReorderMembersSupport(context);
@@ -159,13 +160,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<KtcAut
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("ktAutoCode.headerAscii.preserveGbk")
         || e.affectsConfiguration("ktAutoCode.headerAscii.stripBom")
+        || e.affectsConfiguration("ktAutoCode.encodingFix")
         || e.affectsConfiguration("ktAutoCode.scope.includeHeaders")
         || e.affectsConfiguration("ktAutoCode.scope.includeSource")
         || e.affectsConfiguration("ktAutoCode.scope.includeMarkdown")
         || e.affectsConfiguration("ktAutoCode.sidebar.toolPickerStyle")) {
         sidebarProvider?.refreshToolOptions("headerAscii");
+        sidebarProvider?.refreshToolOptions("encodingFix");
         sidebarProvider?.refreshScope();
         sidebarProvider?.refreshSidebarStyle();
+      }
+      if (e.affectsConfiguration("ktAutoCode.encodingFix")) {
+        sidebarProvider?.invalidateEncodingFixResults();
       }
     }),
   );

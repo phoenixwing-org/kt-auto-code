@@ -109,7 +109,8 @@ for (const artifact of artifacts) {
         || !codeHide?.when?.includes("ktAutoCode.module.code.visible")) {
       throw new Error("Code VSIX is missing its visible checked/unchecked Header commands");
     }
-    if (titleCommands.some((candidate) => candidate.command.startsWith("ktAutoCad."))) {
+    if (titleCommands.some((candidate) => typeof candidate.command === "string"
+      && candidate.command.startsWith("ktAutoCad."))) {
       throw new Error("Code VSIX must not own CAD Header commands");
     }
   } else {

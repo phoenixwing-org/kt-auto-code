@@ -8,13 +8,15 @@ describe("Codegen 全部应用轻量报告", () => {
   it("从结构化结果汇总状态与错误，不解析 Output", () => {
     const items = [
       {
-        uri: "file:///workspace/A.json", fileName: "A.json", status: "applied" as const, errorCount: 0,
+        uri: "file:///workspace/A.json", fileName: "A.json", health: "success" as const,
+        change: "updated" as const, reasonCode: "content-updated" as const, errorCount: 0,
         preflightRegionCount: 2, preflightArtifactCount: 2, preflightDiagnosticCount: 0,
         preflightErrorCount: 0, modifiedFileCount: 1, writtenRegionCount: 2,
         elapsedMilliseconds: 12, issues: [],
       },
       {
-        uri: "file:///workspace/B.json", fileName: "B.json", status: "partial" as const, errorCount: 1,
+        uri: "file:///workspace/B.json", fileName: "B.json", health: "error" as const,
+        change: "partial" as const, reasonCode: "partial-with-errors" as const, errorCount: 1,
         preflightRegionCount: 1, preflightArtifactCount: 1, preflightDiagnosticCount: 1,
         preflightErrorCount: 1, modifiedFileCount: 1, writtenRegionCount: 1,
         elapsedMilliseconds: 24,
@@ -22,7 +24,7 @@ describe("Codegen 全部应用轻量报告", () => {
       },
     ];
     expect(ktcCodegenBatchApplyReport(items, 40)).toMatchObject({
-      totals: { total: 2, applied: 1, partial: 1, notWritten: 0 },
+      totals: { total: 2, success: 1, warning: 0, error: 1, updated: 1, unchanged: 0, partial: 1, notApplied: 0 },
       errorCount: 1,
       warningCount: 0,
       elapsedMilliseconds: 40,

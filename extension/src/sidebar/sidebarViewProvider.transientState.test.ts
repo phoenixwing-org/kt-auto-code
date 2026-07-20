@@ -60,6 +60,7 @@ import { registerTool } from "../tools/registry.js";
 import { SidebarViewProvider } from "./sidebarViewProvider.js";
 
 const TEST_TOOL_ID = "transientPickerTest";
+const SECOND_TEST_TOOL_ID = "transientPickerSecondTest";
 const picker: KtcAssociatedRulePickerState = {
   title: "选择关联规则",
   candidates: [],
@@ -94,6 +95,20 @@ const testTool: KtTool = {
 };
 
 registerTool(testTool);
+registerTool({
+  ...testTool,
+  id: SECOND_TEST_TOOL_ID,
+  title: "Transient picker second test",
+  getPanelModel() {
+    return {
+      summary: {
+        id: SECOND_TEST_TOOL_ID,
+        title: this.title,
+        description: this.description,
+      },
+    };
+  },
+});
 
 interface FakeWebviewView extends vscode.WebviewView {
   readonly messages: WebviewOutboundMessage[];
@@ -174,11 +189,70 @@ function stateMessages(view: FakeWebviewView): Extract<WebviewOutboundMessage, {
 
 describe("SidebarViewProvider transient tool state", () => {
   beforeEach(() => {
+    vscodeHost.executeCommand.mockClear();
     nextState = {
       status: "idle",
       message: "请选择要添加的关联规则。",
       associatedRulePicker: picker,
     };
+  });
+
+  it("共享工具界面只向标题菜单发布当前活动工具", async () => {
+    const { provider } = createProvider();
+
+    await provider.showTool(TEST_TOOL_ID);
+    expect(vscodeHost.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "ktAutoCode.modulePanel.activeTool",
+      TEST_TOOL_ID,
+    );
+    expect(vscodeHost.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "ktAutoCode.modulePanelVisible",
+      true,
+    );
+
+    await provider.closeToolBlock();
+    expect(vscodeHost.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "ktAutoCode.modulePanelVisible",
+      false,
+    );
+    expect(vscodeHost.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "ktAutoCode.modulePanel.activeTool",
+      "",
+    );
+  });
+
+  it("当前 Block 已打开可见时不重复激活或滚动共享 Panel", async () => {
+    const { provider, module } = createProvider();
+    await provider.showTool(TEST_TOOL_ID);
+    vscodeHost.executeCommand.mockClear();
+    (module.show as ReturnType<typeof vi.fn>).mockClear();
+    const messageCount = module.messages.length;
+
+    await provider.showTool(TEST_TOOL_ID);
+
+    expect(vscodeHost.executeCommand).not.toHaveBeenCalled();
+    expect(module.show).not.toHaveBeenCalled();
+    expect(module.messages).toHaveLength(messageCount);
+  });
+
+  it("共享 Panel 可见时切换不同 Block 只更新内容，不重新 show 导致外层滚动回顶", async () => {
+    const { provider, module } = createProvider();
+    await provider.showTool(TEST_TOOL_ID);
+    (module.show as ReturnType<typeof vi.fn>).mockClear();
+    const messageCount = module.messages.length;
+
+    await provider.showTool(SECOND_TEST_TOOL_ID);
+
+    expect(module.show).not.toHaveBeenCalled();
+    expect(module.messages.length).toBeGreaterThan(messageCount);
+    expect([...module.messages].reverse().find((message) => message.type === "init")).toMatchObject({
+      type: "init",
+      activeToolId: SECOND_TEST_TOOL_ID,
+    });
   });
 
   it.each([

@@ -17,6 +17,7 @@ import type {
 } from "./codegen/controlViewModel.js";
 import type {
   KtcCodegenBatchApplyProgress,
+  KtcCodegenApplyReportSummary,
   KtcCodegenDocumentSummary,
   KtcCodegenSourceCandidateSummary,
 } from "./codegen/primaryViewModel.js";
@@ -66,6 +67,8 @@ export type WebviewInboundMessage =
   | { type: "reorderSelection"; toolId: "reorderMembers"; uris: string[] }
   | { type: "openIssue"; toolId: string; file: string; line: number }
   | { type: "openEncodingFile"; toolId: string; file: string }
+  | { type: "setEncodingDefaultTarget"; toolId: "encodingFix"; target: "utf8" | "gbk" }
+  | { type: "openEncodingSettings"; toolId: "encodingFix" }
   | { type: "openIgnoreFile" }
   | { type: "syncIgnoreFromGit" }
   | { type: "applyIgnorePreset"; presetId: "caa" | "cpp" | "web"; action: "append" | "remove" }
@@ -163,6 +166,10 @@ export type WebviewOutboundMessage =
 export interface ToolOptionsState {
   preserveGbk?: boolean;
   stripBom?: boolean;
+  encodingDefaultTarget?: "utf8" | "gbk";
+  encodingHeaderTarget?: "inherit" | "ascii" | "utf8" | "gbk";
+  encodingSourceTarget?: "inherit" | "ascii" | "utf8" | "gbk";
+  encodingMarkdownTarget?: "inherit" | "ascii" | "utf8" | "gbk";
 }
 
 export interface IgnoreConfigSummary {
@@ -250,6 +257,8 @@ export interface ToolUiState {
   codegenActiveUri?: string;
   codegenControls?: KtcCodegenControlCatalogViewModel;
   codegenCandidates?: KtcCodegenSourceCandidateSummary[];
+  codegenReports?: KtcCodegenApplyReportSummary[];
+  codegenReportInvalidCount?: number;
   codegenOperation?: "discovery" | "candidates" | "batch-apply";
   codegenBatch?: KtcCodegenBatchApplyProgress;
 }

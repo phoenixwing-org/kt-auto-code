@@ -9,7 +9,7 @@
 - Marketplace 发布者 ID：`kuntai`
 - Marketplace 发布者名称：`Shanghai Kuntai`
 - 当前版本：以 [`extension/package.json`](../extension/package.json) 的 `version` 为准
-- Marketplace 当前公开版本为 `0.5.0`；本轮 `0.5.1` 是 Wing 0.4.3 消费与既有 Codegen 缺陷改进的 patch 版本。
+- Marketplace 当前公开版本为 KT Auto Code `0.5.1`、KT Auto CAD `0.1.0`；两者均由 `kuntai` 发布并已通过人工审查。
 - 开源许可：[Apache License 2.0](../LICENSE)
 
 当前扩展标识由下列清单字段组成：
@@ -21,6 +21,23 @@
 }
 ```
 
+## 0.5.2 发布候选（2026-07-20）
+
+0.5.2 是 Auto Code 的 patch 发布；根 workspace 与 Code 扩展同步升级到 0.5.2，KT Auto CAD 保持 0.1.0，七个 Wing manifest 引用继续精确使用 Registry 0.4.3。本轮不新增公共命令或扩展 API。
+
+候选范围：
+
+- Codegen single/batch Apply 报告原子写入工作区 `.phoenix/reports/codegen/`，Primary 可重开；报告 JSON 进入 Codegen View，问题位置继续定位源码，批量后台 session 不创建大量 Panel，也不关闭用户原有 View。
+- 报告用健康度与源码变化双轴区分“正常 · 内容一致”“有错误 · 部分更新”等结果；汇总标签支持前端筛选，JSON Combo 显示状态并循环切换，选中单项时始终显示且不受残留筛选影响，问题表长路径自动换行。
+- 编码修正增加工作区默认 UTF-8/GBK 和头文件、源文件、Markdown 的 ASCII/UTF-8/GBK 覆盖；只执行可无损表示的转换。UTF-8/GBK 扫描、上下文显示与头文件修正保持原文档编码。
+- 自动代码标题菜单、共享工具页面滚动位置和 Primary 工具栏 24px 图标完成真实宿主点检。
+
+候选门禁：107 个测试文件、540 项测试，Code/CAD 双 typecheck，140 个生产源文件、24 个 pure graph、13 个 View root，69 份 Markdown 分类/链接均通过；本地并列 Wing 构建、Registry 依赖与制品内容门禁通过。
+
+- `kt-auto-code-0.5.2.vsix`：30 个文件、461,770 bytes，SHA-256 为 `c0064f9ebcbf57a18ac1128501632294508e9a1e74a1d92b7d33aafea9619ca6`。
+- 本轮不重新发布 CAD；门禁同时复核既有 `kt-auto-cad-0.1.0.vsix` 为 9 个文件、40,193 bytes。
+- Marketplace 发布状态与公开制品哈希将在 `kuntai.kt-auto-code@0.5.2` 发布成功后补入本节。
+
 ## 0.5.1 发布回执（2026-07-19）
 
 0.5.1 定位为既有 Codegen 流程的 patch：不新增公共命令或扩展 API。根 workspace 与 Code 扩展版本均为 0.5.1；KT Auto CAD 继续保持 0.1.0，但 Code/CAD 七个 Wing manifest 引用已全部精确升级到 Registry 0.4.3，Codegen 缓存生成器为 0.3.3。
@@ -30,11 +47,11 @@
 - `pnpm verify:ci`：68 份 Markdown、137 个生产源文件、24 个 pure graph、13 个 View root、105 个测试文件与 515 项测试全部通过；Code/CAD 双 typecheck 通过。
 - `kt-auto-code-0.5.1.vsix`：30 个文件、448,030 bytes，SHA-256 为 `3829b5436972b101785f6688cbbfdad7c93896da813057c604d4ecd58092bfcf`。
 - 用户已在 VS Code 中手工安装上述 `kt-auto-code-0.5.1.vsix`，确认加载的是本轮最新版本；真实安装回执通过。
-- `kt-auto-cad-0.1.0.vsix`：9 个文件、40,148 bytes，SHA-256 为 `b9778df10c9e25c8e3de6db4849489396e716681974b2f765261d15f382708b8`；本轮不重复发布该同版本制品。
+- `kt-auto-cad-0.1.0.vsix`：9 个文件、40,148 bytes，SHA-256 为 `b9778df10c9e25c8e3de6db4849489396e716681974b2f765261d15f382708b8`；已作为 `kuntai.kt-auto-cad@0.1.0` 首次公开发布，并声明依赖 `kuntai.kt-auto-code`。
 - 隔离 macOS VS Code Extension Host 回执通过扩展激活以及 open、preview、conflict、apply、saveReload、rollback 六条代表流程；Windows 仍由用户手工验证，本文不宣称通过。
-- 中文候选提交为 `4abdbc3`，本地注释标签 `0.5.1` 正确解引用到该提交。
+- 中文候选提交为 `4abdbc3`；发布、手工安装回执归档后，注释标签 `0.5.1` 解引用到 `0445e5a`，该提交与远端分支一致。
 
-Marketplace 当前公开版本仍为 0.5.0。上传 0.5.1 时本机保存的 VSCE Personal Access Token 返回 `TF400813`，上传未发生；更新 `kuntai` 登录凭据后，应直接上传上述已验证 Code VSIX，不重新构建或改动标签。上传完成后必须用 `vsce show kuntai.kt-auto-code --json` 确认 0.5.1 已出现在版本列表，再把本段改为完成态。
+Marketplace 机器回执已确认发布完成：`kuntai.kt-auto-code@0.5.1` 的公开 VSIX SHA-256 为 `3829b5436972b101785f6688cbbfdad7c93896da813057c604d4ecd58092bfcf`，`kuntai.kt-auto-cad@0.1.0` 为 `b9778df10c9e25c8e3de6db4849489396e716681974b2f765261d15f382708b8`，均与本地已验证制品逐字一致；用户同时确认 Marketplace 人工审查通过。本轮公开发布闭环完成。
 
 发布前须确认 Marketplace 中已存在 `kuntai` 发布者；若使用新的发布者 ID，必须先同步修改 `extension/package.json` 的 `publisher` 字段。发布者 ID 创建后不可修改，建议使用公司或品牌的长期唯一标识。
 

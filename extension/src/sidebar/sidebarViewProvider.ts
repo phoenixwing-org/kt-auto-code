@@ -12,6 +12,7 @@ import type {
 } from "../tools/types.js";
 import { setHeaderAsciiRunContextFactory } from "../tools/headerAscii/index.js";
 import { setEncodingFixRunContextFactory } from "../tools/encodingFix/index.js";
+import { getEncodingFixOptions } from "../tools/encodingFix/options.js";
 import { setCodeRenameRunContextFactory } from "../tools/codeRename/index.js";
 import { setUuidReplaceRunContextFactory } from "../tools/uuidReplace/index.js";
 import { setCaaDialogRunContextFactory } from "../tools/caaDialog/index.js";
@@ -85,6 +86,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   private readonly recentWorkspaceDirectories: KtcRecentWorkspaceDirectoryStore;
   private moduleState: KtcModuleState;
   private moduleStateSyncQueue: Promise<void> = Promise.resolve();
+  private modulePanelContextSyncQueue: Promise<void> = Promise.resolve();
   private readonly moduleBlockProviders = new Map<KtcModuleId, KtcModuleBlockProvider>();
 
   constructor(
@@ -169,6 +171,17 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     this.postToViews({ type: "scope", scope: getFileScope() });
   }
 
+  invalidateEncodingFixResults(): void {
+    this.setToolState("encodingFix", {
+      status: "idle",
+      message: "项目编码目标已更新，请重新预检。",
+      encodingResults: [],
+      scanned: 0,
+      issueFiles: 0,
+      fixedFiles: 0,
+    });
+  }
+
   refreshScope(): void {
     this.postToViews({ type: "scope", scope: getFileScope() });
   }
@@ -193,17 +206,18 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   async showTool(toolId: string): Promise<void> {
     const tool = getTool(toolId);
     if (!tool) return;
+    if (this.isToolBlockVisible(toolId)) return;
     await this.activateModule("code");
     this.activeToolId = toolId;
     this.openToolIds = ktcActivateToolBlock(this.openToolIds, toolId);
     ktcActivateResultAccordion(SidebarViewProvider.moduleViewType);
-    await vscode.commands.executeCommand("setContext", "ktAutoCode.modulePanelVisible", true);
+    await this.setModulePanelContext(true, toolId);
     await vscode.commands.executeCommand("workbench.view.extension.kt-auto-code");
     if (this.ribbonView) await this.sendInit(this.ribbonView);
     if (this.moduleView) {
       this.moduleView.title = tool.title;
       await this.sendInit(this.moduleView);
-      this.moduleView.show(false);
+      if (!this.moduleView.visible) this.moduleView.show(false);
     } else {
       try { await vscode.commands.executeCommand(`${SidebarViewProvider.moduleViewType}.focus`); } catch { /* view resolves lazily */ }
     }
@@ -221,18 +235,19 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     }
     const moduleTools = this.getModuleTools(moduleId);
     if (!moduleTools.some((tool) => tool.moduleId === moduleId && tool.id === toolId)) return false;
+    if (this.isToolBlockVisible(toolId)) return true;
     if (!await this.activateModule(moduleId)) return false;
 
     this.activeToolId = toolId;
     this.openToolIds = ktcActivateToolBlock(this.openToolIds, toolId);
     ktcActivateResultAccordion(SidebarViewProvider.moduleViewType);
-    await vscode.commands.executeCommand("setContext", "ktAutoCode.modulePanelVisible", true);
+    await this.setModulePanelContext(true, toolId);
     await vscode.commands.executeCommand("workbench.view.extension.kt-auto-code");
     if (this.ribbonView) await this.sendInit(this.ribbonView);
     if (this.moduleView) {
       this.moduleView.title = moduleTools.find((tool) => tool.id === toolId)?.title ?? "工具界面";
       await this.sendInit(this.moduleView);
-      this.moduleView.show(false);
+      if (!this.moduleView.visible) this.moduleView.show(false);
     } else {
       try { await vscode.commands.executeCommand(`${SidebarViewProvider.moduleViewType}.focus`); } catch { /* view resolves lazily */ }
     }
@@ -256,13 +271,28 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       await this.restoreToolBlock(closed.nextToolId);
       return this.getToolBlockState();
     }
-    await vscode.commands.executeCommand("setContext", "ktAutoCode.modulePanelVisible", false);
+    await this.setModulePanelContext(false);
     this.postToViews({ type: "openTools", activeToolId: this.activeToolId, openToolIds: [] });
     return this.getToolBlockState();
   }
 
   collapseForAccordion(): void {
-    void vscode.commands.executeCommand("setContext", "ktAutoCode.modulePanelVisible", false);
+    void this.setModulePanelContext(false);
+  }
+
+  private setModulePanelContext(visible: boolean, toolId = this.activeToolId): Promise<void> {
+    const activeTool = visible ? toolId : "";
+    const task = this.modulePanelContextSyncQueue.then(async () => {
+      if (visible) {
+        await vscode.commands.executeCommand("setContext", "ktAutoCode.modulePanel.activeTool", activeTool);
+        await vscode.commands.executeCommand("setContext", "ktAutoCode.modulePanelVisible", true);
+      } else {
+        await vscode.commands.executeCommand("setContext", "ktAutoCode.modulePanelVisible", false);
+        await vscode.commands.executeCommand("setContext", "ktAutoCode.modulePanel.activeTool", "");
+      }
+    });
+    this.modulePanelContextSyncQueue = task.catch(() => undefined);
+    return task;
   }
 
   private getSidebarStyle(): "ribbon" | "compact" {
@@ -274,6 +304,15 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   private getToolOptions(toolId: string): ToolOptionsState {
     if (toolId === "headerAscii") {
       return { preserveGbk: getPreserveGbk(), stripBom: getStripBom() };
+    }
+    if (toolId === "encodingFix") {
+      const options = getEncodingFixOptions();
+      return {
+        encodingDefaultTarget: options.defaultTarget,
+        encodingHeaderTarget: options.headerTarget,
+        encodingSourceTarget: options.sourceTarget,
+        encodingMarkdownTarget: options.markdownTarget,
+      };
     }
     return {};
   }
@@ -663,6 +702,12 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     };
   }
 
+  private isToolBlockVisible(toolId: string): boolean {
+    return this.activeToolId === toolId
+      && this.openToolIds.includes(toolId)
+      && this.moduleView?.visible === true;
+  }
+
   private async restoreToolBlock(toolId: string): Promise<boolean> {
     const moduleId = this.getToolModuleId(toolId);
     if (!moduleId) return false;
@@ -732,7 +777,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
         .reverse()
         .find((candidate) => this.getToolModuleId(candidate) === this.moduleState.active);
       if (nextToolId) await this.showModuleTool(this.moduleState.active, nextToolId);
-      else await vscode.commands.executeCommand("setContext", "ktAutoCode.modulePanelVisible", false);
+      else await this.setModulePanelContext(false);
     }
     return true;
   }

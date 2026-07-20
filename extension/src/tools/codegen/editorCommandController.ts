@@ -111,9 +111,8 @@ export async function ktcExecuteCodegenEditorCommand(
   if (!session.preflight) await actions.runPreflight();
   if (!session.preflight) {
     actions.log(
-      `[Codegen][Apply] 自动预检未产生可用计划，Apply 已停止；耗时 ${timer.elapsedText()}。`,
+      `[Codegen][Apply] 自动预检未产生可用计划，将记录未应用报告；耗时 ${timer.elapsedText()}。`,
     );
-    return;
   }
   await actions.apply(timer);
 }

@@ -113,6 +113,16 @@ const model: KtcCodegenPrimaryViewModel = {
     encoding: "UTF-8",
     eol: "lf",
   }],
+  reports: [{
+    reportId: "12345678-1234-4234-8234-123456789abc",
+    fileName: "report.json",
+    applyKind: "single",
+    startedAt: "2026-07-20T12:00:00.000Z",
+    health: "success",
+    change: "unchanged",
+    itemCount: 1,
+    subject: "Demo.json",
+  }],
   controls: {
     kind: "kt.codegen.control-view-model",
     schemaVersion: 1,
@@ -153,7 +163,7 @@ describe("Codegen Primary panel", () => {
 
     const text = findNodes(element.shadow, (node) => Boolean(node.textContent)).map((node) => node.textContent);
     expect(text).toEqual(expect.arrayContaining([
-      "打开", "导入", "全部应用", "取消刷新", "扫源码", "复制诊断",
+      "打开", "导入", "全部应用", "取消刷新", "扫源码",
       "Demo.json", "PNXDemo · 3 行 · 当前编辑 View · 未保存", "控制符目录", "JSON 配置",
       "控制符候选（工作区级）", "一份 JSON 对应当前编辑区一个表格 View；Primary 与 JSON View 的控制符目录由 Host session 同步。",
     ]));
@@ -163,7 +173,7 @@ describe("Codegen Primary panel", () => {
     const blockTitles = element.shadow.children
       .filter((node) => node.tagName === "details")
       .map((block) => findNodes(block, (node) => node.className.split(/\s+/u).includes("mini-title"))[0]?.textContent);
-    expect(blockTitles).toEqual(["Demo.json", "JSON 配置", "控制符目录", "控制符候选（工作区级）"]);
+    expect(blockTitles).toEqual(["Demo.json", "JSON 配置", "应用报告", "控制符目录", "控制符候选（工作区级）"]);
     const currentConfig = findNodes(element.shadow, (node) => node.attributes.get("aria-label") === "当前配置区")[0]!;
     expect(currentConfig.open).toBe(true);
     expect(findNodes(currentConfig, (node) => node.className.includes("current-file"))[0]!.title).toBe("");
@@ -174,6 +184,7 @@ describe("Codegen Primary panel", () => {
     expect(candidateScan.disabled).toBe(true);
     expect(findNodes(element.shadow, (node) => node.textContent === "打开")[0]!.title).toBe("打开一份 Codegen JSON");
     expect(candidateScan.title).toBe("扫描工作区中含 Codegen 控制符的源码候选");
+    expect(text).not.toContain("复制诊断");
     const candidateRow = findNodes(element.shadow, (node) => node.className === "row candidate-row")[0]!;
     expect(findNodes(candidateRow, (node) => node.className === "candidate-label")).toHaveLength(1);
     expect(findNodes(candidateRow, (node) => node.className === "candidate-name")[0]!.textContent).toBe("Demo.cpp");
@@ -184,6 +195,8 @@ describe("Codegen Primary panel", () => {
     expect(style).toContain("display: grid; gap: 4px;");
     expect(style).toContain("position: sticky; z-index: 12; top: 0;");
     expect(style).toContain("padding: 2px 5px 3px;");
+    expect(style).toContain("flex: 0 0 32px; width: 32px; height: 32px;");
+    expect(style).toContain(".action-icon { width: 24px; height: 24px;");
     expect(style).toContain("grid-auto-rows: 40px; gap: 0;");
     expect(style).toContain(".current-identity { display: flex;");
     expect(style).toContain(".candidate-list { grid-auto-rows: 30px; gap: 0; }");
@@ -192,7 +205,7 @@ describe("Codegen Primary panel", () => {
     expect(style).toContain(".candidate-label { flex: 1 1 auto;");
     expect(style).toContain(".candidate-name { color: var(--vscode-foreground); font-weight: 600; }");
     expect(style).toContain(".candidate-path { color: var(--vscode-descriptionForeground);");
-    expect(findNodes(element.shadow, (node) => node.className === "action-icon")).toHaveLength(6);
+    expect(findNodes(element.shadow, (node) => node.className === "action-icon")).toHaveLength(5);
   });
 
   it("Host 快照重绘时复用控制面板，并保留四个 Block 的折叠与列表滚动", async () => {
@@ -253,6 +266,8 @@ describe("Codegen Primary panel", () => {
     findNodes(element.shadow, (node) => node.textContent === "取消刷新")[0]!.onclick?.();
     findNodes(element.shadow, (node) => node.title.includes("config/Demo.json"))[0]!.onclick?.();
     findNodes(element.shadow, (node) => node.title === "打开 src/Demo.cpp")[0]!.onclick?.();
+    findNodes(element.shadow, (node) => node.title.includes("Codegen 应用报告"))[0]!.onclick?.();
+    findNodes(element.shadow, (node) => node.textContent === "打开报告目录")[0]!.onclick?.();
     const prefix = findNodes(element.shadow, (node) => node.attributes.get("aria-label") === "Codegen Prefix")[0]!;
     prefix.value = "KTC";
     prefix.onchange?.();
@@ -262,6 +277,8 @@ describe("Codegen Primary panel", () => {
       { type: "ktc-codegen-primary-action", detail: { action: "cancelOperation" } },
       { type: "ktc-codegen-primary-action", detail: { action: "openDocument", uri: "file:///workspace/Demo.json" } },
       { type: "ktc-codegen-primary-action", detail: { action: "openCandidate", uri: "file:///workspace/Demo.cpp" } },
+      { type: "ktc-codegen-primary-action", detail: { action: "openReport", reportId: "12345678-1234-4234-8234-123456789abc" } },
+      { type: "ktc-codegen-primary-action", detail: { action: "openReportDirectory" } },
       {
         type: "ktc-codegen-primary-action",
         detail: { action: "updateMeta", uri: "file:///workspace/Demo.json", field: "namePrefix", value: "KTC" },

@@ -60,7 +60,7 @@ A–F 的人工状态和 A/C/E verifier 必须同时通过，报告整体状态�
 - `legacy/PNXConflictParam.csv` 因同名 JSON 内容不同而保留；已有 JSON 的 `Existing JSON Value` 不被覆盖。
 - 状态文字包含“本会话自动转换 1；当前保留冲突/失败 CSV 1”；后续 watcher 刷新不会丢掉本会话转换计数。
 
-点“复制诊断”，粘贴内容应以 `kt.codegen.runtime-diagnostics` 开头，并显示 5 份文档；诊断不包含表格单元格和源码内容。
+工具界面右上角 `…` 应按工具条顺序显示“打开 JSON / 导入 CSV / 全部应用 / 刷新列表 / 扫描候选源码 / 复制运行诊断”，并带有对应的 VS Code Product Icon。点击最后一项后，粘贴内容应以 `kt.codegen.runtime-diagnostics` 开头并显示 5 份文档；诊断不包含表格单元格和源码内容，Primary 工具条也不再显示重复的诊断图标。
 字段结构参考 `doc/codegen-plan/KtCodegenRuntimeDiagnostics.example.json`。
 
 完成本 checkpoint 后执行：
@@ -189,7 +189,7 @@ pnpm ext:verify:codegen -- <临时工作区> --checkpoint-e
 出现异常时请提供：
 
 1. 当前 checkpoint 与操作序号。
-2. 左侧“复制诊断”的内容。
+2. 工具界面右上角 `…` → “复制运行诊断”复制的内容。
 3. KT Auto Code Output 中相关几行。
 4. 截图；若是主题问题，请附主题名称。
 

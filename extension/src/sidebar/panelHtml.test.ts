@@ -38,6 +38,10 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('id="workspace-file-scope-select"');
     expect(html).toContain('type: "selectWorkspaceFileScope"');
     expect(html).toContain('type: "openWorkspaceWorksets"');
+    expect(html).toContain("const toolScrollPositions = new Map();");
+    expect(html).toContain("toolScrollPositions.set(state.activeToolId, window.scrollY)");
+    expect(html).toContain("requestAnimationFrame(() => window.scrollTo(0, top))");
+    expect(html).toContain("const activeToolChanged = switchActiveTool(msg.activeToolId)");
     expect(html).not.toContain('state.replace.scope = ""');
     expect(html).toContain('list="recent-working-directories"');
     expect(html).toContain('type: "pickSearchReplaceDirectory"');
@@ -74,6 +78,13 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('msg.type === "openTools"');
     expect(html).not.toContain('body.detail-block #results');
     expect(html).toContain('renderEncodingResults(ts, !!state.showEncDetails)');
+    expect(html).toContain('id="encoding-default-target"');
+    expect(html).toContain('id="btn-encoding-settings"');
+    expect(html).toContain('id="target-overrides"');
+    expect(html).toContain('type: "setEncodingDefaultTarget"');
+    expect(html).toContain('type: "openEncodingSettings"');
+    expect(html).toContain('"项目覆盖：" + overrides.join(" · ")');
+    expect(html).toContain('"所有文件均符合当前项目编码目标。"');
     expect(html).toContain('renderHeaderResults(ts, !!state.showDetails)');
     expect(html).toContain('renderCodeRenameResults(ts)');
     expect(html).toContain('renderIgnoreResults(ts)');
@@ -139,6 +150,13 @@ describe("sidebar panel HTML", () => {
     expect(profileController).not.toContain("showWarningMessage");
     const encodingCommands = readFileSync(new URL("../tools/encodingFix/commands.ts", import.meta.url), "utf8");
     expect(encodingCommands).not.toContain("是否查看预检结果");
+    const encodingOptions = readFileSync(new URL("../tools/encodingFix/options.ts", import.meta.url), "utf8");
+    expect(encodingOptions).toContain("vscode.ConfigurationTarget.WorkspaceFolder");
+    expect(encodingOptions).toContain('"workbench.action.openWorkspaceSettings"');
+    expect(encodingOptions).toContain('config.update("defaultTarget", value, targetScope)');
+    const sidebarProvider = readFileSync(new URL("./sidebarViewProvider.ts", import.meta.url), "utf8");
+    expect(sidebarProvider).toContain("invalidateEncodingFixResults()");
+    expect(sidebarProvider).toContain('message: "项目编码目标已更新，请重新预检。"');
   });
 
   it("只把 Codegen Host 状态投影给 Primary 页面组件", () => {
@@ -188,6 +206,8 @@ describe("sidebar panel HTML", () => {
       activeUri: "file:///workspace/root.json",
       controls,
       candidates,
+      reports: [],
+      reportInvalidCount: 0,
       operation: "discovery",
       batch: undefined,
       running: true,
@@ -199,6 +219,8 @@ describe("sidebar panel HTML", () => {
       activeUri: undefined,
       controls: undefined,
       candidates: [],
+      reports: [],
+      reportInvalidCount: 0,
       operation: undefined,
       batch: undefined,
       running: false,
@@ -226,7 +248,9 @@ describe("sidebar panel HTML", () => {
       contributes: {
         viewsContainers?: { activitybar?: Array<{ id: string }> };
         views: Record<string, Array<{ id: string; initialSize?: number; when?: string }>>;
-        menus: Record<string, unknown[]>;
+        commands: Array<{ command: string; title: string; category?: string; icon?: string }>;
+        submenus: Array<{ id: string; label: string; icon?: string }>;
+        menus: Record<string, Array<{ command?: string; submenu?: string; group?: string; when?: string }>>;
         configuration: { properties: Record<string, unknown> };
       };
     };
@@ -241,12 +265,59 @@ describe("sidebar panel HTML", () => {
       "ktAutoCode.modulePanelVisible",
     );
     expect(manifest.contributes.menus["view/item/context"]).toBeUndefined();
+    expect(manifest.contributes.commands.filter((command) => [
+      "ktAutoCode.codegen.open",
+      "ktAutoCode.codegen.importCsv",
+      "ktAutoCode.codegen.applyAll",
+      "ktAutoCode.codegen.refresh",
+      "ktAutoCode.codegen.scanCandidates",
+      "ktAutoCode.codegen.diagnostics",
+    ].includes(command.command))).toEqual([
+      { command: "ktAutoCode.codegen.open", title: "打开 JSON…", category: "KT Auto Code", icon: "$(folder-opened)" },
+      { command: "ktAutoCode.codegen.importCsv", title: "导入 CSV…", category: "KT Auto Code", icon: "$(file-symlink-file)" },
+      { command: "ktAutoCode.codegen.applyAll", title: "全部应用", category: "KT Auto Code", icon: "$(check-all)" },
+      { command: "ktAutoCode.codegen.refresh", title: "刷新列表", category: "KT Auto Code", icon: "$(refresh)" },
+      { command: "ktAutoCode.codegen.scanCandidates", title: "扫描候选源码", category: "KT Auto Code", icon: "$(search)" },
+      { command: "ktAutoCode.codegen.diagnostics", title: "复制运行诊断", category: "KT Auto Code", icon: "$(pulse)" },
+    ]);
+    expect(manifest.contributes.submenus).toContainEqual({
+      id: "ktAutoCode.modulePanel.more",
+      label: "更多",
+      icon: "$(ellipsis)",
+    });
+    expect(manifest.contributes.menus["view/title"]).toContainEqual({
+      submenu: "ktAutoCode.modulePanel.more",
+      when: "view == ktAutoCode.modulePanel && ktAutoCode.modulePanel.activeTool == codegen",
+      group: "navigation@8",
+    });
+    expect(manifest.contributes.menus["ktAutoCode.modulePanel.more"]).toEqual([
+      { command: "ktAutoCode.codegen.open", group: "navigation@1" },
+      { command: "ktAutoCode.codegen.importCsv", group: "navigation@2" },
+      { command: "ktAutoCode.codegen.applyAll", group: "navigation@3" },
+      { command: "ktAutoCode.codegen.refresh", group: "navigation@4" },
+      { command: "ktAutoCode.codegen.scanCandidates", group: "navigation@5" },
+      { command: "ktAutoCode.codegen.diagnostics", group: "navigation@6" },
+    ]);
     expect(Object.keys(manifest.contributes.configuration.properties)).not.toEqual(expect.arrayContaining([
       "ktAutoCode.environment.rootDir",
       "ktAutoCode.environment.rootDir3rdParty",
       "ktAutoCode.environment.rootDirCore",
       "ktAutoCode.environment.mkVersion",
     ]));
+    expect(manifest.contributes.configuration.properties["ktAutoCode.encodingFix.defaultTarget"]).toMatchObject({
+      type: "string",
+      enum: ["utf8", "gbk"],
+      default: "utf8",
+      scope: "resource",
+    });
+    for (const key of ["headerTarget", "sourceTarget", "markdownTarget"]) {
+      expect(manifest.contributes.configuration.properties[`ktAutoCode.encodingFix.${key}`]).toMatchObject({
+        type: "string",
+        enum: ["inherit", "ascii", "utf8", "gbk"],
+        default: "inherit",
+        scope: "resource",
+      });
+    }
   });
 
   it("新扫描全选 pending，同一缓存更新保留用户取消选择", () => {

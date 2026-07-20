@@ -7,13 +7,16 @@ import {
 } from "../../../../src/fileEncodingWalk.js";
 import {
   detectedEncodingLabel,
+  encodingTargetPolicySummary,
   expectedEncodingLabel,
+  type EncodingTargetPolicy,
 } from "../../../../src/fileEncoding.js";
 import type { EncodingFileResultSummary, ToolRunContext } from "../types.js";
 import { getFileScope, isScopeEmpty, scopeSummary } from "../../scopeOptions.js";
 import { resolveWorkspaceIgnorePatterns } from "../../ignoreConfig.js";
 import { ktcResolveWorkspaceFileScope, type KtcWorkspaceFileScope } from "../../worksets.js";
 import { ktcClearEditorMatchHighlights } from "../../workbench/editorMatchHighlight.js";
+import { getEncodingTargetPolicy } from "./options.js";
 
 export function reportToEncodingResults(
   report: FileEncodingWalkReport,
@@ -39,12 +42,17 @@ export function logEncodingReport(
   log(formatFileEncodingReport(report, convert));
 }
 
-export async function scanEncodings(root: string, workspaceScope?: KtcWorkspaceFileScope): Promise<FileEncodingWalkReport> {
+export async function scanEncodings(
+  root: string,
+  workspaceScope?: KtcWorkspaceFileScope,
+  targetPolicy: EncodingTargetPolicy = getEncodingTargetPolicy(),
+): Promise<FileEncodingWalkReport> {
   return runFileEncodingWalk({
     root,
     scope: getFileScope(),
     ignorePatterns: resolveWorkspaceIgnorePatterns(root),
     includePaths: workspaceScope?.relativeFiles,
+    targetPolicy,
     convert: false,
   });
 }
@@ -53,19 +61,18 @@ export async function convertEncodings(
   root: string,
   workspaceScope?: KtcWorkspaceFileScope,
 ): Promise<FileEncodingWalkReport | undefined> {
-  const preview = await scanEncodings(root, workspaceScope);
+  const targetPolicy = getEncodingTargetPolicy();
+  const preview = await scanEncodings(root, workspaceScope, targetPolicy);
   const counts = countConvertibleRows(preview.results);
 
   if (counts.total === 0) {
     return preview;
   }
 
-  let msg = `将把 ${counts.total} 个文件转为 UTF-8：`;
-  const parts: string[] = [];
-  if (counts.gbk) parts.push(`GBK ${counts.gbk}`);
-  if (counts.bom) parts.push(`去 BOM ${counts.bom}`);
-  if (counts.utf16) parts.push(`UTF-16 ${counts.utf16}`);
-  msg += ` ${parts.join("、")}。`;
+  const parts = Object.entries(counts.actions)
+    .map(([action, count]) => `${action} ${count}`);
+  let msg = `将按当前项目策略转换 ${counts.total} 个文件：${parts.join("、")}。`;
+  msg += ` 策略：${encodingTargetPolicySummary(targetPolicy)}。`;
   if (counts.utf16 > 0) {
     msg += " 含 UTF-16 整文件重编码，请确认已备份或已提交 Git。";
   }
@@ -81,6 +88,7 @@ export async function convertEncodings(
     scope: getFileScope(),
     ignorePatterns: resolveWorkspaceIgnorePatterns(root),
     includePaths: workspaceScope?.relativeFiles,
+    targetPolicy,
     convert: true,
   });
 }
@@ -133,7 +141,7 @@ export async function runEncodingFixAction(
         status: "done",
         message:
           report.issueFiles === 0
-            ? `已扫描 ${report.scanned} 个文件，编码均符合 UTF-8。`
+            ? `已扫描 ${report.scanned} 个文件，编码均符合项目目标（${encodingTargetPolicySummary(report.targetPolicy)}）。`
             : `已扫描 ${report.scanned} 个文件，${report.issueFiles} 个不符合期望。`,
         encodingResults: reportToEncodingResults(report),
         scanned: report.scanned,
@@ -151,7 +159,7 @@ export async function runEncodingFixAction(
       if (report.convertedFiles === 0) {
         ctx.postState({
           status: "done",
-          message: "没有可自动转换的文件。",
+          message: "没有可无损自动转换的文件；其余不符合项仅报告。",
           encodingResults: reportToEncodingResults(report),
           scanned: report.scanned,
           issueFiles: report.issueFiles,
@@ -159,10 +167,10 @@ export async function runEncodingFixAction(
         return;
       }
       logEncodingReport(report, true, ctx.log);
-      const rescan = await scanEncodings(ctx.workspaceRoot, workspaceScope);
+      const rescan = await scanEncodings(ctx.workspaceRoot, workspaceScope, report.targetPolicy);
       ctx.postState({
         status: "done",
-        message: `已转换 ${report.convertedFiles} 个文件为 UTF-8。`,
+        message: `已按项目编码目标转换 ${report.convertedFiles} 个文件。`,
         encodingResults: reportToEncodingResults(rescan),
         scanned: rescan.scanned,
         issueFiles: rescan.issueFiles,

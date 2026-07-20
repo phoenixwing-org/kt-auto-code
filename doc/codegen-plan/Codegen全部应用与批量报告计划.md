@@ -8,7 +8,7 @@ Owner：KT Auto Code maintainers
 
 建立日期：2026-07-18
 
-本文是“全部应用 2.0”安全编排与完整批量报告的未来设计真源。当前已落地的简版 V1 行为与证据见 [`Codegen全部应用点检表.md`](Codegen全部应用点检表.md)：V1 已在批次结束后自动新开一次性轻量报告，并记录单项 Apply 的实际修改文件/区域数及结构化问题；它不持久化，也没有跨 JSON 冲突、取消、独立 Problems、receipt 明细/唯一文件统计和重新打开入口。不得把这页轻量报告冒充 2.0 完整批次报告。
+本文是“全部应用 2.0”安全编排与完整批量报告的未来设计真源。当前已落地的简版 V1 行为与证据见 [`Codegen全部应用点检表.md`](Codegen全部应用点检表.md)：V1 已把 single/batch 报告写入 `.phoenix/reports/codegen/`，通过 Primary 列表重开并在动态 View 中按 JSON 筛选、打开 Codegen View 和定位问题；它也已区分正常/警告/错误与已更新/内容一致/部分更新/未应用，并让批量任务在后台 session 中运行而不铺开 Panel。实现细节见 [`Codegen应用报告与View生命周期改进计划.md`](Codegen应用报告与View生命周期改进计划.md)。V1 仍没有跨 JSON 冲突、取消、独立 Problems 和完整 receipt/唯一文件统计，不得冒充 2.0 完整批次报告。
 
 ## 1. 目标与范围
 
@@ -92,7 +92,7 @@ flowchart TD
 | Apply | 修改文件、写入 region、receipt 状态、耗时 |
 | 说明 | 一行原因、warning/error 数量、可定位诊断引用 |
 
-真实 V1 回执表明“每 JSON 一行”信息架构可用，但 V2 必须把 error/warning 数量做成表格直接列，不能只藏在批次下方的问题列表。点击 JSON 行至少提供两种明确结果之一：打开对应 JSON View，或在报告内展开该 JSON 的问题；若存在可定位诊断，再提供“定位第一条问题”，不能让点击行为依赖隐含的当前活动 View。
+真实 V1 回执表明“每 JSON 一行”信息架构可用；当前轻量 View 已可用 Combo 选择已有 JSON、打开对应 JSON，并从问题列表定位源码。V2 仍必须把 error/warning 数量做成表格直接列，不能只藏在批次下方的问题列表；还应允许在报告内展开该 JSON 的完整问题，并提供明确的“定位第一条问题”，不能让点击行为依赖隐含的当前活动 View。
 
 批次总计同时记录：JSON 总数、ready / 成功 / 跳过 / 阻止 / 失败数量、唯一修改文件数、实际文件写入次数、区域数、预检耗时、Apply 耗时和按钮点击到报告完成的总耗时。
 
@@ -104,7 +104,7 @@ flowchart TD
 
 2.0 采用按需打开的编辑区 `Codegen 全部应用报告` WebviewPanel：
 
-V1 已复用相同标题提供一次性只读报告，以便尽早验证表格信息架构。2.0 可以演进该 View，但必须替换为 Host 持有、可重建的完整 BatchReport，不能依赖 V1 Panel 仍然打开。
+V1 已提供脚本化只读报告 View：single/batch DTO 持久化后由 Primary 列表重开，Panel 保持打开时复用，Combo 可按已有 JSON 过滤，并通过 Host 校验后的消息打开 Codegen View 或定位问题。2.0 可以演进该 View，但需补齐完整 BatchReport、独立批次 Problems 与取消/冲突证据。
 
 - 完成、取消或阻断后自动打开；Primary 保留最近一次摘要与 `查看报告`。
 - 表格可筛选状态、复制 TSV/Markdown 摘要、打开 JSON 或定位第一条诊断。
