@@ -164,6 +164,8 @@ describe("associated rule picker web component", () => {
     const confirm = findNodes(element.shadow, (node) => node.textContent === "添加")[0]!;
     expect(checks).toEqual(expected);
     expect(confirm.disabled).toBe(!expected.some(Boolean));
+    expect(findNodes(element.shadow, (node) => node.className === "summary")[0]?.textContent)
+      .toBe(picker(mode).summary);
   });
 
   it("自定义 Source 自动勾选、保留原始值并只发 confirm", async () => {

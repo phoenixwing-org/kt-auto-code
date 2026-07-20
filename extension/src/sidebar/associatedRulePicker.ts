@@ -34,6 +34,7 @@ const STYLE = `
     border-bottom: 1px solid var(--vscode-panel-border);
   }
   .header strong { font-size: 12px; font-weight: 600; }
+  .header .summary { margin-left: auto; color: var(--vscode-descriptionForeground); font-size: 10px; }
   .close {
     width: 24px;
     height: 24px;
@@ -117,6 +118,7 @@ export class KtcAssociatedRulePicker extends HTMLElement {
   private readonly root = this.attachShadow({ mode: "open" });
   private dialog: HTMLDialogElement | undefined;
   private titleElement: HTMLElement | undefined;
+  private summaryElement: HTMLElement | undefined;
   private list: HTMLElement | undefined;
   private confirm: HTMLButtonElement | undefined;
   private activeModel: KtcAssociatedRulePickerState | undefined;
@@ -152,10 +154,12 @@ export class KtcAssociatedRulePicker extends HTMLElement {
     const title = document.createElement("strong");
     title.id = "associated-rule-picker-title";
     title.textContent = "添加关联规则";
+    const summary = document.createElement("span");
+    summary.className = "summary";
     const close = this.button("×", "close", () => this.cancelPicker());
     close.title = "关闭";
     close.setAttribute("aria-label", "关闭");
-    header.append(title, close);
+    header.append(title, summary, close);
     const list = document.createElement("div");
     list.className = "list";
     const footer = document.createElement("div");
@@ -172,13 +176,15 @@ export class KtcAssociatedRulePicker extends HTMLElement {
     this.root.replaceChildren(style, dialog);
     this.dialog = dialog;
     this.titleElement = title;
+    this.summaryElement = summary;
     this.list = list;
     this.confirm = confirm;
   }
 
   private renderModel(model: KtcAssociatedRulePickerState): void {
-    if (!this.list || !this.titleElement) return;
+    if (!this.list || !this.titleElement || !this.summaryElement) return;
     this.titleElement.textContent = model.title || "添加关联规则";
+    this.summaryElement.textContent = model.summary || `${model.candidates.length} 条候选`;
     this.candidateChecks = [];
     this.customEnabled = undefined;
     this.customSearch = undefined;

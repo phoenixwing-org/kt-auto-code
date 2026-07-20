@@ -25,7 +25,11 @@ import { getWorkspaceLabel, getWorkspaceRoot } from "../workspace.js";
 import { getPanelHtml, postToWebview } from "./panelHtml.js";
 import type { ToolOptionsState } from "../tools/types.js";
 import { KtcSearchReplaceProfileController } from "../searchReplaceProfileController.js";
-import { ktcIgnoreController, ktcIsIgnoreMessage } from "../ignoreController.js";
+import {
+  ktcDefaultIgnoreGroupIds,
+  ktcIgnoreController,
+  ktcIsIgnoreMessage,
+} from "../ignoreController.js";
 import {
   KtcRecentWorkingDirectoryStore,
   KtcRecentWorkspaceDirectoryStore,
@@ -537,9 +541,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
           message: result.message,
           ignoreRecommendations: result.recommendations,
           ignoreSelectedGroupIds: message.type === "analyzeIgnore"
-            ? result.recommendations.recommendations
-              .filter((group) => group.defaultSelected && group.suggestedRules.length > 0)
-              .map((group) => group.groupId)
+            ? ktcDefaultIgnoreGroupIds(result.recommendations.recommendations)
             : previous.filter((groupId) => selectable.has(groupId)),
         });
       } else if (result.summary) {

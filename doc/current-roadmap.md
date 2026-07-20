@@ -35,6 +35,9 @@ Owner：KT Auto Code maintainers
 - 开源仓库 URL TODO 已按当前 Git remote 核实为 Gitee；extension manifest 的 repository、bugs 与 homepage 已存在，无需重复修改。
 - 搜索替换已开放底层原有的“同时匹配全大写”能力，状态可随 Block 和规则档案持久；真实预览/写盘回归已追加到 Extension Host 待测试列表。
 - 编码修正的 UTF-8 / GBK 默认目标在写入后立即回传 Webview，不再因旧 `toolOptions` 渲染回弹；切换后主动废弃上一目标的预检结果。
+- Ignore Host 入站守卫会校验 preset/action/推荐组 ID，分析结果最多默认勾选首个安全可追加组；工作集追加会在读取磁盘配置前拒绝 dirty 的 `worksets.json`，避免以旧磁盘内容覆盖用户缓冲区。
+- 头文件 ASCII、编码修正与 Ignore 同步已补齐 Controller 级取消/缺失工作区/dirty 缓冲区测试；关联规则选择器显示候选数和默认选中数，降低批量追加前的误判。
+- 今天累计的跨功能人工步骤统一收录于[2026-07-20 功能修复人工点检表](2026-07-20-功能修复人工点检表.md)，自动门禁与手工回执分开记录。
 
 ## 已完成第一波：Codegen 控制符目录与模板日志
 

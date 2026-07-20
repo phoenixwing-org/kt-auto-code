@@ -72,6 +72,7 @@ import {
   invalidateWorkspaceIgnorePatterns,
   resolveWorkspaceIgnorePatterns,
 } from "./ignoreConfig.js";
+import { KtcIgnoreController, ktcDefaultIgnoreGroupIds, ktcIsIgnoreMessage } from "./ignoreController.js";
 
 const tempRoots: string[] = [];
 
@@ -92,6 +93,25 @@ afterEach(() => {
 });
 
 describe("Ignore document host adapter", () => {
+  it("rejects malformed preset and recommendation messages at the Host boundary", () => {
+    expect(ktcIsIgnoreMessage({ type: "applyIgnorePreset", presetId: "cpp", action: "append" })).toBe(true);
+    expect(ktcIsIgnoreMessage({ type: "applyIgnoreRecommendations", groupIds: ["build-cache"] })).toBe(true);
+    expect(ktcIsIgnoreMessage({ type: "applyIgnorePreset", presetId: "invalid", action: "append" } as never)).toBe(false);
+    expect(ktcIsIgnoreMessage({ type: "applyIgnorePreset", presetId: "cpp", action: "replace" } as never)).toBe(false);
+    expect(ktcIsIgnoreMessage({ type: "applyIgnoreRecommendations", groupIds: [""] } as never)).toBe(false);
+    expect(ktcIsIgnoreMessage({ type: "applyIgnoreRecommendations" } as never)).toBe(false);
+  });
+
+  it("selects at most one safe Ignore recommendation group by default", () => {
+    const groups = [
+      { groupId: "empty", defaultSelected: true, suggestedRules: [] },
+      { groupId: "first-safe", defaultSelected: true, suggestedRules: ["build/"] },
+      { groupId: "second-safe", defaultSelected: true, suggestedRules: ["cache/"] },
+    ];
+    expect(ktcDefaultIgnoreGroupIds(groups)).toEqual(["first-safe"]);
+    expect(ktcDefaultIgnoreGroupIds(groups.map((group) => ({ ...group, defaultSelected: false })))).toEqual([]);
+  });
+
   it("updates only the open buffer, marks it dirty, and leaves disk bytes unchanged", async () => {
     const root = workspaceRoot();
     const filename = path.join(root, ".phoenix", ".ignore");
@@ -104,6 +124,27 @@ describe("Ignore document host adapter", () => {
     expect(document.isDirty).toBe(true);
     expect(document.getText()).toContain("# >>> KT Auto Code preset:web");
     expect(summary.statusText).toContain("未保存");
+    expect(fs.readFileSync(filename, "utf8")).toBe(diskText);
+  });
+
+  it("routes gitignore sync through the Controller and reports the dirty buffer summary", async () => {
+    const root = workspaceRoot();
+    const filename = path.join(root, ".phoenix", ".ignore");
+    const diskText = "custom-cache/\n";
+    fs.writeFileSync(filename, diskText, "utf8");
+    fs.writeFileSync(path.join(root, ".gitignore"), "node_modules/\n", "utf8");
+    const summaries: string[] = [];
+
+    const result = await new KtcIgnoreController().handle(
+      { type: "syncIgnoreFromGit" },
+      root,
+      (summary) => summaries.push(summary.statusText),
+    );
+
+    expect(result.error).toBeUndefined();
+    expect(result.summary?.statusText).toContain("未保存");
+    expect(summaries).toEqual([expect.stringContaining("未保存")]);
+    expect(documents[0]?.getText()).toContain("node_modules/");
     expect(fs.readFileSync(filename, "utf8")).toBe(diskText);
   });
 

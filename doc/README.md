@@ -6,7 +6,7 @@ Owner：KT Auto Code maintainers
 
 适用版本：0.5.x
 
-最后核验：2026-07-17
+最后核验：2026-07-20
 
 本页是当前文档的唯一导航。全部 Markdown 的状态、owner、适用版本和替代关系由 [`document-manifest.json`](document-manifest.json) 记录；运行 `pnpm docs:check` 检查清单漂移和 current 文档断链。
 
@@ -27,6 +27,7 @@ Owner：KT Auto Code maintainers
 - [Codegen 手工验收](codegen-plan/Codegen手工验收.md)
 - [Codegen 全部应用 V1 点检](codegen-plan/Codegen全部应用点检表.md)与[2.0 批量报告计划](codegen-plan/Codegen全部应用与批量报告计划.md)
 - [Extension Host 自动验收](ExtensionHost自动验收.md)
+- [2026-07-20 功能修复人工点检表](2026-07-20-功能修复人工点检表.md)
 - [搜索替换行为规范](搜索替换.md)、[编码规则](搜索替换编码规则.md)与[算法审计](搜索替换算法审计.md)
 - [关联规则选择器组件化 Baseline 点检](关联规则选择器组件化Baseline点检表.md)
 - [C++ 成员排序 Page shell 拆分点检](成员排序PageShell拆分点检表.md)

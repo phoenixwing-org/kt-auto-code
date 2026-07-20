@@ -1,5 +1,9 @@
 import * as vscode from "vscode";
-import { ktcIgnoreController, type KtcIgnoreMessage } from "../../ignoreController.js";
+import {
+  ktcDefaultIgnoreGroupIds,
+  ktcIgnoreController,
+  type KtcIgnoreMessage,
+} from "../../ignoreController.js";
 import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
 import { getWorkspaceRoot } from "../../workspace.js";
 
@@ -53,9 +57,7 @@ async function runIgnoreCommand(message: KtcIgnoreMessage): Promise<void> {
       status: "done",
       message: result.message,
       ignoreRecommendations: result.recommendations,
-      ignoreSelectedGroupIds: result.recommendations.recommendations
-        .filter((group) => group.defaultSelected && group.suggestedRules.length > 0)
-        .map((group) => group.groupId),
+      ignoreSelectedGroupIds: ktcDefaultIgnoreGroupIds(result.recommendations.recommendations),
     });
   } else {
     ctx.postState({ status: "done", message: result.summary?.statusText ?? "Ignore 设置已更新。" });
