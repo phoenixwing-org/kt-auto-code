@@ -205,7 +205,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     if (this.moduleView) {
       this.moduleView.title = tool.title;
       await this.sendInit(this.moduleView);
-      this.moduleView.show(false);
+      if (!this.moduleView.visible) this.moduleView.show(false);
     } else {
       try { await vscode.commands.executeCommand(`${SidebarViewProvider.moduleViewType}.focus`); } catch { /* view resolves lazily */ }
     }
@@ -235,7 +235,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     if (this.moduleView) {
       this.moduleView.title = moduleTools.find((tool) => tool.id === toolId)?.title ?? "工具界面";
       await this.sendInit(this.moduleView);
-      this.moduleView.show(false);
+      if (!this.moduleView.visible) this.moduleView.show(false);
     } else {
       try { await vscode.commands.executeCommand(`${SidebarViewProvider.moduleViewType}.focus`); } catch { /* view resolves lazily */ }
     }
