@@ -75,7 +75,9 @@ export function reportToResults(report: WorkspaceReport): FileResultSummary[] {
 }
 
 export function logReport(report: WorkspaceReport, fix: boolean, log: (text: string) => void): void {
-  log(formatWorkspaceReport(report, fix));
+  log(formatWorkspaceReport(report, fix, {
+    fixInstruction: "请在 Primary 中点击「修复」进行处理。",
+  }));
 }
 
 export async function openIssueFile(
@@ -99,7 +101,7 @@ export async function runHeaderAsciiAction(
   if (!ctx.workspaceRoot) {
     ctx.postState({
       status: "error",
-      message: "请先打开包含 C++ 头文件的工作区文件夹。",
+      message: "请先打开包含 C/C++ 源码的工作区文件夹。",
     });
     return;
   }
@@ -125,8 +127,8 @@ export async function runHeaderAsciiAction(
         status: "done",
         message:
           report.issueFiles === 0
-            ? `已预检 ${report.scanned} 个头文件，未发现问题。`
-            : `已预检 ${report.scanned} 个头文件，${report.issueFiles} 个文件有问题。`,
+            ? `已预检 ${report.scanned} 个文件（${scopeSummary(scope)}），未发现问题。`
+            : `已预检 ${report.scanned} 个文件（${scopeSummary(scope)}），${report.issueFiles} 个文件有问题。`,
         results: reportToResults(report),
         scanned: report.scanned,
         issueFiles: report.issueFiles,

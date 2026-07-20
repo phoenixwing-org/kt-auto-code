@@ -4,6 +4,10 @@ import {
   type KtcCodegenBatchApplyItemResult,
 } from "./batchApplyV1.js";
 
+export const KTC_CODEGEN_APPLY_REPORT_KIND = "kt.codegen.apply-report" as const;
+export const KTC_CODEGEN_APPLY_REPORT_SCHEMA_VERSION = 1 as const;
+export type KtcCodegenApplyReportKind = "single" | "batch";
+
 export interface KtcCodegenBatchApplyReportIssue {
   readonly severity: "error" | "warning";
   readonly code: string;
@@ -24,6 +28,12 @@ export interface KtcCodegenBatchApplyReportItem extends KtcCodegenBatchApplyItem
 }
 
 export interface KtcCodegenBatchApplyReport {
+  readonly kind: typeof KTC_CODEGEN_APPLY_REPORT_KIND;
+  readonly schemaVersion: typeof KTC_CODEGEN_APPLY_REPORT_SCHEMA_VERSION;
+  readonly reportId: string;
+  readonly applyKind: KtcCodegenApplyReportKind;
+  readonly startedAt: string;
+  readonly finishedAt: string;
   readonly elapsedMilliseconds: number;
   readonly items: readonly KtcCodegenBatchApplyReportItem[];
   readonly totals: ReturnType<typeof ktcCodegenBatchApplyTotals>;
@@ -34,9 +44,24 @@ export interface KtcCodegenBatchApplyReport {
 export function ktcCodegenBatchApplyReport(
   items: readonly KtcCodegenBatchApplyReportItem[],
   elapsedMilliseconds: number,
+  metadata: {
+    readonly reportId?: string;
+    readonly applyKind?: KtcCodegenApplyReportKind;
+    readonly startedAt?: string;
+    readonly finishedAt?: string;
+  } = {},
 ): KtcCodegenBatchApplyReport {
+  const finishedAt = validDate(metadata.finishedAt) ?? new Date().toISOString();
+  const duration = finiteDuration(elapsedMilliseconds);
   return {
-    elapsedMilliseconds: finiteDuration(elapsedMilliseconds),
+    kind: KTC_CODEGEN_APPLY_REPORT_KIND,
+    schemaVersion: KTC_CODEGEN_APPLY_REPORT_SCHEMA_VERSION,
+    reportId: metadata.reportId ?? globalThis.crypto.randomUUID(),
+    applyKind: metadata.applyKind ?? "batch",
+    startedAt: validDate(metadata.startedAt)
+      ?? new Date(Math.max(0, Date.parse(finishedAt) - duration)).toISOString(),
+    finishedAt,
+    elapsedMilliseconds: duration,
     items: [...items],
     totals: ktcCodegenBatchApplyTotals(items),
     errorCount: items.reduce(
@@ -86,4 +111,8 @@ export function ktcCodegenBatchApplyReportFailure(
 
 function finiteDuration(value: number): number {
   return Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+}
+
+function validDate(value: string | undefined): string | undefined {
+  return value && !Number.isNaN(Date.parse(value)) ? new Date(value).toISOString() : undefined;
 }

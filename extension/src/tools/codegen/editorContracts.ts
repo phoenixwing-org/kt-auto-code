@@ -21,8 +21,10 @@ export type KtcCodegenSidebarActionMessage = {
   readonly type: "codegenAction";
   readonly toolId: "codegen";
   readonly action: "refresh" | "openJson" | "importCsv" | "openDocument" | "updateMeta"
-    | "scanCandidates" | "openCandidate" | "cancelOperation" | "copyDiagnostics" | "applyAll";
+    | "scanCandidates" | "openCandidate" | "cancelOperation" | "copyDiagnostics" | "applyAll"
+    | "openReport" | "openReportDirectory";
   readonly uri?: string;
+  readonly reportId?: string;
   readonly field?: KtcCodegenMetaField;
   readonly value?: string;
 };

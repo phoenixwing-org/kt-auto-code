@@ -78,6 +78,13 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('msg.type === "openTools"');
     expect(html).not.toContain('body.detail-block #results');
     expect(html).toContain('renderEncodingResults(ts, !!state.showEncDetails)');
+    expect(html).toContain('id="encoding-default-target"');
+    expect(html).toContain('id="btn-encoding-settings"');
+    expect(html).toContain('id="target-overrides"');
+    expect(html).toContain('type: "setEncodingDefaultTarget"');
+    expect(html).toContain('type: "openEncodingSettings"');
+    expect(html).toContain('"项目覆盖：" + overrides.join(" · ")');
+    expect(html).toContain('"所有文件均符合当前项目编码目标。"');
     expect(html).toContain('renderHeaderResults(ts, !!state.showDetails)');
     expect(html).toContain('renderCodeRenameResults(ts)');
     expect(html).toContain('renderIgnoreResults(ts)');
@@ -143,6 +150,13 @@ describe("sidebar panel HTML", () => {
     expect(profileController).not.toContain("showWarningMessage");
     const encodingCommands = readFileSync(new URL("../tools/encodingFix/commands.ts", import.meta.url), "utf8");
     expect(encodingCommands).not.toContain("是否查看预检结果");
+    const encodingOptions = readFileSync(new URL("../tools/encodingFix/options.ts", import.meta.url), "utf8");
+    expect(encodingOptions).toContain("vscode.ConfigurationTarget.WorkspaceFolder");
+    expect(encodingOptions).toContain('"workbench.action.openWorkspaceSettings"');
+    expect(encodingOptions).toContain('config.update("defaultTarget", value, targetScope)');
+    const sidebarProvider = readFileSync(new URL("./sidebarViewProvider.ts", import.meta.url), "utf8");
+    expect(sidebarProvider).toContain("invalidateEncodingFixResults()");
+    expect(sidebarProvider).toContain('message: "项目编码目标已更新，请重新预检。"');
   });
 
   it("只把 Codegen Host 状态投影给 Primary 页面组件", () => {
@@ -192,6 +206,8 @@ describe("sidebar panel HTML", () => {
       activeUri: "file:///workspace/root.json",
       controls,
       candidates,
+      reports: [],
+      reportInvalidCount: 0,
       operation: "discovery",
       batch: undefined,
       running: true,
@@ -203,6 +219,8 @@ describe("sidebar panel HTML", () => {
       activeUri: undefined,
       controls: undefined,
       candidates: [],
+      reports: [],
+      reportInvalidCount: 0,
       operation: undefined,
       batch: undefined,
       running: false,
@@ -286,6 +304,20 @@ describe("sidebar panel HTML", () => {
       "ktAutoCode.environment.rootDirCore",
       "ktAutoCode.environment.mkVersion",
     ]));
+    expect(manifest.contributes.configuration.properties["ktAutoCode.encodingFix.defaultTarget"]).toMatchObject({
+      type: "string",
+      enum: ["utf8", "gbk"],
+      default: "utf8",
+      scope: "resource",
+    });
+    for (const key of ["headerTarget", "sourceTarget", "markdownTarget"]) {
+      expect(manifest.contributes.configuration.properties[`ktAutoCode.encodingFix.${key}`]).toMatchObject({
+        type: "string",
+        enum: ["inherit", "ascii", "utf8", "gbk"],
+        default: "inherit",
+        scope: "resource",
+      });
+    }
   });
 
   it("新扫描全选 pending，同一缓存更新保留用户取消选择", () => {

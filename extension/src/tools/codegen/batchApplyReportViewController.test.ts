@@ -1,53 +1,180 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createWebviewPanel } = vi.hoisted(() => ({ createWebviewPanel: vi.fn() }));
-vi.mock("vscode", () => ({ ViewColumn: { Active: 1 }, window: { createWebviewPanel } }));
+const {
+  createWebviewPanel,
+  openTextDocument,
+  showTextDocument,
+  showErrorMessage,
+  openCodegenJson,
+  uriParse,
+  uriFile,
+} = vi.hoisted(() => ({
+  createWebviewPanel: vi.fn(),
+  openTextDocument: vi.fn(),
+  showTextDocument: vi.fn(),
+  showErrorMessage: vi.fn(),
+  openCodegenJson: vi.fn(),
+  uriParse: vi.fn((value: string) => ({ kind: "parse", value })),
+  uriFile: vi.fn((value: string) => ({ kind: "file", value })),
+}));
+vi.mock("vscode", () => ({
+  ViewColumn: { Active: 1 },
+  Range: class Range { constructor(public line: number) {} },
+  Uri: { parse: uriParse, file: uriFile },
+  workspace: { openTextDocument },
+  window: {
+    createWebviewPanel,
+    showTextDocument,
+    showErrorMessage,
+  },
+}));
 
 import type * as vscode from "vscode";
-import { KtcCodegenBatchApplyReportViewController } from "./batchApplyReportViewController.js";
+import type { KtcCodegenBatchApplyReport } from "./batchApplyReport.js";
+import {
+  KtcCodegenBatchApplyReportViewController,
+  ktcResolveCodegenBatchApplyReportAction,
+} from "./batchApplyReportViewController.js";
 
-function fakePanel(): vscode.WebviewPanel {
+interface FakePanel {
+  readonly webview: vscode.Webview;
+  readonly reveal: ReturnType<typeof vi.fn>;
+  readonly dispose: ReturnType<typeof vi.fn>;
+  fireMessage(message: unknown): Promise<void>;
+}
+
+function fakePanel(): FakePanel {
   let disposeListener: (() => void) | undefined;
+  let messageListener: ((message: unknown) => unknown) | undefined;
   const panel = {
-    webview: { html: "" },
+    webview: {
+      html: "",
+      onDidReceiveMessage: vi.fn((listener: (message: unknown) => unknown) => {
+        messageListener = listener;
+        return { dispose: vi.fn() };
+      }),
+    },
+    reveal: vi.fn(),
     dispose: vi.fn(() => disposeListener?.()),
     onDidDispose: vi.fn((listener: () => void) => {
       disposeListener = listener;
       return { dispose: vi.fn() };
     }),
+    async fireMessage(message: unknown) {
+      await messageListener?.(message);
+    },
   };
-  return panel as unknown as vscode.WebviewPanel;
+  return panel as unknown as FakePanel;
 }
 
-const report = {
-  elapsedMilliseconds: 10,
-  totals: { total: 0, applied: 0, partial: 0, notWritten: 0 },
-  errorCount: 0,
-  warningCount: 0,
-  items: [],
-};
+function report(fileName = "A.json"): KtcCodegenBatchApplyReport {
+  const uri = `file:///workspace/${fileName}`;
+  return {
+    kind: "kt.codegen.apply-report",
+    schemaVersion: 1,
+    reportId: "12345678-1234-4234-8234-123456789abc",
+    applyKind: "batch",
+    startedAt: "2026-07-20T12:00:00.000Z",
+    finishedAt: "2026-07-20T12:00:00.010Z",
+    elapsedMilliseconds: 10,
+    totals: { total: 1, success: 0, warning: 0, error: 1, updated: 0, unchanged: 0, partial: 1, notApplied: 0 },
+    errorCount: 1,
+    warningCount: 0,
+    items: [{
+      uri,
+      fileName,
+      health: "error",
+      change: "partial",
+      reasonCode: "partial-with-errors",
+      errorCount: 1,
+      preflightRegionCount: 2,
+      preflightArtifactCount: 1,
+      preflightDiagnosticCount: 1,
+      preflightErrorCount: 1,
+      modifiedFileCount: 1,
+      writtenRegionCount: 1,
+      elapsedMilliseconds: 8,
+      issues: [{
+        severity: "error",
+        code: "marker.missing-end",
+        message: "缺少 End",
+        file: "/workspace/Part.cpp",
+        line: 7,
+      }],
+    }],
+  };
+}
 
 describe("KtcCodegenBatchApplyReportViewController", () => {
-  beforeEach(() => createWebviewPanel.mockReset());
+  beforeEach(() => {
+    createWebviewPanel.mockReset();
+    openTextDocument.mockReset();
+    showTextDocument.mockReset();
+    showErrorMessage.mockReset();
+    openCodegenJson.mockReset();
+    uriParse.mockClear();
+    uriFile.mockClear();
+  });
 
-  it("每次完成都新建非持久、无脚本的报告标签", () => {
-    const first = fakePanel();
-    const second = fakePanel();
-    createWebviewPanel.mockReturnValueOnce(first).mockReturnValueOnce(second);
-    const views = new KtcCodegenBatchApplyReportViewController();
-    views.show(report);
-    views.show(report);
-    expect(createWebviewPanel).toHaveBeenCalledTimes(2);
+  it("复用一个脚本化报告 View，并用新报告 JSON 更新内容", () => {
+    const panel = fakePanel();
+    createWebviewPanel.mockReturnValue(panel);
+    const views = new KtcCodegenBatchApplyReportViewController({ openCodegenJson });
+    views.show(report("A.json"));
+    views.show(report("B.json"));
+
+    expect(createWebviewPanel).toHaveBeenCalledTimes(1);
     expect(createWebviewPanel).toHaveBeenCalledWith(
       "ktAutoCode.codegenBatchApplyReport",
-      "Codegen 全部应用报告",
+      "Codegen 应用报告",
       { viewColumn: 1, preserveFocus: false },
-      { enableScripts: false, retainContextWhenHidden: true },
+      { enableScripts: true, retainContextWhenHidden: true },
     );
-    expect(first.webview.html).toContain("本批次没有错误或警告");
-    expect(second.webview.html).toContain("Codegen 全部应用报告");
+    expect(panel.reveal).toHaveBeenCalledTimes(2);
+    expect(panel.webview.html).toContain("B.json");
+    expect(panel.webview.html).not.toContain("A.json");
     views.dispose();
-    expect(first.dispose).toHaveBeenCalledTimes(1);
-    expect(second.dispose).toHaveBeenCalledTimes(1);
+    expect(panel.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("只解析当前报告中存在的 JSON 和问题位置", () => {
+    const current = report();
+    expect(ktcResolveCodegenBatchApplyReportAction(current, {
+      type: "openJson",
+      uri: "file:///workspace/A.json",
+    })).toEqual({ kind: "json", uri: "file:///workspace/A.json" });
+    expect(ktcResolveCodegenBatchApplyReportAction(current, {
+      type: "openIssue",
+      file: "/workspace/Part.cpp",
+      line: 7,
+    })).toEqual({ kind: "issue", file: "/workspace/Part.cpp", line: 7 });
+    expect(ktcResolveCodegenBatchApplyReportAction(current, {
+      type: "openJson",
+      uri: "file:///workspace/Other.json",
+    })).toBeUndefined();
+    expect(ktcResolveCodegenBatchApplyReportAction(current, {
+      type: "openIssue",
+      file: "/workspace/Part.cpp",
+      line: 8,
+    })).toBeUndefined();
+  });
+
+  it("链接由 Host 打开当前报告文件，伪造路径不执行", async () => {
+    const panel = fakePanel();
+    createWebviewPanel.mockReturnValue(panel);
+    openTextDocument.mockResolvedValue({ lineCount: 20 });
+    const views = new KtcCodegenBatchApplyReportViewController({ openCodegenJson });
+    views.show(report());
+
+    await panel.fireMessage({ type: "openJson", uri: "file:///workspace/A.json" });
+    await panel.fireMessage({ type: "openIssue", file: "/workspace/Part.cpp", line: 7 });
+    await panel.fireMessage({ type: "openJson", uri: "file:///workspace/Forged.json" });
+
+    expect(openCodegenJson).toHaveBeenCalledWith("file:///workspace/A.json");
+    expect(uriFile).toHaveBeenCalledWith("/workspace/Part.cpp");
+    expect(openTextDocument).toHaveBeenCalledTimes(1);
+    expect(showTextDocument).toHaveBeenCalledTimes(1);
+    expect(showTextDocument.mock.calls[0]?.[1]).toMatchObject({ preview: true });
+    expect(showErrorMessage).not.toHaveBeenCalled();
   });
 });

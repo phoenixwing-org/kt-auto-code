@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it, expect } from "vitest";
+import iconv from "iconv-lite";
 import {
   formatSourceEncodingReport,
   sanitizeSourceForGbk,
+  sanitizeSourcePreservingEncoding,
   scanInvalidGbkBytes,
   scanInvalidUtf8Bytes,
   scanNonAsciiBytes,
@@ -50,6 +52,32 @@ describe("sourceEncodingScan", () => {
     expect(
       scanSourceEncoding(new Uint8Array(raw), { requireAscii: true }).some((x) => x.kind === "non_ascii"),
     ).toBe(true);
+  });
+
+  it("日志上下文按文档实际编码显示 UTF-8 与 GBK，不输出 Latin-1 乱码", () => {
+    const gbk = iconv.encode("// 检测到feature\n", "gbk");
+    const gbkIssues = scanInvalidUtf8Bytes(gbk);
+    expect(gbkIssues[0]?.context).toBe("// 检测到feature");
+    expect(formatSourceEncodingReport("Cmd.cpp", gbkIssues)).not.toContain("¼ì³öµ½");
+
+    const utf8 = new TextEncoder().encode("// 中文说明\n");
+    const utf8Issues = scanNonAsciiBytes(utf8);
+    expect(utf8Issues).toHaveLength(4);
+    expect(utf8Issues.every((issue) => issue.context === "// 中文说明")).toBe(true);
+  });
+
+  it("GBK 可表示性使用真实 CP936 编码器，不把普通中文误报为不可编码", () => {
+    const issues = scanSourceEncoding(new TextEncoder().encode("// 中文\n"));
+    expect(issues.some((issue) => issue.kind === "not_encodable_gbk")).toBe(false);
+  });
+
+  it("清理 UTF-8 时保持中文与 UTF-8 编码，只映射全角标点", () => {
+    const raw = new TextEncoder().encode("// 中文：说明\n");
+    const fixed = sanitizeSourcePreservingEncoding(raw, { preserveGbk: true });
+    expect(new TextDecoder("utf-8", { fatal: true }).decode(fixed)).toBe("// 中文:说明\n");
+
+    const ascii = sanitizeSourcePreservingEncoding(raw, { preserveGbk: false });
+    expect(new TextDecoder("utf-8", { fatal: true }).decode(ascii)).toBe("//   :  \n");
   });
 
   it("preserveGbk: false 时清除 GBK 中文", () => {

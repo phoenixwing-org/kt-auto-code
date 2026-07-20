@@ -8,11 +8,16 @@ import {
   type FileScopeOptions,
 } from "./workspace/scanScope.js";
 import {
-  convertFileToUtf8NoBom,
+  convertFileToExpectedEncoding,
+  DEFAULT_ENCODING_TARGET_POLICY,
   detectFileEncoding,
+  encodingTargetPolicySummary,
   evaluateFileEncoding,
+  expectedEncodingLabel,
+  getExpectationForFile,
   sortEncodingRows,
   type EncodingFixRow,
+  type EncodingTargetPolicy,
 } from "./fileEncoding.js";
 
 export interface CollectEncodingFilesOptions {
@@ -28,6 +33,7 @@ export interface ScanFileEncodingOptions extends CollectEncodingFilesOptions {
   root?: string;
   convert?: boolean;
   issuesOnly?: boolean;
+  targetPolicy?: EncodingTargetPolicy;
 }
 
 export interface FileEncodingWalkResult {
@@ -37,6 +43,7 @@ export interface FileEncodingWalkResult {
 
 export interface FileEncodingWalkReport {
   root: string;
+  targetPolicy: EncodingTargetPolicy;
   scanned: number;
   issueFiles: number;
   convertedFiles: number;
@@ -73,21 +80,32 @@ export function collectEncodingFixFiles(
   return files.filter((file) => included.has(relative(absRoot, file).replace(/\\/g, "/")));
 }
 
-function scanOneFile(filePath: string, root: string): EncodingFixRow {
+function scanOneFile(
+  filePath: string,
+  root: string,
+  targetPolicy: EncodingTargetPolicy,
+): EncodingFixRow {
   const buf = new Uint8Array(readFileSync(filePath));
   const info = detectFileEncoding(buf);
   const rel = relative(root, filePath).replace(/\\/g, "/");
-  return evaluateFileEncoding(filePath, rel, info);
+  return evaluateFileEncoding(
+    filePath,
+    rel,
+    info,
+    getExpectationForFile(filePath, targetPolicy),
+    buf,
+  );
 }
 
 export function scanFileEncodings(opts: ScanFileEncodingOptions = {}): FileEncodingWalkReport {
   const root = resolve(opts.root ?? process.cwd());
   const files = collectEncodingFixFiles(root, opts);
+  const targetPolicy = opts.targetPolicy ?? DEFAULT_ENCODING_TARGET_POLICY;
   const issuesOnly = opts.issuesOnly ?? true;
   const results: FileEncodingWalkResult[] = [];
 
   for (const filePath of files) {
-    const row = scanOneFile(filePath, root);
+    const row = scanOneFile(filePath, root, targetPolicy);
     if (issuesOnly && row.status === "ok") continue;
     results.push({ row, converted: false });
   }
@@ -98,6 +116,7 @@ export function scanFileEncodings(opts: ScanFileEncodingOptions = {}): FileEncod
 
   return {
     root,
+    targetPolicy,
     scanned: files.length,
     issueFiles: results.length,
     convertedFiles: 0,
@@ -108,6 +127,7 @@ export function scanFileEncodings(opts: ScanFileEncodingOptions = {}): FileEncod
 export function convertFileEncodings(opts: ScanFileEncodingOptions = {}): FileEncodingWalkReport {
   const root = resolve(opts.root ?? process.cwd());
   const files = collectEncodingFixFiles(root, opts);
+  const targetPolicy = opts.targetPolicy ?? DEFAULT_ENCODING_TARGET_POLICY;
   const results: FileEncodingWalkResult[] = [];
   let convertedFiles = 0;
 
@@ -115,16 +135,23 @@ export function convertFileEncodings(opts: ScanFileEncodingOptions = {}): FileEn
     const buf = new Uint8Array(readFileSync(filePath));
     const info = detectFileEncoding(buf);
     const rel = relative(root, filePath).replace(/\\/g, "/");
-    const row = evaluateFileEncoding(filePath, rel, info);
+    const rule = getExpectationForFile(filePath, targetPolicy);
+    const row = evaluateFileEncoding(filePath, rel, info, rule, buf);
     let converted = false;
 
     if (opts.convert && row.convertible) {
-      const out = convertFileToUtf8NoBom(buf, info);
+      const out = convertFileToExpectedEncoding(buf, info, row.expected);
       if (out) {
         writeFileSync(filePath, Buffer.from(out));
         converted = true;
         convertedFiles++;
-        const afterRow = evaluateFileEncoding(filePath, rel, detectFileEncoding(out));
+        const afterRow = evaluateFileEncoding(
+          filePath,
+          rel,
+          detectFileEncoding(out),
+          rule,
+          out,
+        );
         results.push({ row: afterRow, converted: true });
         continue;
       }
@@ -141,6 +168,7 @@ export function convertFileEncodings(opts: ScanFileEncodingOptions = {}): FileEn
 
   return {
     root,
+    targetPolicy,
     scanned: files.length,
     issueFiles: results.filter((r) => r.row.status !== "ok").length,
     convertedFiles,
@@ -164,7 +192,7 @@ export function formatFileEncodingReport(report: FileEncodingWalkReport, convert
         ? "未扫描到文件（请检查范围勾选或 .phoenix/.ignore）"
         : convert
           ? "无需转换"
-          : "编码均符合 UTF-8 期望";
+          : `编码均符合项目目标（${encodingTargetPolicySummary(report.targetPolicy)}）`;
     lines.push(`${report.root}: 已扫描 ${report.scanned} 个文件，${empty}。`);
     return lines.join("\n");
   }
@@ -181,7 +209,7 @@ export function formatFileEncodingReport(report: FileEncodingWalkReport, convert
       lines.push(`  BOM: ${row.bomHex}`);
     }
     lines.push(`  ${row.confidence}`);
-    if (converted) lines.push("  → 已转换为 UTF-8");
+    if (converted) lines.push(`  → 已转换为 ${expectedEncodingLabel(row.expected)}`);
   }
 
   if (convert) {
@@ -197,15 +225,28 @@ export function countConvertibleRows(results: FileEncodingWalkResult[]): {
   utf16: number;
   gbk: number;
   bom: number;
+  targets: Record<"ascii" | "utf8" | "gbk", number>;
+  actions: Record<string, number>;
 } {
   let utf16 = 0;
   let gbk = 0;
   let bom = 0;
+  const targets = { ascii: 0, utf8: 0, gbk: 0 };
+  const actions: Record<string, number> = {};
   for (const { row } of results) {
     if (!row.convertible) continue;
     if (row.detected === "utf16-le" || row.detected === "utf16-be") utf16++;
     else if (row.detected === "gbk") gbk++;
     else if (row.detected === "utf8-bom") bom++;
+    targets[row.expected]++;
+    actions[row.suggestedAction] = (actions[row.suggestedAction] ?? 0) + 1;
   }
-  return { total: utf16 + gbk + bom, utf16, gbk, bom };
+  return {
+    total: targets.ascii + targets.utf8 + targets.gbk,
+    utf16,
+    gbk,
+    bom,
+    targets,
+    actions,
+  };
 }

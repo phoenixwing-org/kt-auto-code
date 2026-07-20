@@ -260,9 +260,10 @@ describe("Codegen editor command controller", () => {
     expect(stopEvents).toEqual([
       "timer",
       "preflight:default",
-      "log:[Codegen][Apply] 自动预检未产生可用计划，Apply 已停止；耗时 3.60 s。",
+      "log:[Codegen][Apply] 自动预检未产生可用计划，将记录未应用报告；耗时 3.60 s。",
+      "apply:timer",
     ]);
     expect(stopTimer.elapsedText).toHaveBeenCalledTimes(1);
-    expect(stopActions.apply).not.toHaveBeenCalled();
+    expect(stopActions.apply).toHaveBeenCalledWith(stopTimer);
   });
 });

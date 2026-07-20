@@ -113,6 +113,16 @@ const model: KtcCodegenPrimaryViewModel = {
     encoding: "UTF-8",
     eol: "lf",
   }],
+  reports: [{
+    reportId: "12345678-1234-4234-8234-123456789abc",
+    fileName: "report.json",
+    applyKind: "single",
+    startedAt: "2026-07-20T12:00:00.000Z",
+    health: "success",
+    change: "unchanged",
+    itemCount: 1,
+    subject: "Demo.json",
+  }],
   controls: {
     kind: "kt.codegen.control-view-model",
     schemaVersion: 1,
@@ -163,7 +173,7 @@ describe("Codegen Primary panel", () => {
     const blockTitles = element.shadow.children
       .filter((node) => node.tagName === "details")
       .map((block) => findNodes(block, (node) => node.className.split(/\s+/u).includes("mini-title"))[0]?.textContent);
-    expect(blockTitles).toEqual(["Demo.json", "JSON 配置", "控制符目录", "控制符候选（工作区级）"]);
+    expect(blockTitles).toEqual(["Demo.json", "JSON 配置", "应用报告", "控制符目录", "控制符候选（工作区级）"]);
     const currentConfig = findNodes(element.shadow, (node) => node.attributes.get("aria-label") === "当前配置区")[0]!;
     expect(currentConfig.open).toBe(true);
     expect(findNodes(currentConfig, (node) => node.className.includes("current-file"))[0]!.title).toBe("");
@@ -185,6 +195,8 @@ describe("Codegen Primary panel", () => {
     expect(style).toContain("display: grid; gap: 4px;");
     expect(style).toContain("position: sticky; z-index: 12; top: 0;");
     expect(style).toContain("padding: 2px 5px 3px;");
+    expect(style).toContain("flex: 0 0 32px; width: 32px; height: 32px;");
+    expect(style).toContain(".action-icon { width: 24px; height: 24px;");
     expect(style).toContain("grid-auto-rows: 40px; gap: 0;");
     expect(style).toContain(".current-identity { display: flex;");
     expect(style).toContain(".candidate-list { grid-auto-rows: 30px; gap: 0; }");
@@ -254,6 +266,8 @@ describe("Codegen Primary panel", () => {
     findNodes(element.shadow, (node) => node.textContent === "取消刷新")[0]!.onclick?.();
     findNodes(element.shadow, (node) => node.title.includes("config/Demo.json"))[0]!.onclick?.();
     findNodes(element.shadow, (node) => node.title === "打开 src/Demo.cpp")[0]!.onclick?.();
+    findNodes(element.shadow, (node) => node.title.includes("Codegen 应用报告"))[0]!.onclick?.();
+    findNodes(element.shadow, (node) => node.textContent === "打开报告目录")[0]!.onclick?.();
     const prefix = findNodes(element.shadow, (node) => node.attributes.get("aria-label") === "Codegen Prefix")[0]!;
     prefix.value = "KTC";
     prefix.onchange?.();
@@ -263,6 +277,8 @@ describe("Codegen Primary panel", () => {
       { type: "ktc-codegen-primary-action", detail: { action: "cancelOperation" } },
       { type: "ktc-codegen-primary-action", detail: { action: "openDocument", uri: "file:///workspace/Demo.json" } },
       { type: "ktc-codegen-primary-action", detail: { action: "openCandidate", uri: "file:///workspace/Demo.cpp" } },
+      { type: "ktc-codegen-primary-action", detail: { action: "openReport", reportId: "12345678-1234-4234-8234-123456789abc" } },
+      { type: "ktc-codegen-primary-action", detail: { action: "openReportDirectory" } },
       {
         type: "ktc-codegen-primary-action",
         detail: { action: "updateMeta", uri: "file:///workspace/Demo.json", field: "namePrefix", value: "KTC" },

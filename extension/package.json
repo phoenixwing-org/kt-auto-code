@@ -3,7 +3,7 @@
   "displayName": "KT Auto Code",
   "description": "CAA / MSVC C++ 工具：编码修正、Ignore、搜索替换、成员排序与 Codegen 参数表",
   "author": "上海锟钛",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "license": "Apache-2.0",
   "publisher": "kuntai",
   "private": true,
@@ -350,6 +350,38 @@
           "type": "boolean",
           "default": false,
           "description": "修复时去除 UTF-8 BOM (EF BB BF)，并将 UTF-16 等转为 UTF-8。未开启时宽字节文件不做字节级修复。"
+        },
+        "ktAutoCode.encodingFix.defaultTarget": {
+          "type": "string",
+          "enum": ["utf8", "gbk"],
+          "enumDescriptions": ["UTF-8 无 BOM", "GBK / Windows 本地代码页（CP936）"],
+          "default": "utf8",
+          "scope": "resource",
+          "description": "编码修正的当前项目默认目标。Primary 中的目标选择会写入工作区设置。"
+        },
+        "ktAutoCode.encodingFix.headerTarget": {
+          "type": "string",
+          "enum": ["inherit", "ascii", "utf8", "gbk"],
+          "enumDescriptions": ["继承默认目标", "纯 ASCII；含非 ASCII 内容时只报告，不静默删除", "UTF-8 无 BOM", "GBK / Windows 本地代码页（CP936）"],
+          "default": "inherit",
+          "scope": "resource",
+          "description": "头文件（.h / .hpp / .inl 等）的项目级目标覆盖。"
+        },
+        "ktAutoCode.encodingFix.sourceTarget": {
+          "type": "string",
+          "enum": ["inherit", "ascii", "utf8", "gbk"],
+          "enumDescriptions": ["继承默认目标", "纯 ASCII；含非 ASCII 内容时只报告，不静默删除", "UTF-8 无 BOM", "GBK / Windows 本地代码页（CP936）"],
+          "default": "inherit",
+          "scope": "resource",
+          "description": "源文件（.cpp / .c / .m 等）的项目级目标覆盖。"
+        },
+        "ktAutoCode.encodingFix.markdownTarget": {
+          "type": "string",
+          "enum": ["inherit", "ascii", "utf8", "gbk"],
+          "enumDescriptions": ["继承默认目标", "纯 ASCII；含非 ASCII 内容时只报告，不静默删除", "UTF-8 无 BOM", "GBK / Windows 本地代码页（CP936）"],
+          "default": "inherit",
+          "scope": "resource",
+          "description": "Markdown（.md / .mdx）的项目级目标覆盖。通常建议 UTF-8。"
         },
         "ktAutoCode.scope.includeHeaders": {
           "type": "boolean",

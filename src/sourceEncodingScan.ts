@@ -10,6 +10,7 @@ import {
   mapGbkPairToAscii,
   readUtf8MappedAscii,
 } from "./fullwidthPunct.js";
+import iconv from "iconv-lite";
 
 export type SourceEncodingIssueKind =
   | "invalid_gbk"
@@ -101,12 +102,44 @@ function lineColumnAtOffset(buf: Uint8Array, offset: number): { line: number; co
   return { line, column: offset - lineStart + 1 };
 }
 
+type SourceTextEncoding = "utf8" | "gbk" | "binary";
+
+const sourceTextEncodingCache = new WeakMap<Uint8Array, SourceTextEncoding>();
+
+function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((value, index) => value === right[index]);
+}
+
+/**
+ * 日志上下文必须跟随整份文档的编码，而不是固定按 Latin-1 展示。
+ * UTF-8 严格解码优先；失败后仅在 GBK 可无损往返时采用本机 CP936。
+ */
+function sourceTextEncoding(buf: Uint8Array): SourceTextEncoding {
+  const cached = sourceTextEncodingCache.get(buf);
+  if (cached) return cached;
+  let encoding: SourceTextEncoding;
+  try {
+    new TextDecoder("utf-8", { fatal: true }).decode(buf);
+    encoding = "utf8";
+  } catch {
+    const decoded = iconv.decode(Buffer.from(buf), "gbk");
+    encoding = bytesEqual(iconv.encode(decoded, "gbk"), buf) ? "gbk" : "binary";
+  }
+  sourceTextEncodingCache.set(buf, encoding);
+  return encoding;
+}
+
 function lineContext(buf: Uint8Array, offset: number): string {
   let start = offset;
   while (start > 0 && buf[start - 1] !== 0x0a && buf[start - 1] !== 0x0d) start--;
   let end = offset;
   while (end < buf.length && buf[end] !== 0x0a && buf[end] !== 0x0d) end++;
-  return new TextDecoder("latin1").decode(buf.subarray(start, end));
+  const line = buf.subarray(start, end);
+  const encoding = sourceTextEncoding(buf);
+  if (encoding === "utf8") return new TextDecoder("utf-8").decode(line);
+  if (encoding === "gbk") return iconv.decode(Buffer.from(line), "gbk");
+  return new TextDecoder("latin1").decode(line);
 }
 
 function isGbkTrail(b: number): boolean {
@@ -223,13 +256,38 @@ export function scanInvalidGbkBytes(buf: Uint8Array): SourceEncodingIssue[] {
 }
 
 const NON_ASCII_HINT =
-  "头文件应仅含 ASCII；GBK 等多字节字符请移至 .cpp、文档或 NLS";
+  "当前规则要求纯 ASCII；GBK/UTF-8 多字节字符请移至源码说明、文档或 NLS";
+
+function scanUtf8NonAsciiBytes(buf: Uint8Array): SourceEncodingIssue[] {
+  const text = new TextDecoder("utf-8", { fatal: true }).decode(buf);
+  const issues: SourceEncodingIssue[] = [];
+  let offset = 0;
+  for (const ch of text) {
+    const bytes = new TextEncoder().encode(ch);
+    const codePoint = ch.codePointAt(0)!;
+    if (codePoint > 0x7f && !mapCodePointToAscii(codePoint)) {
+      const pos = lineColumnAtOffset(buf, offset);
+      issues.push({
+        ...pos,
+        offset,
+        kind: "non_ascii",
+        byte: bytes[0] ?? 0,
+        context: lineContext(buf, offset),
+        suggestedAscii: " ",
+        hint: NON_ASCII_HINT,
+      });
+    }
+    offset += bytes.length;
+  }
+  return issues;
+}
 
 /**
  * 扫描合法多字节内容（如 GBK 中文双字节对），在 requireAscii 模式下视为问题。
  * 不重复报告 scanInvalidGbkBytes 已覆盖的偏移。
  */
 export function scanNonAsciiBytes(buf: Uint8Array): SourceEncodingIssue[] {
+  if (sourceTextEncoding(buf) === "utf8") return scanUtf8NonAsciiBytes(buf);
   const invalidOffsets = new Set(scanInvalidGbkBytes(buf).map((x) => x.offset));
   const issues: SourceEncodingIssue[] = [];
 
@@ -422,26 +480,8 @@ export function scanNonGbkCodepoints(text: string, byteOffsets?: number[]): Sour
 }
 
 function canEncodeGbk(text: string): boolean {
-  try {
-    const dec = new TextDecoder("gbk");
-    const bytes = encodeGbk(text);
-    return dec.decode(bytes) === text;
-  } catch {
-    return false;
-  }
-}
-
-function encodeGbk(text: string): Uint8Array {
-  const enc = new TextEncoder();
-  try {
-    const nodeUtil = (globalThis as typeof globalThis & { Buffer?: typeof Buffer }).Buffer;
-    if (nodeUtil) {
-      return new Uint8Array(nodeUtil.from(text, "gbk" as BufferEncoding));
-    }
-  } catch {
-    /* fall through */
-  }
-  return enc.encode(text);
+  const encoded = iconv.encode(text, "gbk");
+  return iconv.decode(encoded, "gbk") === text;
 }
 
 /** 扫描 GBK / UTF-8 全角标点（不论是否 requireAscii） */
@@ -598,6 +638,30 @@ export function sanitizeSourceForGbk(
     i++;
   }
   return Uint8Array.from(parts);
+}
+
+/**
+ * 按检测到的文档编码清理并保持原编码。UTF-8 文档走 Unicode 字符映射，
+ * 本地 GBK/未知字节流继续走原有字节级清理，避免 Qt UTF-8 中文被按 GBK 对拆分。
+ */
+export function sanitizeSourcePreservingEncoding(
+  buf: Uint8Array,
+  opts: SanitizeSourceOptions = {},
+): Uint8Array {
+  if (sourceTextEncoding(buf) !== "utf8") return sanitizeSourceForGbk(buf, opts);
+  const replacement = opts.replacement ?? " ";
+  const safeReplacement = replacement.codePointAt(0)! <= 0x7f ? replacement : " ";
+  const preserveMultibyte = opts.preserveGbk ?? true;
+  const text = new TextDecoder("utf-8", { fatal: true }).decode(buf);
+  let output = "";
+  for (const ch of text) {
+    const codePoint = ch.codePointAt(0)!;
+    const mapped = mapCodePointToAscii(codePoint);
+    if (mapped) output += mapped;
+    else if (codePoint <= 0x7f || preserveMultibyte) output += ch;
+    else output += safeReplacement;
+  }
+  return new TextEncoder().encode(output);
 }
 
 /** 格式化扫描结果为可读文本（CLI / 日志） */

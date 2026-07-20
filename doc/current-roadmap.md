@@ -6,7 +6,7 @@ Owner：KT Auto Code maintainers
 
 适用版本：0.5.x
 
-最后核验：2026-07-19
+最后核验：2026-07-20
 
 ## 已完成基线
 
@@ -22,8 +22,9 @@ Owner：KT Auto Code maintainers
 3. 真实 Extension Host 的打开、预览、冲突、Apply、保存复读和失败回滚已进入自动 smoke；继续补齐浅色、深色、高对比、取消和 VSIX 安装的人工视觉矩阵。
 4. 从 P1 去重队列提炼两个无 UI 能力；优先 workset/ignore/path 与 encoding/file-core，不迁移 VS Code 命令或 Webview 状态。
 5. 保持双 VSIX 可复现，并在 Wing 升级时先运行 Registry 防回退、全测和制品门禁。
-6. Codegen `全部应用` V1 已落地：一次确认后冻结当前 JSON 列表，逐个打开 View，串行 Preflight → Apply，并用 Primary/View 遮罩锁定 Auto Code 操作；单份错误继续后续项，最终输出简短总计并自动新开一次性轻量结构化报告。全量预检屏障、跨 JSON 冲突、独立批次 Problems、取消与可重建完整报告保留为 2.0，见 `codegen-plan/Codegen全部应用与批量报告计划.md`。
-7. 0.5.1 定位为 patch：只发布既有 Codegen 流程的安全性、状态稳定性、紧凑呈现与 Wing 0.4.3 消费升级，不新增公共命令或扩展 API。
+6. Codegen `全部应用` V1 已落地：一次确认后冻结当前 JSON 列表，在后台 session 中串行 Preflight → Apply，不再铺开 JSON Panel；单份错误继续后续项。single/batch Apply 报告按规则文件名原子写入 `.phoenix/reports/codegen/`，Primary“应用报告”列表可重开；View 用结果/源码变化双轴避免把正常内容一致误报为失败，并安全进入 Codegen View 或定位问题。全量预检屏障、跨 JSON 冲突、独立批次 Problems、取消与完整 receipt 报告保留为 2.0，见 `codegen-plan/Codegen全部应用与批量报告计划.md`。
+7. **[已完成：0.5.1 发布]** 0.5.1 作为 patch 公开发布：只包含既有 Codegen 流程的安全性、状态稳定性、紧凑呈现与 Wing 0.4.3 消费升级，不新增公共命令或扩展 API；KT Auto CAD 0.1.0 同步完成 Marketplace 首发，两个公开制品哈希均与本地门禁产物一致并通过人工审查。
+8. **[进行中：0.5.2 发布]** 0.5.2 收口持久 Codegen 应用报告、Primary 历史列表、后台批量 View 生命周期、结果/变化双轴与前端筛选，并加入工作区及文件类别级 ASCII/UTF-8/GBK 编码目标；真实宿主人工点检和 540 项自动测试已通过，等待 VSIX 制品与 Marketplace 回执。
 
 ## 已完成第一波：Codegen 控制符目录与模板日志
 
@@ -170,6 +171,13 @@ Owner：KT Auto Code maintainers
 
 - 2026-07-19 真实工作区回执：候选扫描覆盖 1 个工作区根、49 个源码文件，命中 7 个控制符候选，耗时 30 ms；带 1 条隔离预检错误的部分 Apply 耗时 7 ms，相关诊断操作约 32 ms。
 - 当前文件检索、候选打开、诊断与安全写入的用户可感知延迟已经足够低，不再引入 Rust/原生扫描器，也不增加双实现、跨进程协议和发布复杂度；除非用户再次发现性能问题，才基于新的真实回执和 profiling 重新评估。
+
+## 已完成稳定性修复：Primary 编码日志与混合源码
+
+- Primary 的头文件/源码编码预检不再把问题行固定按 Latin-1 输出；严格 UTF-8 优先，失败后仅接受可无损往返的 CP936/GBK，CAA 本地源码与 Qt UTF-8/GBK 源码均按各自编码分析。
+- “保留多字节”模式不再把合法 GBK 中文逐字节误报成 `invalid_utf8`，也不再把合法 UTF-8 中文误报成不可 GBK 编码；“纯 ASCII”模式保留中文问题，但日志上下文仍显示正确文字。
+- UTF-8 修复走 Unicode 字符映射并保持 UTF-8，避免复用 GBK 字节清理器破坏 Qt 中文；Primary 日志使用界面“修复”提示，扫描范围文案同时覆盖头文件和源文件。
+- 2026-07-20 用户真实 Extension Development Host 已完成五项点检：CAA/GBK 日志、纯 ASCII 诊断、Qt/UTF-8 标点修复与编码保持、Primary 修复提示均通过。
 
 ## 大型 UI 暂停后的 TODO（2026-07-18）
 

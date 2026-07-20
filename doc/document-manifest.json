@@ -360,6 +360,13 @@
       "lastVerified": "2026-07-17"
     },
     {
+      "path": "doc/codegen-plan/Codegen应用报告与View生命周期改进计划.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.5.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
       "path": "doc/codegen-plan/Codegen执行评分.md",
       "status": "archived",
       "owner": "KT Auto Code maintainers",

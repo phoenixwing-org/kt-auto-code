@@ -1,11 +1,15 @@
 import * as vscode from "vscode";
 import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
 import { openEncodingFile, runEncodingFixAction } from "./commands.js";
+import {
+  openWorkspaceEncodingSettings,
+  setWorkspaceDefaultEncodingTarget,
+} from "./options.js";
 export const encodingFixTool: KtTool = {
   id: "encodingFix",
   title: "编码修正",
   description:
-    "检测文件编码，并将 GBK、UTF-8 BOM 和 UTF-16 转为 UTF-8。",
+    "按当前项目策略检测并无损转换 ASCII、UTF-8、GBK 与带 BOM 文件。",
   icon: "media/tools/encoding-convert.svg",
 
   getPanelModel(): ToolPanelModel {
@@ -35,6 +39,14 @@ export const encodingFixTool: KtTool = {
   },
 
   async handleMessage(message: WebviewInboundMessage, ctx: ToolRunContext): Promise<void> {
+    if (message.type === "setEncodingDefaultTarget" && message.toolId === this.id) {
+      await setWorkspaceDefaultEncodingTarget(message.target);
+      return;
+    }
+    if (message.type === "openEncodingSettings" && message.toolId === this.id) {
+      await openWorkspaceEncodingSettings();
+      return;
+    }
     if (message.type === "run" && message.toolId === this.id) {
       await runWithResults(message.action, ctx);
       return;

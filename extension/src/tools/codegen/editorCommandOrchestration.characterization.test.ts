@@ -91,7 +91,7 @@ describe("Codegen editor command orchestration characterization", () => {
     );
   });
 
-  it("冻结 Apply 总计时与自动预检独立计时，以及无计划时停止", () => {
+  it("冻结 Apply 总计时与自动预检独立计时，以及无计划时仍生成未应用报告", () => {
     const apply = handler.slice(handler.indexOf('if (command.kind !== "apply")'));
     expectOrder(
       apply,
@@ -100,7 +100,7 @@ describe("Codegen editor command orchestration characterization", () => {
       "acceptActionTable(session, command.table, actions)",
       "if (!session.preflight) await actions.runPreflight();",
       "if (!session.preflight)",
-      "自动预检未产生可用计划，Apply 已停止",
+      "自动预检未产生可用计划，将记录未应用报告",
       "actions.apply(timer)",
     );
     expect(apply).not.toContain("actions.runPreflight(timer)");

@@ -12,6 +12,7 @@ import type {
 } from "../tools/types.js";
 import { setHeaderAsciiRunContextFactory } from "../tools/headerAscii/index.js";
 import { setEncodingFixRunContextFactory } from "../tools/encodingFix/index.js";
+import { getEncodingFixOptions } from "../tools/encodingFix/options.js";
 import { setCodeRenameRunContextFactory } from "../tools/codeRename/index.js";
 import { setUuidReplaceRunContextFactory } from "../tools/uuidReplace/index.js";
 import { setCaaDialogRunContextFactory } from "../tools/caaDialog/index.js";
@@ -170,6 +171,17 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     this.postToViews({ type: "scope", scope: getFileScope() });
   }
 
+  invalidateEncodingFixResults(): void {
+    this.setToolState("encodingFix", {
+      status: "idle",
+      message: "项目编码目标已更新，请重新预检。",
+      encodingResults: [],
+      scanned: 0,
+      issueFiles: 0,
+      fixedFiles: 0,
+    });
+  }
+
   refreshScope(): void {
     this.postToViews({ type: "scope", scope: getFileScope() });
   }
@@ -292,6 +304,15 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   private getToolOptions(toolId: string): ToolOptionsState {
     if (toolId === "headerAscii") {
       return { preserveGbk: getPreserveGbk(), stripBom: getStripBom() };
+    }
+    if (toolId === "encodingFix") {
+      const options = getEncodingFixOptions();
+      return {
+        encodingDefaultTarget: options.defaultTarget,
+        encodingHeaderTarget: options.headerTarget,
+        encodingSourceTarget: options.sourceTarget,
+        encodingMarkdownTarget: options.markdownTarget,
+      };
     }
     return {};
   }
