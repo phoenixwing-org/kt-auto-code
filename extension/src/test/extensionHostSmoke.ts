@@ -37,6 +37,11 @@ export async function run(): Promise<void> {
   const commands = await vscode.commands.getCommands(true);
   for (const command of [
     "ktAutoCode.codegen.open",
+    "ktAutoCode.codegen.importCsv",
+    "ktAutoCode.codegen.applyAll",
+    "ktAutoCode.codegen.refresh",
+    "ktAutoCode.codegen.scanCandidates",
+    "ktAutoCode.codegen.diagnostics",
     "ktAutoCode.module.activate",
     "ktAutoCode.uuidReplace.scan",
   ]) {

@@ -123,7 +123,6 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
         "text-button",
         model.operation === "candidates" ? "取消正在进行的控制符源码候选扫描" : "扫描工作区中含 Codegen 控制符的源码候选",
       ),
-      this.actionButton("复制诊断", "copyDiagnostics", false, "text-button", "复制不含表格内容和源码内容的运行状态"),
     );
 
     const properties = document.createElement("div");
@@ -210,7 +209,7 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
   }
 
   private actionIcon(action: KtcCodegenPrimaryActionDetail["action"]): SVGSVGElement {
-    type ToolbarAction = "openJson" | "importCsv" | "applyAll" | "refresh" | "scanCandidates" | "cancelOperation" | "copyDiagnostics";
+    type ToolbarAction = "openJson" | "importCsv" | "applyAll" | "refresh" | "scanCandidates" | "cancelOperation";
     const toolbarAction = action as ToolbarAction;
     const paths: Record<ToolbarAction, readonly string[]> = {
       openJson: ["M3 6h6l2 2h10v10H3z", "M15 10v6", "M12 13h6"],
@@ -219,7 +218,6 @@ export class KtcCodegenPrimaryPanel extends HTMLElement {
       refresh: ["M20 7v5h-5", "M19 12a7 7 0 1 1-2-5"],
       scanCandidates: ["M4 5h10", "M4 10h7", "M4 15h5", "M16 15l4 4", "M18 13a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"],
       cancelOperation: ["M6 6l12 12", "M18 6 6 18"],
-      copyDiagnostics: ["M8 8h11v13H8z", "M5 16H3V3h11v2"],
     };
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.classList.add("action-icon");

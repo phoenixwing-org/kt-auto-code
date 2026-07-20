@@ -181,7 +181,8 @@ Owner：KT Auto Code maintainers
 4. **Wing 后续条件项**：`KtCodegenTable` 已到首轮合理停止线；页面布局能力完成发布和 Registry 消费验证前，不为降行数继续拆。只有出现第二产品消费者或真实复用需求时，才评估公开更多 visual primitive。
 5. **跨仓人工证据**：Windows NSIS 真实回执，以及 VS Code/Desk 的浅色、深色、高对比视觉矩阵继续由用户手工并行；不阻塞当前代码归档，也不追溯提高联合评分。
 6. **Codegen 显式修复提醒**：控制符单入口已完成，Primary 负责目录/筛选/选择/输出，JSON View 只保留预检结果、Artifact 与问题定位；预检结果自己的列表/详情 separator 不代表控制符目录回归。剩余 TODO 是“问题 N”控制符筛选与显式修复提醒：必须先由 Wing 诊断提供结构化 `blockKey/classId/boundary`，不得从英文 message 猜 block。`marker.missing-end` 只允许用户在问题详情中显式选择“插入编译期修复提醒”，经确认后在下一条 marker 前写入可识别的 `#error`；不得预检时自动写入，也不得自动猜测补 End，且入口不能只依赖不可发现的右键菜单。
-7. **Auto Code Primary 工具条**：未选择子工作目录时先隐藏空的功能区域提示，后续新增功能页统一放在工具条下方。工具条改为 Primary 内顶部 sticky，不随下方 Block 滚走；“打开、导入、全部应用、刷新、扫源码、复制诊断”等改用紧凑图标按钮，全部提供清晰 tooltip 和无障碍名称，减少横向宽度。该项属于后续 UI 小切口，本轮只登记，不与候选 Preview 或 checkbox 稳定性修复混合。
+7. **Auto Code Primary 工具条**：顶部 sticky、紧凑图标、tooltip 和无障碍名称已完成；未选择子工作目录时的空提示保持隐藏。工具界面标题右上角 `…` 原生菜单按工具条顺序提供打开、导入、全部应用、刷新和扫描命令，最后提供“复制运行诊断”，全部使用 VS Code Product Icon 并复用既有 Host Action；`X` 继续负责关闭当前工具界面，Primary 不再保留重复诊断图标。
+8. **共享 Block 标题菜单接口（TODO）**：当前 `…` 仅在 Host 上下文 `ktAutoCode.modulePanel.activeTool == codegen` 时显示，先阻止其他共享 Block 误用 Codegen 菜单；共享 Panel 对已可见 Block 的重复 `show` 已做幂等保护，真实切换则按 `toolId` 保存和恢复外层滚动。后续目标模型是“Block 自描述、共享 Panel 投影、Host 路由”：内置 `KtTool` 与可选模块 `ktAutoCodeModule.tools[]` 提供有序 `titleActions`（`actionId / title / icon / order`）以及必要的 Block 视图状态；共享 Panel 获取当前 Block 的声明，空数组或无法获取时不显示 `…`，有动作时才放置菜单；用户点击后，Host 只把 `actionId` 发给当前 Block 的既有 action handler，不复制业务命令。实施前必须先验证 VS Code 原生 `view/title` 菜单的静态 contribution 限制：优先采用“共享 submenu + 各扩展静态贡献命令 + `activeTool / hasTitleMenu` context”适配层；若动态标题/数量无法投影，再单独评估通用 Quick Pick 或 Webview 内部菜单，不假设公共 API 可以运行时任意注册原生菜单项。
 
 暂停期间联合成熟度保持 **92.00 / 100**。恢复时从本 TODO 重新选择一个最小切口，不默认续跑整套大型 UI 计划。
 

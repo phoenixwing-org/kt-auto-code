@@ -38,6 +38,10 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('id="workspace-file-scope-select"');
     expect(html).toContain('type: "selectWorkspaceFileScope"');
     expect(html).toContain('type: "openWorkspaceWorksets"');
+    expect(html).toContain("const toolScrollPositions = new Map();");
+    expect(html).toContain("toolScrollPositions.set(state.activeToolId, window.scrollY)");
+    expect(html).toContain("requestAnimationFrame(() => window.scrollTo(0, top))");
+    expect(html).toContain("const activeToolChanged = switchActiveTool(msg.activeToolId)");
     expect(html).not.toContain('state.replace.scope = ""');
     expect(html).toContain('list="recent-working-directories"');
     expect(html).toContain('type: "pickSearchReplaceDirectory"');
@@ -226,7 +230,9 @@ describe("sidebar panel HTML", () => {
       contributes: {
         viewsContainers?: { activitybar?: Array<{ id: string }> };
         views: Record<string, Array<{ id: string; initialSize?: number; when?: string }>>;
-        menus: Record<string, unknown[]>;
+        commands: Array<{ command: string; title: string; category?: string; icon?: string }>;
+        submenus: Array<{ id: string; label: string; icon?: string }>;
+        menus: Record<string, Array<{ command?: string; submenu?: string; group?: string; when?: string }>>;
         configuration: { properties: Record<string, unknown> };
       };
     };
@@ -241,6 +247,39 @@ describe("sidebar panel HTML", () => {
       "ktAutoCode.modulePanelVisible",
     );
     expect(manifest.contributes.menus["view/item/context"]).toBeUndefined();
+    expect(manifest.contributes.commands.filter((command) => [
+      "ktAutoCode.codegen.open",
+      "ktAutoCode.codegen.importCsv",
+      "ktAutoCode.codegen.applyAll",
+      "ktAutoCode.codegen.refresh",
+      "ktAutoCode.codegen.scanCandidates",
+      "ktAutoCode.codegen.diagnostics",
+    ].includes(command.command))).toEqual([
+      { command: "ktAutoCode.codegen.open", title: "打开 JSON…", category: "KT Auto Code", icon: "$(folder-opened)" },
+      { command: "ktAutoCode.codegen.importCsv", title: "导入 CSV…", category: "KT Auto Code", icon: "$(file-symlink-file)" },
+      { command: "ktAutoCode.codegen.applyAll", title: "全部应用", category: "KT Auto Code", icon: "$(check-all)" },
+      { command: "ktAutoCode.codegen.refresh", title: "刷新列表", category: "KT Auto Code", icon: "$(refresh)" },
+      { command: "ktAutoCode.codegen.scanCandidates", title: "扫描候选源码", category: "KT Auto Code", icon: "$(search)" },
+      { command: "ktAutoCode.codegen.diagnostics", title: "复制运行诊断", category: "KT Auto Code", icon: "$(pulse)" },
+    ]);
+    expect(manifest.contributes.submenus).toContainEqual({
+      id: "ktAutoCode.modulePanel.more",
+      label: "更多",
+      icon: "$(ellipsis)",
+    });
+    expect(manifest.contributes.menus["view/title"]).toContainEqual({
+      submenu: "ktAutoCode.modulePanel.more",
+      when: "view == ktAutoCode.modulePanel && ktAutoCode.modulePanel.activeTool == codegen",
+      group: "navigation@8",
+    });
+    expect(manifest.contributes.menus["ktAutoCode.modulePanel.more"]).toEqual([
+      { command: "ktAutoCode.codegen.open", group: "navigation@1" },
+      { command: "ktAutoCode.codegen.importCsv", group: "navigation@2" },
+      { command: "ktAutoCode.codegen.applyAll", group: "navigation@3" },
+      { command: "ktAutoCode.codegen.refresh", group: "navigation@4" },
+      { command: "ktAutoCode.codegen.scanCandidates", group: "navigation@5" },
+      { command: "ktAutoCode.codegen.diagnostics", group: "navigation@6" },
+    ]);
     expect(Object.keys(manifest.contributes.configuration.properties)).not.toEqual(expect.arrayContaining([
       "ktAutoCode.environment.rootDir",
       "ktAutoCode.environment.rootDir3rdParty",

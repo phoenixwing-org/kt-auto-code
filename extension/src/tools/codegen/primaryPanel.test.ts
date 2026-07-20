@@ -153,7 +153,7 @@ describe("Codegen Primary panel", () => {
 
     const text = findNodes(element.shadow, (node) => Boolean(node.textContent)).map((node) => node.textContent);
     expect(text).toEqual(expect.arrayContaining([
-      "打开", "导入", "全部应用", "取消刷新", "扫源码", "复制诊断",
+      "打开", "导入", "全部应用", "取消刷新", "扫源码",
       "Demo.json", "PNXDemo · 3 行 · 当前编辑 View · 未保存", "控制符目录", "JSON 配置",
       "控制符候选（工作区级）", "一份 JSON 对应当前编辑区一个表格 View；Primary 与 JSON View 的控制符目录由 Host session 同步。",
     ]));
@@ -174,6 +174,7 @@ describe("Codegen Primary panel", () => {
     expect(candidateScan.disabled).toBe(true);
     expect(findNodes(element.shadow, (node) => node.textContent === "打开")[0]!.title).toBe("打开一份 Codegen JSON");
     expect(candidateScan.title).toBe("扫描工作区中含 Codegen 控制符的源码候选");
+    expect(text).not.toContain("复制诊断");
     const candidateRow = findNodes(element.shadow, (node) => node.className === "row candidate-row")[0]!;
     expect(findNodes(candidateRow, (node) => node.className === "candidate-label")).toHaveLength(1);
     expect(findNodes(candidateRow, (node) => node.className === "candidate-name")[0]!.textContent).toBe("Demo.cpp");
@@ -192,7 +193,7 @@ describe("Codegen Primary panel", () => {
     expect(style).toContain(".candidate-label { flex: 1 1 auto;");
     expect(style).toContain(".candidate-name { color: var(--vscode-foreground); font-weight: 600; }");
     expect(style).toContain(".candidate-path { color: var(--vscode-descriptionForeground);");
-    expect(findNodes(element.shadow, (node) => node.className === "action-icon")).toHaveLength(6);
+    expect(findNodes(element.shadow, (node) => node.className === "action-icon")).toHaveLength(5);
   });
 
   it("Host 快照重绘时复用控制面板，并保留四个 Block 的折叠与列表滚动", async () => {

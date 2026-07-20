@@ -83,7 +83,7 @@
 - `pnpm ext:verify:codegen -- <临时工作区>` 在 Apply 前检查源码 sha256 基线；完成真实 Apply 后用 `--checkpoint-e` 核对源码确有变化、Start/End 仍配对以及两层缓存类型。
 - 每个临时工作区自带 `.phoenix/codegen-qa-report.json`；验证器只回写机器检查字段，A–F 的人工状态继续保持 pending，便于分晚、分 checkpoint 接续测试。
 - `pnpm ext:report:codegen -- <临时工作区>` 显示当前进度和下一项；记录人工 passed/failed 时会强制 A/C/E verifier、A 诊断复制和 F 深浅主题门禁，不需要手改报告 JSON。
-- 左侧“复制诊断”导出发现、CSV、会话、revision、冲突、缓存和运行中任务摘要；不导出表格单元格及源码内容。
+- 工具界面右上角 `…` 原生菜单按 Primary 工具条顺序提供“打开 JSON / 导入 CSV / 全部应用 / 刷新列表 / 扫描候选源码”，最后一项“复制运行诊断”导出发现、CSV、会话、revision、冲突、缓存和运行中任务摘要；不导出表格单元格及源码内容。Primary 工具条不再重复显示含义不清的诊断图标。
 - 分阶段人工步骤见 [Codegen 手工验收](codegen-plan/Codegen手工验收.md)。
 - [验收覆盖矩阵](codegen-plan/CodegenAcceptanceCoverage.json) 将13项目标分别标记为自动已证明、自动部分证明和人工待验证；只有 A–F 报告完成后才允许关闭目标。
 - [Qt/VB 迁移矩阵](codegen-plan/CodegenQtVbMigrationMatrix.json) 现在区分两个原始工程根、受控状态语义和 A–F Feature 映射；当前明确未完成项只有下一架构阶段的 Hot Exit 与批量 Apply All。

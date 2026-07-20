@@ -174,11 +174,54 @@ function stateMessages(view: FakeWebviewView): Extract<WebviewOutboundMessage, {
 
 describe("SidebarViewProvider transient tool state", () => {
   beforeEach(() => {
+    vscodeHost.executeCommand.mockClear();
     nextState = {
       status: "idle",
       message: "请选择要添加的关联规则。",
       associatedRulePicker: picker,
     };
+  });
+
+  it("共享工具界面只向标题菜单发布当前活动工具", async () => {
+    const { provider } = createProvider();
+
+    await provider.showTool(TEST_TOOL_ID);
+    expect(vscodeHost.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "ktAutoCode.modulePanel.activeTool",
+      TEST_TOOL_ID,
+    );
+    expect(vscodeHost.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "ktAutoCode.modulePanelVisible",
+      true,
+    );
+
+    await provider.closeToolBlock();
+    expect(vscodeHost.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "ktAutoCode.modulePanelVisible",
+      false,
+    );
+    expect(vscodeHost.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "ktAutoCode.modulePanel.activeTool",
+      "",
+    );
+  });
+
+  it("当前 Block 已打开可见时不重复激活或滚动共享 Panel", async () => {
+    const { provider, module } = createProvider();
+    await provider.showTool(TEST_TOOL_ID);
+    vscodeHost.executeCommand.mockClear();
+    (module.show as ReturnType<typeof vi.fn>).mockClear();
+    const messageCount = module.messages.length;
+
+    await provider.showTool(TEST_TOOL_ID);
+
+    expect(vscodeHost.executeCommand).not.toHaveBeenCalled();
+    expect(module.show).not.toHaveBeenCalled();
+    expect(module.messages).toHaveLength(messageCount);
   });
 
   it.each([

@@ -133,13 +133,39 @@
       },
       {
         "command": "ktAutoCode.codegen.open",
-        "title": "KT Auto Code：打开 Codegen JSON",
-        "icon": "$(table)"
+        "title": "打开 JSON…",
+        "category": "KT Auto Code",
+        "icon": "$(folder-opened)"
       },
       {
         "command": "ktAutoCode.codegen.importCsv",
-        "title": "KT Auto Code：导入 Codegen CSV",
+        "title": "导入 CSV…",
+        "category": "KT Auto Code",
         "icon": "$(file-symlink-file)"
+      },
+      {
+        "command": "ktAutoCode.codegen.applyAll",
+        "title": "全部应用",
+        "category": "KT Auto Code",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "ktAutoCode.codegen.refresh",
+        "title": "刷新列表",
+        "category": "KT Auto Code",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "ktAutoCode.codegen.scanCandidates",
+        "title": "扫描候选源码",
+        "category": "KT Auto Code",
+        "icon": "$(search)"
+      },
+      {
+        "command": "ktAutoCode.codegen.diagnostics",
+        "title": "复制运行诊断",
+        "category": "KT Auto Code",
+        "icon": "$(pulse)"
       },
       {
         "command": "ktAutoCode.searchReplace.preview",
@@ -235,6 +261,13 @@
         "icon": "$(add)"
       }
     ],
+    "submenus": [
+      {
+        "id": "ktAutoCode.modulePanel.more",
+        "label": "更多",
+        "icon": "$(ellipsis)"
+      }
+    ],
     "menus": {
       "view/title": [
         {
@@ -268,9 +301,40 @@
           "group": "navigation@23"
         },
         {
+          "submenu": "ktAutoCode.modulePanel.more",
+          "when": "view == ktAutoCode.modulePanel && ktAutoCode.modulePanel.activeTool == codegen",
+          "group": "navigation@8"
+        },
+        {
           "command": "ktAutoCode.modulePanel.close",
           "when": "view == ktAutoCode.modulePanel",
           "group": "navigation@9"
+        }
+      ],
+      "ktAutoCode.modulePanel.more": [
+        {
+          "command": "ktAutoCode.codegen.open",
+          "group": "navigation@1"
+        },
+        {
+          "command": "ktAutoCode.codegen.importCsv",
+          "group": "navigation@2"
+        },
+        {
+          "command": "ktAutoCode.codegen.applyAll",
+          "group": "navigation@3"
+        },
+        {
+          "command": "ktAutoCode.codegen.refresh",
+          "group": "navigation@4"
+        },
+        {
+          "command": "ktAutoCode.codegen.scanCandidates",
+          "group": "navigation@5"
+        },
+        {
+          "command": "ktAutoCode.codegen.diagnostics",
+          "group": "navigation@6"
         }
       ]
     },

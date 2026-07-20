@@ -772,6 +772,21 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     ));
     state.replace.defaultEncoding = state.replace.defaultEncoding === "gbk" ? "gbk" : "utf8";
     state.replace.preserveCase = false;
+    const toolScrollPositions = new Map();
+
+    function switchActiveTool(nextToolId) {
+      const next = nextToolId || state.activeToolId;
+      if (!next || next === state.activeToolId) return false;
+      if (state.activeToolId) toolScrollPositions.set(state.activeToolId, window.scrollY);
+      state.activeToolId = next;
+      return true;
+    }
+
+    function restoreActiveToolScroll(changed) {
+      if (!changed) return;
+      const top = toolScrollPositions.get(state.activeToolId) || 0;
+      requestAnimationFrame(() => window.scrollTo(0, top));
+    }
 
     const els = {
       tabs: document.getElementById("tabs"),
@@ -2091,8 +2106,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     window.addEventListener("message", (e) => {
       const msg = e.data;
       if (msg.type === "init") {
+        const activeToolChanged = switchActiveTool(msg.activeToolId);
         state.tools = msg.tools;
-        state.activeToolId = msg.activeToolId;
         state.openToolIds = msg.openToolIds || [];
         state.toolOptions = msg.toolOptions || {};
         state.scope = msg.scope || state.scope;
@@ -2108,6 +2123,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         state.moduleState = msg.moduleState || state.moduleState;
         els.workspace.textContent = msg.workspaceLabel;
         render();
+        restoreActiveToolScroll(activeToolChanged);
       } else if (msg.type === "workspace") {
         els.workspace.textContent = msg.label;
       } else if (msg.type === "scope") {
@@ -2123,9 +2139,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         state.sidebarStyle = msg.style || "ribbon";
         render();
       } else if (msg.type === "openTools") {
-        state.activeToolId = msg.activeToolId || state.activeToolId;
+        const activeToolChanged = switchActiveTool(msg.activeToolId);
         state.openToolIds = msg.openToolIds || [];
         render();
+        restoreActiveToolScroll(activeToolChanged);
       } else if (msg.type === "modules") {
         state.moduleState = msg.moduleState || state.moduleState;
         render();
@@ -2138,8 +2155,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         state.workspaceFileScopeError = msg.error || "";
         render();
       } else if (msg.type === "requestSearchReplacePreview") {
-        state.activeToolId = "codeRename";
+        const activeToolChanged = switchActiveTool("codeRename");
         render();
+        restoreActiveToolScroll(activeToolChanged);
         runSearchReplace("preview");
       } else if (msg.type === "recentWorkingDirectories") {
         state.recentWorkingDirectories = msg.directories || { workspace: [], external: [] };

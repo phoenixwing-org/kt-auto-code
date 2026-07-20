@@ -1750,17 +1750,23 @@ export const codegenTool: KtTool = {
     return { summary: { id: this.id, title: this.title, description: this.description, icon: this.icon } };
   },
   registerCommands(context): void {
+    const showCodegen = async (): Promise<void> => {
+      await vscode.commands.executeCommand("ktAutoCode.tool.show", TOOL_ID);
+    };
+    const runPrimaryAction = async (
+      action: "openJson" | "importCsv" | "applyAll" | "refresh" | "scanCandidates" | "copyDiagnostics",
+    ): Promise<void> => {
+      await showCodegen();
+      const ctx = currentContext();
+      if (ctx) await codegenController.handleSidebarAction({ type: "codegenAction", toolId: TOOL_ID, action }, ctx);
+    };
     context.subscriptions.push(
-      vscode.commands.registerCommand("ktAutoCode.codegen.open", async () => {
-        await vscode.commands.executeCommand("ktAutoCode.tool.show", TOOL_ID);
-        const ctx = currentContext();
-        if (ctx) await codegenController.handleSidebarAction({ type: "codegenAction", toolId: TOOL_ID, action: "openJson" }, ctx);
-      }),
-      vscode.commands.registerCommand("ktAutoCode.codegen.importCsv", async () => {
-        await vscode.commands.executeCommand("ktAutoCode.tool.show", TOOL_ID);
-        const ctx = currentContext();
-        if (ctx) await codegenController.handleSidebarAction({ type: "codegenAction", toolId: TOOL_ID, action: "importCsv" }, ctx);
-      }),
+      vscode.commands.registerCommand("ktAutoCode.codegen.open", () => runPrimaryAction("openJson")),
+      vscode.commands.registerCommand("ktAutoCode.codegen.importCsv", () => runPrimaryAction("importCsv")),
+      vscode.commands.registerCommand("ktAutoCode.codegen.applyAll", () => runPrimaryAction("applyAll")),
+      vscode.commands.registerCommand("ktAutoCode.codegen.refresh", () => runPrimaryAction("refresh")),
+      vscode.commands.registerCommand("ktAutoCode.codegen.scanCandidates", () => runPrimaryAction("scanCandidates")),
+      vscode.commands.registerCommand("ktAutoCode.codegen.diagnostics", () => runPrimaryAction("copyDiagnostics")),
     );
   },
   async handleMessage(message: WebviewInboundMessage, ctx: ToolRunContext): Promise<void> {

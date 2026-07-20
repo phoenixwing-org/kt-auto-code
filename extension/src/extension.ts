@@ -41,6 +41,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<KtcAut
     item.show();
     context.subscriptions.push(item);
   }
+  await vscode.commands.executeCommand("setContext", "ktAutoCode.modulePanel.activeTool", "");
   await vscode.commands.executeCommand("setContext", "ktAutoCode.modulePanelVisible", false);
   ktcRegisterEditorMatchHighlight(context);
   registerReorderMembersSupport(context);
