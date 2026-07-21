@@ -164,6 +164,11 @@ describe("associated rule picker web component", () => {
     const confirm = findNodes(element.shadow, (node) => node.textContent === "添加")[0]!;
     expect(checks).toEqual(expected);
     expect(confirm.disabled).toBe(!expected.some(Boolean));
+    expect(findNodes(element.shadow, (node) => node.className === "summary")[0]?.textContent)
+      .toBe(picker(mode).summary);
+    const style = findNodes(element.shadow, (node) => node.tagName === "style")[0]!.textContent;
+    expect(style).toContain("border: 1px solid var(--ktc-ui-border, var(--vscode-widget-border");
+    expect(style).toContain(".action:not(:disabled):hover { background: var(--vscode-button-hoverBackground); border-color: var(--ktc-ui-active-border");
   });
 
   it("自定义 Source 自动勾选、保留原始值并只发 confirm", async () => {

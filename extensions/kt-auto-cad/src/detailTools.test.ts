@@ -8,7 +8,6 @@ describe("CAD detail Block prototypes", () => {
       "cadScan",
       "cadRead",
       "cadQuery",
-      "cadProvider",
       "cadDiagnostics",
     ]);
   });

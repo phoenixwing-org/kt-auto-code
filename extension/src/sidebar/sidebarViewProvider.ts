@@ -25,7 +25,11 @@ import { getWorkspaceLabel, getWorkspaceRoot } from "../workspace.js";
 import { getPanelHtml, postToWebview } from "./panelHtml.js";
 import type { ToolOptionsState } from "../tools/types.js";
 import { KtcSearchReplaceProfileController } from "../searchReplaceProfileController.js";
-import { ktcIgnoreController, ktcIsIgnoreMessage } from "../ignoreController.js";
+import {
+  ktcDefaultIgnoreGroupIds,
+  ktcIgnoreController,
+  ktcIsIgnoreMessage,
+} from "../ignoreController.js";
 import {
   KtcRecentWorkingDirectoryStore,
   KtcRecentWorkspaceDirectoryStore,
@@ -537,9 +541,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
           message: result.message,
           ignoreRecommendations: result.recommendations,
           ignoreSelectedGroupIds: message.type === "analyzeIgnore"
-            ? result.recommendations.recommendations
-              .filter((group) => group.defaultSelected && group.suggestedRules.length > 0)
-              .map((group) => group.groupId)
+            ? ktcDefaultIgnoreGroupIds(result.recommendations.recommendations)
             : previous.filter((groupId) => selectable.has(groupId)),
         });
       } else if (result.summary) {
@@ -615,8 +617,15 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     }
 
     const ctx = this.createRunContext(message.toolId, source);
-    try { await tool.handleMessage(message, ctx); }
-    catch (error) { this.postUnhandledToolError(message.toolId, error); }
+    try {
+      await tool.handleMessage(message, ctx);
+      if (message.type === "setEncodingDefaultTarget") {
+        this.refreshToolOptions("encodingFix");
+        this.invalidateEncodingFixResults();
+      }
+    } catch (error) {
+      this.postUnhandledToolError(message.toolId, error);
+    }
   }
 
   async refreshWorkspaceFileScopes(): Promise<void> {

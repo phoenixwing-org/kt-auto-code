@@ -55,6 +55,16 @@ export function ktcCreateAssociatedRulePicker(
     existingSearches: [options.search, ...options.existingRules.map((rule) => rule.search)],
   });
 
+  const candidates = rules.map((rule) => ({
+    id: rule.id,
+    label: KTC_ASSOCIATED_RULE_ITEMS.find((item) => item.relationKind === rule.relationKind)?.label
+      ?? "关联规则",
+    rule,
+    checked: options.mode === "common"
+      || (options.mode === "caa"
+        && (rule.relationKind === "caa-i-full" || rule.relationKind === "caa-e-full")),
+  }));
+  const defaultSelected = candidates.filter((candidate) => candidate.checked).length;
   return {
     title: options.mode === "common"
       ? "添加常用规则"
@@ -63,14 +73,9 @@ export function ktcCreateAssociatedRulePicker(
         : options.mode === "row"
           ? "添加关联规则"
           : "添加自定义规则",
-    candidates: rules.map((rule) => ({
-      id: rule.id,
-      label: KTC_ASSOCIATED_RULE_ITEMS.find((item) => item.relationKind === rule.relationKind)?.label
-        ?? "关联规则",
-      rule,
-      checked: options.mode === "common"
-        || (options.mode === "caa"
-          && (rule.relationKind === "caa-i-full" || rule.relationKind === "caa-e-full")),
-    })),
+    summary: candidates.length > 0
+      ? `${candidates.length} 条候选 · 默认选中 ${defaultSelected} 条`
+      : "无推荐候选 · 可填写自定义规则",
+    candidates,
   };
 }

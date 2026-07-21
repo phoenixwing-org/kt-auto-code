@@ -14,6 +14,7 @@ describe("associatedReplacementRules", () => {
     ["CaaStudy", ["Caa", "Study"]],
     ["AutoCode2D", ["Auto", "Code", "2", "D"]],
     ["XMLParser", ["XML", "Parser"]],
+    ["HTTP2_Server", ["HTTP", "2", "Server"]],
     ["Auto Code", ["Auto", "Code"]],
   ])("拆分命名词段 %s", (value, expected) => {
     expect(ktcSplitNameTokens(value)).toEqual(expected);
@@ -107,6 +108,25 @@ describe("associatedReplacementRules", () => {
     expect(rule).toMatchObject({
       search: "KTCIAutoCode",
       replace: "KTCIAutoBuild",
+    });
+  });
+
+  it("CAA 派生支持数字、缩写、下划线并移除两侧已有前缀", () => {
+    const rule = ktcSuggestAssociatedReplacementRule(
+      "caa-i-full",
+      {
+        id: "prefixed-boundaries",
+        relationKind: "prefix",
+        search: "KTCXML2_Parser",
+        replace: "KTMHTTP3_Builder",
+      },
+      "KTC",
+      "KTM",
+    );
+
+    expect(rule).toMatchObject({
+      search: "KTCIXML2Parser",
+      replace: "KTMIHTTP3Builder",
     });
   });
 

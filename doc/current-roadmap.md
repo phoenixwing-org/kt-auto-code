@@ -6,7 +6,7 @@ Owner：KT Auto Code maintainers
 
 适用版本：0.5.x
 
-最后核验：2026-07-20
+最后核验：2026-07-21
 
 ## 已完成基线
 
@@ -24,7 +24,21 @@ Owner：KT Auto Code maintainers
 5. 保持双 VSIX 可复现，并在 Wing 升级时先运行 Registry 防回退、全测和制品门禁。
 6. Codegen `全部应用` V1 已落地：一次确认后冻结当前 JSON 列表，在后台 session 中串行 Preflight → Apply，不再铺开 JSON Panel；单份错误继续后续项。single/batch Apply 报告按规则文件名原子写入 `.phoenix/reports/codegen/`，Primary“应用报告”列表可重开；View 用结果/源码变化双轴避免把正常内容一致误报为失败，并安全进入 Codegen View 或定位问题。全量预检屏障、跨 JSON 冲突、独立批次 Problems、取消与完整 receipt 报告保留为 2.0，见 `codegen-plan/Codegen全部应用与批量报告计划.md`。
 7. **[已完成：0.5.1 发布]** 0.5.1 作为 patch 公开发布：只包含既有 Codegen 流程的安全性、状态稳定性、紧凑呈现与 Wing 0.4.3 消费升级，不新增公共命令或扩展 API；KT Auto CAD 0.1.0 同步完成 Marketplace 首发，两个公开制品哈希均与本地门禁产物一致并通过人工审查。
-8. **[进行中：0.5.2 发布]** 0.5.2 收口持久 Codegen 应用报告、Primary 历史列表、后台批量 View 生命周期、结果/变化双轴与前端筛选，并加入工作区及文件类别级 ASCII/UTF-8/GBK 编码目标；真实宿主人工点检和 540 项自动测试已通过，等待 VSIX 制品与 Marketplace 回执。
+8. **[已完成：0.5.2 发布候选]** 0.5.2 收口持久 Codegen 应用报告、Primary 历史列表、后台批量 View 生命周期、结果/变化双轴与前端筛选，并加入工作区及文件类别级 ASCII/UTF-8/GBK 编码目标；真实宿主人工点检、全量自动测试和双 VSIX 制品门禁已通过。Marketplace 发布回执未在仓库中登记，不宣称已公开发布。
+9. **[已完成：0.5.3 本地发布候选]** 0.5.3 统一补齐高对比度/高对比度浅色主题下 Sidebar Primary、功能 Block、Codegen 预检及 Shadow DOM 组件的边框、标签和 hover 对比反馈；Node 22 全量门禁、Registry/并列 Wing 构建和本地 VSIX 归档已通过。Marketplace 发布未执行，保持普通主题与公共命令/API 不变。
+
+## 2026-07-20 简单 TODO 收口
+
+- 旧 CAA external editor 与 Auto CAD provider 设置会在基础扩展激活时安全迁入 `ktAutoCode.deskTools.*`：只读取用户明确配置的值，新设置始终优先，默认值不迁移，失败时继续走兼容读取。
+- CAA UI 当前交接契约已改用 `service.v1.json` 动态端口，新增 Windows/macOS 联合人工验收清单，并明确区分运行中的桌面服务与无需启动窗口的 CAD 深度读取器。
+- 已删除独立 CAD 连接入口遗留的 `cad-provider.svg`，VSIX 制品门禁拒绝该死资源重新进入安装包。
+- Ignore Host adapter 新增自动证据：预设操作只修改打开的文本缓冲区并保持 dirty，磁盘字节不变；保存监听使用的缓存失效路径能重新读取新规则。
+- 开源仓库 URL TODO 已按当前 Git remote 核实为 Gitee；extension manifest 的 repository、bugs 与 homepage 已存在，无需重复修改。
+- 搜索替换已开放底层原有的“同时匹配全大写”能力，状态可随 Block 和规则档案持久；真实预览/写盘回归已追加到 Extension Host 待测试列表。
+- 编码修正的 UTF-8 / GBK 默认目标在写入后立即回传 Webview，不再因旧 `toolOptions` 渲染回弹；切换后主动废弃上一目标的预检结果。
+- Ignore Host 入站守卫会校验 preset/action/推荐组 ID，分析结果最多默认勾选首个安全可追加组；工作集追加会在读取磁盘配置前拒绝 dirty 的 `worksets.json`，避免以旧磁盘内容覆盖用户缓冲区。
+- 头文件 ASCII、编码修正与 Ignore 同步已补齐 Controller 级取消/缺失工作区/dirty 缓冲区测试；关联规则选择器显示候选数和默认选中数，降低批量追加前的误判。
+- 今天累计的跨功能人工步骤统一收录于[2026-07-20 功能修复人工点检表](2026-07-20-功能修复人工点检表.md)，自动门禁与手工回执分开记录。
 
 ## 已完成第一波：Codegen 控制符目录与模板日志
 

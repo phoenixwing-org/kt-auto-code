@@ -134,9 +134,21 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('id="replace-validation"');
     expect(html).toContain('id="replace-preview-tooltip"');
     expect(html).toContain('id="replace-apply-tooltip"');
+    expect(html).toContain('<input id="replace-preserve-case" type="checkbox" />同时匹配全大写');
+    expect(html).toContain('state.replace.preserveCase = !!state.replace.preserveCase');
+    expect(html).toContain('preserveCase: els.preserveCase.checked');
+    expect(html).toContain('preserveCase: state.replace.preserveCase');
+    expect(html).toContain('preserveCase: !!profile.options.preserveCase');
+    expect(html).toContain('els.replaceIgnored, els.preserveCase');
+    expect(html).not.toContain('自动匹配大小写（待测试开放）');
     expect(html).toContain('els.replacePreviewTooltip.title = disabledReason');
     expect(html).toContain('body.task-running button.action:disabled { cursor: progress; }');
     expect(html).toContain('button.action:disabled { opacity: 0.5; cursor: not-allowed; }');
+    expect(html).toContain('body.vscode-high-contrast,');
+    expect(html).toContain('--ktc-ui-border: var(--vscode-contrastBorder, var(--vscode-focusBorder));');
+    expect(html).toContain('--ktc-ui-active-border: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));');
+    expect(html).toContain('border: 1px solid var(--ktc-ui-border, var(--vscode-button-border, transparent));');
+    expect(html).toContain('.tab:hover:not(:disabled) { background: var(--vscode-toolbar-hoverBackground); border-color: var(--ktc-ui-active-border');
 
     const script = html.match(/<script nonce="[^"]+">([\s\S]*?)<\/script>/)?.[1];
     expect(script).toBeTruthy();

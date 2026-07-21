@@ -82,6 +82,11 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       padding: 0;
       margin: 0;
     }
+    body.vscode-high-contrast,
+    body.vscode-high-contrast-light {
+      --ktc-ui-border: var(--vscode-contrastBorder, var(--vscode-focusBorder));
+      --ktc-ui-active-border: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+    }
     body.ribbon-only .wrap { padding: 3px 10px 4px; }
     body.ribbon-only .wrap > :not(#tabs) { display: none; }
     body.ribbon-only .tabs { margin-bottom: 0; border-bottom: 0; padding: 1px 0 2px; }
@@ -118,13 +123,14 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       align-items: center;
       gap: 5px;
       padding: 4px 10px;
-      border: 1px solid transparent;
+      border: 1px solid var(--ktc-ui-border, transparent);
       border-radius: 4px;
       background: transparent;
       color: var(--vscode-foreground);
       cursor: pointer;
       font-size: 12px;
     }
+    .tab:hover:not(:disabled) { background: var(--vscode-toolbar-hoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, transparent)); }
     .tab[data-tooltip]::after {
       position: absolute;
       z-index: 20;
@@ -185,19 +191,19 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     }
     .tabs.ribbon .tool-icon { width: 22px; height: 22px; flex-basis: 22px; }
     .module-block { font-size: 12px; }
-    .module-block .block-header { padding-bottom: 10px; border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border); }
+    .module-block .block-header { padding-bottom: 10px; border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-sideBarSectionHeader-border)); }
     .module-block .block-header-row { display: flex; align-items: flex-start; gap: 8px; }
     .module-block .block-header-main { flex: 1 1 auto; min-width: 0; }
     .module-block .block-header-actions { display: flex; flex: 0 0 auto; gap: 3px; }
-    .module-block .block-header-action { min-width: 26px; height: 26px; padding: 0 6px; border: 0; border-radius: 3px; color: var(--vscode-foreground); background: transparent; cursor: pointer; }
-    .module-block .block-header-action:hover { background: var(--vscode-toolbar-hoverBackground); }
+    .module-block .block-header-action { min-width: 26px; height: 26px; padding: 0 6px; border: 1px solid var(--ktc-ui-border, transparent); border-radius: 3px; color: var(--vscode-foreground); background: transparent; cursor: pointer; }
+    .module-block .block-header-action:hover { background: var(--vscode-toolbar-hoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, transparent)); }
     .module-block h2 { margin: 0 0 5px; font-size: 14px; }
     .module-block h3 { margin: 0 0 6px; font-size: 12px; }
     .module-block p { margin: 0; color: var(--vscode-descriptionForeground); font-size: 12px; line-height: 1.5; }
-    .module-block .state { display: inline-block; margin-bottom: 8px; padding: 2px 6px; border-radius: 3px; color: var(--vscode-badge-foreground); background: var(--vscode-badge-background); font-size: 11px; }
+    .module-block .state { display: inline-block; margin-bottom: 8px; padding: 2px 6px; border: 1px solid var(--ktc-ui-border, transparent); border-radius: 3px; color: var(--vscode-badge-foreground); background: var(--vscode-badge-background); font-size: 11px; }
     .module-block .state.warning { color: var(--vscode-editorWarning-foreground); background: var(--vscode-inputValidation-warningBackground, var(--vscode-badge-background)); }
     .module-block .state.success { color: var(--vscode-testing-iconPassed, var(--vscode-badge-foreground)); }
-    .module-block section { margin-top: 12px; padding: 10px; border: 1px solid var(--vscode-widget-border); border-radius: 5px; background: var(--vscode-sideBarSectionHeader-background); }
+    .module-block section { margin-top: 12px; padding: 10px; border: 1px solid var(--ktc-ui-border, var(--vscode-widget-border)); border-radius: 5px; background: var(--vscode-sideBarSectionHeader-background); }
     .module-block ul { margin: 7px 0 0; padding-left: 18px; color: var(--vscode-descriptionForeground); font-size: 12px; line-height: 1.55; }
     .module-block .notice { margin-top: 12px; padding: 9px 10px; border-left: 3px solid var(--vscode-textLink-foreground); background: var(--vscode-textBlockQuote-background); }
     .module-block .notice strong { display: block; margin-bottom: 3px; font-size: 12px; }
@@ -281,8 +287,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .compact-file-dir { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--vscode-descriptionForeground); font-size: 11px; }
     .compact-inline { display: flex; flex: 0 0 auto; opacity: 0; }
     .compact-file-row:hover .compact-inline, .compact-inline:focus-within { opacity: 1; }
-    .compact-icon { width: 24px; height: 24px; padding: 0; border: 0; border-radius: 3px; color: var(--vscode-foreground); background: transparent; cursor: pointer; font-size: 15px; line-height: 24px; }
-    .compact-icon:hover { background: var(--vscode-toolbar-hoverBackground); }
+    .compact-icon { width: 24px; height: 24px; padding: 0; border: 1px solid var(--ktc-ui-border, transparent); border-radius: 3px; color: var(--vscode-foreground); background: transparent; cursor: pointer; font-size: 15px; line-height: 22px; }
+    .compact-icon:hover { background: var(--vscode-toolbar-hoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, transparent)); }
     .compact-state { flex: 0 0 auto; max-width: 86px; overflow: hidden; color: var(--vscode-descriptionForeground); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
     .compact-state.error, .compact-state.blocked { color: var(--vscode-errorForeground); }
     .compact-state.applied, .compact-state.ok { color: var(--vscode-testing-iconPassed, var(--vscode-descriptionForeground)); }
@@ -328,13 +334,13 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       width: 30px;
       height: 30px;
       padding: 0;
-      border: 1px solid var(--vscode-button-secondaryBackground, var(--vscode-panel-border));
+      border: 1px solid var(--ktc-ui-border, var(--vscode-button-secondaryBackground, var(--vscode-panel-border)));
       border-radius: 2px;
       color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
       background: var(--vscode-button-secondaryBackground, transparent);
       cursor: pointer;
     }
-    .folder-button:hover { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-toolbar-hoverBackground)); }
+    .folder-button:hover { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-toolbar-hoverBackground)); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, var(--vscode-panel-border))); }
     .folder-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     .replace-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0 0 9px; }
     .action-tooltip { display: block; min-width: 0; }
@@ -381,8 +387,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .rule-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) minmax(0, 1fr) 82px; gap: 4px; align-items: center; margin-bottom: 5px; }
     .rule-row input { min-width: 0; height: 27px; padding: 3px 6px; border: 1px solid var(--vscode-input-border, var(--vscode-panel-border)); border-radius: 2px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); font-family: var(--vscode-editor-font-family); }
     .rule-actions { display: flex; }
-    .rule-row button { width: 20px; padding: 0; border: 0; color: var(--vscode-foreground); background: transparent; cursor: pointer; font-size: 13px; }
-    .rule-row button:hover { background: var(--vscode-list-hoverBackground); }
+    .rule-row button { width: 20px; padding: 0; border: 1px solid var(--ktc-ui-border, transparent); color: var(--vscode-foreground); background: transparent; cursor: pointer; font-size: 13px; }
+    .rule-row button:hover { background: var(--vscode-list-hoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, transparent)); }
     .rule-row button:disabled { opacity: 0.45; cursor: default; }
     .rule-tools { display: flex; flex-wrap: wrap; gap: 5px 12px; margin-top: 6px; }
     @media (max-width: 320px) {
@@ -448,19 +454,19 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     button.action {
       min-height: 28px;
       padding: 4px 12px;
-      border: 1px solid transparent;
+      border: 1px solid var(--ktc-ui-border, var(--vscode-button-border, transparent));
       border-radius: 2px;
       background: var(--vscode-button-background);
       color: var(--vscode-button-foreground);
       cursor: pointer;
       font-size: 12px;
     }
-    button.action:not(:disabled):hover { background: var(--vscode-button-hoverBackground); }
+    button.action:not(:disabled):hover { background: var(--vscode-button-hoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, var(--vscode-button-border, transparent))); }
     button.action.secondary {
       color: var(--vscode-button-secondaryForeground);
       background: var(--vscode-button-secondaryBackground);
     }
-    button.action.secondary:not(:disabled):hover { background: var(--vscode-button-secondaryHoverBackground); }
+    button.action.secondary:not(:disabled):hover { background: var(--vscode-button-secondaryHoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, var(--vscode-button-border, transparent))); }
     button.action:disabled { opacity: 0.5; cursor: not-allowed; }
     body.task-running button.action:disabled { cursor: progress; }
     .inline-validation { margin: -4px 0 8px; color: var(--vscode-descriptionForeground); font-size: 11px; line-height: 1.35; }
@@ -607,7 +613,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       <p class="hint" id="uuid-strategy-hint">相同旧 UUID 在所有文件中替换为同一个新 UUID；策略在扫描时固定。</p>
     </div>
     <div class="compact-tools" id="compact-tools" hidden>
-      <button class="text-button" id="btn-caa-check-connection" type="button" hidden>检测 Desk Tools</button>
+      <button class="text-button" id="btn-caa-check-connection" type="button" hidden>连接 Desk Tools</button>
       <button class="text-button" id="btn-add-results-workset" type="button">加入工作集</button>
     </div>
     <section class="environment-block" id="environment-block" hidden>
@@ -647,8 +653,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
             <option value="gbk">GBK（本地）</option>
           </select>
         </label>
-        <label class="disabled" title="自动匹配大小写待后续测试开放">
-          <input id="replace-preserve-case" type="checkbox" disabled />自动匹配大小写（待测试开放）
+        <label title="同时派生搜索词和替换词的全大写规则">
+          <input id="replace-preserve-case" type="checkbox" />同时匹配全大写
         </label>
       </div>
       <div class="replace-fields replace-scope working-directory">
@@ -799,7 +805,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       (rule.search || "").trim() || (rule.replace || "").trim()
     ));
     state.replace.defaultEncoding = state.replace.defaultEncoding === "gbk" ? "gbk" : "utf8";
-    state.replace.preserveCase = false;
+    state.replace.preserveCase = !!state.replace.preserveCase;
     const toolScrollPositions = new Map();
 
     function switchActiveTool(nextToolId) {
@@ -1326,7 +1332,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     }
 
     function renderCaaResults(ts) {
-      const connection = ts.caaDeskConnection || { status: "checking", text: "等待检测 Desk Tools…" };
+      const connection = ts.caaDeskConnection || { status: "checking", text: "等待连接 Desk Tools…" };
       const connectionRow = document.createElement("div");
       connectionRow.className = "caa-connection " + connection.status;
       const connectionIcon = connection.status === "online" ? "●" : (connection.status === "checking" ? "◌" : (connection.status === "custom-command" ? "◆" : "○"));
@@ -1346,7 +1352,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
           onOpen: open,
           actions: [
             { text: "↗", title: "在 VS Code 中打开", onClick: open },
-            { text: "□", title: "在配置的外部编辑器中打开", onClick: () => vscode.postMessage({ type: "caaDialogAction", toolId: "caaDialog", action: "openExternal", uri: item.uri }) },
+            { text: "□", title: "在 Desk Tools 中打开", onClick: () => vscode.postMessage({ type: "caaDialogAction", toolId: "caaDialog", action: "openExternal", uri: item.uri }) },
           ],
           title: item.relativePath,
         });
@@ -1515,7 +1521,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.replaceSourcePrefix.value = state.replace.sourcePrefix || "";
       els.replaceTargetPrefix.value = state.replace.targetPrefix || "";
       els.defaultEncoding.value = state.replace.defaultEncoding;
-      els.preserveCase.checked = false;
+      els.preserveCase.checked = !!state.replace.preserveCase;
       renderSearchReplaceProfiles();
       els.extraRules.innerHTML = "";
       state.replace.extraRules.forEach((rule, index) => {
@@ -1711,7 +1717,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
             btn.appendChild(icon);
           }
           const label = document.createElement("span");
-          const shortTitles = { headerAscii: "头文件", encodingFix: "编码", ignoreSettings: "忽略", codeRename: "替换", codegen: "自动代码", reorderMembers: "排序", uuidReplace: "UUID", caaDialog: "CAA", environmentSettings: "环境" };
+          const shortTitles = { headerAscii: "头文件", encodingFix: "编码", ignoreSettings: "忽略", codeRename: "替换", codegen: "自动代码", reorderMembers: "排序", uuidReplace: "UUID", caaDialog: "CAA UI", environmentSettings: "环境" };
           label.textContent = t.shortTitle || shortTitles[t.id] || t.title;
           btn.appendChild(label);
           const openState = isActive
@@ -1765,13 +1771,14 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.uuidStrategyHint.className = "hint" + (state.uuidStrategy === "fresh_per_hit" ? " warning" : "");
       els.compactTools.hidden = !(rename || uuid || caaDialog);
       els.btnCaaCheckConnection.hidden = !caaDialog;
+      els.btnCaaCheckConnection.textContent = ts.caaDeskConnection?.status === "online" ? "重新检测" : "连接 Desk Tools";
       els.btnAddResultsWorkset.disabled = running || (rename && !ts.codeRenameResults) || (uuid && !Array.isArray(ts.uuidResults)) || (caaDialog && !Array.isArray(ts.caaDialogResults));
       els.ignoreBlock.hidden = !ignore;
       els.btnApplyIgnoreRecommendations.hidden = true;
       els.btnScan.disabled = running;
       els.btnFix.disabled = running;
       els.btnScan.textContent = rename ? "打开" : (ignore ? "打开规则" : (uuid ? "扫描 UUID" : (caaDialog ? "扫描 CATDlg" : "预检")));
-      els.btnFix.textContent = enc ? "按目标转换" : (ignore ? "从 .gitignore 同步" : (uuid ? "替换所选" : (caaDialog ? "CAA 设置" : "修复")));
+      els.btnFix.textContent = enc ? "按目标转换" : (ignore ? "从 .gitignore 同步" : (uuid ? "替换所选" : (caaDialog ? "Desk Tools 设置" : "修复")));
       els.btnFix.style.display = rename ? "none" : "inline-block";
 
       els.targetHint.hidden = !enc;
@@ -1946,7 +1953,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         sourcePrefix: els.replaceSourcePrefix.value,
         targetPrefix: els.replaceTargetPrefix.value,
         defaultEncoding: els.defaultEncoding.value === "gbk" ? "gbk" : "utf8",
-        preserveCase: false,
+        preserveCase: els.preserveCase.checked,
         extraRules: state.replace.extraRules,
         profileId: state.replace.profileId || "",
         profileLabel: els.replaceProfileName.value,
@@ -2065,7 +2072,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
           targetPrefix: state.replace.targetPrefix,
           associatedRules: state.replace.extraRules,
           options: {
-            preserveCase: false,
+            preserveCase: state.replace.preserveCase,
             text: state.replace.text,
             file: state.replace.file,
             dir: state.replace.dir,
@@ -2112,7 +2119,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         });
       }
     };
-    for (const input of [els.replaceText, els.replaceFile, els.replaceDir, els.replaceIgnored]) {
+    for (const input of [els.replaceText, els.replaceFile, els.replaceDir, els.replaceIgnored, els.preserveCase]) {
       input.onchange = saveReplaceState;
     }
     for (const input of [els.replaceSearch, els.replaceWith, els.replaceScope, els.replaceSourcePrefix, els.replaceTargetPrefix]) {
@@ -2247,7 +2254,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
             with: profile.replace,
             sourcePrefix: profile.sourcePrefix,
             targetPrefix: profile.targetPrefix,
-            preserveCase: false,
+            preserveCase: !!profile.options.preserveCase,
             text: profile.options.text,
             file: profile.options.file,
             dir: profile.options.dir,

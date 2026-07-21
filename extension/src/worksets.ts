@@ -47,6 +47,9 @@ export async function ktcAddResultFilesToWorkset(
   relativePaths: readonly string[],
   title: string,
 ): Promise<number> {
+  const uri = vscode.Uri.joinPath(root, ".phoenix", "worksets.json");
+  const dirty = vscode.workspace.textDocuments.find((document) => document.uri.toString() === uri.toString() && document.isDirty);
+  if (dirty) throw new Error("worksets.json 有未保存修改，请先保存后再加入结果文件。");
   const loaded = await ktcReadWorkspaceWorksets(root);
   if (!loaded.valid || !loaded.document) throw new Error(`工作集配置无效：${loaded.diagnostics.join("；")}`);
   if (loaded.document.worksets.length === 0) {
@@ -54,9 +57,6 @@ export async function ktcAddResultFilesToWorkset(
     void vscode.window.showInformationMessage("尚无工作集；已打开配置，请添加并保存后重试。");
     return 0;
   }
-  const uri = vscode.Uri.joinPath(root, ".phoenix", "worksets.json");
-  const dirty = vscode.workspace.textDocuments.find((document) => document.uri.toString() === uri.toString() && document.isDirty);
-  if (dirty) throw new Error("worksets.json 有未保存修改，请先保存后再加入结果文件。");
   type WorksetItem = vscode.QuickPickItem & { readonly id: string };
   const selected = await vscode.window.showQuickPick<WorksetItem>(loaded.document.worksets.map((workset) => ({
     label: workset.label,

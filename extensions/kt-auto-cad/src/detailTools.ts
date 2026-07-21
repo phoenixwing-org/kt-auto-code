@@ -3,7 +3,6 @@ export type KtcCadDetailToolId =
   | "cadScan"
   | "cadRead"
   | "cadQuery"
-  | "cadProvider"
   | "cadDiagnostics";
 
 export interface KtcCadDetailTool {
@@ -37,12 +36,6 @@ export const KTC_CAD_DETAIL_TOOLS: readonly KtcCadDetailTool[] = Object.freeze([
     title: "查询 BOM 与引用",
     summary: "只读查询 TS 轻量索引生成的基础 BOM 与引用。",
     requirement: "workspace-database",
-  },
-  {
-    id: "cadProvider",
-    title: "Desk Tools Provider",
-    summary: "选择并校验 Desk Tools 提供的本机 CAD 程序。",
-    requirement: "none",
   },
   {
     id: "cadDiagnostics",

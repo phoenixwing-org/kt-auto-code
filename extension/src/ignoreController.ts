@@ -25,16 +25,28 @@ export interface KtcIgnoreControllerResult {
   recommendations?: KtcIgnoreRecommendationReport;
 }
 
-const ignoreMessageTypes = new Set<KtcIgnoreMessageType>([
-  "openIgnoreFile",
-  "syncIgnoreFromGit",
-  "applyIgnorePreset",
-  "analyzeIgnore",
-  "applyIgnoreRecommendations",
-]);
+const ignorePresetIds = new Set(["caa", "cpp", "web"]);
 
 export function ktcIsIgnoreMessage(message: WebviewInboundMessage): message is KtcIgnoreMessage {
-  return ignoreMessageTypes.has(message.type as KtcIgnoreMessageType);
+  if (message.type === "openIgnoreFile"
+    || message.type === "syncIgnoreFromGit"
+    || message.type === "analyzeIgnore") return true;
+  if (message.type === "applyIgnorePreset") {
+    return ignorePresetIds.has(message.presetId)
+      && (message.action === "append" || message.action === "remove");
+  }
+  if (message.type === "applyIgnoreRecommendations") {
+    return Array.isArray(message.groupIds)
+      && message.groupIds.every((groupId) => typeof groupId === "string" && groupId.trim().length > 0);
+  }
+  return false;
+}
+
+export function ktcDefaultIgnoreGroupIds(
+  groups: readonly { groupId: string; defaultSelected: boolean; suggestedRules: readonly unknown[] }[],
+): string[] {
+  const first = groups.find((group) => group.defaultSelected && group.suggestedRules.length > 0);
+  return first ? [first.groupId] : [];
 }
 
 export class KtcIgnoreController {

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const vscodeHost = vi.hoisted(() => ({
   executeCommand: vi.fn(async () => undefined),
+  configurationValues: new Map<string, unknown>(),
 }));
 
 vi.mock("vscode", () => {
@@ -25,6 +26,7 @@ vi.mock("vscode", () => {
   }
 
   return {
+    ConfigurationTarget: { Workspace: "workspace", WorkspaceFolder: "workspaceFolder" },
     Uri,
     commands: {
       executeCommand: vscodeHost.executeCommand,
@@ -34,9 +36,15 @@ vi.mock("vscode", () => {
     workspace: {
       workspaceFolders: undefined,
       textDocuments: [],
-      getConfiguration: vi.fn(() => ({
-        get: vi.fn((_key: string, fallback: unknown) => fallback),
-        update: vi.fn(async () => undefined),
+      getConfiguration: vi.fn((section: string) => ({
+        get: vi.fn((key: string, fallback: unknown) => (
+          vscodeHost.configurationValues.has(`${section}.${key}`)
+            ? vscodeHost.configurationValues.get(`${section}.${key}`)
+            : fallback
+        )),
+        update: vi.fn(async (key: string, value: unknown) => {
+          vscodeHost.configurationValues.set(`${section}.${key}`, value);
+        }),
       })),
       fs: {},
     },
@@ -57,6 +65,7 @@ import type {
   WebviewOutboundMessage,
 } from "../tools/types.js";
 import { registerTool } from "../tools/registry.js";
+import { encodingFixTool } from "../tools/encodingFix/index.js";
 import { SidebarViewProvider } from "./sidebarViewProvider.js";
 
 const TEST_TOOL_ID = "transientPickerTest";
@@ -95,6 +104,7 @@ const testTool: KtTool = {
 };
 
 registerTool(testTool);
+registerTool(encodingFixTool);
 registerTool({
   ...testTool,
   id: SECOND_TEST_TOOL_ID,
@@ -190,11 +200,67 @@ function stateMessages(view: FakeWebviewView): Extract<WebviewOutboundMessage, {
 describe("SidebarViewProvider transient tool state", () => {
   beforeEach(() => {
     vscodeHost.executeCommand.mockClear();
+    vscodeHost.configurationValues.clear();
     nextState = {
       status: "idle",
       message: "请选择要添加的关联规则。",
       associatedRulePicker: picker,
     };
+  });
+
+  it("编码目标写入后立即刷新 GBK 选项并废弃旧预检结果", async () => {
+    const { internals, ribbon, module } = createProvider();
+    internals.setToolState("encodingFix", {
+      status: "done",
+      message: "旧 UTF-8 预检结果",
+      encodingResults: [{
+        file: "Part.cpp",
+        relativePath: "src/Part.cpp",
+        fullPath: "/workspace/src/Part.cpp",
+        detected: "UTF-8",
+        expected: "UTF-8",
+        status: "ok",
+        suggestedAction: "无需转换",
+      }],
+      scanned: 1,
+      issueFiles: 0,
+    });
+    ribbon.messages.length = 0;
+    module.messages.length = 0;
+
+    await internals.onMessage({
+      type: "setEncodingDefaultTarget",
+      toolId: "encodingFix",
+      target: "gbk",
+    }, module);
+
+    expect(vscodeHost.configurationValues.get("ktAutoCode.encodingFix.defaultTarget")).toBe("gbk");
+    for (const view of [ribbon, module]) {
+      expect([...view.messages].reverse().find((message) => (
+        message.type === "options" && message.toolId === "encodingFix"
+      ))).toEqual({
+        type: "options",
+        toolId: "encodingFix",
+        options: {
+          encodingDefaultTarget: "gbk",
+          encodingHeaderTarget: "inherit",
+          encodingSourceTarget: "inherit",
+          encodingMarkdownTarget: "inherit",
+        },
+      });
+      expect(stateMessages(view).at(-1)).toEqual({
+        type: "state",
+        toolId: "encodingFix",
+        state: {
+          status: "idle",
+          message: "项目编码目标已更新，请重新预检。",
+          encodingResults: [],
+          scanned: 0,
+          issueFiles: 0,
+          fixedFiles: 0,
+        },
+      });
+    }
   });
 
   it("共享工具界面只向标题菜单发布当前活动工具", async () => {

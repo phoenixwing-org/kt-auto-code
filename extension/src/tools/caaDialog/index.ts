@@ -4,7 +4,12 @@ import { pnwIsCaaDialogHandoff, type PnwCaaDialogHandoff } from "@phoenix-wing/c
 import { isIgnoredPath } from "../../../../src/dotIgnore.js";
 import type { CaaDialogFileResultSummary, KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
 import { ktcProbeDeskTools } from "../../caaDeskBridge.js";
-import { ktcOpenCaaInExternalEditor, ktcOpenCaaSettings, ktcReadCaaExternalEditor } from "../../caaSettings.js";
+import {
+  ktcOpenCaaInExternalEditor,
+  ktcOpenCaaSettings,
+  ktcReadCaaExternalEditor,
+  ktcResolveCaaOpenEndpoint,
+} from "../../caaSettings.js";
 import { ktcReadProjectEnvironmentStatus } from "../../projectEnvironment.js";
 import { resolveWorkspaceIgnorePatterns } from "../../ignoreConfig.js";
 import { ktcAddResultFilesToWorkset, ktcFileInWorkspaceScope, ktcResolveWorkspaceFileScope } from "../../worksets.js";
@@ -27,8 +32,8 @@ let runContextFactory: (() => ToolRunContext | undefined) | undefined;
 
 export const caaDialogTool: KtTool = {
   id: "caaDialog",
-  title: "CAA 对话框",
-  description: "筛选 .CATDlg 文件并生成 Desk Tools 编辑器交接数据。",
+  title: "CAA UI",
+  description: "扫描 .CATDlg，并连接 Desk Tools 图形编辑器。",
   icon: "media/tools/code-rename.svg",
   getPanelModel(): ToolPanelModel { return { summary: { id: this.id, title: this.title, description: this.description, icon: this.icon } }; },
   registerCommands(context): void {
@@ -67,8 +72,8 @@ export function setCaaDialogRunContextFactory(factory: () => ToolRunContext | un
 
 async function addCaaResultsToWorkset(): Promise<void> {
   const root = vscode.workspace.workspaceFolders?.[0]?.uri;
-  if (!root || session?.workspaceUri !== root.toString() || !session.files.length) { void vscode.window.showInformationMessage("请先在当前工作区生成 CAA 对话框结果。"); return; }
-  try { await ktcAddResultFilesToWorkset(root, session.files.map((file) => file.relativePath), "CAA 对话框"); }
+  if (!root || session?.workspaceUri !== root.toString() || !session.files.length) { void vscode.window.showInformationMessage("请先在当前工作区生成 CAA UI 结果。"); return; }
+  try { await ktcAddResultFilesToWorkset(root, session.files.map((file) => file.relativePath), "CAA UI"); }
   catch (error) { void vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error)); }
 }
 
@@ -104,11 +109,18 @@ async function scan(ctx: ToolRunContext): Promise<void> {
   const settings = await ktcReadProjectEnvironmentStatus();
   const message = `范围“${scope.label}”已定位 ${files.length} 个 .CATDlg 文件；请在当前 Block 中按需打开文件或外部编辑器。工程环境：${settings.text}${settings.complete ? "" : "（必填根目录未完整设定）"}`;
   ctx.postState({ status: "done", message, scanned: files.length, issueFiles: files.length, caaDialogResults: caaResultRows(), caaSettingsText: settings.text });
-  ctx.log(`[CAA 对话框] ${message}`);
+  ctx.log(`[CAA UI] ${message}`);
   await checkDeskConnection(ctx);
 }
 
 async function checkDeskConnection(ctx: ToolRunContext): Promise<void> {
+  if (vscode.env.remoteName) {
+    ctx.postState({
+      status: "idle",
+      caaDeskConnection: { status: "incompatible", text: `远程 ${vscode.env.remoteName} 工作区不能连接本机 Desk Tools`, checkedAt: new Date().toISOString() },
+    });
+    return;
+  }
   const editor = ktcReadCaaExternalEditor();
   const checkedAt = new Date().toISOString();
   if (editor.command) {
@@ -118,22 +130,23 @@ async function checkDeskConnection(ctx: ToolRunContext): Promise<void> {
     });
     return;
   }
-  if (!editor.endpoint) {
+  const resolved = ktcResolveCaaOpenEndpoint(editor);
+  if (!resolved) {
     ctx.postState({
       status: "idle",
-      caaDeskConnection: { status: "incompatible", text: "尚未配置 Desk Tools 接口", checkedAt },
+      caaDeskConnection: { status: "incompatible", text: editor.discoveryMode === "disabled" ? "Desk Tools 交接已禁用" : "未发现 Desk Tools 服务", checkedAt },
     });
     return;
   }
-  ctx.postState({ status: "idle", caaDeskConnection: { status: "checking", text: "正在检测 Desk Tools…", endpoint: editor.endpoint, checkedAt } });
-  const connection = await ktcProbeDeskTools(editor.endpoint);
+  ctx.postState({ status: "idle", caaDeskConnection: { status: "checking", text: "正在连接 Desk Tools…", endpoint: resolved.endpoint, checkedAt } });
+  const connection = await ktcProbeDeskTools(resolved.endpoint);
   ctx.postState({ status: "idle", caaDeskConnection: { ...connection, checkedAt: new Date().toISOString() } });
 }
 
 async function openSettings(ctx: ToolRunContext): Promise<void> {
   await ktcOpenCaaSettings();
   const settings = await ktcReadProjectEnvironmentStatus();
-  ctx.postState({ status: "done", message: `已打开 CAA 设置。当前环境：${settings.text}`, caaSettingsText: settings.text });
+  ctx.postState({ status: "done", message: `已打开 Desk Tools 设置。当前环境：${settings.text}`, caaSettingsText: settings.text });
 }
 
 async function openFile(file: string): Promise<void> {
@@ -156,7 +169,7 @@ async function runCaaFileAction(
 ): Promise<void> {
   const selected = session?.files.find((file) => file.uri.toString() === uri);
   if (!ctx.workspaceRoot || !session || !selected || session.workspaceUri !== vscode.Uri.file(ctx.workspaceRoot).toString()) {
-    ctx.postState({ status: "error", message: "CAA 对话框结果已失效，请重新扫描。" });
+    ctx.postState({ status: "error", message: "CAA UI 结果已失效，请重新扫描。" });
     return;
   }
   try {
@@ -170,7 +183,7 @@ async function runCaaFileAction(
         message: transport === "desk-tools" ? `Desk Tools 已接受 ${selected.relativePath}` : `已交给外部编辑器：${selected.relativePath}`,
         caaDialogResults: caaResultRows(),
         caaDeskConnection: transport === "desk-tools"
-          ? { status: "online", text: "Desk Tools 已连接", endpoint: ktcReadCaaExternalEditor().endpoint, checkedAt }
+          ? { status: "online", text: "Desk Tools 桌面服务已连接", endpoint: ktcResolveCaaOpenEndpoint()?.endpoint, checkedAt }
           : { status: "custom-command", text: "使用自定义外部编辑器命令", checkedAt },
       });
     }

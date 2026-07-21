@@ -2,6 +2,12 @@
 
 所有显著变更会记录在本文件中。
 
+## 0.5.3
+
+- 修复高对比度与高对比度浅色主题下 Primary、各功能 Block、Codegen 预检结果及对话框按钮缺少可见边框的问题；操作按钮、图标按钮、筛选按钮和状态标签统一使用宿主对比度颜色。
+- hover 在保留原有背景反馈的同时增加活动对比边框，并回退到焦点边框；普通浅色/深色主题继续沿用原有按钮与面板颜色。
+- 高对比度变量可跨 Shadow DOM 传入 Codegen Primary/控制符目录、成员排序和关联规则组件；本补丁不新增公共命令或扩展 API。
+
 ## 0.5.2
 
 - Codegen 单次与批量 Apply 现在把结构化报告原子写入工作区 `.phoenix/reports/codegen/`；Primary 可重开历史报告，报告中的 JSON 进入 Codegen View，批量后台 session 不再铺开或关闭用户的 JSON View。

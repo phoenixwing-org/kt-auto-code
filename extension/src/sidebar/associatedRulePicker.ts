@@ -17,7 +17,7 @@ const STYLE = `
     width: min(430px, calc(100vw - 20px));
     max-height: calc(100vh - 24px);
     padding: 0;
-    border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+    border: 1px solid var(--ktc-ui-border, var(--vscode-widget-border, var(--vscode-panel-border)));
     border-radius: 4px;
     color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
     background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background));
@@ -34,17 +34,18 @@ const STYLE = `
     border-bottom: 1px solid var(--vscode-panel-border);
   }
   .header strong { font-size: 12px; font-weight: 600; }
+  .header .summary { margin-left: auto; color: var(--vscode-descriptionForeground); font-size: 10px; }
   .close {
     width: 24px;
     height: 24px;
     padding: 0;
-    border: 0;
+    border: 1px solid var(--ktc-ui-border, transparent);
     color: var(--vscode-foreground);
     background: transparent;
     cursor: pointer;
     font-size: 17px;
   }
-  .close:hover { background: var(--vscode-toolbar-hoverBackground); }
+  .close:hover { background: var(--vscode-toolbar-hoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, transparent)); }
   .list { overflow: auto; padding: 6px 12px 2px; }
   .empty { margin: 7px 0; color: var(--vscode-descriptionForeground); font-size: 11px; }
   .row {
@@ -94,18 +95,18 @@ const STYLE = `
   .action {
     min-height: 28px;
     padding: 4px 12px;
-    border: 1px solid transparent;
+    border: 1px solid var(--ktc-ui-border, var(--vscode-button-border, transparent));
     border-radius: 2px;
     color: var(--vscode-button-foreground);
     background: var(--vscode-button-background);
     cursor: pointer;
   }
-  .action:not(:disabled):hover { background: var(--vscode-button-hoverBackground); }
+  .action:not(:disabled):hover { background: var(--vscode-button-hoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, var(--vscode-button-border, transparent))); }
   .action.secondary {
     color: var(--vscode-button-secondaryForeground);
     background: var(--vscode-button-secondaryBackground);
   }
-  .action.secondary:not(:disabled):hover { background: var(--vscode-button-secondaryHoverBackground); }
+  .action.secondary:not(:disabled):hover { background: var(--vscode-button-secondaryHoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, var(--vscode-button-border, transparent))); }
   .action:disabled { opacity: .5; cursor: not-allowed; }
   @media (max-width: 320px) {
     .values { grid-template-columns: minmax(0, 1fr); }
@@ -117,6 +118,7 @@ export class KtcAssociatedRulePicker extends HTMLElement {
   private readonly root = this.attachShadow({ mode: "open" });
   private dialog: HTMLDialogElement | undefined;
   private titleElement: HTMLElement | undefined;
+  private summaryElement: HTMLElement | undefined;
   private list: HTMLElement | undefined;
   private confirm: HTMLButtonElement | undefined;
   private activeModel: KtcAssociatedRulePickerState | undefined;
@@ -152,10 +154,12 @@ export class KtcAssociatedRulePicker extends HTMLElement {
     const title = document.createElement("strong");
     title.id = "associated-rule-picker-title";
     title.textContent = "添加关联规则";
+    const summary = document.createElement("span");
+    summary.className = "summary";
     const close = this.button("×", "close", () => this.cancelPicker());
     close.title = "关闭";
     close.setAttribute("aria-label", "关闭");
-    header.append(title, close);
+    header.append(title, summary, close);
     const list = document.createElement("div");
     list.className = "list";
     const footer = document.createElement("div");
@@ -172,13 +176,15 @@ export class KtcAssociatedRulePicker extends HTMLElement {
     this.root.replaceChildren(style, dialog);
     this.dialog = dialog;
     this.titleElement = title;
+    this.summaryElement = summary;
     this.list = list;
     this.confirm = confirm;
   }
 
   private renderModel(model: KtcAssociatedRulePickerState): void {
-    if (!this.list || !this.titleElement) return;
+    if (!this.list || !this.titleElement || !this.summaryElement) return;
     this.titleElement.textContent = model.title || "添加关联规则";
+    this.summaryElement.textContent = model.summary || `${model.candidates.length} 条候选`;
     this.candidateChecks = [];
     this.customEnabled = undefined;
     this.customSearch = undefined;

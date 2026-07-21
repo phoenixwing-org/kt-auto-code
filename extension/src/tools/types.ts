@@ -207,6 +207,7 @@ export interface KtcAssociatedRulePickerCandidate {
 
 export interface KtcAssociatedRulePickerState {
   title: string;
+  summary?: string;
   candidates: readonly KtcAssociatedRulePickerCandidate[];
 }
 

@@ -28,8 +28,11 @@ export async function ktcProbeDeskTools(
   timeoutMs = 1200,
 ): Promise<KtcDeskConnection> {
   let healthEndpoint: string;
+  let address: string;
   try {
+    const openUrl = new URL(openEndpoint);
     healthEndpoint = ktcCaaHealthEndpoint(openEndpoint);
+    address = openUrl.host;
   } catch {
     return { status: "incompatible", text: "接口地址无效", endpoint: openEndpoint };
   }
@@ -43,7 +46,7 @@ export async function ktcProbeDeskTools(
     if (payload?.ok !== true || payload.service !== "caa" || payload.protocol_version !== 1) {
       return { status: "incompatible", text: "端口已响应，但不是兼容的 Desk Tools CAA 服务", endpoint: openEndpoint };
     }
-    return { status: "online", text: "Desk Tools 已连接", endpoint: openEndpoint };
+    return { status: "online", text: `Desk Tools 桌面服务已连接 · ${address}`, endpoint: openEndpoint };
   } catch (error) {
     const reason = error instanceof Error && error.name === "AbortError" ? "连接超时" : "Desk Tools 未启动或不可连接";
     return { status: "offline", text: reason, endpoint: openEndpoint };

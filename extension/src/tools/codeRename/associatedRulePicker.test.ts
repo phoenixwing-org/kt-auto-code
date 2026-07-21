@@ -15,6 +15,7 @@ describe("associatedRulePicker", () => {
     });
 
     expect(picker.title).toBe("添加常用规则");
+    expect(picker.summary).toBe("1 条候选 · 默认选中 1 条");
     expect(picker.candidates).toEqual([
       expect.objectContaining({
         label: "前缀替换",
@@ -40,6 +41,7 @@ describe("associatedRulePicker", () => {
       ["caa-i", false],
       ["caa-e", false],
     ]);
+    expect(picker.summary).toBe("4 条候选 · 默认选中 2 条");
   });
 
   it("自定义入口展示全部可分析规则但不预先勾选", () => {

@@ -58,6 +58,11 @@ export function getCodegenEditorHtml(
       background: var(--vscode-editor-background);
       font: 13px/1.35 var(--vscode-font-family);
     }
+    body.vscode-high-contrast,
+    body.vscode-high-contrast-light {
+      --ktc-ui-border: var(--vscode-contrastBorder, var(--vscode-focusBorder));
+      --ktc-ui-active-border: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+    }
     body::-webkit-scrollbar { width: 12px; height: 12px; }
     body::-webkit-scrollbar-track { background: transparent; }
     body::-webkit-scrollbar-thumb { min-height: 28px; background: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, .7)); border: 3px solid transparent; border-radius: 999px; background-clip: padding-box; }
@@ -67,16 +72,16 @@ export function getCodegenEditorHtml(
       padding: 3px 10px;
       color: var(--vscode-button-secondaryForeground);
       background: var(--vscode-button-secondaryBackground);
-      border: 1px solid var(--vscode-panel-border);
+      border: 1px solid var(--ktc-ui-border, var(--vscode-panel-border));
       border-radius: 3px;
       font: inherit;
       cursor: pointer;
     }
-    button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); }
+    button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, var(--vscode-panel-border))); }
     button.primary {
       color: var(--vscode-button-foreground);
       background: var(--vscode-button-background);
-      border-color: var(--vscode-button-background);
+      border-color: var(--ktc-ui-border, var(--vscode-button-background));
     }
     button:disabled { opacity: .45; cursor: not-allowed; }
     button:focus-visible, summary:focus-visible {

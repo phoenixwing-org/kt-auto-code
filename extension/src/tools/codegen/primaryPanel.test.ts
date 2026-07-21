@@ -205,6 +205,9 @@ describe("Codegen Primary panel", () => {
     expect(style).toContain(".candidate-label { flex: 1 1 auto;");
     expect(style).toContain(".candidate-name { color: var(--vscode-foreground); font-weight: 600; }");
     expect(style).toContain(".candidate-path { color: var(--vscode-descriptionForeground);");
+    expect(style).toContain("border: 1px solid var(--ktc-ui-border, var(--vscode-button-background));");
+    expect(style).toContain(".action:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); border-color: var(--ktc-ui-active-border");
+    expect(style).toContain(".mini { min-width: 0; overflow: hidden; border: 1px solid var(--ktc-ui-border");
     expect(findNodes(element.shadow, (node) => node.className === "action-icon")).toHaveLength(5);
   });
 
