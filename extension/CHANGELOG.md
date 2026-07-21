@@ -2,6 +2,16 @@
 
 所有显著变更会记录在本文件中。
 
+## 0.6.0
+
+- 新增 Git Primary Block：可勾选一个或多个最近 commit，一次生成多条可编辑群消息简报；支持顶部一次 remote URL、committer 时间、`@审查人`，`++` 固定表示“代码已更新”。默认审查人候选进入可删除的机器级插件设置。
+- 支持把当前分支直线历史中的连续提交安全合并为一个节点。脏工作区、merge/签名提交和非连续区间仍阻断；remote 或其他分支/tag 占用时明确询问，确认后只更新当前本地分支，不移动相关引用。临时 worktree 重放后校验最终文件树，备份 ref 重名自动编号，并保留一次显式撤销。
+- 新增独立 Run Primary Block：递归发现多根工作区内的 Task、PowerShell/Batch/Shell 脚本、可执行文件、CMake 与 CAA 工程，统一通过 VS Code Task Terminal 执行，并保留命名 problem matcher、停止和运行历史。
+- 每个可靠识别的 CAA 子项目固定提供 `MK` 与 `Run` 两个逻辑入口，可独立选择 CAA 版本及 MK 关联工程/Preq；内置 Windows runner 随 VSIX 只读发布，不修改 ExecutionPolicy，也不向工作区写脚本。
+- Git/Run 的纯 TypeScript 算法与 Node adapter 分别位于 Phoenix Wing `git-core`/`git-node`、`run-core`/`run-node`；Auto Code 只保留 VS Code Host、Primary UI、确认和权限编排。
+- Code 与 CAD 的 15 处 Phoenix Wing 依赖统一精确升级到 Registry 0.5.0，正式构建不使用本地路径、workspace override 或旧版回退。
+- “工程环境 → 插件设置”现在只按扩展 ID 打开全部 KT Auto Code 配置，不再被 `deskTools` 搜索词限制；Desk Tools 专用入口仍保持定向过滤。
+
 ## 0.5.3
 
 - 修复高对比度与高对比度浅色主题下 Primary、各功能 Block、Codegen 预检结果及对话框按钮缺少可见边框的问题；操作按钮、图标按钮、筛选按钮和状态标签统一使用宿主对比度颜色。

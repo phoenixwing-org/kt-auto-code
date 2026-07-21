@@ -14,6 +14,8 @@
 - **工作集**：使用 `.phoenix/worksets.json` 为成员排序、UUID、搜索替换和 CAA 扫描定义可复现范围。
 - **工程环境**：在独立 Block 中读取和维护 `ROOT_DIR`、`ROOT_DIR_3rdParty`、`ROOT_DIR_CORE` 与可选的 `CAA_MK_VERSION`；不把操作系统环境变量伪装成 VS Code 插件设置。
 - **Codegen 自动代码**：自动发现 Codegen JSON/旧 CSV，一份 JSON 对应一个参数表 View；支持属性与整表编辑、保序保存、工作区控制符候选、32 项 Kevin 控制符预检、源码定位和真实 Apply。single/batch 报告持久写入 `.phoenix/reports/codegen/`，可从 Primary 重开并按健康度、源码变化和 JSON 筛选。
+- **Git 提交整理**：勾选一个或多个 commit 生成可编辑群消息简报，可选顶部 Git 地址、时间和 `@`；也可在严格预检、共享历史确认、最终树校验和一次撤销保护下合并当前分支的连续提交，不提供 push 或 force push。
+- **Run 运行**：发现多根工作区内的 Task、脚本、可执行文件、CMake 与 CAA 子项目，通过 VS Code Task Terminal 运行；每个 CAA 项目固定提供 MK/Run、版本和关联工程/Preq 选择。
 
 ## 使用
 
@@ -24,6 +26,8 @@
 默认使用排他展开模式：Ribbon 保持最小高度，最近使用的模块获得主要空间，关闭或切换后缓存仍保留。可在设置中将 `Kt Auto Code › Sidebar › Block Expansion Mode` 改为 `multiple`。
 
 Desk Tools 本地 API 首选 `48375`，占用时由 Desk Tools 自动选择后续端口并注册；CAA UI 会读取注册并校验服务，不需要用户填写动态端口。高级覆盖、自定义 EXE 与 Auto CAD 深度读取器路径统一位于 `Kt Auto Code › Desk Tools` 设置。
+
+0.6.0 在 Code 模块末尾加入相互独立的 Git 与 Run Primary Block。Git 的历史改写要求直线历史；remote/其他分支或 tag 占用时需显式确认且只更新当前本地分支，不会自动 push；Run 的通用目标支持当前平台，CAA 内置 MK/Run 仍明确要求 Windows 和已安装的厂商环境。
 
 0.5.3 修复高对比度与高对比度浅色主题下 Primary、功能 Block、预检结果和对话框按钮边界不清的问题，并为操作按钮、图标按钮、筛选按钮与状态标签补齐一致的 hover 对比边框。本补丁不新增公共命令或扩展 API。
 

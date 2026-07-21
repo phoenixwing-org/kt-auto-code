@@ -1,7 +1,7 @@
 {
   "name": "@phoenix/code-plugin",
   "author": "上海锟钛",
-  "version": "0.5.3",
+  "version": "0.6.0",
   "license": "Apache-2.0",
   "private": true,
   "type": "module",
@@ -38,6 +38,7 @@
     "extensions:typecheck": "pnpm -r --filter kt-auto-code --filter kt-auto-cad run typecheck",
     "extensions:build": "pnpm -r --filter kt-auto-code --filter kt-auto-cad run build",
     "ext:package": "pnpm -C extension package",
+    "ext:package:local-wing": "node scripts/package-local-wing-vsix.mjs",
     "ext:verify-artifact": "node scripts/verify-extension-artifacts.mjs --code-only",
     "ext:release-candidate": "pnpm test && pnpm -C extension typecheck && pnpm ext:package && pnpm ext:verify-artifact",
     "cad:package": "pnpm -C extensions/kt-auto-cad package",
@@ -56,8 +57,12 @@
     "vitest": "^4.1.9"
   },
   "dependencies": {
-    "@phoenix-wing/code-core": "0.4.3",
-    "@phoenix-wing/kt-codegen": "0.4.3",
+    "@phoenix-wing/code-core": "0.5.0",
+    "@phoenix-wing/git-core": "0.5.0",
+    "@phoenix-wing/git-node": "0.5.0",
+    "@phoenix-wing/kt-codegen": "0.5.0",
+    "@phoenix-wing/run-core": "0.5.0",
+    "@phoenix-wing/run-node": "0.5.0",
     "iconv-lite": "0.6.3"
   }
 }

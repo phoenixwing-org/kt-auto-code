@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import * as vscode from "vscode";
 
 type Inspection = {
   defaultValue?: unknown;
@@ -36,7 +37,12 @@ vi.mock("vscode", () => ({
 const registryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ktc-caa-settings-"));
 process.env.PHOENIX_DESK_TOOLS_REGISTRY_DIR = registryRoot;
 
-import { ktcReadCaaExternalEditor, ktcResolveDeskToolsNativeProvider } from "./caaSettings.js";
+import {
+  ktcOpenCaaSettings,
+  ktcOpenPluginSettings,
+  ktcReadCaaExternalEditor,
+  ktcResolveDeskToolsNativeProvider,
+} from "./caaSettings.js";
 
 function configure(section: string, key: string, inspected: Inspection): void {
   const values = sections.get(section) ?? new Map<string, Inspection>();
@@ -44,13 +50,29 @@ function configure(section: string, key: string, inspected: Inspection): void {
   sections.set(section, values);
 }
 
-beforeEach(() => sections.clear());
+beforeEach(() => {
+  sections.clear();
+  vi.mocked(vscode.commands.executeCommand).mockClear();
+});
 afterAll(() => {
   delete process.env.PHOENIX_DESK_TOOLS_REGISTRY_DIR;
   fs.rmSync(registryRoot, { recursive: true, force: true });
 });
 
 describe("CAA unified settings precedence", () => {
+  it("keeps the top-level plugin settings unfiltered while Desk Tools stays scoped", async () => {
+    await ktcOpenPluginSettings();
+    expect(vscode.commands.executeCommand).toHaveBeenLastCalledWith(
+      "workbench.action.openSettings",
+      "@ext:kuntai.kt-auto-code",
+    );
+    await ktcOpenCaaSettings();
+    expect(vscode.commands.executeCommand).toHaveBeenLastCalledWith(
+      "workbench.action.openSettings",
+      "@ext:kuntai.kt-auto-code deskTools",
+    );
+  });
+
   it("treats explicit empty new values as authoritative instead of reviving legacy values", () => {
     configure("ktAutoCode.deskTools", "executable", { globalValue: "" });
     configure("ktAutoCode.deskTools", "executableArgs", { globalValue: [] });

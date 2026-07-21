@@ -3,7 +3,7 @@
   "displayName": "KT Auto Code",
   "description": "CAA / MSVC C++ 工具：编码修正、Ignore、搜索替换、成员排序与 Codegen 参数表",
   "author": "上海锟钛",
-  "version": "0.5.3",
+  "version": "0.6.0",
   "license": "Apache-2.0",
   "publisher": "kuntai",
   "private": true,
@@ -223,6 +223,16 @@
         "icon": "$(settings-gear)"
       },
       {
+        "command": "ktAutoCode.run.open",
+        "title": "KT Auto Code：打开 Run",
+        "icon": "$(play)"
+      },
+      {
+        "command": "ktAutoCode.git.open",
+        "title": "KT Auto Code：打开 Git 提交整理",
+        "icon": "$(git-branch)"
+      },
+      {
         "command": "ktAutoCode.sidebar.toggleStyle",
         "title": "KT Auto Code：切换 Ribbon / 小图标",
         "icon": "$(layout)"
@@ -343,9 +353,99 @@
         }
       ]
     },
+    "problemPatterns": [
+      {
+        "name": "pnwCaaMsCompile",
+        "regexp": "^(.+?)\\((\\d+)(?:,(\\d+))?\\)\\s*:\\s*(fatal error|error|warning)\\s+([A-Za-z]+\\d+):\\s*(.*)$",
+        "file": 1,
+        "line": 2,
+        "column": 3,
+        "severity": 4,
+        "code": 5,
+        "message": 6
+      },
+      {
+        "name": "pnwCmake",
+        "regexp": "^CMake (Error|Warning)(?: at (.+):(\\d+) \\([^)]*\\))?:\\s*(.*)$",
+        "severity": 1,
+        "file": 2,
+        "line": 3,
+        "message": 4
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "pnwCaaMsCompile",
+        "owner": "cpp",
+        "fileLocation": "autoDetect",
+        "pattern": "$pnwCaaMsCompile"
+      },
+      {
+        "name": "pnwCmake",
+        "owner": "cmake",
+        "fileLocation": "autoDetect",
+        "pattern": "$pnwCmake"
+      }
+    ],
     "configuration": {
       "title": "KT Auto Code",
       "properties": {
+        "ktAutoCode.git.reviewers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "default": [],
+          "scope": "machine",
+          "description": "Git 群消息简报的本机审查人候选；第一个作为默认值。可在此删除或清空。"
+        },
+        "ktAutoCode.git.summaryTextHeight": {
+          "type": "integer",
+          "minimum": 78,
+          "maximum": 1200,
+          "default": 78,
+          "scope": "machine",
+          "description": "Git 群消息简报文本框的本机高度（像素）；拖动文本框后自动更新。"
+        },
+        "ktAutoCode.run.caaVersion": {
+          "type": "string",
+          "pattern": "^(?:[A-Za-z]?\\d{2,4})?$",
+          "default": "",
+          "scope": "machine",
+          "description": "Run Block 的本机默认 CAA 版本。Primary 中每个工程的当前选择只覆盖本工作区；留空时读取 CAA_MK_VERSION，再回退到 19。"
+        },
+        "ktAutoCode.run.caaRelatedProjects": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "default": [],
+          "scope": "resource",
+          "description": "Run Block 当前 CAA 项目的关联工程 / MK Preq 目录。Primary 优先写入相对路径到 .vscode/settings.json。"
+        },
+        "ktAutoCode.run.caaProjects": {
+          "type": "object",
+          "default": {},
+          "scope": "resource",
+          "description": "同一 Workspace Folder 内存在多个 CAA 子工程时的工程级覆盖；key 为子工程相对路径。Primary 自动维护，路径相对各自 project root。",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "caaRelatedProjects": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "default": []
+              }
+            }
+          }
+        },
         "ktAutoCode.headerAscii.preserveGbk": {
           "type": "boolean",
           "default": false,
@@ -483,8 +583,12 @@
     "package": "vsce package --no-dependencies --baseContentUrl https://gitee.com/PhoenixWing321/kt-auto-code/blob/master/extension --baseImagesUrl https://gitee.com/PhoenixWing321/kt-auto-code/raw/master/extension"
   },
   "dependencies": {
-    "@phoenix-wing/code-core": "0.4.3",
-    "@phoenix-wing/kt-codegen": "0.4.3",
+    "@phoenix-wing/code-core": "0.5.0",
+    "@phoenix-wing/git-core": "0.5.0",
+    "@phoenix-wing/git-node": "0.5.0",
+    "@phoenix-wing/kt-codegen": "0.5.0",
+    "@phoenix-wing/run-core": "0.5.0",
+    "@phoenix-wing/run-node": "0.5.0",
     "iconv-lite": "0.6.3"
   },
   "devDependencies": {

@@ -8,7 +8,8 @@ import {
 } from "./deskToolsDiscovery.js";
 import { ktcExplicitConfigurationValue } from "./deskToolsSettingsMigration.js";
 
-const SETTINGS_QUERY = "@ext:kuntai.kt-auto-code deskTools";
+const PLUGIN_SETTINGS_QUERY = "@ext:kuntai.kt-auto-code";
+const DESK_TOOLS_SETTINGS_QUERY = `${PLUGIN_SETTINGS_QUERY} deskTools`;
 const LEGACY_ENDPOINT = "http://127.0.0.1:5180/api/caa/dialog/open";
 
 export type KtcCaaExternalEditor = {
@@ -25,7 +26,12 @@ export type KtcResolvedCaaEndpoint = {
 
 /** Opens plugin-owned settings only; operating-system environment values live in the Environment Block. */
 export async function ktcOpenCaaSettings(): Promise<void> {
-  await vscode.commands.executeCommand("workbench.action.openSettings", SETTINGS_QUERY);
+  await vscode.commands.executeCommand("workbench.action.openSettings", DESK_TOOLS_SETTINGS_QUERY);
+}
+
+/** Opens every setting contributed by KT Auto Code without an extra feature search term. */
+export async function ktcOpenPluginSettings(): Promise<void> {
+  await vscode.commands.executeCommand("workbench.action.openSettings", PLUGIN_SETTINGS_QUERY);
 }
 
 export function ktcReadCaaExternalEditor(): KtcCaaExternalEditor {

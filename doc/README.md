@@ -4,9 +4,9 @@
 
 Owner：KT Auto Code maintainers
 
-适用版本：0.5.x
+适用版本：0.6.x
 
-最后核验：2026-07-20
+最后核验：2026-07-21
 
 本页是当前文档的唯一导航。全部 Markdown 的状态、owner、适用版本和替代关系由 [`document-manifest.json`](document-manifest.json) 记录；运行 `pnpm docs:check` 检查清单漂移和 current 文档断链。
 
@@ -16,7 +16,7 @@ Owner：KT Auto Code maintainers
 - [Phoenix 三形态产品架构](Phoenix三形态产品架构计划.md)
 - [可选模块接入契约](可选模块接入契约.md)
 - [项目调查](项目调查.md)
-- [代码规范](代码规范.md)与[UI 开发规则](前端开发规则.md)
+- [代码规范](代码规范.md)、[UI 开发规则](前端开发规则.md)与[工程配置/隐藏状态存储规则](工程配置与隐藏状态存储规则.md)
 
 ## Code 与 Codegen
 
@@ -33,6 +33,16 @@ Owner：KT Auto Code maintainers
 - [C++ 成员排序 Page shell 拆分点检](成员排序PageShell拆分点检表.md)
 - [源文件编码扫描](源文件编码扫描.md)与[编码修正](编码修正.md)
 - [CAA 命名调查](PNXCaaStudy-CAA命名规则调查.md)与[Ignore 规则总结](PNXCaaStudy-Ignore规则总结.md)
+
+## Git Primary Block（0.6.0）
+
+- [讨论入口与当前推荐结论](git/README.md)
+- [Git Primary Block 可行性与实施计划](git/Git-Primary-Block可行性与实施计划.md)
+
+## Run Primary Block（0.6.0）
+
+- [讨论入口与当前推荐结论](运行模块/README.md)
+- [Run Primary Block 可行性与实施计划](运行模块/Run-Primary-Block可行性与实施计划.md)
 
 ## CAD、开发与发布
 

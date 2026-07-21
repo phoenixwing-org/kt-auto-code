@@ -21,6 +21,8 @@ import type {
   KtcCodegenDocumentSummary,
   KtcCodegenSourceCandidateSummary,
 } from "./codegen/primaryViewModel.js";
+import type { KtcRunViewModel } from "../../../src/run/KtcRunModel.js";
+import type { KtcGitViewModel } from "../../../src/git/KtcGitModel.js";
 
 export type { KtcCodegenMetaField } from "./codegen/contracts.js";
 export type {
@@ -49,6 +51,39 @@ export type WebviewInboundMessage =
   | { type: "runModuleTool"; moduleId: KtcModuleId; command: string }
   | { type: "moduleBlockAction"; actionId: string }
   | { type: "selectTool"; toolId: string }
+  | {
+      type: "runAction";
+      toolId: "run";
+      action: "refresh" | "openOutput" | "openProblems" | "openTerminal" | "runTarget" | "dryRunTarget" | "stopRun" | "setCaaVersion" | "openSource";
+      targetId?: string;
+      runId?: string;
+      projectId?: string;
+      value?: string;
+    }
+  | {
+      type: "gitAction";
+      toolId: "git";
+      action:
+        | "refresh"
+        | "openScm"
+        | "openOutput"
+        | "openAction"
+        | "selectCommit"
+        | "copySummary"
+        | "closeSummary"
+        | "cancelSquash"
+        | "executeSquash"
+        | "undoSquash";
+      actionId?: string;
+      repositoryId?: string;
+      oid?: string;
+      text?: string;
+      expectedHeadOid?: string;
+      selectedOids?: readonly string[];
+      message?: string;
+      author?: { readonly name: string; readonly email: string; readonly date: string };
+      committer?: { readonly name: string; readonly email: string; readonly date: string };
+    }
   | KtcCodegenInboundMessage
   | { type: "selectWorkspaceFileScope"; toolId: string; scopeId: string }
   | { type: "openWorkspaceWorksets" }
@@ -262,6 +297,8 @@ export interface ToolUiState {
   codegenReportInvalidCount?: number;
   codegenOperation?: "discovery" | "candidates" | "batch-apply";
   codegenBatch?: KtcCodegenBatchApplyProgress;
+  run?: KtcRunViewModel;
+  git?: KtcGitViewModel;
 }
 
 export interface ProjectEnvironmentValueSummary {
@@ -338,6 +375,7 @@ export interface KtTool {
   readonly description: string;
   readonly icon?: string;
   registerCommands(context: vscode.ExtensionContext): void;
+  onDidShow?(ctx: ToolRunContext): Promise<void> | void;
   getPanelModel(): ToolPanelModel;
   handleMessage(message: WebviewInboundMessage, ctx: ToolRunContext): Promise<void>;
   runAction(action: string, ctx: ToolRunContext): Promise<void>;

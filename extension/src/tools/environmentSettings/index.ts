@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import * as vscode from "vscode";
 import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
-import { ktcOpenCaaSettings } from "../../caaSettings.js";
+import { ktcOpenPluginSettings } from "../../caaSettings.js";
 import {
   ktcClearProjectEnvironmentVariable,
   ktcReadProjectEnvironmentStatus,
@@ -41,7 +41,7 @@ export const environmentSettingsTool: KtTool = {
     } else if (message.type === "environmentAction" && message.toolId === this.id) {
       try {
         if (message.action === "openSystemSettings") await openSystemEnvironmentSettings();
-        else if (message.action === "openPluginSettings") await ktcOpenCaaSettings();
+        else if (message.action === "openPluginSettings") await ktcOpenPluginSettings();
         else if (message.action === "set") {
           await ktcSetProjectEnvironmentVariable(VARIABLE_BY_KEY[message.key], message.value);
         } else if (message.action === "pick") {

@@ -70,6 +70,10 @@ try {
     || receipt.flows?.apply !== true
     || receipt.flows?.saveReload !== true
     || receipt.flows?.rollback !== true
+    || receipt.flows?.gitBlock !== true
+    || receipt.flows?.runBlock !== true
+    || !receipt.evidence?.commands?.includes("ktAutoCode.git.open")
+    || !receipt.evidence?.commands?.includes("ktAutoCode.run.open")
   ) {
     throw new Error(`Extension Host 回执不完整：${JSON.stringify(receipt)}`);
   }

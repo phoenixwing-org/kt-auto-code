@@ -32,6 +32,8 @@ export async function run(): Promise<void> {
   assert.equal(api.version, 2);
   assert.ok(api.getModuleState().installed.includes("code"));
   assert.equal(await api.activateModule("code"), true);
+  assert.equal(await api.showModuleTool("code", "git"), true);
+  assert.equal(await api.showModuleTool("code", "run"), true);
   assert.equal(await api.showModuleTool("code", "codegen"), true);
 
   const commands = await vscode.commands.getCommands(true);
@@ -44,6 +46,8 @@ export async function run(): Promise<void> {
     "ktAutoCode.codegen.diagnostics",
     "ktAutoCode.module.activate",
     "ktAutoCode.uuidReplace.scan",
+    "ktAutoCode.git.open",
+    "ktAutoCode.run.open",
   ]) {
     assert.ok(commands.includes(command), `real Extension Host did not register ${command}`);
   }
@@ -179,6 +183,8 @@ export async function run(): Promise<void> {
       apply: true,
       saveReload: true,
       rollback: true,
+      gitBlock: true,
+      runBlock: true,
     },
     evidence: {
       candidateFileCount: preflight.candidateFileCount,
@@ -188,6 +194,8 @@ export async function run(): Promise<void> {
         "ktAutoCode.codegen.open",
         "ktAutoCode.module.activate",
         "ktAutoCode.uuidReplace.scan",
+        "ktAutoCode.git.open",
+        "ktAutoCode.run.open",
       ],
     },
   };

@@ -4,15 +4,15 @@
 
 Owner：KT Auto Code maintainers
 
-适用版本：0.5.x
+适用版本：0.6.x
 
-最后核验：2026-07-21
+最后核验：2026-07-22
 
 ## 已完成基线
 
 - Code、CAD 两个扩展可以独立 typecheck、打包为 VSIX，并由制品检查验证必要文件。
 - 自动测试覆盖纯核心、宿主 adapter、Codegen 文档模型、事务与回归场景；精确数量由 CI 结果维护，不作为源码断言。
-- Wing 依赖均锁定 Registry 0.4.3；manifest、override 与 lockfile 的本地路径回退已被 `verify:wing-dependencies` 阻止。Auto Code 直接消费 Registry 内的 Codegen、Workspace Schema 和纯能力契约 fixture，不再保留 Apply 契约副本。
+- Wing 依赖均锁定 Registry 0.5.0；manifest、override 与 lockfile 的本地路径回退已被 `verify:wing-dependencies` 阻止。Auto Code 直接消费 Registry 内的 Codegen、Git、Run、Workspace Schema 和纯能力契约 fixture，不再保留 Apply 契约副本。
 - 0.4 Block 工作流、Codegen 预检/Apply 与共享 workset 已进入稳定基线；旧实施清单保留为历史证据。
 
 ## 当前优先级
@@ -26,9 +26,11 @@ Owner：KT Auto Code maintainers
 7. **[已完成：0.5.1 发布]** 0.5.1 作为 patch 公开发布：只包含既有 Codegen 流程的安全性、状态稳定性、紧凑呈现与 Wing 0.4.3 消费升级，不新增公共命令或扩展 API；KT Auto CAD 0.1.0 同步完成 Marketplace 首发，两个公开制品哈希均与本地门禁产物一致并通过人工审查。
 8. **[已完成：0.5.2 发布候选]** 0.5.2 收口持久 Codegen 应用报告、Primary 历史列表、后台批量 View 生命周期、结果/变化双轴与前端筛选，并加入工作区及文件类别级 ASCII/UTF-8/GBK 编码目标；真实宿主人工点检、全量自动测试和双 VSIX 制品门禁已通过。Marketplace 发布回执未在仓库中登记，不宣称已公开发布。
 9. **[已完成：0.5.3 本地发布候选]** 0.5.3 统一补齐高对比度/高对比度浅色主题下 Sidebar Primary、功能 Block、Codegen 预检及 Shadow DOM 组件的边框、标签和 hover 对比反馈；Node 22 全量门禁、Registry/并列 Wing 构建和本地 VSIX 归档已通过。Marketplace 发布未执行，保持普通主题与公共命令/API 不变。
+10. **[正式候选已归档：0.6.0]** Code 模块末尾已加入 Git 与 Run 两个独立 Primary Block；共享算法和 Node adapter 位于 Wing `git-core`/`git-node`、`run-core`/`run-node`。Phoenix Wing 0.5.0 已正式发布，Auto Code 的 15 处 Wing manifest 引用与 lockfile 已精确闭环到 Registry；Node 22 全量测试、Registry 构建、并列 Wing 来源门禁、真实 Extension Host、人工功能点检与正式 VSIX 制品门禁均已通过。Marketplace 上传由用户手动执行。
 
 ## 2026-07-20 简单 TODO 收口
 
+- **[工程配置与隐藏状态存储规则](工程配置与隐藏状态存储规则.md) / 后续审计 TODO**：工程级 `ktAutoCode.*` 配置统一写入当前 Workspace Folder 的 `.vscode/settings.json`，路径优先保存为工作区相对路径并在每次运行前基于当前 project root 重新解析为绝对路径；本机 Desk Tools 配置和默认 CAA 版本继续使用 machine-scoped 用户设置。每个工程当前选择的 CAA 版本属于可切换运行状态，可进 `workspaceState`；团队多版本矩阵以后必须用显式 target/profile 表达。0.6.0 已迁移 Run 的 `caaRelatedProjects`；其余既有 key 在后续独立审计中统一。
 - 旧 CAA external editor 与 Auto CAD provider 设置会在基础扩展激活时安全迁入 `ktAutoCode.deskTools.*`：只读取用户明确配置的值，新设置始终优先，默认值不迁移，失败时继续走兼容读取。
 - CAA UI 当前交接契约已改用 `service.v1.json` 动态端口，新增 Windows/macOS 联合人工验收清单，并明确区分运行中的桌面服务与无需启动窗口的 CAD 深度读取器。
 - 已删除独立 CAD 连接入口遗留的 `cad-provider.svg`，VSIX 制品门禁拒绝该死资源重新进入安装包。
@@ -67,7 +69,7 @@ Owner：KT Auto Code maintainers
 
 ### 文本与数据真源
 
-- Start/End 必须调用 Registry `@phoenix-wing/kt-codegen@0.4.3` 的 `KtCodegenMarker.createStart()` / `createEnd()`，class identity 使用当前 `KtCodegenParam` 的 Prefix/Middle 与各行 `NameSuffix`；前端不得硬编码 Kevin marker 文本。
+- Start/End 必须调用 Registry `@phoenix-wing/kt-codegen@0.5.0` 的 `KtCodegenMarker.createStart()` / `createEnd()`，class identity 使用当前 `KtCodegenParam` 的 Prefix/Middle 与各行 `NameSuffix`；前端不得硬编码 Kevin marker 文本。
 - Primary compact 与 JSON View full 的单项/当前筛选日志动作共用同一规则：当前 JSON 已打开且 Host session 存在时，必须用该 session 的共享 `KtCodegenController` 调用 Wing Analyze/Renderer，输出包含真实参数生成代码的完整 artifact；只有没有打开 session/controller 时才允许退化为仅含 Start/End 的空框架。两处不得分别拼接正文。
 - JSON View 的输出按钮必须先交换当前整表草稿、再发送与 Primary 相同的 `codegenControlOutput` 语义命令；Extension Host 依消息顺序更新 session 后统一生成并写日志，Webview 不直接拼接或持有日志实现。Primary 直接使用 Host 中同一 session，View 是否显示不改变日志服务边界。
 - 单项和当前筛选输出同时复制可直接粘贴的源码块：剪贴板不得包含 `[Codegen]` 摘要或 `# legacyId` 标题；真实 artifact 沿用 Wing Renderer 的空行与 `clang-format off/on`，无 session 的空框架必须保持 `Start → 空行 → clang-format off → 空行 → #error \"Run KT Auto Code Apply to generate this block\" → 空行 → clang-format on → End`。显式 `#error` 防止首次布点后忘记执行 Apply 却静默编译通过，Apply 替换整个 marker 区域后自然消失。剪贴板由 Extension Host 写入，Webview 不直接访问 Clipboard API。
