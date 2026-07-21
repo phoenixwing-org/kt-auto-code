@@ -6,7 +6,7 @@ Owner：KT Auto Code maintainers
 
 适用版本：0.5.x
 
-最后核验：2026-07-20
+最后核验：2026-07-21
 
 ## 已完成基线
 
@@ -24,7 +24,8 @@ Owner：KT Auto Code maintainers
 5. 保持双 VSIX 可复现，并在 Wing 升级时先运行 Registry 防回退、全测和制品门禁。
 6. Codegen `全部应用` V1 已落地：一次确认后冻结当前 JSON 列表，在后台 session 中串行 Preflight → Apply，不再铺开 JSON Panel；单份错误继续后续项。single/batch Apply 报告按规则文件名原子写入 `.phoenix/reports/codegen/`，Primary“应用报告”列表可重开；View 用结果/源码变化双轴避免把正常内容一致误报为失败，并安全进入 Codegen View 或定位问题。全量预检屏障、跨 JSON 冲突、独立批次 Problems、取消与完整 receipt 报告保留为 2.0，见 `codegen-plan/Codegen全部应用与批量报告计划.md`。
 7. **[已完成：0.5.1 发布]** 0.5.1 作为 patch 公开发布：只包含既有 Codegen 流程的安全性、状态稳定性、紧凑呈现与 Wing 0.4.3 消费升级，不新增公共命令或扩展 API；KT Auto CAD 0.1.0 同步完成 Marketplace 首发，两个公开制品哈希均与本地门禁产物一致并通过人工审查。
-8. **[进行中：0.5.2 发布]** 0.5.2 收口持久 Codegen 应用报告、Primary 历史列表、后台批量 View 生命周期、结果/变化双轴与前端筛选，并加入工作区及文件类别级 ASCII/UTF-8/GBK 编码目标；真实宿主人工点检、全量自动测试和双 VSIX 制品门禁已通过，等待 Marketplace 回执。
+8. **[已完成：0.5.2 发布候选]** 0.5.2 收口持久 Codegen 应用报告、Primary 历史列表、后台批量 View 生命周期、结果/变化双轴与前端筛选，并加入工作区及文件类别级 ASCII/UTF-8/GBK 编码目标；真实宿主人工点检、全量自动测试和双 VSIX 制品门禁已通过。Marketplace 发布回执未在仓库中登记，不宣称已公开发布。
+9. **[已完成：0.5.3 本地发布候选]** 0.5.3 统一补齐高对比度/高对比度浅色主题下 Sidebar Primary、功能 Block、Codegen 预检及 Shadow DOM 组件的边框、标签和 hover 对比反馈；Node 22 全量门禁、Registry/并列 Wing 构建和本地 VSIX 归档已通过。Marketplace 发布未执行，保持普通主题与公共命令/API 不变。
 
 ## 2026-07-20 简单 TODO 收口
 

@@ -17,7 +17,7 @@ const STYLE = `
     width: min(430px, calc(100vw - 20px));
     max-height: calc(100vh - 24px);
     padding: 0;
-    border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+    border: 1px solid var(--ktc-ui-border, var(--vscode-widget-border, var(--vscode-panel-border)));
     border-radius: 4px;
     color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
     background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background));
@@ -39,13 +39,13 @@ const STYLE = `
     width: 24px;
     height: 24px;
     padding: 0;
-    border: 0;
+    border: 1px solid var(--ktc-ui-border, transparent);
     color: var(--vscode-foreground);
     background: transparent;
     cursor: pointer;
     font-size: 17px;
   }
-  .close:hover { background: var(--vscode-toolbar-hoverBackground); }
+  .close:hover { background: var(--vscode-toolbar-hoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, transparent)); }
   .list { overflow: auto; padding: 6px 12px 2px; }
   .empty { margin: 7px 0; color: var(--vscode-descriptionForeground); font-size: 11px; }
   .row {
@@ -95,18 +95,18 @@ const STYLE = `
   .action {
     min-height: 28px;
     padding: 4px 12px;
-    border: 1px solid transparent;
+    border: 1px solid var(--ktc-ui-border, var(--vscode-button-border, transparent));
     border-radius: 2px;
     color: var(--vscode-button-foreground);
     background: var(--vscode-button-background);
     cursor: pointer;
   }
-  .action:not(:disabled):hover { background: var(--vscode-button-hoverBackground); }
+  .action:not(:disabled):hover { background: var(--vscode-button-hoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, var(--vscode-button-border, transparent))); }
   .action.secondary {
     color: var(--vscode-button-secondaryForeground);
     background: var(--vscode-button-secondaryBackground);
   }
-  .action.secondary:not(:disabled):hover { background: var(--vscode-button-secondaryHoverBackground); }
+  .action.secondary:not(:disabled):hover { background: var(--vscode-button-secondaryHoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, var(--vscode-button-border, transparent))); }
   .action:disabled { opacity: .5; cursor: not-allowed; }
   @media (max-width: 320px) {
     .values { grid-template-columns: minmax(0, 1fr); }

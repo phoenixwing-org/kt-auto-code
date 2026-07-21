@@ -556,6 +556,8 @@ describe("Codegen control catalog", () => {
     expect(style).toContain(':host([mode="compact"]) .row { grid-template-columns: 22px 34px');
     expect(style).toContain(':host([mode="compact"]) .filters { gap: 3px; padding: 3px 5px; }');
     expect(style).toContain('gap: 4px; min-height: 32px; padding: 2px 5px 2px 12px;');
+    expect(style).toContain('border: 1px solid var(--ktc-ui-border, var(--vscode-panel-border));');
+    expect(style).toContain('button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); border-color: var(--ktc-ui-active-border');
     expect(nodes.some((node) => node.textContent === "显示 2/2 · 可见已选 1/2")).toBe(true);
     expect(nodes.some((node) => node.className === "title" && node.textContent === "Active Field")).toBe(true);
     expect(nodes.filter((node) => node.className === "tag legacy inline-legacy").map((node) => node.textContent)).toEqual([

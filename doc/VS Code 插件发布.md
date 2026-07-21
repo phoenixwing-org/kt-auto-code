@@ -21,6 +21,23 @@
 }
 ```
 
+## 0.5.3 发布候选（2026-07-21）
+
+0.5.3 是 Auto Code 的高对比度可访问性 patch；根 workspace 与 Code 扩展同步升级到 0.5.3，KT Auto CAD 保持 0.1.0，七个 Wing manifest 引用继续精确使用 Registry 0.4.3。本轮不新增公共命令或扩展 API。
+
+候选范围：
+
+- Sidebar Primary 的 Ribbon、功能 Block、主次操作按钮、图标按钮与状态标签在高对比度/高对比度浅色主题下统一使用宿主 `contrastBorder`；hover 使用 `contrastActiveBorder` 并回退到 `focusBorder`。
+- Codegen Primary、JSON View 预检工具栏、控制符目录和预检详情通过可继承变量把同一对比度规则传入 Shadow DOM；成员排序与关联规则对话框同步覆盖。
+- 普通浅色/深色主题继续沿用既有按钮、面板和 hover 背景色；新增回归断言防止发布 bundle 丢失高对比度边框契约。
+
+候选门禁使用 Node 22.14.0 完成：71 份 Markdown 分类/链接、142 个生产源文件、24 个 pure graph、13 个 View root、114 个测试文件与 563 项测试全部通过；Code/CAD 双 typecheck、Registry 0.4.3 对照构建、本地并列 Wing 来源门禁和双 VSIX 制品内容门禁均通过。
+
+- `kt-auto-code-0.5.3.vsix`：29 个文件、469,479 bytes，SHA-256 为 `571685722057901072f22d9f29e49c1e18f72a6e70108ef1aaea1fd70d501f2a`。
+- 本轮不重新发布 CAD；辅助门禁重新打包并复核 `kt-auto-cad-0.1.0.vsix` 为 9 个文件、40,342 bytes，SHA-256 为 `95af3574518f54949d7045a188ec3a8ca51ea2ba51f3138ad0e87135cd6cadf7`。
+- 用户已确认高对比度模式下的边框与 hover 效果测试通过；上传 Marketplace 前仍应从本地 VSIX 完成一次安装/激活复核。
+- Marketplace 发布状态与公开制品哈希将在 `kuntai.kt-auto-code@0.5.3` 发布成功后补入本节。
+
 ## 0.5.2 发布候选（2026-07-20）
 
 0.5.2 是 Auto Code 的 patch 发布；根 workspace 与 Code 扩展同步升级到 0.5.2，KT Auto CAD 保持 0.1.0，七个 Wing manifest 引用继续精确使用 Registry 0.4.3。本轮不新增公共命令或扩展 API。

@@ -82,6 +82,11 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       padding: 0;
       margin: 0;
     }
+    body.vscode-high-contrast,
+    body.vscode-high-contrast-light {
+      --ktc-ui-border: var(--vscode-contrastBorder, var(--vscode-focusBorder));
+      --ktc-ui-active-border: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+    }
     body.ribbon-only .wrap { padding: 3px 10px 4px; }
     body.ribbon-only .wrap > :not(#tabs) { display: none; }
     body.ribbon-only .tabs { margin-bottom: 0; border-bottom: 0; padding: 1px 0 2px; }
@@ -118,13 +123,14 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       align-items: center;
       gap: 5px;
       padding: 4px 10px;
-      border: 1px solid transparent;
+      border: 1px solid var(--ktc-ui-border, transparent);
       border-radius: 4px;
       background: transparent;
       color: var(--vscode-foreground);
       cursor: pointer;
       font-size: 12px;
     }
+    .tab:hover:not(:disabled) { background: var(--vscode-toolbar-hoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, transparent)); }
     .tab[data-tooltip]::after {
       position: absolute;
       z-index: 20;
@@ -185,19 +191,19 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     }
     .tabs.ribbon .tool-icon { width: 22px; height: 22px; flex-basis: 22px; }
     .module-block { font-size: 12px; }
-    .module-block .block-header { padding-bottom: 10px; border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border); }
+    .module-block .block-header { padding-bottom: 10px; border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-sideBarSectionHeader-border)); }
     .module-block .block-header-row { display: flex; align-items: flex-start; gap: 8px; }
     .module-block .block-header-main { flex: 1 1 auto; min-width: 0; }
     .module-block .block-header-actions { display: flex; flex: 0 0 auto; gap: 3px; }
-    .module-block .block-header-action { min-width: 26px; height: 26px; padding: 0 6px; border: 0; border-radius: 3px; color: var(--vscode-foreground); background: transparent; cursor: pointer; }
-    .module-block .block-header-action:hover { background: var(--vscode-toolbar-hoverBackground); }
+    .module-block .block-header-action { min-width: 26px; height: 26px; padding: 0 6px; border: 1px solid var(--ktc-ui-border, transparent); border-radius: 3px; color: var(--vscode-foreground); background: transparent; cursor: pointer; }
+    .module-block .block-header-action:hover { background: var(--vscode-toolbar-hoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, transparent)); }
     .module-block h2 { margin: 0 0 5px; font-size: 14px; }
     .module-block h3 { margin: 0 0 6px; font-size: 12px; }
     .module-block p { margin: 0; color: var(--vscode-descriptionForeground); font-size: 12px; line-height: 1.5; }
-    .module-block .state { display: inline-block; margin-bottom: 8px; padding: 2px 6px; border-radius: 3px; color: var(--vscode-badge-foreground); background: var(--vscode-badge-background); font-size: 11px; }
+    .module-block .state { display: inline-block; margin-bottom: 8px; padding: 2px 6px; border: 1px solid var(--ktc-ui-border, transparent); border-radius: 3px; color: var(--vscode-badge-foreground); background: var(--vscode-badge-background); font-size: 11px; }
     .module-block .state.warning { color: var(--vscode-editorWarning-foreground); background: var(--vscode-inputValidation-warningBackground, var(--vscode-badge-background)); }
     .module-block .state.success { color: var(--vscode-testing-iconPassed, var(--vscode-badge-foreground)); }
-    .module-block section { margin-top: 12px; padding: 10px; border: 1px solid var(--vscode-widget-border); border-radius: 5px; background: var(--vscode-sideBarSectionHeader-background); }
+    .module-block section { margin-top: 12px; padding: 10px; border: 1px solid var(--ktc-ui-border, var(--vscode-widget-border)); border-radius: 5px; background: var(--vscode-sideBarSectionHeader-background); }
     .module-block ul { margin: 7px 0 0; padding-left: 18px; color: var(--vscode-descriptionForeground); font-size: 12px; line-height: 1.55; }
     .module-block .notice { margin-top: 12px; padding: 9px 10px; border-left: 3px solid var(--vscode-textLink-foreground); background: var(--vscode-textBlockQuote-background); }
     .module-block .notice strong { display: block; margin-bottom: 3px; font-size: 12px; }
@@ -281,8 +287,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .compact-file-dir { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--vscode-descriptionForeground); font-size: 11px; }
     .compact-inline { display: flex; flex: 0 0 auto; opacity: 0; }
     .compact-file-row:hover .compact-inline, .compact-inline:focus-within { opacity: 1; }
-    .compact-icon { width: 24px; height: 24px; padding: 0; border: 0; border-radius: 3px; color: var(--vscode-foreground); background: transparent; cursor: pointer; font-size: 15px; line-height: 24px; }
-    .compact-icon:hover { background: var(--vscode-toolbar-hoverBackground); }
+    .compact-icon { width: 24px; height: 24px; padding: 0; border: 1px solid var(--ktc-ui-border, transparent); border-radius: 3px; color: var(--vscode-foreground); background: transparent; cursor: pointer; font-size: 15px; line-height: 22px; }
+    .compact-icon:hover { background: var(--vscode-toolbar-hoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, transparent)); }
     .compact-state { flex: 0 0 auto; max-width: 86px; overflow: hidden; color: var(--vscode-descriptionForeground); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
     .compact-state.error, .compact-state.blocked { color: var(--vscode-errorForeground); }
     .compact-state.applied, .compact-state.ok { color: var(--vscode-testing-iconPassed, var(--vscode-descriptionForeground)); }
@@ -328,13 +334,13 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       width: 30px;
       height: 30px;
       padding: 0;
-      border: 1px solid var(--vscode-button-secondaryBackground, var(--vscode-panel-border));
+      border: 1px solid var(--ktc-ui-border, var(--vscode-button-secondaryBackground, var(--vscode-panel-border)));
       border-radius: 2px;
       color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
       background: var(--vscode-button-secondaryBackground, transparent);
       cursor: pointer;
     }
-    .folder-button:hover { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-toolbar-hoverBackground)); }
+    .folder-button:hover { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-toolbar-hoverBackground)); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, var(--vscode-panel-border))); }
     .folder-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     .replace-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0 0 9px; }
     .action-tooltip { display: block; min-width: 0; }
@@ -381,8 +387,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .rule-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) minmax(0, 1fr) 82px; gap: 4px; align-items: center; margin-bottom: 5px; }
     .rule-row input { min-width: 0; height: 27px; padding: 3px 6px; border: 1px solid var(--vscode-input-border, var(--vscode-panel-border)); border-radius: 2px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); font-family: var(--vscode-editor-font-family); }
     .rule-actions { display: flex; }
-    .rule-row button { width: 20px; padding: 0; border: 0; color: var(--vscode-foreground); background: transparent; cursor: pointer; font-size: 13px; }
-    .rule-row button:hover { background: var(--vscode-list-hoverBackground); }
+    .rule-row button { width: 20px; padding: 0; border: 1px solid var(--ktc-ui-border, transparent); color: var(--vscode-foreground); background: transparent; cursor: pointer; font-size: 13px; }
+    .rule-row button:hover { background: var(--vscode-list-hoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, transparent)); }
     .rule-row button:disabled { opacity: 0.45; cursor: default; }
     .rule-tools { display: flex; flex-wrap: wrap; gap: 5px 12px; margin-top: 6px; }
     @media (max-width: 320px) {
@@ -448,19 +454,19 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     button.action {
       min-height: 28px;
       padding: 4px 12px;
-      border: 1px solid transparent;
+      border: 1px solid var(--ktc-ui-border, var(--vscode-button-border, transparent));
       border-radius: 2px;
       background: var(--vscode-button-background);
       color: var(--vscode-button-foreground);
       cursor: pointer;
       font-size: 12px;
     }
-    button.action:not(:disabled):hover { background: var(--vscode-button-hoverBackground); }
+    button.action:not(:disabled):hover { background: var(--vscode-button-hoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, var(--vscode-button-border, transparent))); }
     button.action.secondary {
       color: var(--vscode-button-secondaryForeground);
       background: var(--vscode-button-secondaryBackground);
     }
-    button.action.secondary:not(:disabled):hover { background: var(--vscode-button-secondaryHoverBackground); }
+    button.action.secondary:not(:disabled):hover { background: var(--vscode-button-secondaryHoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, var(--vscode-button-border, transparent))); }
     button.action:disabled { opacity: 0.5; cursor: not-allowed; }
     body.task-running button.action:disabled { cursor: progress; }
     .inline-validation { margin: -4px 0 8px; color: var(--vscode-descriptionForeground); font-size: 11px; line-height: 1.35; }

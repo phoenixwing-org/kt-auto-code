@@ -28,13 +28,15 @@ const STYLE = `
   button, input { font: inherit; }
   button { cursor: pointer; }
   button:focus-visible, input:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
-  .shell { min-width: 0; max-width: 100%; margin: 10px 0 12px; padding: 9px; overflow: hidden; border: 1px solid var(--vscode-panel-border); border-radius: 3px; }
+  .shell { min-width: 0; max-width: 100%; margin: 10px 0 12px; padding: 9px; overflow: hidden; border: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); border-radius: 3px; }
   h2 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
   .summary { margin: 6px 0; color: var(--vscode-descriptionForeground); font-size: 11px; line-height: 1.4; }
   .actions { display: flex; align-items: center; gap: 6px; }
   .action, .text-button { min-height: 27px; padding: 3px 9px; border-radius: 3px; }
-  .action { color: var(--vscode-button-foreground); background: var(--vscode-button-background); border: 1px solid var(--vscode-button-background); }
-  .action.secondary, .text-button { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: 1px solid var(--vscode-panel-border); }
+  .action { color: var(--vscode-button-foreground); background: var(--vscode-button-background); border: 1px solid var(--ktc-ui-border, var(--vscode-button-background)); }
+  .action.secondary, .text-button { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
+  .action:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, var(--vscode-button-background))); }
+  .action.secondary:hover:not(:disabled), .text-button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, var(--vscode-panel-border))); }
   button:disabled { opacity: .5; cursor: not-allowed; }
   .options { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 7px 0 1px; }
   .filter { display: flex; align-items: center; gap: 5px; min-width: 0; color: var(--vscode-descriptionForeground); font-size: 11px; }
@@ -53,8 +55,8 @@ const STYLE = `
   .file-dir { flex: 1 1 0; min-width: 0; overflow: hidden; color: var(--vscode-descriptionForeground); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
   .inline { display: flex; flex: 0 0 auto; opacity: 0; }
   .file-row:hover .inline, .inline:focus-within { opacity: 1; }
-  .icon { width: 24px; height: 24px; padding: 0; border: 0; border-radius: 3px; color: var(--vscode-foreground); background: transparent; font-size: 16px; line-height: 24px; }
-  .icon:hover { background: var(--vscode-toolbar-hoverBackground); }
+  .icon { width: 24px; height: 24px; padding: 0; border: 1px solid var(--ktc-ui-border, transparent); border-radius: 3px; color: var(--vscode-foreground); background: transparent; font-size: 16px; line-height: 22px; }
+  .icon:hover { background: var(--vscode-toolbar-hoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, transparent)); }
   .state { flex: 0 0 14px; width: 14px; overflow: hidden; color: var(--vscode-descriptionForeground); font-size: 12px; font-weight: 600; text-align: right; white-space: nowrap; }
   .state.pending { color: var(--vscode-gitDecoration-modifiedResourceForeground, var(--vscode-descriptionForeground)); }
   .state.blocked { color: var(--vscode-errorForeground); }

@@ -3,7 +3,7 @@
   "displayName": "KT Auto Code",
   "description": "CAA / MSVC C++ 工具：编码修正、Ignore、搜索替换、成员排序与 Codegen 参数表",
   "author": "上海锟钛",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "license": "Apache-2.0",
   "publisher": "kuntai",
   "private": true,

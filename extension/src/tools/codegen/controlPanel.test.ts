@@ -171,6 +171,8 @@ describe("Codegen control panel", () => {
     expect(style).toContain("block-size: var(--ktc-codegen-detail-available-height");
     expect(style).toContain(".detail-preview { display: block; flex: 1 1 auto;");
     expect(style).toContain("overflow: auto; overscroll-behavior: contain;");
+    expect(style).toContain(".filter:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); border-color: var(--ktc-ui-active-border");
+    expect(style).toContain(".control-id { flex: 0 0 auto; padding: 1px 4px; color: var(--vscode-descriptionForeground); border: 1px solid var(--ktc-ui-border");
     expect(style).not.toContain(".result-list { overflow-y: auto");
     expect(findNodes(panel.shadow, (node) => node.tagName === "ktc-codegen-control-catalog")).toHaveLength(0);
     const layout = findNodes(panel.shadow, (node) => node.className === "result-layout")[0]!;

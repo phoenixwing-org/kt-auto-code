@@ -85,6 +85,9 @@ describe("codegen editor HTML", () => {
     expect(html).toContain('body.vscode-high-contrast kt-codegen-table');
     expect(html).toContain('body.vscode-high-contrast-light kt-codegen-table');
     expect(html).toContain('--vscode-contrastBorder');
+    expect(html).toContain('--ktc-ui-border: var(--vscode-contrastBorder, var(--vscode-focusBorder));');
+    expect(html).toContain('--ktc-ui-active-border: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));');
+    expect(html).toContain('button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); border-color: var(--ktc-ui-active-border');
     expect(html).toContain('@media (max-width: 800px)');
     expect(html).toContain('<ktc-codegen-control-panel id="control-panel" mode="full">');
     expect(html).not.toContain("height: min(44vh, 460px)");

@@ -148,6 +148,9 @@ describe("reorder members panel", () => {
     const all = findNodes(element.shadow, (node) => node.attributes.get("aria-label") === "选择全部待写盘文件")[0]!;
     expect(all.checked).toBe(true);
     expect(all.indeterminate).toBe(false);
+    const style = findNodes(element.shadow, (node) => node.tagName === "style")[0]!.textContent;
+    expect(style).toContain(".shell { min-width: 0; max-width: 100%; margin: 10px 0 12px; padding: 9px; overflow: hidden; border: 1px solid var(--ktc-ui-border");
+    expect(style).toContain(".action:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); border-color: var(--ktc-ui-active-border");
   });
 
   it("两条 pending 从半选切换到组全不选/全选，并发送完整 URI", async () => {
