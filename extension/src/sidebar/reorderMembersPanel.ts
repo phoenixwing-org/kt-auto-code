@@ -8,6 +8,7 @@ import {
   type KtcReorderMembersPanelRow,
   type KtcReorderMembersSelectionState,
 } from "./reorderMembersPanelState.js";
+import { KtcCompactManagerLabelStyle } from "../ui/KtcCompactManagerLabel.js";
 
 export const KTC_REORDER_MEMBERS_PANEL_TAG = "ktc-reorder-members-panel";
 export const KTC_REORDER_MEMBERS_PANEL_ACTION = "ktc-reorder-members-action";
@@ -50,9 +51,7 @@ const STYLE = `
   .file-row { display: flex; align-items: center; gap: 5px; min-width: 0; min-height: 28px; padding: 2px 3px; }
   .file-row:hover { background: var(--vscode-list-hoverBackground); }
   .kind { flex: 0 0 18px; color: var(--vscode-symbolIcon-classForeground, var(--vscode-foreground)); font-size: 11px; font-weight: 600; }
-  .file-main { display: flex; flex: 1 1 auto; align-items: baseline; gap: 5px; min-width: 0; overflow: hidden; cursor: pointer; }
-  .file-name { flex: 0 0 auto; overflow: visible; text-overflow: clip; white-space: nowrap; }
-  .file-dir { flex: 1 1 0; min-width: 0; overflow: hidden; color: var(--vscode-descriptionForeground); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+  .file-main { cursor: pointer; }
   .inline { display: flex; flex: 0 0 auto; opacity: 0; }
   .file-row:hover .inline, .inline:focus-within { opacity: 1; }
   .icon { width: 24px; height: 24px; padding: 0; border: 1px solid var(--ktc-ui-border, transparent); border-radius: 3px; color: var(--vscode-foreground); background: transparent; font-size: 16px; line-height: 22px; }
@@ -92,7 +91,7 @@ export class KtcReorderMembersPanel extends HTMLElement {
   private render(): void {
     if (!this.isConnected) return;
     const style = document.createElement("style");
-    style.textContent = STYLE;
+    style.textContent = KtcCompactManagerLabelStyle + STYLE;
     const model = this.currentModel;
     if (!model) {
       const empty = document.createElement("div");
@@ -226,14 +225,14 @@ export class KtcReorderMembersPanel extends HTMLElement {
     kind.className = "kind";
     kind.textContent = row.kind === "header" ? "C" : "C++";
     const main = document.createElement("span");
-    main.className = "file-main";
+    main.className = "file-main ktc-compact-label";
     const parts = row.relativePath.split("/");
     const file = parts.pop() || row.relativePath;
     const name = document.createElement("span");
-    name.className = "file-name";
+    name.className = "file-name ktc-compact-label-primary";
     name.textContent = file;
     const directory = document.createElement("span");
-    directory.className = "file-dir";
+    directory.className = "file-dir ktc-compact-label-secondary";
     directory.textContent = parts.join("/");
     main.append(name, directory);
     main.title = [row.relativePath, row.encoding, ...row.warnings].join("\n");

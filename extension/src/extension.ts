@@ -14,6 +14,8 @@ import { registerReorderMembersSupport, reorderMembersTool } from "./tools/reord
 import { ignoreSettingsTool } from "./tools/ignoreSettings/index.js";
 import { uuidReplaceTool } from "./tools/uuidReplace/index.js";
 import { caaDialogTool } from "./tools/caaDialog/index.js";
+import { KtcGitTool } from "./tools/git/KtcGitTool.js";
+import { KtcRunTool } from "./tools/run/KtcRunTool.js";
 import { environmentSettingsTool } from "./tools/environmentSettings/index.js";
 import {
   codegenTool,
@@ -63,6 +65,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<KtcAut
   registerTool(reorderMembersTool);
   registerTool(uuidReplaceTool);
   registerTool(caaDialogTool);
+  registerTool(KtcGitTool);
+  registerTool(KtcRunTool);
 
   sidebarProvider = new SidebarViewProvider(context.extensionUri, context.globalState, context.workspaceState);
   await sidebarProvider.initializeModuleState();

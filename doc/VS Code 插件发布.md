@@ -21,6 +21,19 @@
 }
 ```
 
+## 0.6.0 发布候选（2026-07-22）
+
+0.6.0 新增 Git 与 Run 两个 Code Primary Block，根 workspace 与 Code 扩展同步升级到 0.6.0，KT Auto CAD 保持 0.1.0。Git/Run 的共享实现来自 Phoenix Wing 新包 `git-core`、`git-node`、`run-core`、`run-node`；Code 与 CAD 的 15 处 Wing manifest 引用统一精确升级到 Registry 0.5.0。
+
+- Git 支持勾选一个或多个 commit 生成简报；可选顶部一次 remote URL、时间与 `@`。连续提交合并在共享历史时要求确认，但只改写当前本地分支，不做 stage、push、force push 或引用删除。
+- Run 发现多根工作区内的 Task、脚本、可执行文件、CMake 与 CAA 工程；CAA 固定提供 MK/Run、项目版本和关联工程/Preq，并由 VSIX 内置只读 runner 调用厂商批处理链。
+- 本地构建必须通过 `pnpm ext:dev:prepare` 的 metafile 来源门禁，证明六个 Wing 包全部来自并列 `phoenix-wing`，没有从 Auto Code `node_modules` 混入旧实现。
+- Phoenix Wing 0.5.0 的 12 个 npm 包已发布并完成隔离 Registry 消费验证；Auto Code manifest 与 lockfile 已闭环到正式包，禁止提交 `link:`、`file:`、workspace override 或本地路径。
+- 2026-07-21 的并列 Wing 本地候选仅作为历史验证证据，不作为发布制品；0.6.0 最终 VSIX 必须由 Registry 依赖路径重新构建并通过制品门禁。
+- 2026-07-22 使用 Node 22.14.0 完成正式门禁：77 份 Markdown、158 个生产源文件、26 个 pure graph、17 个 View root、122 个测试文件与 583 项测试通过；Code/CAD 双 typecheck、Registry 0.5.0 构建、并列 Wing 六包来源门禁及 VS Code 1.129.1 Extension Host smoke 通过，Git/Run 命令均已真实注册和激活。
+- 正式归档 `extension/kt-auto-code-0.6.0.vsix`：35 个文件、525810 bytes、SHA-256 `378ac17b78b0aefb62d0d4aeb970842b61ee3882f86ee97df2c7490a442b523c`。制品不包含本地 Wing 回执或外部 Wing runtime require；辅助复核的 CAD 0.1.0 制品为 9 个文件、40342 bytes。
+- 未经用户明确授权，不执行 `vsce publish` 或 Marketplace 上传；本轮由 AI 完成本地打包，用户手动发布。
+
 ## 0.5.3 发布候选（2026-07-21）
 
 0.5.3 是 Auto Code 的高对比度可访问性 patch；根 workspace 与 Code 扩展同步升级到 0.5.3，KT Auto CAD 保持 0.1.0，七个 Wing manifest 引用继续精确使用 Registry 0.4.3。本轮不新增公共命令或扩展 API。

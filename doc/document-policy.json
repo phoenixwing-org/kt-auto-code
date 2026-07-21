@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "owner": "KT Auto Code maintainers",
   "lastVerified": "2026-07-17",
-  "appliesTo": "0.5.x",
+  "appliesTo": "0.6.x",
   "rules": [
     {
       "match": "^doc/(下一阶段实施计划|Codegen下一阶段实施计划|0\\.4\\.0-Block工作流改造计划)\\.md$",
@@ -33,6 +33,28 @@
       "status": "draft",
       "sourceOfTruth": "doc/current-roadmap.md",
       "reason": "尚未晋升为当前承诺的方案"
+    },
+    {
+      "match": "^doc/git/README\\.md$",
+      "status": "current",
+      "reason": "Git Primary Block 0.6.0 实现与验收基线"
+    },
+    {
+      "match": "^doc/git/.*\\.md$",
+      "status": "current",
+      "sourceOfTruth": "doc/git/README.md",
+      "reason": "Git Primary Block 0.6.0 实施计划"
+    },
+    {
+      "match": "^doc/运行模块/README\\.md$",
+      "status": "current",
+      "reason": "Run Primary Block 0.6.0 实现与验收基线"
+    },
+    {
+      "match": "^doc/运行模块/.*\\.md$",
+      "status": "current",
+      "sourceOfTruth": "doc/运行模块/README.md",
+      "reason": "Run Primary Block 0.6.0 实施计划"
     },
     {
       "match": "^tests/fixtures/",

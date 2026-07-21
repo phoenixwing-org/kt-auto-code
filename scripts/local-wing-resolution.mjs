@@ -7,7 +7,11 @@ export const LOCAL_WING_MODE_ENV = "PHOENIX_WING_DEV_MODE";
 
 export const LOCAL_WING_CODE_PACKAGES = Object.freeze([
   "@phoenix-wing/code-core",
+  "@phoenix-wing/git-core",
+  "@phoenix-wing/git-node",
   "@phoenix-wing/kt-codegen",
+  "@phoenix-wing/run-core",
+  "@phoenix-wing/run-node",
 ]);
 
 export const LOCAL_WING_CAD_PACKAGES = Object.freeze([

@@ -177,9 +177,9 @@
     "package": "vsce package --no-dependencies --out ../../extension/kt-auto-cad-${npm_package_version}.vsix"
   },
   "devDependencies": {
-    "@phoenix-wing/cad-core": "0.4.3",
-    "@phoenix-wing/cad-contracts": "0.4.3",
-    "@phoenix-wing/workspace-schema": "0.4.3",
+    "@phoenix-wing/cad-core": "0.5.0",
+    "@phoenix-wing/cad-contracts": "0.5.0",
+    "@phoenix-wing/workspace-schema": "0.5.0",
     "@types/vscode": "1.85.0",
     "@vscode/vsce": "^3.2.1",
     "esbuild": "^0.25.0",

@@ -228,6 +228,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     if (toolId === "environmentSettings") await tool.runAction("refresh", this.createRunContext(toolId));
     if (toolId === "caaDialog") await tool.runAction("checkConnection", this.createRunContext(toolId));
     if (toolId === "codegen") await tool.runAction("activate", this.createRunContext(toolId));
+    if (tool.onDidShow) await tool.onDidShow(this.createRunContext(toolId));
   }
 
   /** Opens one optional-module tool in the shared Block history. */

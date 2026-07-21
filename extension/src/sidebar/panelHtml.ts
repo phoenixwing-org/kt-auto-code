@@ -6,6 +6,7 @@ import type {
 } from "../tools/types.js";
 import type { KtcReplacementRuleDraft } from "../../../src/associatedReplacementRules.js";
 import { ktcCreateWebviewSecurity } from "../webviewSupport.js";
+import { KtcCompactManagerLabelStyle } from "../ui/KtcCompactManagerLabel.js";
 
 export function ktcSearchReplaceButtonState(input: {
   readonly running: boolean;
@@ -53,6 +54,12 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
   const codegenPrimaryPanelUri = webview.asWebviewUri(
     extensionUri.with({ path: `${basePath}/dist/codegen-primary-panel.js` }),
   );
+  const runPrimaryPanelUri = webview.asWebviewUri(
+    extensionUri.with({ path: `${basePath}/dist/ktc-run-primary-panel.js` }),
+  );
+  const gitPrimaryPanelUri = webview.asWebviewUri(
+    extensionUri.with({ path: `${basePath}/dist/ktc-git-primary-panel.js` }),
+  );
   const reorderMembersPanelUri = webview.asWebviewUri(
     extensionUri.with({ path: `${basePath}/dist/reorder-members-panel.js` }),
   );
@@ -68,6 +75,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>KT Auto Code</title>
   <style>
+    ${KtcCompactManagerLabelStyle}
     * { box-sizing: border-box; }
     [hidden] { display: none !important; }
     button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
@@ -75,6 +83,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       outline-offset: 1px;
     }
     body {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      overflow-x: hidden;
       font-family: var(--vscode-font-family);
       font-size: var(--vscode-font-size);
       color: var(--vscode-foreground);
@@ -95,8 +107,16 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     body.detail-block .desc { display: none; }
     body.detail-block .meta { margin: 0 0 8px; }
     body.external-module-block .wrap > :not(#tabs):not(#module-block) { display: none !important; }
-    .wrap { padding: 8px 14px 16px; }
+    .wrap { width: 100%; min-width: 0; max-width: 100%; padding: 8px 14px 16px; overflow-x: hidden; }
+    .wrap > * { min-width: 0; max-width: 100%; }
+    ktc-codegen-primary-panel,
+    ktc-git-primary-panel,
+    ktc-run-primary-panel { display: block; width: 100%; min-width: 0; max-width: 100%; overflow-x: hidden; }
     body.codegen-tool .wrap { padding-inline: 0; }
+    body.run-tool .wrap { padding-inline: 0; }
+    body.run-tool .meta { margin: 4px 5px 5px; }
+    body.git-tool .wrap { padding-inline: 0; }
+    body.git-tool .meta { margin: 4px 5px 5px; }
     .tabs {
       display: flex;
       gap: 4px;
@@ -282,9 +302,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .compact-file-row { display: flex; align-items: center; gap: 5px; min-width: 0; min-height: 28px; padding: 2px 3px; }
     .compact-file-row:hover { background: var(--vscode-list-hoverBackground); }
     .compact-kind { flex: 0 0 22px; color: var(--vscode-symbolIcon-classForeground, var(--vscode-foreground)); font-weight: 600; font-size: 10px; text-align: center; }
-    .compact-file-main { display: flex; align-items: baseline; gap: 5px; min-width: 0; overflow: hidden; flex: 1 1 auto; cursor: pointer; }
-    .compact-file-name { flex: 0 0 auto; overflow: visible; text-overflow: clip; white-space: nowrap; }
-    .compact-file-dir { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--vscode-descriptionForeground); font-size: 11px; }
+    .compact-file-main { cursor: pointer; }
     .compact-inline { display: flex; flex: 0 0 auto; opacity: 0; }
     .compact-file-row:hover .compact-inline, .compact-inline:focus-within { opacity: 1; }
     .compact-icon { width: 24px; height: 24px; padding: 0; border: 1px solid var(--ktc-ui-border, transparent); border-radius: 3px; color: var(--vscode-foreground); background: transparent; cursor: pointer; font-size: 15px; line-height: 22px; }
@@ -604,6 +622,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       <button class="action" id="btn-fix">修复</button>
     </div>
     <ktc-codegen-primary-panel id="codegen-panel" hidden></ktc-codegen-primary-panel>
+    <ktc-run-primary-panel id="run-panel" hidden></ktc-run-primary-panel>
+    <ktc-git-primary-panel id="git-panel" hidden></ktc-git-primary-panel>
     <div class="uuid-options" id="uuid-options" hidden>
       <label for="uuid-strategy">生成策略</label>
       <select id="uuid-strategy" aria-label="UUID 生成策略">
@@ -771,6 +791,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
   </div>
   <ktc-associated-rule-picker id="rule-picker"></ktc-associated-rule-picker>
   <script nonce="${nonce}" src="${codegenPrimaryPanelUri}"></script>
+  <script nonce="${nonce}" src="${runPrimaryPanelUri}"></script>
+  <script nonce="${nonce}" src="${gitPrimaryPanelUri}"></script>
   <script nonce="${nonce}" src="${reorderMembersPanelUri}"></script>
   <script nonce="${nonce}" src="${associatedRulePickerUri}"></script>
   <script nonce="${nonce}">
@@ -862,6 +884,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       btnCreateRootTodo: document.getElementById("btn-create-root-todo"),
       generalActions: document.getElementById("general-actions"),
       codegenPanel: document.getElementById("codegen-panel"),
+      runPanel: document.getElementById("run-panel"),
+      gitPanel: document.getElementById("git-panel"),
       compactTools: document.getElementById("compact-tools"),
       uuidOptions: document.getElementById("uuid-options"),
       uuidStrategy: document.getElementById("uuid-strategy"),
@@ -935,6 +959,14 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
 
     function isCodegenTool() {
       return state.activeToolId === "codegen";
+    }
+
+    function isRunTool() {
+      return state.activeToolId === "run";
+    }
+
+    function isGitTool() {
+      return state.activeToolId === "git";
     }
 
     function isReorderMembersTool() {
@@ -1085,13 +1117,13 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       kind.textContent = resultKind(config.path, config.kind);
       const parts = resultPathParts(config.path);
       const main = document.createElement("span");
-      main.className = "compact-file-main";
+      main.className = "compact-file-main ktc-compact-label";
       main.title = config.title || config.path;
       const name = document.createElement("span");
-      name.className = "compact-file-name";
+      name.className = "compact-file-name ktc-compact-label-primary";
       appendHighlightedText(name, config.name || parts.name, config.highlightTerms, config.highlightNonAscii);
       const directory = document.createElement("span");
-      directory.className = "compact-file-dir";
+      directory.className = "compact-file-dir ktc-compact-label-secondary";
       directory.textContent = config.directory === undefined ? parts.directory : config.directory;
       main.append(name, directory);
       if (config.onOpen) main.onclick = config.onOpen;
@@ -1675,6 +1707,15 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       };
     }
 
+    function renderRun(ts, running) {
+      const model = ts.run;
+      els.runPanel.model = model ? Object.assign({}, model, { running: !!running }) : undefined;
+    }
+
+    function renderGit(ts) {
+      els.gitPanel.model = ts.git;
+    }
+
     function render() {
       document.body.classList.toggle("ribbon-only", state.presentation === "ribbon");
       document.body.classList.toggle("detail-block", state.presentation === "detailBlock");
@@ -1717,7 +1758,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
             btn.appendChild(icon);
           }
           const label = document.createElement("span");
-          const shortTitles = { headerAscii: "头文件", encodingFix: "编码", ignoreSettings: "忽略", codeRename: "替换", codegen: "自动代码", reorderMembers: "排序", uuidReplace: "UUID", caaDialog: "CAA UI", environmentSettings: "环境" };
+          const shortTitles = { headerAscii: "头文件", encodingFix: "编码", ignoreSettings: "忽略", codeRename: "替换", codegen: "自动代码", reorderMembers: "排序", uuidReplace: "UUID", caaDialog: "CAA UI", git: "Git", run: "Run", environmentSettings: "环境" };
           label.textContent = t.shortTitle || shortTitles[t.id] || t.title;
           btn.appendChild(label);
           const openState = isActive
@@ -1749,19 +1790,25 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       const header = isHeaderAsciiTool();
       const rename = isCodeRenameTool();
       const codegen = isCodegenTool();
+      const run = isRunTool();
+      const git = isGitTool();
       const reorder = isReorderMembersTool();
       const ignore = isIgnoreTool();
       const uuid = isUuidTool();
       const caaDialog = isCaaDialogTool();
       const environment = isEnvironmentTool();
       document.body.classList.toggle("codegen-tool", codegen);
+      document.body.classList.toggle("run-tool", run);
+      document.body.classList.toggle("git-tool", git);
       renderWorkspaceFileScope(running);
       els.desc.hidden = ignore;
       els.replaceBlock.hidden = !rename;
       els.codegenPanel.hidden = !codegen;
+      els.runPanel.hidden = !run;
+      els.gitPanel.hidden = !git;
       els.reorderMembersPanel.hidden = !reorder;
       els.environmentBlock.hidden = !environment;
-      els.generalActions.hidden = rename || codegen || ignore || reorder || environment;
+      els.generalActions.hidden = rename || codegen || run || git || ignore || reorder || environment;
       els.uuidOptions.hidden = !uuid;
       els.uuidStrategy.value = state.uuidStrategy;
       els.uuidStrategy.disabled = running;
@@ -1783,9 +1830,11 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
 
       els.targetHint.hidden = !enc;
       if (enc) renderEncodingTargetSettings(running);
-      els.scopeBlock.hidden = rename || codegen || ignore || reorder || uuid || caaDialog || environment;
+      els.scopeBlock.hidden = rename || codegen || run || git || ignore || reorder || uuid || caaDialog || environment;
 
       if (codegen) renderCodegen(ts, running);
+      if (run) renderRun(ts, running);
+      if (git) renderGit(ts);
 
       if (reorder) {
         els.reorderMembersPanel.model = {
@@ -1830,7 +1879,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
 
       renderIgnoreConfig();
 
-      els.optionsPanel.hidden = rename || codegen || ignore || reorder || uuid || caaDialog || environment;
+      els.optionsPanel.hidden = rename || codegen || run || git || ignore || reorder || uuid || caaDialog || environment;
       els.headerOptions.hidden = enc;
       els.encodingOptions.hidden = !enc;
       els.showDetailsWrap.hidden = !header;
@@ -1846,9 +1895,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
 
       els.status.textContent = ts.message || "";
       els.status.className = "status" + (ts.status === "error" ? " error" : "");
-      els.status.hidden = reorder || codegen;
-      els.resultsTitle.hidden = reorder || codegen || environment;
-      els.results.hidden = reorder || codegen || environment;
+      els.status.hidden = reorder || codegen || run || git;
+      els.resultsTitle.hidden = reorder || codegen || run || git || environment;
+      els.results.hidden = reorder || codegen || run || git || environment;
       els.results.innerHTML = "";
       els.resultsTitle.textContent = header ? "问题文件" : (enc ? "编码结果" : (rename ? "替换结果" : (ignore ? "推荐规则" : (uuid ? "UUID 结果" : (caaDialog ? "CATDlg 文件" : "结果")))));
 
@@ -1856,6 +1905,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         renderEnvironment(ts);
         els.empty.style.display = "none";
       } else if (codegen) {
+        els.empty.style.display = "none";
+      } else if (run) {
+        els.empty.style.display = "none";
+      } else if (git) {
         els.empty.style.display = "none";
       } else if (reorder) {
         els.empty.style.display = "none";
@@ -1891,6 +1944,12 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     };
     els.codegenPanel.addEventListener("ktc-codegen-primary-action", (event) => {
       vscode.postMessage(Object.assign({ type: "codegenAction", toolId: "codegen" }, event.detail));
+    });
+    els.runPanel.addEventListener("ktc-run-primary-action", (event) => {
+      vscode.postMessage(Object.assign({ type: "runAction", toolId: "run" }, event.detail));
+    });
+    els.gitPanel.addEventListener("ktc-git-primary-action", (event) => {
+      vscode.postMessage(Object.assign({ type: "gitAction", toolId: "git" }, event.detail));
     });
     function postCodegenControl(type, detail) {
       const model = els.codegenPanel.model;

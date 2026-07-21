@@ -1,5 +1,5 @@
 import * as esbuild from "esbuild";
-import { rm } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import {
   LOCAL_WING_CODE_PACKAGES,
   localWingBuildContextFromEnvironment,
@@ -23,6 +23,10 @@ const extensionOptions = {
   external: ["vscode"],
   platform: "node",
   format: "cjs",
+  // Prefer ESM when a dependency publishes both ESM and UMD/CJS. In particular,
+  // jsonc-parser's UMD wrapper hides relative requires from esbuild and cannot be
+  // deployed as part of our single-file extension bundle.
+  mainFields: ["module", "main"],
   target: "node18",
   sourcemap: true,
   logLevel: "info",
@@ -74,6 +78,34 @@ const codegenPrimaryPanelOptions = {
 };
 
 /** @type {import('esbuild').BuildOptions} */
+const runPrimaryPanelOptions = {
+  entryPoints: ["src/tools/run/KtcRunPrimaryPanelEntry.ts"],
+  bundle: true,
+  outfile: "dist/ktc-run-primary-panel.js",
+  platform: "browser",
+  format: "iife",
+  target: "es2022",
+  sourcemap: true,
+  logLevel: "info",
+  metafile: Boolean(localWing),
+  plugins: localWingPlugins,
+};
+
+/** @type {import('esbuild').BuildOptions} */
+const gitPrimaryPanelOptions = {
+  entryPoints: ["src/tools/git/KtcGitPrimaryPanelEntry.ts"],
+  bundle: true,
+  outfile: "dist/ktc-git-primary-panel.js",
+  platform: "browser",
+  format: "iife",
+  target: "es2022",
+  sourcemap: true,
+  logLevel: "info",
+  metafile: Boolean(localWing),
+  plugins: localWingPlugins,
+};
+
+/** @type {import('esbuild').BuildOptions} */
 const reorderMembersPanelOptions = {
   entryPoints: ["src/sidebar/reorderMembersPanelEntry.ts"],
   bundle: true,
@@ -109,6 +141,7 @@ const extensionHostSmokeOptions = {
   external: ["vscode"],
   platform: "node",
   format: "cjs",
+  mainFields: ["module", "main"],
   target: "node18",
   sourcemap: true,
   logLevel: "info",
@@ -121,11 +154,13 @@ if (watch) {
   const tableContext = await esbuild.context(codegenTableOptions);
   const controlCatalogContext = await esbuild.context(codegenControlCatalogOptions);
   const primaryPanelContext = await esbuild.context(codegenPrimaryPanelOptions);
+  const runPrimaryPanelContext = await esbuild.context(runPrimaryPanelOptions);
+  const gitPrimaryPanelContext = await esbuild.context(gitPrimaryPanelOptions);
   const reorderMembersPanelContext = await esbuild.context(reorderMembersPanelOptions);
   const associatedRulePickerContext = await esbuild.context(associatedRulePickerOptions);
   await Promise.all([
     extensionContext.watch(), tableContext.watch(), controlCatalogContext.watch(), primaryPanelContext.watch(),
-    reorderMembersPanelContext.watch(), associatedRulePickerContext.watch(),
+    runPrimaryPanelContext.watch(), gitPrimaryPanelContext.watch(), reorderMembersPanelContext.watch(), associatedRulePickerContext.watch(),
   ]);
   console.log("watching extension…");
 } else {
@@ -135,9 +170,15 @@ if (watch) {
     esbuild.build(codegenTableOptions),
     esbuild.build(codegenControlCatalogOptions),
     esbuild.build(codegenPrimaryPanelOptions),
+    esbuild.build(runPrimaryPanelOptions),
+    esbuild.build(gitPrimaryPanelOptions),
     esbuild.build(reorderMembersPanelOptions),
     esbuild.build(associatedRulePickerOptions),
     esbuild.build(extensionHostSmokeOptions),
+  ]);
+  await Promise.all([
+    verifySingleFileNodeBundle(extensionOptions.outfile),
+    verifySingleFileNodeBundle(extensionHostSmokeOptions.outfile),
   ]);
   if (localWing) {
     verifyLocalWingBuildResults({
@@ -145,5 +186,13 @@ if (watch) {
       wingRoot: localWing.wingRoot,
       expectedPackages: LOCAL_WING_CODE_PACKAGES,
     });
+  }
+}
+
+async function verifySingleFileNodeBundle(outfile) {
+  const bundle = await readFile(outfile, "utf8");
+  const unresolvedRelativeRequire = bundle.match(/require\(\s*["']\.\.?\//u);
+  if (unresolvedRelativeRequire) {
+    throw new Error(`[bundle] ${outfile} contains an unresolved relative require: ${unresolvedRelativeRequire[0]}`);
   }
 }

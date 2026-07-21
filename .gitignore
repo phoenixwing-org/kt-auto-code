@@ -1,7 +1,9 @@
 node_modules/
+.pnpm-store/
 dist/
 extension/node_modules/
 *.vsix
+*.local-wing.json
 *.swp
 .phoenix/
 extensions/kt-auto-cad/bin/

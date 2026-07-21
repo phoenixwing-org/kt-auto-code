@@ -9,11 +9,23 @@ importers:
   .:
     dependencies:
       '@phoenix-wing/code-core':
-        specifier: 0.4.3
-        version: 0.4.3
+        specifier: 0.5.0
+        version: 0.5.0
+      '@phoenix-wing/git-core':
+        specifier: 0.5.0
+        version: 0.5.0
+      '@phoenix-wing/git-node':
+        specifier: 0.5.0
+        version: 0.5.0
       '@phoenix-wing/kt-codegen':
-        specifier: 0.4.3
-        version: 0.4.3
+        specifier: 0.5.0
+        version: 0.5.0
+      '@phoenix-wing/run-core':
+        specifier: 0.5.0
+        version: 0.5.0
+      '@phoenix-wing/run-node':
+        specifier: 0.5.0
+        version: 0.5.0
       iconv-lite:
         specifier: 0.6.3
         version: 0.6.3
@@ -34,11 +46,23 @@ importers:
   extension:
     dependencies:
       '@phoenix-wing/code-core':
-        specifier: 0.4.3
-        version: 0.4.3
+        specifier: 0.5.0
+        version: 0.5.0
+      '@phoenix-wing/git-core':
+        specifier: 0.5.0
+        version: 0.5.0
+      '@phoenix-wing/git-node':
+        specifier: 0.5.0
+        version: 0.5.0
       '@phoenix-wing/kt-codegen':
-        specifier: 0.4.3
-        version: 0.4.3
+        specifier: 0.5.0
+        version: 0.5.0
+      '@phoenix-wing/run-core':
+        specifier: 0.5.0
+        version: 0.5.0
+      '@phoenix-wing/run-node':
+        specifier: 0.5.0
+        version: 0.5.0
       iconv-lite:
         specifier: 0.6.3
         version: 0.6.3
@@ -59,14 +83,14 @@ importers:
   extensions/kt-auto-cad:
     devDependencies:
       '@phoenix-wing/cad-contracts':
-        specifier: 0.4.3
-        version: 0.4.3
+        specifier: 0.5.0
+        version: 0.5.0
       '@phoenix-wing/cad-core':
-        specifier: 0.4.3
-        version: 0.4.3
+        specifier: 0.5.0
+        version: 0.5.0
       '@phoenix-wing/workspace-schema':
-        specifier: 0.4.3
-        version: 0.4.3
+        specifier: 0.5.0
+        version: 0.5.0
       '@types/vscode':
         specifier: 1.85.0
         version: 1.85.0
@@ -485,20 +509,32 @@ packages:
   '@oxc-project/types@0.139.0':
     resolution: {integrity: sha512-r9gHphtCs+1M7J0pw6Sn/hh/Wpa/iQrOOkrNAlVLF/gHq+/CJmHIWKKUUhdWjcD6CIa8idarspCsASiXCXvFUw==}
 
-  '@phoenix-wing/cad-contracts@0.4.3':
-    resolution: {integrity: sha512-JwP94oLqcGQGf+MVZamgceELGtOih9T/6DjH9Svmw2ikJLT2bKh1mskrold0peL9iHOaZSxt2mFkd2zgI1Y0fQ==}
+  '@phoenix-wing/cad-contracts@0.5.0':
+    resolution: {integrity: sha512-F+Pk54PTxFiVRelNKTL6LucmT73tvEs7HMYNH6zfW+TtNqeI07JXokDKkKmc8M/Kp6pGVZ2MCwE2p6nO14uYpQ==}
 
-  '@phoenix-wing/cad-core@0.4.3':
-    resolution: {integrity: sha512-ZUI9irrqcx1ETXvGhiVqddzTO+s+9A+bZXUUOMQHlal0NNFdmy1i8Dwx/4zrWZBE326UgP1x8C5inL3JhnGdig==}
+  '@phoenix-wing/cad-core@0.5.0':
+    resolution: {integrity: sha512-GQt/2P5foy9ndGUVMoVSwr91vVy73ucN5i5mODssjnYh1v9EwI8psG8f5MwJwKx0ZdZAcsOMUw8HAihrWkczMw==}
 
-  '@phoenix-wing/code-core@0.4.3':
-    resolution: {integrity: sha512-JyzyWlSBQ/lw5f90cyx3cFGxmx62eXwHJHkmmBR24G9ErCrsFZId+188f9rKuy/bc5Lcu11VI2hTB6DDxmtMhQ==}
+  '@phoenix-wing/code-core@0.5.0':
+    resolution: {integrity: sha512-coYXR+NTYtUhE+xow8L+JqfcRIqJK3+OHn9A9CiDnp9NAdHgkBCo8wN8LW8G02xUCFSpDe7nBFd3mOh60zEZSA==}
 
-  '@phoenix-wing/kt-codegen@0.4.3':
-    resolution: {integrity: sha512-1qApPokzspXD4n2vvjpZX0gonOEg3YUpkKYoVtM/E10/BA4QBwn6fvcUpPkC3cL7orA5sWp3aelR3h6dMmekdg==}
+  '@phoenix-wing/git-core@0.5.0':
+    resolution: {integrity: sha512-wKqMWMOWHD12J/4y+iIhU0M33YmJnS5hotcaLYKtTFlAHFK45FHo1sRWiSRZX/yKkig7O3JmUkut9/jJ3f5jJw==}
 
-  '@phoenix-wing/workspace-schema@0.4.3':
-    resolution: {integrity: sha512-QNTcjYwbl+ZE74U1y21ySI9qlfnXbV64DCISUUS0sbnubiDt6nDq9WXa7kCPh+qFddXIquQAgRXqdpONeltw/w==}
+  '@phoenix-wing/git-node@0.5.0':
+    resolution: {integrity: sha512-4eTxPXeWXbBXmi8yMOjpxwp/wwY+TW6POS7XnqNUQhhFhdxd7ZGcUlUKi4uXZcPxBidZxv6hSzPpOWjYmy8lIg==}
+
+  '@phoenix-wing/kt-codegen@0.5.0':
+    resolution: {integrity: sha512-3wiIdlzc6quMzpIT2JoiQkd7K+Lmd9jw+GWSsLm3/NzeY05b6wfqysR0eZSPnkRxjVQyniZAisayq5GFnultzQ==}
+
+  '@phoenix-wing/run-core@0.5.0':
+    resolution: {integrity: sha512-iXwZdD0VdZkvpivpy78rxF24DUA6EUHnRgDT9xp0mjygKSWFWrJ/9SfZs5eE3BwS4MFW5T2AxB/ijxhZZBuEPQ==}
+
+  '@phoenix-wing/run-node@0.5.0':
+    resolution: {integrity: sha512-YViKoLZ6USzZJfWCfS3/EMB4V4SWSmJufn5/lR06frEGEcPIRWxsrJDPdEmyiyL2yuO1C/btxyFqIgcp+YkfqQ==}
+
+  '@phoenix-wing/workspace-schema@0.5.0':
+    resolution: {integrity: sha512-GSIX63cdE6ef5S30P5A/XPXkvo8v/wx64M9NpPb2ywgvda5MPdPCsgNepVNzrGfN5eWllaIKOM4KiuOJ4AP8qQ==}
 
   '@rolldown/binding-android-arm64@1.1.5':
     resolution: {integrity: sha512-lZg8fqIv2v7FF237bwMgzGZEJvGL79/s5knJ/i6FmsGF4XXlzccZ4jb+TrFIxtSSxFtIpdsgrPZeMk1I9AFcyQ==}
@@ -2199,15 +2235,28 @@ snapshots:
 
   '@oxc-project/types@0.139.0': {}
 
-  '@phoenix-wing/cad-contracts@0.4.3': {}
+  '@phoenix-wing/cad-contracts@0.5.0': {}
 
-  '@phoenix-wing/cad-core@0.4.3': {}
+  '@phoenix-wing/cad-core@0.5.0': {}
 
-  '@phoenix-wing/code-core@0.4.3': {}
+  '@phoenix-wing/code-core@0.5.0': {}
 
-  '@phoenix-wing/kt-codegen@0.4.3': {}
+  '@phoenix-wing/git-core@0.5.0': {}
 
-  '@phoenix-wing/workspace-schema@0.4.3': {}
+  '@phoenix-wing/git-node@0.5.0':
+    dependencies:
+      '@phoenix-wing/git-core': 0.5.0
+
+  '@phoenix-wing/kt-codegen@0.5.0': {}
+
+  '@phoenix-wing/run-core@0.5.0': {}
+
+  '@phoenix-wing/run-node@0.5.0':
+    dependencies:
+      '@phoenix-wing/run-core': 0.5.0
+      jsonc-parser: 3.3.1
+
+  '@phoenix-wing/workspace-schema@0.5.0': {}
 
   '@rolldown/binding-android-arm64@1.1.5':
     optional: true

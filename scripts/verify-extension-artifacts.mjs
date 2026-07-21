@@ -32,6 +32,7 @@ for (const artifact of artifacts) {
   for (const name of names) {
     if (/(?:^|\/)(?:node_modules|src|target)(?:\/|$)/u.test(name)
         || /(?:^|\/)dist\/test(?:\/|$)/u.test(name)
+        || /(?:^|\/)[^/]+\.local-wing\.json$/u.test(name)
         || /\.(?:map|rs|exe|dll|dylib|so|sqlite)$/iu.test(name)
         || /(?:^|\/)Cargo\.(?:toml|lock)$/u.test(name)) {
       throw new Error(`${artifact.kind} VSIX contains forbidden file: ${name}`);
@@ -45,16 +46,17 @@ for (const artifact of artifacts) {
     throw new Error(`${artifact.kind} VSIX bundle contains a forbidden Wing/UI/native dependency`);
   }
   if (artifact.kind === "code") {
-    assertEqual(
-      manifest.dependencies?.["@phoenix-wing/code-core"],
-      codePackage.dependencies?.["@phoenix-wing/code-core"],
-      "Code VSIX code-core version",
-    );
-    assertEqual(
-      manifest.dependencies?.["@phoenix-wing/kt-codegen"],
-      codePackage.dependencies?.["@phoenix-wing/kt-codegen"],
-      "Code VSIX kt-codegen version",
-    );
+    for (const wingPackage of ["code-core", "git-core", "git-node", "kt-codegen", "run-core", "run-node"]) {
+      const dependency = `@phoenix-wing/${wingPackage}`;
+      assertEqual(
+        manifest.dependencies?.[dependency],
+        codePackage.dependencies?.[dependency],
+        `Code VSIX ${wingPackage} version`,
+      );
+    }
+    if (/require\(["']@phoenix-wing\/(?:code-core|git-core|git-node|kt-codegen|run-core|run-node)["']\)/u.test(bundle)) {
+      throw new Error("Code VSIX must bundle all Phoenix Wing Code/Git/Run dependencies");
+    }
     const tableBundle = readText(zip, "extension/dist/codegen-table.js");
     if (!tableBundle.includes("kt-codegen-table")) {
       throw new Error("Code VSIX is missing the KtCodegenTable custom element registration");
@@ -76,6 +78,32 @@ for (const artifact of artifacts) {
         || !primaryPanelBundle.includes("ktc-codegen-primary-action")
         || primaryPanelBundle.includes("acquireVsCodeApi")) {
       throw new Error("Code VSIX is missing the UI-neutral Codegen Primary panel custom element");
+    }
+    const runPrimaryPanelBundle = readText(zip, "extension/dist/ktc-run-primary-panel.js");
+    if (!runPrimaryPanelBundle.includes("ktc-run-primary-panel")
+        || !runPrimaryPanelBundle.includes("ktc-run-primary-action")
+        || runPrimaryPanelBundle.includes("acquireVsCodeApi")) {
+      throw new Error("Code VSIX is missing the Host-neutral Run Primary panel custom element");
+    }
+    const caaRunner = readText(zip, "extension/resources/run/caa/pnw-caa-runner.cmd");
+    if (!caaRunner.includes("stage=tck-init")
+        || !caaRunner.includes("mkGetPreq.bat")
+        || !caaRunner.includes("mkCreateRuntimeView.bat")
+        || /\b(?:setx|runas|sudo|start\s+cmd)\b/iu.test(caaRunner)) {
+      throw new Error("Code VSIX is missing the constrained CAA build/run resource");
+    }
+    const clangFormatRunner = readText(zip, "extension/resources/run/format/pnw-clang-format-runner.cjs");
+    if (!clangFormatRunner.includes("KtcExcludedDirectories")
+        || !clangFormatRunner.includes('spawnSync(program, ["-style=file", "-i", file]')
+        || !clangFormatRunner.includes("entry.isSymbolicLink()")
+        || /\b(?:setx|runas|sudo)\b/iu.test(clangFormatRunner)) {
+      throw new Error("Code VSIX is missing the constrained Clang Format resource");
+    }
+    const gitPrimaryPanelBundle = readText(zip, "extension/dist/ktc-git-primary-panel.js");
+    if (!gitPrimaryPanelBundle.includes("ktc-git-primary-panel")
+        || !gitPrimaryPanelBundle.includes("ktc-git-primary-action")
+        || gitPrimaryPanelBundle.includes("acquireVsCodeApi")) {
+      throw new Error("Code VSIX is missing the Host-neutral Git Primary panel custom element");
     }
     const reorderMembersPanelBundle = readText(zip, "extension/dist/reorder-members-panel.js");
     if (!reorderMembersPanelBundle.includes("ktc-reorder-members-panel")
@@ -99,6 +127,14 @@ for (const artifact of artifacts) {
       (candidate) => candidate.command === "ktAutoCode.codegen.open",
     );
     if (!codegenCommand) throw new Error("Code VSIX is missing the Codegen open command");
+    const runCommand = manifest.contributes?.commands?.find(
+      (candidate) => candidate.command === "ktAutoCode.run.open",
+    );
+    if (!runCommand) throw new Error("Code VSIX is missing the Run open command");
+    const gitCommand = manifest.contributes?.commands?.find(
+      (candidate) => candidate.command === "ktAutoCode.git.open",
+    );
+    if (!gitCommand) throw new Error("Code VSIX is missing the Git open command");
     if (manifest.dependencies?.["phoenix-wing"] !== undefined) {
       throw new Error("Code VSIX must not depend on the Vue/UI aggregate phoenix-wing package");
     }

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "currentDate": "2026-07-18",
+  "currentDate": "2026-07-21",
   "scanRoots": ["src", "extension/src", "extensions/kt-auto-cad/src"],
   "exclude": ["\\.test\\.", "\\.spec\\.", "(?:^|/)dist/"],
   "pureEntrypoints": [
@@ -11,6 +11,8 @@
     "src/ignorePresets.ts",
     "src/ignoreRuleCatalog.ts",
     "src/moduleShellContract.ts",
+    "src/git/KtcGitModel.ts",
+    "src/run/KtcRunModel.ts",
     "src/replacementRuleContracts.ts",
     "extension/src/tools/codegen/documentModel.ts",
     "extension/src/tools/codegen/preflightCache.ts",
@@ -46,7 +48,11 @@
     "extension/src/sidebar/reorderMembersPanel.ts",
     "extension/src/sidebar/reorderMembersPanelEntry.ts",
     "extension/src/sidebar/associatedRulePicker.ts",
-    "extension/src/sidebar/associatedRulePickerEntry.ts"
+    "extension/src/sidebar/associatedRulePickerEntry.ts",
+    "extension/src/tools/git/KtcGitPrimaryPanel.ts",
+    "extension/src/tools/git/KtcGitPrimaryPanelEntry.ts",
+    "extension/src/tools/run/KtcRunPrimaryPanel.ts",
+    "extension/src/tools/run/KtcRunPrimaryPanelEntry.ts"
   ],
   "forbiddenViewImports": ["^(?:node:fs|fs$|fs/|node:child_process|node:sqlite)"],
   "forbiddenViewCalls": ["writeFile", "writeFileSync", "rename", "renameSync", "unlink", "unlinkSync", "rm", "rmSync"],
