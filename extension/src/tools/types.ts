@@ -68,6 +68,7 @@ export type WebviewInboundMessage =
         | "refresh"
         | "openScm"
         | "openOutput"
+        | "selectRepository"
         | "openAction"
         | "selectCommit"
         | "copySummary"

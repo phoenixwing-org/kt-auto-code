@@ -39,6 +39,9 @@ describe("Git Primary panel", () => {
     expect(source).toContain('undo.textContent = "撤销"');
     expect(source).toContain('loadMore.textContent = "再加载 20"');
     expect(source).toContain('action: "loadMore"');
+    expect(source).toContain("project.repository.id === model.selectedRepositoryId");
+    expect(source).toContain("else projects.append(this.KtcProject(selectedProject))");
+    expect(source).not.toContain("for (const project of model.projects) projects.append(this.KtcProject(project))");
     expect(source).toContain('`Base parent: ${draft.baseParentOid}`');
     expect(source).toContain('`最终保留 tree: ${draft.finalTreeOid}`');
     expect(source).toContain('后续重放（old SHA → 执行时生成 new SHA）');
@@ -71,5 +74,21 @@ describe("Git Primary panel", () => {
       maximum: 1200,
       default: 78,
     });
+  });
+
+  it("由 VS Code Host 发现并保存当前仓库选择", () => {
+    const controller = readFileSync(new URL("./KtcGitController.ts", import.meta.url), "utf8");
+    const tool = readFileSync(new URL("./KtcGitTool.ts", import.meta.url), "utf8");
+    expect(controller).toContain('getExtension<KtcVsCodeGitExports>("vscode.git")');
+    expect(controller).toContain("KtcCollectGitRepositoryCandidates({");
+    expect(controller).toContain("KtcDescribeGitRepository(snapshot.root");
+    expect(controller).toContain("KtcChooseGitRepositoryId({");
+    expect(controller).toContain("workspaceState.get<string>(KtcGitSelectedRepositoryStateKey)");
+    expect(controller).toContain("workspaceState.update(");
+    expect(controller).toContain('"切换并关闭草稿"');
+    expect(controller).toContain("this.KtcRunningRepositories.size > 0");
+    expect(controller).toContain("action.repositoryId !== this.KtcSelectedRepositoryId");
+    expect(controller).toContain("selectedRepositoryId: this.KtcSelectedRepositoryId");
+    expect(tool).toContain('candidate.action === "selectRepository"');
   });
 });

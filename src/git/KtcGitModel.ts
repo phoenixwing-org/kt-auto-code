@@ -109,6 +109,7 @@ export interface KtcGitLastOperation {
 
 export interface KtcGitViewModel {
   readonly projects: readonly KtcGitProject[];
+  readonly selectedRepositoryId?: string;
   readonly statusText: string;
   readonly recentCommitLimit: number;
   readonly summaryDraft?: KtcGitSummaryDraft;
@@ -118,6 +119,7 @@ export interface KtcGitViewModel {
 
 export function KtcCreateGitModel(input: {
   readonly repositories: readonly KtcGitRepositoryInput[];
+  readonly selectedRepositoryId?: string;
   readonly recentCommitLimit?: number;
   readonly summaryDraft?: KtcGitSummaryDraft;
   readonly squashDraft?: KtcGitSquashDraft;
@@ -126,11 +128,15 @@ export function KtcCreateGitModel(input: {
   const recentCommitLimit = KtcNormalizeRecentCommitLimit(input.recentCommitLimit);
   const projects = input.repositories.map((repository) => KtcCreateGitProject(repository, recentCommitLimit));
   const loaded = projects.filter((project) => !project.repository.error).length;
+  const selectedRepositoryId = projects.some((project) => project.repository.id === input.selectedRepositoryId)
+    ? input.selectedRepositoryId
+    : projects[0]?.repository.id;
   return {
     projects,
+    ...(selectedRepositoryId ? { selectedRepositoryId } : {}),
     recentCommitLimit,
     statusText: projects.length === 0
-      ? "请先打开工作区。"
+      ? "当前工作区未发现 Git 仓库。"
       : loaded === projects.length
         ? `已读取 ${loaded} 个 Git 仓库。`
         : `已读取 ${loaded}/${projects.length} 个 Git 仓库；其余工作区不是仓库或读取失败。`,

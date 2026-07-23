@@ -42,6 +42,7 @@ describe("Git Primary model", () => {
     });
 
     const project = model.projects[0];
+    expect(model.selectedRepositoryId).toBe("file:///workspace/PNXCaaStudy");
     expect(project?.actions.map((action) => action.id)).toEqual(["squashLocalCommits"]);
     expect(project?.repository).toMatchObject({ upstreamLabel: "check/sort", headLabel: "4b4622d" });
     expect(project?.commits[0]).toMatchObject({ shortOid: "4b4622d", isHead: true });
@@ -92,6 +93,16 @@ describe("Git Primary model", () => {
     expect(initial.projects[0]?.commits).toHaveLength(20);
     expect(expanded.projects[0]).toMatchObject({ visibleCommitLimit: 40, totalCommitCount: 45, hasMoreCommits: true });
     expect(expanded.projects[0]?.commits).toHaveLength(40);
+  });
+
+  it("保持有效的所选仓库，并在仓库消失时回退到第一项", () => {
+    const repositories = [
+      { id: "repo-a", name: "A", clean: true },
+      { id: "repo-b", name: "B", clean: true },
+    ];
+    expect(KtcCreateGitModel({ repositories, selectedRepositoryId: "repo-b" }).selectedRepositoryId).toBe("repo-b");
+    expect(KtcCreateGitModel({ repositories, selectedRepositoryId: "missing" }).selectedRepositoryId).toBe("repo-a");
+    expect(KtcCreateGitModel({ repositories: [] }).statusText).toBe("当前工作区未发现 Git 仓库。");
   });
 
 });

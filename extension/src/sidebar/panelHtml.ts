@@ -505,8 +505,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     }
     .status:empty { display: none; }
     .status.error { color: var(--vscode-errorForeground); border-left-color: var(--vscode-errorForeground); }
-    .meta { margin: 10px 0 12px; font-size: 11px; color: var(--vscode-descriptionForeground); }
+    .meta { display: flex; min-width: 0; align-items: center; gap: 4px; margin: 10px 0 12px; font-size: 11px; color: var(--vscode-descriptionForeground); }
     .meta strong { color: var(--vscode-foreground); font-weight: 500; }
+    .meta select { min-width: 0; max-width: 100%; flex: 1 1 auto; padding: 2px 4px; color: var(--vscode-dropdown-foreground); background: var(--vscode-dropdown-background); border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border)); }
     body.codegen-tool .meta { margin: 4px 5px 5px; }
     .workspace-file-scope {
       display: grid;
@@ -616,7 +617,11 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       <h2 id="tool-title">KT Auto Code</h2>
     </div>
     <p class="desc" id="tool-desc"></p>
-    <p class="meta" id="workspace-meta">工作区：<strong id="workspace-label">—</strong></p>
+    <p class="meta" id="workspace-meta">
+      <span id="workspace-context-label">工作区：</span>
+      <strong id="workspace-label">—</strong>
+      <select id="git-repository-select" aria-label="Git 仓库" hidden></select>
+    </p>
     <div class="workspace-file-scope" id="workspace-file-scope" hidden>
       <label for="workspace-file-scope-select" id="workspace-file-scope-label">扫描范围</label>
       <select id="workspace-file-scope-select" aria-label="工作区文件范围"></select>
@@ -911,6 +916,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       btnEnvironmentPluginSettings: document.getElementById("btn-environment-plugin-settings"),
       workspace: document.getElementById("workspace-label"),
       workspaceMeta: document.getElementById("workspace-meta"),
+      workspaceContextLabel: document.getElementById("workspace-context-label"),
+      gitRepositorySelect: document.getElementById("git-repository-select"),
       workspaceFileScope: document.getElementById("workspace-file-scope"),
       workspaceFileScopeLabel: document.getElementById("workspace-file-scope-label"),
       workspaceFileScopeSelect: document.getElementById("workspace-file-scope-select"),
@@ -1670,6 +1677,42 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.gitPanel.model = ts.git;
     }
 
+    function renderGitRepositoryContext(ts, running, git) {
+      els.workspaceContextLabel.textContent = git ? "仓库：" : "工作区：";
+      els.workspace.hidden = git;
+      els.gitRepositorySelect.hidden = !git;
+      if (!git) {
+        els.workspaceMeta.title = "";
+        return;
+      }
+      const model = ts.git;
+      const projects = model?.projects || [];
+      els.gitRepositorySelect.innerHTML = "";
+      if (!projects.length) {
+        const empty = document.createElement("option");
+        empty.value = "";
+        empty.textContent = "未发现 Git 仓库";
+        els.gitRepositorySelect.appendChild(empty);
+      } else {
+        for (const project of projects) {
+          const repository = project.repository;
+          const option = document.createElement("option");
+          option.value = repository.id;
+          option.textContent = repository.name + " · " + repository.relativePath;
+          option.title = repository.name + " · " + repository.id;
+          els.gitRepositorySelect.appendChild(option);
+        }
+      }
+      els.gitRepositorySelect.value = model?.selectedRepositoryId || projects[0]?.repository.id || "";
+      const selected = projects.find((project) => project.repository.id === els.gitRepositorySelect.value)?.repository;
+      els.workspaceMeta.title = selected ? selected.name + " · " + selected.id : "当前工作区未发现 Git 仓库";
+      els.gitRepositorySelect.setAttribute(
+        "aria-label",
+        selected ? "Git 仓库：" + selected.name + " · " + selected.id : "Git 仓库",
+      );
+      els.gitRepositorySelect.disabled = running || projects.length <= 1;
+    }
+
     function render() {
       document.body.classList.toggle("ribbon-only", state.presentation === "ribbon");
       document.body.classList.toggle("detail-block", state.presentation === "detailBlock");
@@ -1751,6 +1794,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       const uuid = isUuidTool();
       const caaDialog = isCaaDialogTool();
       const environment = isEnvironmentTool();
+      renderGitRepositoryContext(ts, running, git);
       document.body.classList.toggle("codegen-tool", codegen);
       document.body.classList.toggle("run-tool", run);
       document.body.classList.toggle("git-tool", git);
@@ -1919,6 +1963,12 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     els.gitPanel.addEventListener("ktc-git-primary-action", (event) => {
       vscode.postMessage(Object.assign({ type: "gitAction", toolId: "git" }, event.detail));
     });
+    els.gitRepositorySelect.onchange = () => {
+      const repositoryId = els.gitRepositorySelect.value;
+      if (!repositoryId) return;
+      els.gitRepositorySelect.disabled = true;
+      vscode.postMessage({ type: "gitAction", toolId: "git", action: "selectRepository", repositoryId });
+    };
     function postCodegenControl(type, detail) {
       const model = els.codegenPanel.model;
       const uri = model && model.controls && model.controls.documentId;

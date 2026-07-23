@@ -131,6 +131,12 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('els.gitPanel.hidden = !git');
     expect(html).toContain('"ktc-git-primary-action"');
     expect(html).toContain('type: "gitAction", toolId: "git"');
+    expect(html).toContain('id="git-repository-select"');
+    expect(html).toContain('els.workspaceContextLabel.textContent = git ? "仓库：" : "工作区："');
+    expect(html).toContain('option.textContent = repository.name + " · " + repository.relativePath');
+    expect(html).toContain('selected ? "Git 仓库：" + selected.name + " · " + selected.id : "Git 仓库"');
+    expect(html).toContain('action: "selectRepository", repositoryId');
+    expect(html).toContain('els.gitRepositorySelect.disabled = running || projects.length <= 1');
     expect(html).toContain('action: "pick"');
     expect(html).toContain('action: "set"');
     expect(html).toContain('action: "clear"');
