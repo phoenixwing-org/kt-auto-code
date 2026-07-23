@@ -16,7 +16,9 @@ export type KtcCodegenBatchApplyReportIssue = KtCodegenApplyReportIssue;
 export interface KtcCodegenBatchApplyReportItem extends KtCodegenApplyReportItem {
   readonly reasonCode: KtcCodegenApplyReasonCode;
 }
-export type KtcCodegenBatchApplyReport = KtCodegenApplyReportUiModel;
+export type KtcCodegenBatchApplyReport = Omit<KtCodegenApplyReportUiModel, "items"> & {
+  readonly items: readonly KtcCodegenBatchApplyReportItem[];
+};
 
 export function ktcCodegenBatchApplyReport(
   items: readonly KtcCodegenBatchApplyReportItem[],
@@ -30,7 +32,7 @@ export function ktcCodegenBatchApplyReport(
 ): KtcCodegenBatchApplyReport {
   const finishedAt = validDate(metadata.finishedAt) ?? new Date().toISOString();
   const duration = finiteDuration(elapsedMilliseconds);
-  return ktCodegenBuildApplyReport({
+  const report = ktCodegenBuildApplyReport({
     reportId: metadata.reportId ?? globalThis.crypto.randomUUID(),
     applyKind: metadata.applyKind ?? "batch",
     startedAt: validDate(metadata.startedAt)
@@ -39,6 +41,7 @@ export function ktcCodegenBatchApplyReport(
     elapsedMilliseconds: duration,
     items,
   });
+  return { ...report, items };
 }
 
 export function ktcCodegenBatchApplyReportIssues(

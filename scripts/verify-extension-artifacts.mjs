@@ -62,22 +62,25 @@ for (const artifact of artifacts) {
       throw new Error("Code VSIX is missing the KtCodegenTable custom element registration");
     }
     const controlCatalogBundle = readText(zip, "extension/dist/codegen-control-catalog.js");
-    if (!controlCatalogBundle.includes("ktc-codegen-control-catalog")
-        || !controlCatalogBundle.includes("ktc-codegen-control-panel")
-        || !controlCatalogBundle.includes("ktc-codegen-control-selection-change")
-        || !controlCatalogBundle.includes("ktc-codegen-control-split-change")
-        || !controlCatalogBundle.includes('{ scope: "visible", blockKeys:')
-        || !controlCatalogBundle.includes(".list { max-height: 290px; overflow-x: hidden; overflow-y: auto;")
-        || !controlCatalogBundle.includes('setAttribute("role", "tree")')
-        || !controlCatalogBundle.includes("group-check")
+    if (!controlCatalogBundle.includes("ktc-codegen-control-panel")
+        || !controlCatalogBundle.includes("kt-codegen-control-split-change")
+        || !controlCatalogBundle.includes("kt-codegen-control-open")
+        || !controlCatalogBundle.includes("kt-codegen-control-copy-end")
         || controlCatalogBundle.includes("acquireVsCodeApi")) {
-      throw new Error("Code VSIX is missing the UI-neutral shared Codegen control panel custom elements");
+      throw new Error("Code VSIX is missing the UI-neutral Codegen preflight control panel custom element");
     }
     const primaryPanelBundle = readText(zip, "extension/dist/codegen-primary-panel.js");
     if (!primaryPanelBundle.includes("ktc-codegen-primary-panel")
-        || !primaryPanelBundle.includes("ktc-codegen-primary-action")
+        || !primaryPanelBundle.includes("kt-codegen-primary-action")
+        || !primaryPanelBundle.includes("kt-codegen-control-catalog")
+        || !primaryPanelBundle.includes("kt-codegen-control-selection-change")
+        || !primaryPanelBundle.includes("kt-codegen-control-output")
+        || !primaryPanelBundle.includes('{ scope: "visible", blockKeys:')
+        || !primaryPanelBundle.includes(".pnw-codegen-catalog-list { max-height: 290px; overflow-x: hidden; overflow-y: auto;")
+        || !primaryPanelBundle.includes('setAttribute("role", "tree")')
+        || !primaryPanelBundle.includes("pnw-codegen-group-check")
         || primaryPanelBundle.includes("acquireVsCodeApi")) {
-      throw new Error("Code VSIX is missing the UI-neutral Codegen Primary panel custom element");
+      throw new Error("Code VSIX is missing the UI-neutral Codegen Primary panel and control catalog custom elements");
     }
     const runPrimaryPanelBundle = readText(zip, "extension/dist/ktc-run-primary-panel.js");
     if (!runPrimaryPanelBundle.includes("ktc-run-primary-panel")
