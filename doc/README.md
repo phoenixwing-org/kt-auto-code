@@ -13,6 +13,7 @@ Owner：KT Auto Code maintainers
 ## 当前路线与架构
 
 - [当前路线](current-roadmap.md)
+- [产品功能归属矩阵](产品功能归属矩阵.md)（与 Desk 使用相同 `featureId`，并引用 Wing 实际 `capabilityId`）
 - [Phoenix 三形态产品架构](Phoenix三形态产品架构计划.md)
 - [可选模块接入契约](可选模块接入契约.md)
 - [项目调查](项目调查.md)

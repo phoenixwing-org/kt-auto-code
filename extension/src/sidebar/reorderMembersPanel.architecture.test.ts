@@ -6,22 +6,25 @@ const source = (name: string) => readFileSync(new URL(name, import.meta.url), "u
 describe("reorder members panel architecture", () => {
   it("纯状态不接触 DOM、VS Code Host、文件系统或 clipboard", () => {
     const state = source("./reorderMembersPanelState.ts");
+    expect(state).toContain('from "@phoenix-wing/code-core/ui/model"');
     expect(state).toContain("ktcNextReorderSelection");
     expect(state).toContain("ktcProjectReorderMembersPanel");
+    expect(state).not.toContain('from "@phoenix-wing/code-core/ui"');
     expect(state).not.toMatch(/from ["']vscode["']|document\.|window\.|HTMLElement|customElements|acquireVsCodeApi|postMessage|clipboard|workspace\.fs/);
   });
 
-  it("Web Component 拥有成员排序 DOM，Sidebar 只投影 model 与映射消息", () => {
+  it("Wing Web Component 拥有成员排序 DOM，Sidebar 只投影 model 与映射消息", () => {
     const component = source("./reorderMembersPanel.ts");
     const sidebar = source("./panelHtml.ts");
     expect(component).toContain('KTC_REORDER_MEMBERS_PANEL_TAG = "ktc-reorder-members-panel"');
-    expect(component).toContain('KTC_REORDER_MEMBERS_PANEL_ACTION = "ktc-reorder-members-action"');
-    expect(component).toContain('presentation="detailBlock"');
-    expect(component).toContain("ktcNextReorderSelection");
+    expect(component).toContain("KTC_REORDER_MEMBERS_PANEL_ACTION = PNW_CODE_REORDER_MEMBERS_PANEL_ACTION");
+    expect(component).toContain('from "@phoenix-wing/code-core/ui"');
+    expect(component).toContain("pnwCodeDefineReorderMembersPanel(tagName)");
+    expect(component).not.toMatch(/document\.createElement|attachShadow|ktcNextReorderSelection/);
     expect(component).not.toMatch(/from ["']vscode["']|acquireVsCodeApi|postMessage|clipboard|workspace\.fs/);
     expect(sidebar).toContain('<ktc-reorder-members-panel id="reorder-members-panel" hidden>');
     expect(sidebar).toContain("els.reorderMembersPanel.model = {");
-    expect(sidebar).toContain('addEventListener("ktc-reorder-members-action"');
+    expect(sidebar).toContain('addEventListener("pnw-code-reorder-members-action"');
     expect(sidebar).not.toContain("function createReorderGroup");
     expect(sidebar).not.toContain("function renderReorderResults");
     expect(sidebar).not.toContain('className = "reorder-file-row"');
@@ -34,5 +37,6 @@ describe("reorder members panel architecture", () => {
     expect(build).toContain("esbuild.build(reorderMembersPanelOptions)");
     expect(verify).toContain('readText(zip, "extension/dist/reorder-members-panel.js")');
     expect(verify).toContain("Host-neutral member-sort panel custom element");
+    expect(verify).toContain("pnw-code-reorder-members-action");
   });
 });

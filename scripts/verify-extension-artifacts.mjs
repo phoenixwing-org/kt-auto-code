@@ -107,10 +107,23 @@ for (const artifact of artifacts) {
     }
     const reorderMembersPanelBundle = readText(zip, "extension/dist/reorder-members-panel.js");
     if (!reorderMembersPanelBundle.includes("ktc-reorder-members-panel")
-        || !reorderMembersPanelBundle.includes("ktc-reorder-members-action")
+        || !reorderMembersPanelBundle.includes("pnw-code-reorder-members-action")
         || !reorderMembersPanelBundle.includes("reorderSelection")
         || reorderMembersPanelBundle.includes("acquireVsCodeApi")) {
       throw new Error("Code VSIX is missing the Host-neutral member-sort panel custom element");
+    }
+    const uuidResultsPanelBundle = readText(zip, "extension/dist/uuid-results-panel.js");
+    if (!uuidResultsPanelBundle.includes("ktc-uuid-results-panel")
+        || !uuidResultsPanelBundle.includes("pnw-code-uuid-results-action")
+        || !uuidResultsPanelBundle.includes("selection")
+        || uuidResultsPanelBundle.includes("acquireVsCodeApi")) {
+      throw new Error("Code VSIX is missing the Host-neutral UUID result panel custom element");
+    }
+    const renameResultsPanelBundle = readText(zip, "extension/dist/rename-results-panel.js");
+    if (!renameResultsPanelBundle.includes("ktc-rename-results-panel")
+        || !renameResultsPanelBundle.includes("pnw-code-rename-results-action")
+        || renameResultsPanelBundle.includes("acquireVsCodeApi")) {
+      throw new Error("Code VSIX is missing the Host-neutral rename result panel custom element");
     }
     const associatedRulePickerBundle = readText(zip, "extension/dist/associated-rule-picker.js");
     if (!associatedRulePickerBundle.includes("ktc-associated-rule-picker")

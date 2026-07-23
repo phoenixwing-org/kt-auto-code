@@ -6,7 +6,7 @@ Owner：KT Auto Code maintainers
 
 适用版本：0.6.x
 
-最后核验：2026-07-22
+最后核验：2026-07-23
 
 ## 已完成基线
 
@@ -15,12 +15,19 @@ Owner：KT Auto Code maintainers
 - Wing 依赖均锁定 Registry 0.5.0；manifest、override 与 lockfile 的本地路径回退已被 `verify:wing-dependencies` 阻止。Auto Code 直接消费 Registry 内的 Codegen、Git、Run、Workspace Schema 和纯能力契约 fixture，不再保留 Apply 契约副本。
 - 0.4 Block 工作流、Codegen 预检/Apply 与共享 workset 已进入稳定基线；旧实施清单保留为历史证据。
 
+## 2026-07-22 Codegen 当前架构真源
+
+- Primary 与 Control 的业务 DOM、主题 token、ViewModel 和语义事件现由 Wing `@phoenix-wing/kt-codegen/ui` 提供；Auto 的 `primaryPanelEntry.ts` / `controlCatalogEntry.ts` 只注册兼容 tag，`sidebar/panelHtml.ts` / `editorHtml.ts` 只做 VS Code 消息映射。
+- Auto 继续独占文档 session、`workspaceState`、Commands、Problems、Output、clipboard、文件事务、报告和 Webview 生命周期。这些是 Host adapter，不迁入 Wing。
+- 已删除 Auto 私有 `primaryPanel.ts`、`controlPanel.ts`、`controlCatalog.ts`、`controlCatalogState.ts` 及对应 DOM characterization tests；共享组件行为由 Wing 测试负责，Auto 测试只冻结 import 边界、ViewModel 投影和 Host 事件映射。
+- 下方第一、二、六切口记录的是迁移前的历史演进。凡与本节冲突，以本节、[产品功能归属矩阵](产品功能归属矩阵.md)和 Wing [共享能力目录](../../phoenix-wing/doc/共享能力目录.md)为准。
+
 ## 当前优先级
 
 1. 将字符串型架构检查升级为 AST/import graph，固化 pure core、Extension Host 与 Webview 的依赖方向。
 2. 与 Wing、Desk 共享 Analyze/Apply/Schema golden fixtures，避免宿主用自己的样例解释同一协议。
 3. 真实 Extension Host 的打开、预览、冲突、Apply、保存复读和失败回滚已进入自动 smoke；继续补齐浅色、深色、高对比、取消和 VSIX 安装的人工视觉矩阵。
-4. 从 P1 去重队列提炼两个无 UI 能力；优先 workset/ignore/path 与 encoding/file-core，不迁移 VS Code 命令或 Webview 状态。
+4. **[2026-07-22 已完成/裁定]** Ignore 与 workspace path 已形成双端共享；Auto glob Workset 和 Desk SQLite entries 被确认是不同产品模型，不强行统一；encoding/file-core 因尚无第二消费者不启动公共包。P1 去重队列不再保留这条伪待办。
 5. 保持双 VSIX 可复现，并在 Wing 升级时先运行 Registry 防回退、全测和制品门禁。
 6. Codegen `全部应用` V1 已落地：一次确认后冻结当前 JSON 列表，在后台 session 中串行 Preflight → Apply，不再铺开 JSON Panel；单份错误继续后续项。single/batch Apply 报告按规则文件名原子写入 `.phoenix/reports/codegen/`，Primary“应用报告”列表可重开；View 用结果/源码变化双轴避免把正常内容一致误报为失败，并安全进入 Codegen View 或定位问题。全量预检屏障、跨 JSON 冲突、独立批次 Problems、取消与完整 receipt 报告保留为 2.0，见 `codegen-plan/Codegen全部应用与批量报告计划.md`。
 7. **[已完成：0.5.1 发布]** 0.5.1 作为 patch 公开发布：只包含既有 Codegen 流程的安全性、状态稳定性、紧凑呈现与 Wing 0.4.3 消费升级，不新增公共命令或扩展 API；KT Auto CAD 0.1.0 同步完成 Marketplace 首发，两个公开制品哈希均与本地门禁产物一致并通过人工审查。
@@ -46,7 +53,7 @@ Owner：KT Auto Code maintainers
 
 来源：旧 VB 程序可以输出全部控制文本，供新建源码尚无控制符时手工复制，也可用于排查“为什么 Apply 写不进去”。该能力作为显式辅助功能恢复，但不能把正常的未命中重新变成 warning。
 
-实现状态（2026-07-19）：Auto 内部高层 `ktc-codegen-control-panel` 已由 Primary `compact` 与 JSON View `full` 两处消费，内部只保留一个 `ktc-codegen-control-catalog`；full 形态才装配 View 专属预检结果。Host session 是选择真源，命中/未闭合/未命中/全部和类型范围属于 Webview 本地显示筛选。单项和“输出筛选并复制”只发送结构化语义命令，Host 校验可见 blockKeys、按 legacy 顺序去重，再用当前 session 的 Wing Analyze/Renderer 生成真实完整 artifact。控制符 DTO、ViewModel 与消息状态机已经从 `index.ts` 提炼到 UI-neutral `controlViewModel.ts` / `controlSessionController.ts`，总 Controller 只保留 Host 导航、日志、剪贴板和发布适配。
+历史实现状态（2026-07-19）：Auto 曾由私有 `ktc-codegen-control-panel` / `ktc-codegen-control-catalog` 承载两处 DOM。2026-07-22 已迁入 Wing `KtCodegenPrimaryPanel` / `KtCodegenControlPanel`；Host session 仍是选择真源，单项和“输出筛选并复制”仍只发送结构化语义命令，Auto 的 `controlViewModel.ts` / `controlSessionController.ts` 继续负责 VS Code 会话附加字段、legacy 顺序校验、真实 artifact 生成、日志和剪贴板。
 
 ### 交互决定
 
@@ -61,11 +68,10 @@ Owner：KT Auto Code maintainers
 
 ### 两处消费与 Web Component 决定
 
-- Primary 与 JSON View 都消费高层 `ktc-codegen-control-panel`。Primary 使用 `compact`，只显示共享 catalog；JSON View 使用 `full`，在同一组件内组合 catalog 与预检/诊断/Artifact 预览。
-- catalog 实例在切换右侧命中/问题/全部时保持复用，不能重置左侧本地筛选。两处不得复制 32 项 DOM、样式和事件逻辑。
-- 两个 Webview 位于不同 Realm，不能共享组件实例。Host 的 `kt.codegen.control-view-model` / 文档 session 仍是状态真源；任一处改变选择或显示状态后由 Host 更新 session 并广播新快照，另一处同步刷新。
-- Web Component 只接收结构化 model/property，并派发标准 `CustomEvent`（选择、显示缺失、输出全部、输出单项、定位）；Primary/View 的薄 wrapper 再映射为 VS Code `postMessage`。组件不得直接调用 `acquireVsCodeApi()`、Output Channel、clipboard 或文件系统。
-- 先在 Auto Code 内部落地，因为当前只是同一产品的两个消费位置。只有 Desk Tools 成为第二个产品消费者、DTO 和交互稳定后，才评估迁入 Wing browser 子路径；不能因为“用了 Web Component”就提前变成公共 API。
+- Primary 消费 Wing `KtCodegenPrimaryPanel`，JSON View 消费 Wing `KtCodegenControlPanel`；两者共用 `KtCodegenControlUiModel`、选择/定位事件和主题 token，不再复制 32 项业务 DOM。
+- 两个 Webview 位于不同 Realm，不能共享组件实例。Host 的 `kt.codegen.control-ui-model` / 文档 session 仍是状态真源；任一处改变选择后由 Host 更新 session 并广播新快照。
+- Wing Web Component 只接收结构化 model/property，并派发 `kt-codegen-primary-action`、`kt-codegen-control-selection`、`kt-codegen-control-output`、`kt-codegen-control-open` 等标准 `CustomEvent`。Auto 薄 adapter 再映射为 VS Code `postMessage`。
+- `acquireVsCodeApi()`、Output Channel、clipboard、文件系统和持久状态不得进入 Wing UI；Desk 与 Auto 只共享业务组件，不强行共享宿主能力。
 
 ### 文本与数据真源
 
@@ -80,7 +86,7 @@ Owner：KT Auto Code maintainers
 ### 验收门禁
 
 - 纯 formatter 测试覆盖：缺失/已命中混合、多个 `NameSuffix`、重复 classId、无 artifact、稳定 legacy 顺序和 Windows/Unix 换行显示；全量底层能力必须覆盖 32 个 legacy block key，当前筛选/单项动作不得泄漏其它 block。
-- 同一 Web Component characterization tests 必须分别挂载 `compact` / `full`，证明两处按钮、checkbox、键盘、tooltip/aria-label 与 CustomEvent payload 一致；不再分别对两份手写 DOM 做字符串断言。
+- Wing 组件测试冻结按钮、checkbox、tooltip/aria-label 与 CustomEvent payload；Auto 架构测试证明组件只从 `@phoenix-wing/kt-codegen/ui` 导入，并冻结 Webview → VS Code 的薄事件映射。
 - Webview 消息只传结构化语义命令；Output/clipboard 属于 Extension Host adapter，Wing 不依赖 VS Code API。
 - Extension Host smoke 至少验证：默认无噪声、勾选只展示已选缺失项、单项/当前筛选 Output 范围正确、Primary 改状态后 View 同步、关闭后恢复简洁日志，以及底层全量能力覆盖 32 个 legacy block key。
 - 文档与手工验收说明必须明确：这是首次布点/诊断工具，不代表 Apply 可以在没有 Start/End 配对时自动写入。
@@ -97,8 +103,8 @@ Owner：KT Auto Code maintainers
 
 ## 已完成第二个切口：Primary Codegen 页面壳
 
-- `ktc-codegen-primary-panel` 现在拥有工具栏、活动文档摘要、四个元数据字段、JSON 配置列表、compact 控制符目录和候选源码列表；Primary 的工作区级阅读顺序固定为“JSON 配置 → 控制符目录 → 控制符候选”。它只接收 `KtcCodegenPrimaryViewModel`，并以 `ktc-codegen-primary-action` 上报语义动作。
-- `sidebar/panelHtml.ts` 不再创建 Codegen 行、标签、输入框或按钮，也不再知道刷新/取消的显示规则；它只把 Host `ToolUiState` 投影为组件 model，并将 Primary 与内嵌 catalog 的 CustomEvent 映射回既有 Webview 消息协议。
+- 此切口最初由 Auto 私有 `ktc-codegen-primary-panel` 验证页面壳边界；2026-07-22 已由 Wing `KtCodegenPrimaryPanel` 替代，兼容 tag 仅用于维持现有 bundle/HTML 接线。
+- `sidebar/panelHtml.ts` 不创建 Codegen 行、标签、输入框或按钮，只把 Host `ToolUiState.codegen` 赋给共享组件，并将 Wing Primary/Control `CustomEvent` 映射回既有 Webview 消息协议。
 - `panelHtml.ts` 从本切口前 2911 行降到 2603 行；新增 295 行产品内聚组件和 37 行纯 ViewModel 契约。行数不是最终目标，但旧总页面减少 308 行且没有把 VS Code API、文件系统或 clipboard 带入组件边界。
 - characterization tests 实际挂载 Primary 组件，冻结扫描取消、文档/候选打开、元数据修改、繁忙状态、无障碍标签与 catalog model 传递；架构门禁把 `primaryViewModel.ts` 纳入纯图，把 Primary 组件/入口纳入 View Root。
 - 本地 `kt-auto-code-0.5.0.vsix` 已包含 `codegen-primary-panel.js`；产物门禁验证组件 tag、统一 action 事件及 `acquireVsCodeApi()` 隔离。当前产物为 28 个文件、414,506 字节。
@@ -129,7 +135,7 @@ Owner：KT Auto Code maintainers
 
 ## 已完成第六个切口：控制面板筛选与单一纵向滚动
 
-- 新增高层 `ktc-codegen-control-panel`：Primary compact 和 JSON View full 共用同一组件；catalog 负责显示筛选、选择和输出，full 外层只负责 View 专属的命中/问题/Artifact。
+- 此切口曾由 Auto 私有 `ktc-codegen-control-panel` / catalog 实现；2026-07-22 已删除私有 DOM，Primary/JSON View 分别消费 Wing Primary/Control 组件。Host 端 legacy 顺序、选择、输出和 artifact 规则保持不变。
 - 显示筛选与 Apply 勾选彻底分开。预检前默认已选，预检后左右默认命中；当前筛选输出携带可见 blockKeys，Host 过滤非法 key、去重并恢复 legacy 顺序。
 - 后续按真实使用反馈把三层纵向滚动收敛为 JSON View 页面唯一纵向滚动；左右 section 自然增高，只为宽路径和 Artifact 保留局部横向滚动，Primary compact 的限定高度纵滚不受影响。
 - full 面板新增 8px separator、Pointer Capture、Left/Right 键盘步进和 Host `workspaceState` 恢复。窄窗口不再转上下布局，560px 宽仍保留左右语义，右侧宽内容自己横向滚动。
@@ -174,7 +180,7 @@ Owner：KT Auto Code maintainers
 
 - 控制符单项/筛选输出只写 Output 与 Clipboard，不再为了 Codegen 中被隐藏的通用状态区发布整份 Sidebar snapshot；成功复制不会触发 Primary 全量重绘。
 - Primary 的“JSON 配置 / 控制符目录 / 控制符候选”三个 Block 分别保存用户折叠状态，JSON 与候选列表保存各自滚动位置。活动 JSON 只更新选中样式，不再在每次 Host snapshot 后调用 `scrollIntoView()` 带动外层页面。
-- 共享控制符目录继续复用同一个 Web Component 实例，并保留 Tree 分组、显示筛选和 compact 列表滚动位置。状态只属于当前 Webview 生命周期，不写入业务 JSON；checkbox 往返只原位同步，不重建当前 Tree。
+- 当前控制符显示筛选属于 Wing 组件 Realm 内状态，不写入业务 JSON；选择仍由 Host session 广播。历史 Tree 分组/折叠实现已随 Auto 私有 catalog 删除，不再作为当前产品契约，详见已废止的[控制符目录 Tree 点检表](codegen-plan/Codegen控制符目录Tree与范围Combo点检表.md)。
 
 ## 已完成安全修复：错误区域隔离后的部分 Apply
 

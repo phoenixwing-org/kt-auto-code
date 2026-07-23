@@ -8,10 +8,10 @@ import {
 describe("Codegen 全部应用 V1 汇总", () => {
   it("分别汇总健康度与源码变化，不把内容一致伪装成错误", () => {
     const items: KtcCodegenBatchApplyItemResult[] = [
-      { uri: "file:///A.json", fileName: "A.json", health: "success", change: "updated", reasonCode: "content-updated", errorCount: 0 },
-      { uri: "file:///B.json", fileName: "B.json", health: "success", change: "unchanged", reasonCode: "content-unchanged", errorCount: 0 },
-      { uri: "file:///C.json", fileName: "C.json", health: "error", change: "partial", reasonCode: "partial-with-errors", errorCount: 2 },
-      { uri: "file:///D.json", fileName: "D.json", health: "error", change: "not-applied", reasonCode: "apply-blocked", errorCount: 1 },
+      { documentId: "file:///A.json", fileName: "A.json", health: "success", change: "updated", reasonCode: "content-updated", errorCount: 0 },
+      { documentId: "file:///B.json", fileName: "B.json", health: "success", change: "unchanged", reasonCode: "content-unchanged", errorCount: 0 },
+      { documentId: "file:///C.json", fileName: "C.json", health: "error", change: "partial", reasonCode: "partial-with-errors", errorCount: 2 },
+      { documentId: "file:///D.json", fileName: "D.json", health: "error", change: "not-applied", reasonCode: "apply-blocked", errorCount: 1 },
     ];
     expect(ktcCodegenBatchApplyTotals(items)).toEqual({
       total: 4,

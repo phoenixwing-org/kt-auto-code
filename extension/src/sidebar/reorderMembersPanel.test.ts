@@ -149,8 +149,9 @@ describe("reorder members panel", () => {
     expect(all.checked).toBe(true);
     expect(all.indeterminate).toBe(false);
     const style = findNodes(element.shadow, (node) => node.tagName === "style")[0]!.textContent;
-    expect(style).toContain(".shell { min-width: 0; max-width: 100%; margin: 10px 0 12px; padding: 9px; overflow: hidden; border: 1px solid var(--ktc-ui-border");
-    expect(style).toContain(".action:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); border-color: var(--ktc-ui-active-border");
+    expect(style).toContain(".shell { min-width:0; max-width:100%; margin:10px 0 12px; padding:9px; overflow:hidden; border:1px solid var(--ktc-ui-border");
+    expect(style).toContain(".icon:hover { background:var(--vscode-toolbar-hoverBackground");
+    expect(style).toContain(':host([presentation="results"]) .groups { max-height:min(58vh,520px); overflow:auto;');
   });
 
   it("两条 pending 从半选切换到组全不选/全选，并发送完整 URI", async () => {
@@ -239,7 +240,7 @@ describe("reorder members panel", () => {
     expect(findNodes(element.shadow, (node) => node.attributes.get("aria-label") === "预览排序差异")).toHaveLength(0);
 
     element.model = { ...firstModel, reorderSelectedUris: [] };
-    expect(findNodes(element.shadow, (node) => node.attributes.get("aria-label") === "在 VS Code Git 中查看差异")).toHaveLength(1);
+    expect(findNodes(element.shadow, (node) => node.attributes.get("aria-label") === "查看 Git 差异")).toHaveLength(1);
     expect(findNodes(element.shadow, (node) => node.attributes.get("aria-label") === "还原本次成员排序")).toHaveLength(1);
     expect(findNodes(element.shadow, (node) => node.textContent === "应用所选")[0]!.disabled).toBe(true);
   });

@@ -20,7 +20,6 @@
     "extension/src/tools/codegen/controlTemplates.ts",
     "extension/src/tools/codegen/controlViewModel.ts",
     "extension/src/tools/codegen/primaryViewModel.ts",
-    "extension/src/tools/codegen/controlCatalogState.ts",
     "extension/src/tools/codegen/controlSessionController.ts",
     "extension/src/tools/codegen/editorMessageRouter.ts",
     "extension/src/tools/codegen/editorCommandController.ts",

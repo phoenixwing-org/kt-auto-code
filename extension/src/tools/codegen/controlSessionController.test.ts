@@ -27,8 +27,9 @@ describe("KtcCodegenControlSessionController", () => {
     const model = session();
     const controls = new KtcCodegenControlSessionController();
     expect(controls.catalogModel(model)).toMatchObject({
-      kind: "kt.codegen.control-view-model",
+      kind: "kt.codegen.control-ui-model",
       schemaVersion: 1,
+      documentId: model.identity.uri,
       uri: model.identity.uri,
       selectedBlockKeys: model.selectedBlockKeys,
       showMissingTemplates: false,

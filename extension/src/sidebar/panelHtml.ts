@@ -63,6 +63,12 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
   const reorderMembersPanelUri = webview.asWebviewUri(
     extensionUri.with({ path: `${basePath}/dist/reorder-members-panel.js` }),
   );
+  const uuidResultsPanelUri = webview.asWebviewUri(
+    extensionUri.with({ path: `${basePath}/dist/uuid-results-panel.js` }),
+  );
+  const renameResultsPanelUri = webview.asWebviewUri(
+    extensionUri.with({ path: `${basePath}/dist/rename-results-panel.js` }),
+  );
   const associatedRulePickerUri = webview.asWebviewUri(
     extensionUri.with({ path: `${basePath}/dist/associated-rule-picker.js` }),
   );
@@ -714,6 +720,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       </p>
     </section>
     <ktc-reorder-members-panel id="reorder-members-panel" hidden></ktc-reorder-members-panel>
+    <ktc-uuid-results-panel id="uuid-results-panel" hidden></ktc-uuid-results-panel>
+    <ktc-rename-results-panel id="rename-results-panel" hidden></ktc-rename-results-panel>
     <div class="scope-block" id="scope-block">
       <div class="scope-title">范围</div>
       <label>
@@ -794,6 +802,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
   <script nonce="${nonce}" src="${runPrimaryPanelUri}"></script>
   <script nonce="${nonce}" src="${gitPrimaryPanelUri}"></script>
   <script nonce="${nonce}" src="${reorderMembersPanelUri}"></script>
+  <script nonce="${nonce}" src="${uuidResultsPanelUri}"></script>
+  <script nonce="${nonce}" src="${renameResultsPanelUri}"></script>
   <script nonce="${nonce}" src="${associatedRulePickerUri}"></script>
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
@@ -851,6 +861,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       desc: document.getElementById("tool-desc"),
       replaceBlock: document.getElementById("replace-block"),
       reorderMembersPanel: document.getElementById("reorder-members-panel"),
+      uuidResultsPanel: document.getElementById("uuid-results-panel"),
+      renameResultsPanel: document.getElementById("rename-results-panel"),
       replaceSearch: document.getElementById("replace-search"),
       replaceWith: document.getElementById("replace-with"),
       replaceText: document.getElementById("replace-text"),
@@ -1252,31 +1264,17 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.results.appendChild(createCompactGroup("文件", items.length + " 个", rows));
     }
 
-    function renderCodeRenameResults(ts) {
-      const model = ts.codeRenameResults;
-      if (!model) { els.empty.style.display = "block"; els.empty.textContent = "填写规则后点击“预览”。"; return; }
-      els.empty.style.display = model.rows.length ? "none" : "block";
-      if (!model.rows.length) { els.empty.textContent = "没有匹配结果。"; return; }
-      const rows = model.rows.map((item) => {
-        const path = item.sourceAddress && item.sourceAddress !== "." ? item.sourceAddress + "/" + item.sourceName : item.sourceName;
-        const open = () => vscode.postMessage({ type: "codeRenameAction", toolId: "codeRename", action: "open", rowId: item.id });
-        return createCompactRow({
-          path,
-          name: item.sourceName,
-          directory: item.sourceAddress === "." ? "" : item.sourceAddress,
-          kind: ({ text: "T", file: "F", dir: "D" })[item.level],
-          highlightTerms: item.sourceHighlightTerms,
-          status: item.statusLabel,
-          statusClass: item.statusLabel === "错误" ? "error" : (item.statusLabel === "已替换" ? "applied" : ""),
-          statusTitle: item.occurrences + " 处 · " + item.targetOrPositionLabel + (item.encodingLabel ? " · " + item.encodingLabel : ""),
-          onOpen: open,
-          actions: [{ text: "↗", title: "打开并定位", onClick: open }],
-          title: item.originalFullPath + "\\n" + item.targetOrPositionLabel + (item.detail ? "\\n" + item.detail : ""),
-        });
-      });
-      const summary = model.summary;
-      const detail = summary.replacements + " 处替换 · " + summary.errors + " 错误";
-      els.results.appendChild(createCompactGroup((model.applied ? "已替换" : "预览") + " · " + rows.length + " 项", detail, rows));
+    function syncRenameResultsPanel(ts) {
+      const report = ts.codeRenameResults;
+      const summary = report?.summary;
+      els.renameResultsPanel.model = {
+        rows: report?.rows || [],
+        applied: !!report?.applied,
+        running: ts.status === "running",
+        summary: summary ? summary.replacements + " 处替换 · " + summary.errors + " 错误" : "",
+        emptyMessage: report ? "没有匹配结果。" : "填写规则后点击“预览”。",
+        capabilities: { open: true },
+      };
     }
 
     function renderIgnoreResults(ts) {
@@ -1316,53 +1314,22 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       }
     }
 
-    function uuidStateLabel(value) {
-      return ({ pending: "待写盘", applied: "已写盘", blocked: "未写入", cancelled: "已移除" })[value] || value;
-    }
-
-    function renderUuidResults(ts) {
-      const source = Array.isArray(ts.uuidResults) ? ts.uuidResults : null;
-      const rows = (source || []).filter((row) => row.state !== "cancelled");
-      const selected = new Set(ts.uuidSelectedUris || []);
-      if (!source) { els.empty.style.display = "block"; els.empty.textContent = "点击“扫描 UUID”生成固定映射。"; return; }
-      if (!rows.length) { els.empty.style.display = "block"; els.empty.textContent = "没有 UUID 候选。"; return; }
-      els.empty.style.display = "none";
-      const postSelection = () => vscode.postMessage({ type: "uuidSelection", toolId: "uuidReplace", uris: [...selected] });
-      const createRows = (items, selectable) => items.map((item) => {
-        const open = () => vscode.postMessage({ type: "uuidAction", toolId: "uuidReplace", action: "open", uris: [item.uri] });
-        const actions = [];
-        if (item.state === "pending" && ts.status !== "running") actions.push(
-          { text: "✓", title: "应用此文件", onClick: () => vscode.postMessage({ type: "uuidAction", toolId: "uuidReplace", action: "apply", uris: [item.uri] }) },
-          { text: "×", title: "从本次结果移除", onClick: () => vscode.postMessage({ type: "uuidAction", toolId: "uuidReplace", action: "cancel", uris: [item.uri] }) },
-        );
-        if (item.hasApplied && ts.status !== "running") actions.push({ text: "⇄", title: "在 VS Code Git 中查看差异", onClick: () => vscode.postMessage({ type: "uuidAction", toolId: "uuidReplace", action: "gitDiff", uris: [item.uri] }) });
-        return createCompactRow({
-          path: item.relativePath,
-          checkbox: selectable ? {
-            checked: selected.has(item.uri), disabled: item.state !== "pending" || ts.status === "running",
-            onChange: (checked) => { if (checked) selected.add(item.uri); else selected.delete(item.uri); postSelection(); },
-          } : undefined,
-          status: item.state === "pending" ? item.hitCount + " 处" : uuidStateLabel(item.state),
-          statusClass: item.state,
-          statusTitle: uuidStateLabel(item.state) + " · " + item.encoding + (item.warnings.length ? "\\n" + item.warnings.join("\\n") : ""),
-          onOpen: open,
-          actions: [{ text: "↗", title: "打开第一处 UUID", onClick: open }, ...actions],
-          title: item.relativePath + "\\n" + item.encoding + " · " + item.hitCount + " 处 UUID",
-        });
-      });
-      const pending = rows.filter((row) => row.state === "pending");
-      const finished = rows.filter((row) => row.state !== "pending");
-      const selectedPending = pending.filter((row) => selected.has(row.uri));
+    function syncUuidResultsPanel(ts) {
+      const rows = Array.isArray(ts.uuidResults)
+        ? ts.uuidResults.filter((row) => row.state !== "cancelled")
+        : [];
+      const selectedPending = rows.filter((row) => row.state === "pending" && (ts.uuidSelectedUris || []).includes(row.uri));
       els.btnFix.disabled = ts.status === "running" || selectedPending.length === 0;
       els.btnFix.textContent = selectedPending.length ? "替换所选（" + selectedPending.length + "）" : "替换所选";
-      const all = pending.length && selectedPending.length === pending.length;
-      els.results.appendChild(createCompactGroup("待写盘 · " + pending.length + " 个", ts.uuidStrategy === "fresh_per_hit" ? "每处独立新值" : "同值同替换", createRows(pending, true), {
-        checked: !!all, indeterminate: selectedPending.length > 0 && !all, disabled: !pending.length || ts.status === "running", label: "选择全部 UUID 文件",
-        onChange: (checked) => { for (const row of pending) { if (checked) selected.add(row.uri); else selected.delete(row.uri); } postSelection(); ts.uuidSelectedUris = [...selected]; els.results.innerHTML = ""; renderUuidResults(ts); },
-      }));
-      if (finished.length) els.results.appendChild(createCompactGroup("已处理 · " + finished.length + " 个", "", createRows(finished, false)));
+      els.uuidResultsPanel.model = {
+        presentation: "files",
+        running: ts.status === "running",
+        files: rows,
+        selectedIds: ts.uuidSelectedUris || [],
+        emptyMessage: Array.isArray(ts.uuidResults) ? "没有 UUID 候选。" : "点击“扫描 UUID”生成固定映射。",
+        capabilities: { selection: true, open: true, apply: true, cancel: true, gitDiff: true },
+      };
     }
-
     function renderCaaResults(ts) {
       const connection = ts.caaDeskConnection || { status: "checking", text: "等待连接 Desk Tools…" };
       const connectionRow = document.createElement("div");
@@ -1688,23 +1655,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     }
 
     function renderCodegen(ts, running) {
-      const batch = ts.codegenOperation === "batch-apply"
-        && ts.codegenBatch
-        && Number(ts.codegenBatch.total) > 0
-        ? ts.codegenBatch
+      const model = ts.codegen;
+      els.codegenPanel.model = model
+        ? Object.assign({}, model, { running: !!running })
         : undefined;
-      const staleBatchState = ts.codegenOperation === "batch-apply" && !batch;
-      els.codegenPanel.model = {
-        documents: Array.isArray(ts.codegenDocuments) ? ts.codegenDocuments : [],
-        activeUri: ts.codegenActiveUri,
-        controls: ts.codegenControls,
-        candidates: Array.isArray(ts.codegenCandidates) ? ts.codegenCandidates : [],
-        reports: Array.isArray(ts.codegenReports) ? ts.codegenReports : [],
-        reportInvalidCount: Number(ts.codegenReportInvalidCount) || 0,
-        operation: staleBatchState ? undefined : ts.codegenOperation,
-        batch,
-        running: staleBatchState ? false : !!running,
-      };
     }
 
     function renderRun(ts, running) {
@@ -1807,6 +1761,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.runPanel.hidden = !run;
       els.gitPanel.hidden = !git;
       els.reorderMembersPanel.hidden = !reorder;
+      els.uuidResultsPanel.hidden = !uuid;
+      els.renameResultsPanel.hidden = !rename;
       els.environmentBlock.hidden = !environment;
       els.generalActions.hidden = rename || codegen || run || git || ignore || reorder || environment;
       els.uuidOptions.hidden = !uuid;
@@ -1847,6 +1803,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
           reorderSelectedUris: ts.reorderSelectedUris,
         };
       }
+      if (uuid) syncUuidResultsPanel(ts);
+      if (rename) syncRenameResultsPanel(ts);
 
       if (rename) {
         els.replaceSearch.value = state.replace.search;
@@ -1896,8 +1854,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.status.textContent = ts.message || "";
       els.status.className = "status" + (ts.status === "error" ? " error" : "");
       els.status.hidden = reorder || codegen || run || git;
-      els.resultsTitle.hidden = reorder || codegen || run || git || environment;
-      els.results.hidden = reorder || codegen || run || git || environment;
+      els.resultsTitle.hidden = reorder || codegen || run || git || rename || uuid || environment;
+      els.results.hidden = reorder || codegen || run || git || rename || uuid || environment;
       els.results.innerHTML = "";
       els.resultsTitle.textContent = header ? "问题文件" : (enc ? "编码结果" : (rename ? "替换结果" : (ignore ? "推荐规则" : (uuid ? "UUID 结果" : (caaDialog ? "CATDlg 文件" : "结果")))));
 
@@ -1917,11 +1875,11 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       } else if (enc) {
         renderEncodingResults(ts, !!state.showEncDetails);
       } else if (rename) {
-        renderCodeRenameResults(ts);
+        els.empty.style.display = "none";
       } else if (ignore) {
         renderIgnoreResults(ts);
       } else if (uuid) {
-        renderUuidResults(ts);
+        els.empty.style.display = "none";
       } else if (caaDialog) {
         renderCaaResults(ts);
       } else {
@@ -1942,8 +1900,18 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         uuidStrategy: isUuidTool() ? state.uuidStrategy : undefined,
       });
     };
-    els.codegenPanel.addEventListener("ktc-codegen-primary-action", (event) => {
-      vscode.postMessage(Object.assign({ type: "codegenAction", toolId: "codegen" }, event.detail));
+    els.codegenPanel.addEventListener("kt-codegen-primary-action", (event) => {
+      const detail = event.detail || {};
+      const message = { type: "codegenAction", toolId: "codegen", action: detail.action };
+      if (detail.action === "openDocument" || detail.action === "openCandidate" || detail.action === "updateMeta") {
+        message.uri = detail.id;
+      }
+      if (detail.action === "openReport") message.reportId = detail.id;
+      if (detail.action === "updateMeta") {
+        message.field = detail.field;
+        message.value = detail.value;
+      }
+      vscode.postMessage(message);
     });
     els.runPanel.addEventListener("ktc-run-primary-action", (event) => {
       vscode.postMessage(Object.assign({ type: "runAction", toolId: "run" }, event.detail));
@@ -1953,24 +1921,24 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     });
     function postCodegenControl(type, detail) {
       const model = els.codegenPanel.model;
-      const uri = model && model.controls && model.controls.uri;
+      const uri = model && model.controls && model.controls.documentId;
       if (!uri) return;
       vscode.postMessage(Object.assign({ type, toolId: "codegen", uri }, detail));
     }
-    els.codegenPanel.addEventListener("ktc-codegen-control-selection-change", (event) => {
+    els.codegenPanel.addEventListener("kt-codegen-control-selection-change", (event) => {
       postCodegenControl("codegenControlSelection", {
         blockKeys: [...event.detail.blockKeys],
         singleMode: !!event.detail.singleMode,
       });
     });
-    els.codegenPanel.addEventListener("ktc-codegen-control-output", (event) => {
+    els.codegenPanel.addEventListener("kt-codegen-control-output", (event) => {
       postCodegenControl("codegenControlOutput", {
         scope: event.detail.scope,
         blockKey: event.detail.blockKey,
         blockKeys: event.detail.blockKeys,
       });
     });
-    els.reorderMembersPanel.addEventListener("ktc-reorder-members-action", (event) => {
+    els.reorderMembersPanel.addEventListener("pnw-code-reorder-members-action", (event) => {
       const detail = event.detail;
       if (detail.kind === "run") {
         vscode.postMessage({ type: "run", toolId: "reorderMembers", action: detail.action });
@@ -1978,6 +1946,20 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         vscode.postMessage({ type: "reorderSelection", toolId: "reorderMembers", uris: [...detail.uris] });
       } else {
         vscode.postMessage({ type: "reorderAction", toolId: "reorderMembers", action: detail.action, uris: [...detail.uris] });
+      }
+    });
+    els.uuidResultsPanel.addEventListener("pnw-code-uuid-results-action", (event) => {
+      const detail = event.detail;
+      if (detail.kind === "selection") {
+        vscode.postMessage({ type: "uuidSelection", toolId: "uuidReplace", uris: [...detail.ids] });
+      } else {
+        vscode.postMessage({ type: "uuidAction", toolId: "uuidReplace", action: detail.action, uris: [...detail.ids] });
+      }
+    });
+    els.renameResultsPanel.addEventListener("pnw-code-rename-results-action", (event) => {
+      const detail = event.detail;
+      if (detail?.kind === "open") {
+        vscode.postMessage({ type: "codeRenameAction", toolId: "codeRename", action: "open", rowId: detail.id });
       }
     });
     els.btnFix.onclick = () => {

@@ -9,6 +9,7 @@ import {
   type KtCodegenTableData,
 } from "@phoenix-wing/kt-codegen";
 import type { KtcCodegenMetaField, KtcCodegenPreflightResult } from "./contracts.js";
+import type { KtCodegenRegionApplyUiOutcome } from "@phoenix-wing/kt-codegen/ui";
 
 export interface KtcCodegenDocumentIdentity {
   readonly uri: string;
@@ -23,6 +24,7 @@ export interface KtcCodegenPreflightSnapshot {
   readonly result: KtcCodegenPreflightResult;
   readonly state: KtcCodegenPreflightSnapshotState;
   readonly message: string;
+  readonly regionOutcomes?: readonly KtCodegenRegionApplyUiOutcome[];
 }
 export interface KtcCodegenControlSelectionChange {
   readonly selectionChanged: boolean;
@@ -175,7 +177,10 @@ export class KtcCodegenDocumentModel {
   }
 
   /** Apply 成功后销毁可执行计划，但保留只读结果供命中、问题和产物回看。 */
-  markPreflightApplied(additionalDiagnostics: readonly KtCodegenDiagnostic[] = []): void {
+  markPreflightApplied(
+    additionalDiagnostics: readonly KtCodegenDiagnostic[] = [],
+    regionOutcomes: readonly KtCodegenRegionApplyUiOutcome[] = [],
+  ): void {
     const completed = this.currentPreflight;
     this.currentPreflight = undefined;
     if (!completed) return;
@@ -192,6 +197,7 @@ export class KtcCodegenDocumentModel {
       result,
       state: "applied",
       message: "已应用；再次 Apply 前需重新预检",
+      regionOutcomes,
     };
   }
 

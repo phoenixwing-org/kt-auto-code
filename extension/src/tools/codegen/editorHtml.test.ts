@@ -27,8 +27,9 @@ describe("codegen editor HTML", () => {
         items: [],
       },
       controls: {
-        kind: "kt.codegen.control-view-model",
+        kind: "kt.codegen.control-ui-model",
         schemaVersion: 1,
+        documentId: "file:///workspace/example.json",
         uri: "file:///workspace/example.json",
         fileName: "example.json",
         blocks: KT_CODEGEN_LEGACY_BLOCKS.map((block) => ({
@@ -39,6 +40,7 @@ describe("codegen editor HTML", () => {
           hitCount: 0,
           artifactCount: 0,
         })),
+        unclosed: [],
         selectedBlockKeys: KT_CODEGEN_LEGACY_BLOCKS.map((block) => block.key),
         singleSelectionMode: false,
         showMissingTemplates: false,
@@ -125,11 +127,11 @@ describe("codegen editor HTML", () => {
     expect(html).toContain('type: "codegenControlCopyEnd"');
     expect(html).toContain('blockKey: event.detail.blockKey');
     expect(html).toContain('new ResizeObserver(syncDetailStickyTop).observe(viewToolbar)');
-    expect(html).toContain('"--ktc-codegen-detail-sticky-top"');
-    expect(html).toContain('"--ktc-codegen-detail-available-height"');
+    expect(html).toContain('"--pnw-codegen-detail-sticky-top"');
+    expect(html).toContain('"--pnw-codegen-detail-height"');
     expect(html).toContain('window.addEventListener("resize", syncDetailStickyTop)');
     expect(html).toContain('type: "codegenEditorLayout"');
-    expect(html).toContain('"ktc-codegen-control-split-change"');
+    expect(html).toContain('"kt-codegen-control-split-change"');
     expect(html).toContain("controlPanel.splitRatio = initialLayout.controlSplitPercent");
     expect(html).toContain('message.type === "codegenControlsModel"');
     expect(html).toContain("controlDrawer.open = !controlDrawer.open");
@@ -162,14 +164,8 @@ describe("codegen editor HTML", () => {
     expect(entry).toContain('@phoenix-wing/kt-codegen/table');
     expect(entry).toContain("ktCodegenDefineTableElement()");
     const controlEntry = readFileSync(new URL("./controlCatalogEntry.ts", import.meta.url), "utf8");
-    expect(controlEntry).toContain("ktcDefineCodegenControlCatalog()");
-    expect(controlEntry).toContain("ktcDefineCodegenControlPanel()");
-    const controlPanelSource = readFileSync(new URL("./controlPanel.ts", import.meta.url), "utf8");
-    expect(controlPanelSource).toContain(
-      ':host([mode="full"]) { block-size: auto; min-block-size: 0; overflow: visible; }',
-    );
-    expect(controlPanelSource).toContain(".result-detail { display: flex; position: sticky;");
-    expect(controlPanelSource).toContain(".result-list { min-width: 0; overflow-y: visible;");
+    expect(controlEntry).toContain('@phoenix-wing/kt-codegen/ui');
+    expect(controlEntry).toContain('ktCodegenDefineControlPanelElement("ktc-codegen-control-panel")');
     const layoutFixture = readFileSync(
       new URL("../../../test-fixtures/codegen-control-panel-layout.html", import.meta.url),
       "utf8",

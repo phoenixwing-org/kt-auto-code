@@ -8,6 +8,7 @@ const {
   openCodegenJson,
   uriParse,
   uriFile,
+  uriJoinPath,
 } = vi.hoisted(() => ({
   createWebviewPanel: vi.fn(),
   openTextDocument: vi.fn(),
@@ -16,11 +17,12 @@ const {
   openCodegenJson: vi.fn(),
   uriParse: vi.fn((value: string) => ({ kind: "parse", value })),
   uriFile: vi.fn((value: string) => ({ kind: "file", value })),
+  uriJoinPath: vi.fn((_base: unknown, ...parts: string[]) => ({ toString: () => `file:///extension/${parts.join("/")}` })),
 }));
 vi.mock("vscode", () => ({
   ViewColumn: { Active: 1 },
   Range: class Range { constructor(public line: number) {} },
-  Uri: { parse: uriParse, file: uriFile },
+  Uri: { parse: uriParse, file: uriFile, joinPath: uriJoinPath },
   workspace: { openTextDocument },
   window: {
     createWebviewPanel,
@@ -49,6 +51,7 @@ function fakePanel(): FakePanel {
   const panel = {
     webview: {
       html: "",
+      asWebviewUri: vi.fn((uri: { toString(): string }) => ({ toString: () => `webview:${uri.toString()}` })),
       onDidReceiveMessage: vi.fn((listener: (message: unknown) => unknown) => {
         messageListener = listener;
         return { dispose: vi.fn() };
@@ -81,8 +84,9 @@ function report(fileName = "A.json"): KtcCodegenBatchApplyReport {
     errorCount: 1,
     warningCount: 0,
     items: [{
-      uri,
+      documentId: uri,
       fileName,
+      displayPath: uri,
       health: "error",
       change: "partial",
       reasonCode: "partial-with-errors",
@@ -98,7 +102,7 @@ function report(fileName = "A.json"): KtcCodegenBatchApplyReport {
         severity: "error",
         code: "marker.missing-end",
         message: "缺少 End",
-        file: "/workspace/Part.cpp",
+        path: "/workspace/Part.cpp",
         line: 7,
       }],
     }],
@@ -120,6 +124,7 @@ describe("KtcCodegenBatchApplyReportViewController", () => {
     const panel = fakePanel();
     createWebviewPanel.mockReturnValue(panel);
     const views = new KtcCodegenBatchApplyReportViewController({ openCodegenJson });
+    views.initialize({} as vscode.Uri);
     views.show(report("A.json"));
     views.show(report("B.json"));
 
@@ -128,7 +133,7 @@ describe("KtcCodegenBatchApplyReportViewController", () => {
       "ktAutoCode.codegenBatchApplyReport",
       "Codegen 应用报告",
       { viewColumn: 1, preserveFocus: false },
-      { enableScripts: true, retainContextWhenHidden: true },
+      { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [{}] },
     );
     expect(panel.reveal).toHaveBeenCalledTimes(2);
     expect(panel.webview.html).toContain("B.json");
@@ -140,21 +145,21 @@ describe("KtcCodegenBatchApplyReportViewController", () => {
   it("只解析当前报告中存在的 JSON 和问题位置", () => {
     const current = report();
     expect(ktcResolveCodegenBatchApplyReportAction(current, {
-      type: "openJson",
-      uri: "file:///workspace/A.json",
-    })).toEqual({ kind: "json", uri: "file:///workspace/A.json" });
+      action: "openDocument",
+      documentId: "file:///workspace/A.json",
+    })).toEqual({ kind: "json", documentId: "file:///workspace/A.json" });
     expect(ktcResolveCodegenBatchApplyReportAction(current, {
-      type: "openIssue",
-      file: "/workspace/Part.cpp",
+      action: "openIssue",
+      path: "/workspace/Part.cpp",
       line: 7,
-    })).toEqual({ kind: "issue", file: "/workspace/Part.cpp", line: 7 });
+    })).toEqual({ kind: "issue", path: "/workspace/Part.cpp", line: 7 });
     expect(ktcResolveCodegenBatchApplyReportAction(current, {
-      type: "openJson",
-      uri: "file:///workspace/Other.json",
+      action: "openDocument",
+      documentId: "file:///workspace/Other.json",
     })).toBeUndefined();
     expect(ktcResolveCodegenBatchApplyReportAction(current, {
-      type: "openIssue",
-      file: "/workspace/Part.cpp",
+      action: "openIssue",
+      path: "/workspace/Part.cpp",
       line: 8,
     })).toBeUndefined();
   });
@@ -164,11 +169,12 @@ describe("KtcCodegenBatchApplyReportViewController", () => {
     createWebviewPanel.mockReturnValue(panel);
     openTextDocument.mockResolvedValue({ lineCount: 20 });
     const views = new KtcCodegenBatchApplyReportViewController({ openCodegenJson });
+    views.initialize({} as vscode.Uri);
     views.show(report());
 
-    await panel.fireMessage({ type: "openJson", uri: "file:///workspace/A.json" });
-    await panel.fireMessage({ type: "openIssue", file: "/workspace/Part.cpp", line: 7 });
-    await panel.fireMessage({ type: "openJson", uri: "file:///workspace/Forged.json" });
+    await panel.fireMessage({ action: "openDocument", documentId: "file:///workspace/A.json" });
+    await panel.fireMessage({ action: "openIssue", path: "/workspace/Part.cpp", line: 7 });
+    await panel.fireMessage({ action: "openDocument", documentId: "file:///workspace/Forged.json" });
 
     expect(openCodegenJson).toHaveBeenCalledWith("file:///workspace/A.json");
     expect(uriFile).toHaveBeenCalledWith("/workspace/Part.cpp");

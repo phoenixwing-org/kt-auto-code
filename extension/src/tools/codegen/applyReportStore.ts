@@ -139,7 +139,7 @@ export class KtcCodegenApplyReportStore {
   ): KtcCodegenStoredApplyReport {
     const items = report.items.map((item): KtcCodegenStoredApplyReportItem => ({
       fileName: item.fileName,
-      json: this.locationForUri(vscode.Uri.parse(item.uri), workspaces),
+      json: this.locationForUri(vscode.Uri.parse(item.documentId), workspaces),
       health: item.health,
       change: item.change,
       reasonCode: item.reasonCode,
@@ -152,8 +152,8 @@ export class KtcCodegenApplyReportStore {
       writtenRegionCount: item.writtenRegionCount,
       elapsedMilliseconds: item.elapsedMilliseconds,
       issues: item.issues.map((issue): KtcCodegenStoredApplyReportIssue => {
-        const location = issue.file
-          ? this.tryLocationForUri(vscode.Uri.file(issue.file), workspaces)
+        const location = issue.path
+          ? this.tryLocationForUri(vscode.Uri.file(issue.path), workspaces)
           : undefined;
           return {
             severity: issue.severity,
@@ -206,8 +206,9 @@ export class KtcCodegenApplyReportStore {
   ) {
     const json = this.uriForLocation(item.json, workspaces);
     return {
-      uri: json.toString(),
+      documentId: json.toString(),
       fileName: item.fileName,
+      displayPath: json.toString(),
       health: item.health,
       change: item.change,
       reasonCode: item.reasonCode,
@@ -224,7 +225,7 @@ export class KtcCodegenApplyReportStore {
         code: issue.code,
         message: issue.message,
         ...(issue.location ? {
-          file: this.uriForLocation(issue.location, workspaces).fsPath,
+          path: this.uriForLocation(issue.location, workspaces).fsPath,
           ...(issue.location.line === undefined ? {} : { line: issue.location.line }),
         } : {}),
       })),

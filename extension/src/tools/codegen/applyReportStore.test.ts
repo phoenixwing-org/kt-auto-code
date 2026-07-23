@@ -62,8 +62,9 @@ function fileSystem() {
 
 function runtimeReport() {
   return ktcCodegenBatchApplyReport([{
-    uri: "file:///workspace/config/PNXCombinedCurveParam.json",
+    documentId: "file:///workspace/config/PNXCombinedCurveParam.json",
     fileName: "PNXCombinedCurveParam.json",
+    displayPath: "file:///workspace/config/PNXCombinedCurveParam.json",
     health: "warning",
     change: "unchanged",
     reasonCode: "content-unchanged",
@@ -79,7 +80,7 @@ function runtimeReport() {
       severity: "warning",
       code: "notice",
       message: "/workspace/src/Part.cpp 示例提示",
-      file: "/workspace/src/Part.cpp",
+      path: "/workspace/src/Part.cpp",
       line: 12,
     }],
   }], 100, {
@@ -121,10 +122,10 @@ describe("Codegen Apply 报告 Host store", () => {
     expect(index.records).toHaveLength(1);
     const loaded = await store.load(index.records[0]!.storageUri, workspaces);
     expect(loaded.items[0]).toMatchObject({
-      uri: "file:///workspace/config/PNXCombinedCurveParam.json",
+      documentId: "file:///workspace/config/PNXCombinedCurveParam.json",
       health: "warning",
       change: "unchanged",
-      issues: [{ file: "/workspace/src/Part.cpp", line: 12 }],
+      issues: [{ path: "/workspace/src/Part.cpp", line: 12 }],
     });
   });
 });

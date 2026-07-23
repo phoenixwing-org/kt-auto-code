@@ -126,6 +126,13 @@
       "reason": "完成态旧 UI/插件规划"
     },
     {
+      "path": "doc/产品功能归属矩阵.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.6.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
       "path": "doc/成员排序整合POC记录.md",
       "status": "archived",
       "owner": "KT Auto Code maintainers",

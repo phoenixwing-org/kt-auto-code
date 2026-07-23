@@ -52,8 +52,9 @@ function stored(overrides: Partial<KtcCodegenStoredApplyReport> = {}): KtcCodege
 describe("Codegen Apply 报告持久 schema", () => {
   it("按 UTC 时间、类型、对象与短 ID 生成可排序文件名", () => {
     const runtime = ktcCodegenBatchApplyReport([{
-      uri: "file:///workspace/PNXCombinedCurveParam.json",
+      documentId: "file:///workspace/PNXCombinedCurveParam.json",
       fileName: "PNXCombinedCurveParam.json",
+      displayPath: "file:///workspace/PNXCombinedCurveParam.json",
       health: "success",
       change: "unchanged",
       reasonCode: "content-unchanged",

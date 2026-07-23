@@ -92,6 +92,7 @@ function unclosedForBlock(
       line: diagnostic.path.row!,
       column: Math.max(0, diagnostic.path.column ?? 0),
       classId: marker.classId,
+      blockKey,
       expectedEnd: `// END KEVIN CAA WIZARD SECTION ${marker.classId} ${blockKey}`,
       ...(marker.boundary ? { boundary: marker.boundary } : {}),
       message: diagnostic.message,
@@ -128,29 +129,32 @@ export class KtcCodegenControlSessionController {
     for (const artifact of displayPlan?.artifacts ?? []) {
       artifactCount.set(artifact.blockKey, (artifactCount.get(artifact.blockKey) ?? 0) + 1);
     }
+    const blocks: KtcCodegenControlCatalogViewModel["blocks"] = CONTROL_BLOCKS.map((block) => {
+      const blockHitCount = hitCount.get(block.key) ?? 0;
+      const unclosed = unclosedForBlock(displayPlan?.diagnostics ?? [], block.key);
+      const orphanEnd = hasOrphanEndForBlock(displayPlan?.diagnostics ?? [], block.key);
+      return {
+        ...block,
+        status: !snapshot
+          ? selected.has(block.key) ? "pending" as const : "unselected" as const
+          : unclosed.length > 0 || orphanEnd
+            ? "unclosed" as const
+            : blockHitCount > 0
+              ? "hit" as const
+              : "missing" as const,
+        hitCount: blockHitCount,
+        artifactCount: artifactCount.get(block.key) ?? 0,
+        unclosed,
+      };
+    });
     return {
-      kind: "kt.codegen.control-view-model",
+      kind: "kt.codegen.control-ui-model",
       schemaVersion: 1,
+      documentId: session.identity.uri,
       uri: session.identity.uri,
       fileName: session.identity.fileName,
-      blocks: CONTROL_BLOCKS.map((block) => {
-        const blockHitCount = hitCount.get(block.key) ?? 0;
-        const unclosed = unclosedForBlock(displayPlan?.diagnostics ?? [], block.key);
-        const orphanEnd = hasOrphanEndForBlock(displayPlan?.diagnostics ?? [], block.key);
-        return {
-          ...block,
-          status: !snapshot
-            ? selected.has(block.key) ? "pending" as const : "unselected" as const
-            : unclosed.length > 0 || orphanEnd
-              ? "unclosed" as const
-              : blockHitCount > 0
-                ? "hit" as const
-                : "missing" as const,
-          hitCount: blockHitCount,
-          artifactCount: artifactCount.get(block.key) ?? 0,
-          unclosed,
-        };
-      }),
+      blocks,
+      unclosed: blocks.flatMap((block) => block.unclosed ?? []),
       selectedBlockKeys: session.selectedBlockKeys,
       singleSelectionMode: session.singleSelectionMode,
       showMissingTemplates: session.showMissingTemplates,
@@ -182,6 +186,7 @@ export class KtcCodegenControlSessionController {
           createdAt: snapshot.result.createdAt,
           state: snapshot.state,
           message: snapshot.message,
+          ...(snapshot.regionOutcomes ? { regionOutcomes: snapshot.regionOutcomes } : {}),
         },
       } : {}),
     };

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { basename, relative } from "node:path";
+import { relative } from "node:path";
 import * as vscode from "vscode";
 import iconv from "iconv-lite";
 import {
@@ -10,6 +10,11 @@ import {
   type PnwUuidReplacementPlanHit,
   type PnwUuidReplacementStrategy,
 } from "@phoenix-wing/code-core";
+import {
+  pnwCodeProjectUuidFiles,
+  pnwCodeSelectUuidFileUris,
+  type PnwCodeUuidResultHit,
+} from "@phoenix-wing/code-core/ui/model";
 import { isIgnoredPath } from "../../../../src/dotIgnore.js";
 import type { KtTool, ToolPanelModel, ToolRunContext, ToolUiState, UuidFileResultSummary, WebviewInboundMessage } from "../types.js";
 import { resolveWorkspaceIgnorePatterns } from "../../ignoreConfig.js";
@@ -206,36 +211,34 @@ function hitsForUri(uri: string): readonly PnwUuidReplacementPlanHit[] {
   return session?.plan.hits.filter((hit) => hit.fileId === uri) ?? [];
 }
 
-function fileState(uri: string): KtcUuidHitState {
-  const states = hitsForUri(uri).map((hit) => stateOf(hit.id));
-  if (states.includes("pending")) return "pending";
-  if (states.includes("blocked")) return "blocked";
-  if (states.includes("cancelled")) return "cancelled";
-  return "applied";
+function uuidResultHits(): readonly PnwCodeUuidResultHit[] {
+  if (!session) return [];
+  const paths = new Map(session.files.map((file) => [file.uri.toString(), file.relativePath]));
+  return session.plan.hits.map((hit) => ({
+    id: hit.id,
+    fileId: hit.fileId,
+    relativePath: paths.get(hit.fileId) ?? hit.fileId,
+    line: hit.line,
+    column: hit.column,
+    from: hit.from,
+    normalized: hit.normalized,
+    kind: hit.kind,
+    to: hit.formattedTo,
+    state: stateOf(hit.id),
+    warning: session?.warnings.get(hit.id),
+  }));
 }
 
 function uuidResultRows(): UuidFileResultSummary[] {
   if (!session) return [];
-  return session.files
-    .map((file): UuidFileResultSummary | undefined => {
-      const uri = file.uri.toString();
-      const hits = hitsForUri(uri);
-      if (!hits.length) return undefined;
-      return {
-        uri,
-        relativePath: file.relativePath,
-        encoding: file.encoding === "gbk" ? "GBK" : file.bom ? "UTF-8 BOM" : "UTF-8",
-        hitCount: hits.length,
-        firstLine: hits[0]?.line ?? 1,
-        state: fileState(uri),
-        hasApplied: hits.some((hit) => stateOf(hit.id) === "applied"),
-        warnings: [...new Set(hits.map((hit) => session?.warnings.get(hit.id)).filter((warning): warning is string => Boolean(warning)))],
-        mappings: hits.slice(0, 8).map((hit) => ({ line: hit.line, column: hit.column, from: hit.from, to: hit.formattedTo })),
-      };
-    })
-    .filter((row): row is UuidFileResultSummary => Boolean(row))
-    .sort((left, right) => basename(left.relativePath).localeCompare(basename(right.relativePath), undefined, { sensitivity: "base" })
-      || left.relativePath.localeCompare(right.relativePath));
+  return [...pnwCodeProjectUuidFiles(
+    session.files.map((file) => ({
+      uri: file.uri.toString(),
+      relativePath: file.relativePath,
+      encoding: file.encoding === "gbk" ? "GBK" : file.bom ? "UTF-8 BOM" : "UTF-8",
+    })),
+    uuidResultHits(),
+  )];
 }
 
 function uuidUiState(): Pick<ToolUiState, "uuidResults" | "uuidRevision" | "uuidStrategy" | "uuidSelectedUris"> {
@@ -249,11 +252,9 @@ function uuidUiState(): Pick<ToolUiState, "uuidResults" | "uuidRevision" | "uuid
 
 function updateUuidSelection(uris: readonly string[], ctx: ToolRunContext): void {
   if (!session || session.root !== ctx.workspaceRoot) return;
-  const requested = new Set(uris);
+  const selected = pnwCodeSelectUuidFileUris(uuidResultRows(), uris);
   session.selectedUris.clear();
-  for (const row of uuidResultRows()) {
-    if (row.state === "pending" && requested.has(row.uri)) session.selectedUris.add(row.uri);
-  }
+  for (const uri of selected) session.selectedUris.add(uri);
   ctx.postState({ status: "idle", ...uuidUiState() });
 }
 
@@ -263,7 +264,8 @@ function applyUuidUpdates(updates: readonly KtcUuidApplyUpdate[]): void {
     session.states.set(update.hitId, update.state);
     if (update.warning) session.warnings.set(update.hitId, update.warning);
   }
-  for (const uri of [...session.selectedUris]) if (fileState(uri) !== "pending") session.selectedUris.delete(uri);
+  const pendingUris = new Set(uuidResultRows().filter((row) => row.state === "pending").map((row) => row.uri));
+  for (const uri of [...session.selectedUris]) if (!pendingUris.has(uri)) session.selectedUris.delete(uri);
 }
 
 async function applyUuidFiles(uris: readonly string[], ctx: ToolRunContext): Promise<void> {
