@@ -49,6 +49,15 @@ export type {
 /** Webview → Extension */
 export type WebviewInboundMessage =
   | { type: "ready" }
+  | {
+      type: "welcomeAction";
+      action: "openRepository" | "openInstallGuide" | "openQuickStart" | "openSettings";
+    }
+  | {
+      type: "welcomeAction";
+      action: "installExtension";
+      extensionId: "kuntai.kt-auto-code" | "kuntai.kt-auto-cad";
+    }
   | { type: "runModuleTool"; moduleId: KtcModuleId; command: string }
   | { type: "moduleBlockAction"; actionId: string }
   | { type: "selectTool"; toolId: string }
@@ -175,6 +184,7 @@ export type WebviewOutboundMessage =
       selectedWorkspaceFileScopes: Record<string, string>;
       workspaceFileScopeError?: string;
       moduleState: KtcModuleState;
+      extensionInstallations: readonly KtcWelcomeExtensionSummary[];
     }
   | { type: "workspace"; label: string }
   | { type: "scope"; scope: { includeHeaders: boolean; includeSource: boolean; includeMarkdown: boolean } }
@@ -231,6 +241,14 @@ export interface ToolSummary {
 export interface KtcRecentWorkingDirectories {
   workspace: readonly string[];
   external: readonly string[];
+}
+
+export interface KtcWelcomeExtensionSummary {
+  id: "kuntai.kt-auto-code" | "kuntai.kt-auto-cad";
+  title: "KT Auto Code" | "KT Auto CAD";
+  moduleId: "code" | "cad";
+  installed: boolean;
+  version?: string;
 }
 
 export type KtcAssociatedRulePickerMode = "custom" | "common" | "caa" | "row";

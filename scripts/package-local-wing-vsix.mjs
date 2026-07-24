@@ -35,8 +35,8 @@ const result = await pack({
   packagePath: output,
   dependencies: false,
   useYarn: false,
-  baseContentUrl: "https://gitee.com/PhoenixWing321/kt-auto-code/blob/master/extension",
-  baseImagesUrl: "https://gitee.com/PhoenixWing321/kt-auto-code/raw/master/extension",
+  baseContentUrl: "https://gitee.com/phoenixwing/kt-auto-code/blob/master/extension",
+  baseImagesUrl: "https://gitee.com/phoenixwing/kt-auto-code/raw/master/extension",
 });
 
 const archive = readFileSync(output);

@@ -113,6 +113,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     body.detail-block .desc { display: none; }
     body.detail-block .meta { margin: 0 0 8px; }
     body.external-module-block .wrap > :not(#tabs):not(#module-block) { display: none !important; }
+    body.welcome-mode .wrap { display: flex; min-height: 100vh; flex-direction: column; padding: 18px 14px 12px; }
+    body.welcome-mode .wrap > :not(#welcome-panel) { display: none !important; }
     .wrap { width: 100%; min-width: 0; max-width: 100%; padding: 8px 14px 16px; overflow-x: hidden; }
     .wrap > * { min-width: 0; max-width: 100%; }
     ktc-codegen-primary-panel,
@@ -236,6 +238,28 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .module-block .notice.warning { border-left-color: var(--vscode-editorWarning-foreground); }
     .module-block .notice.success { border-left-color: var(--vscode-testing-iconPassed); }
     .module-block .notice-detail { margin-top: 5px; }
+    .welcome-panel { display: flex; min-height: calc(100vh - 30px); flex: 1 1 auto; flex-direction: column; }
+    .welcome-brand { display: flex; align-items: center; gap: 10px; padding: 2px 0 15px; border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-sideBarSectionHeader-border)); }
+    .welcome-mark { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; border: 1px solid var(--ktc-ui-active-border, var(--vscode-focusBorder)); border-radius: 7px; color: var(--vscode-button-foreground); background: var(--vscode-button-background); font-size: 20px; font-weight: 700; }
+    .welcome-brand-copy { min-width: 0; }
+    .welcome-brand-name { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: .5px; }
+    .welcome-brand-product { margin-top: 2px; color: var(--vscode-descriptionForeground); font-size: 11px; }
+    .welcome-intro { margin: 14px 0 18px; color: var(--vscode-descriptionForeground); font-size: 12px; line-height: 1.5; }
+    .welcome-section-title { margin: 0; padding-bottom: 6px; color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground)); font-size: 11px; font-weight: 600; letter-spacing: .4px; text-transform: uppercase; }
+    .welcome-products { border-top: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
+    .welcome-product { display: grid; min-width: 0; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
+    .welcome-product-icon { display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid var(--ktc-ui-border, var(--vscode-contrastBorder, var(--vscode-panel-border))); border-radius: 4px; color: var(--vscode-textLink-foreground); font-size: 11px; font-weight: 700; }
+    .welcome-product-main { min-width: 0; }
+    .welcome-product-title { overflow: hidden; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    .welcome-product-meta { margin-top: 2px; color: var(--vscode-descriptionForeground); font-size: 11px; }
+    .welcome-product-status { display: flex; align-items: center; gap: 6px; }
+    .welcome-status { padding: 1px 5px; border: 1px solid var(--ktc-ui-border, var(--vscode-badge-background)); border-radius: 9px; color: var(--vscode-badge-foreground); background: var(--vscode-badge-background); font-size: 10px; white-space: nowrap; }
+    .welcome-status.missing { color: var(--vscode-descriptionForeground); background: transparent; }
+    .welcome-install { padding: 2px 7px; border: 1px solid var(--ktc-ui-border, var(--vscode-button-border, transparent)); border-radius: 3px; color: var(--vscode-button-foreground); background: var(--vscode-button-background); cursor: pointer; font-size: 11px; }
+    .welcome-install:hover { border-color: var(--ktc-ui-active-border, var(--vscode-focusBorder)); background: var(--vscode-button-hoverBackground); }
+    .welcome-footer { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: auto; padding-top: 18px; border-top: 1px solid var(--ktc-ui-border, var(--vscode-sideBarSectionHeader-border)); }
+    .welcome-link { padding: 2px 0; border: 0; border-bottom: 1px solid transparent; color: var(--vscode-textLink-foreground); background: transparent; cursor: pointer; font: inherit; font-size: 11px; }
+    .welcome-link:hover { border-bottom-color: currentColor; color: var(--vscode-textLink-activeForeground); }
     .tabs.compact {
       display: flex;
       flex-wrap: wrap;
@@ -613,6 +637,24 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
   <div class="wrap">
     <div class="tabs" id="tabs"></div>
     <div class="module-block" id="module-block" hidden></div>
+    <section class="welcome-panel" id="welcome-panel" aria-label="KT Auto Code 欢迎" hidden>
+      <header class="welcome-brand">
+        <div class="welcome-mark" aria-hidden="true">P</div>
+        <div class="welcome-brand-copy">
+          <h2 class="welcome-brand-name">PHOENIX</h2>
+          <div class="welcome-brand-product">KT Auto Code</div>
+        </div>
+      </header>
+      <p class="welcome-intro">从上方工具栏选择功能，对应的 Block 会在这里打开。</p>
+      <h3 class="welcome-section-title">插件状态</h3>
+      <div class="welcome-products" id="welcome-products"></div>
+      <footer class="welcome-footer" aria-label="常用链接">
+        <button class="welcome-link" type="button" data-welcome-action="openRepository">Gitee 主页</button>
+        <button class="welcome-link" type="button" data-welcome-action="openInstallGuide">安装说明</button>
+        <button class="welcome-link" type="button" data-welcome-action="openQuickStart">快速开始</button>
+        <button class="welcome-link" type="button" data-welcome-action="openSettings">插件设置</button>
+      </footer>
+    </section>
     <div class="title-row">
       <h2 id="tool-title">KT Auto Code</h2>
     </div>
@@ -835,6 +877,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       workspaceFileScopeError: "",
       moduleState: { installed: ["code"], enabled: ["code"], visible: ["code"], known: ["code"], active: "code" },
       moduleBlock: null,
+      extensionInstallations: [],
       uuidStrategy: saved.uuidStrategy === "fresh_per_hit" ? "fresh_per_hit" : "map_per_value",
       replace: Object.assign({ search: "", with: "", text: true, file: false, dir: false, ignored: false, scope: "", expanded: false, sourcePrefix: legacyPrefix, targetPrefix: legacyPrefix, defaultEncoding: "utf8", preserveCase: false, extraRules: [], profileId: "", profileLabel: "" }, savedReplace),
     };
@@ -862,6 +905,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     const els = {
       tabs: document.getElementById("tabs"),
       moduleBlock: document.getElementById("module-block"),
+      welcomePanel: document.getElementById("welcome-panel"),
+      welcomeProducts: document.getElementById("welcome-products"),
       title: document.getElementById("tool-title"),
       desc: document.getElementById("tool-desc"),
       replaceBlock: document.getElementById("replace-block"),
@@ -1713,9 +1758,65 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.gitRepositorySelect.disabled = running || projects.length <= 1;
     }
 
+    function renderWelcome() {
+      els.welcomeProducts.replaceChildren();
+      for (const extension of state.extensionInstallations || []) {
+        const row = document.createElement("div");
+        row.className = "welcome-product";
+
+        const icon = document.createElement("div");
+        icon.className = "welcome-product-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = extension.moduleId === "cad" ? "CAD" : "C";
+
+        const main = document.createElement("div");
+        main.className = "welcome-product-main";
+        const title = document.createElement("div");
+        title.className = "welcome-product-title";
+        title.textContent = extension.title;
+        const meta = document.createElement("div");
+        meta.className = "welcome-product-meta";
+        meta.textContent = extension.installed
+          ? "版本 " + (extension.version || "未知")
+          : (extension.moduleId === "cad" ? "可选 CAD 模块" : "基础 Code 模块");
+        main.append(title, meta);
+
+        const actions = document.createElement("div");
+        actions.className = "welcome-product-status";
+        const status = document.createElement("span");
+        status.className = "welcome-status" + (extension.installed ? "" : " missing");
+        status.textContent = extension.installed ? "已安装" : "未安装";
+        actions.appendChild(status);
+        if (!extension.installed) {
+          const install = document.createElement("button");
+          install.className = "welcome-install";
+          install.type = "button";
+          install.textContent = "安装";
+          install.title = "安装 " + extension.title;
+          install.onclick = () => vscode.postMessage({
+            type: "welcomeAction",
+            action: "installExtension",
+            extensionId: extension.id,
+          });
+          actions.appendChild(install);
+        }
+        row.append(icon, main, actions);
+        els.welcomeProducts.appendChild(row);
+      }
+    }
+
     function render() {
       document.body.classList.toggle("ribbon-only", state.presentation === "ribbon");
       document.body.classList.toggle("detail-block", state.presentation === "detailBlock");
+      const welcomeMode = state.presentation === "detailBlock" && (state.openToolIds || []).length === 0;
+      document.body.classList.toggle("welcome-mode", welcomeMode);
+      els.welcomePanel.hidden = !welcomeMode;
+      if (welcomeMode) {
+        document.body.classList.remove("external-module-block");
+        els.moduleBlock.hidden = true;
+        renderWelcome();
+        return;
+      }
       const tool = activeTool();
       if (tool) {
         els.title.textContent = tool.title;
@@ -2269,6 +2370,12 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       vscode.setState({ showDetails: state.showDetails, showEncDetails: state.showEncDetails, replace: state.replace });
       render();
     };
+    for (const button of els.welcomePanel.querySelectorAll("[data-welcome-action]")) {
+      button.addEventListener("click", () => vscode.postMessage({
+        type: "welcomeAction",
+        action: button.dataset.welcomeAction,
+      }));
+    }
 
     window.addEventListener("message", (e) => {
       const msg = e.data;
@@ -2288,6 +2395,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         state.selectedWorkspaceFileScopes = msg.selectedWorkspaceFileScopes || {};
         state.workspaceFileScopeError = msg.workspaceFileScopeError || "";
         state.moduleState = msg.moduleState || state.moduleState;
+        state.extensionInstallations = msg.extensionInstallations || [];
         els.workspace.textContent = msg.workspaceLabel;
         render();
         restoreActiveToolScroll(activeToolChanged);

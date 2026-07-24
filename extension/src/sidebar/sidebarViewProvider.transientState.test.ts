@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const vscodeHost = vi.hoisted(() => ({
   executeCommand: vi.fn(async () => undefined),
+  openExternal: vi.fn<(uri: unknown) => Promise<boolean>>(async () => true),
   configurationValues: new Map<string, unknown>(),
 }));
 
 vi.mock("vscode", () => {
   class Uri {
     static file(fsPath: string) { return new Uri(fsPath); }
+    static parse(value: string) { return new Uri(value); }
     static joinPath(base: Uri, ...segments: string[]) {
       return new Uri([base.fsPath, ...segments].join("/").replace(/\/+/g, "/"));
     }
@@ -33,6 +35,7 @@ vi.mock("vscode", () => {
       registerCommand: vi.fn(() => ({ dispose: vi.fn() })),
     },
     extensions: { all: [] },
+    env: { openExternal: vscodeHost.openExternal },
     workspace: {
       workspaceFolders: undefined,
       textDocuments: [],
@@ -66,7 +69,10 @@ import type {
 } from "../tools/types.js";
 import { registerTool } from "../tools/registry.js";
 import { encodingFixTool } from "../tools/encodingFix/index.js";
-import { SidebarViewProvider } from "./sidebarViewProvider.js";
+import {
+  SidebarViewProvider,
+  ktcWelcomeExtensionSummaries,
+} from "./sidebarViewProvider.js";
 
 const TEST_TOOL_ID = "transientPickerTest";
 const SECOND_TEST_TOOL_ID = "transientPickerSecondTest";
@@ -200,12 +206,64 @@ function stateMessages(view: FakeWebviewView): Extract<WebviewOutboundMessage, {
 describe("SidebarViewProvider transient tool state", () => {
   beforeEach(() => {
     vscodeHost.executeCommand.mockClear();
+    vscodeHost.openExternal.mockClear();
     vscodeHost.configurationValues.clear();
     nextState = {
       status: "idle",
       message: "请选择要添加的关联规则。",
       associatedRulePicker: picker,
     };
+  });
+
+  it("欢迎页固定列出 Code/CAD 的安装状态与版本", () => {
+    expect(ktcWelcomeExtensionSummaries([
+      { id: "KUNTAI.KT-AUTO-CODE", packageJSON: { version: " 0.6.1 " } },
+      { id: "another.extension", packageJSON: { version: "9.0.0" } },
+    ])).toEqual([
+      {
+        id: "kuntai.kt-auto-code",
+        title: "KT Auto Code",
+        moduleId: "code",
+        installed: true,
+        version: "0.6.1",
+      },
+      {
+        id: "kuntai.kt-auto-cad",
+        title: "KT Auto CAD",
+        moduleId: "cad",
+        installed: false,
+      },
+    ]);
+  });
+
+  it("欢迎页链接、设置与安装动作只调用对应宿主入口", async () => {
+    const { internals, module } = createProvider();
+
+    await internals.onMessage({ type: "welcomeAction", action: "openRepository" }, module);
+    expect(vscodeHost.openExternal).toHaveBeenCalledOnce();
+    expect(String(vscodeHost.openExternal.mock.calls[0]?.[0])).toContain("phoenixwing/kt-auto-code");
+
+    await internals.onMessage({ type: "welcomeAction", action: "openInstallGuide" }, module);
+    expect(vscodeHost.executeCommand).toHaveBeenCalledWith(
+      "workbench.extensions.search",
+      "@id:kuntai.kt-auto-code",
+    );
+
+    await internals.onMessage({ type: "welcomeAction", action: "openSettings" }, module);
+    expect(vscodeHost.executeCommand).toHaveBeenCalledWith(
+      "workbench.action.openSettings",
+      "@ext:kuntai.kt-auto-code",
+    );
+
+    await internals.onMessage({
+      type: "welcomeAction",
+      action: "installExtension",
+      extensionId: "kuntai.kt-auto-cad",
+    }, module);
+    expect(vscodeHost.executeCommand).toHaveBeenCalledWith(
+      "workbench.extensions.installExtension",
+      "kuntai.kt-auto-cad",
+    );
   });
 
   it("编码目标写入后立即刷新 GBK 选项并废弃旧预检结果", async () => {
@@ -264,7 +322,7 @@ describe("SidebarViewProvider transient tool state", () => {
   });
 
   it("共享工具界面只向标题菜单发布当前活动工具", async () => {
-    const { provider } = createProvider();
+    const { provider, module } = createProvider();
 
     await provider.showTool(TEST_TOOL_ID);
     expect(vscodeHost.executeCommand).toHaveBeenCalledWith(
@@ -279,6 +337,7 @@ describe("SidebarViewProvider transient tool state", () => {
     );
 
     await provider.closeToolBlock();
+    expect(module.title).toBe("欢迎");
     expect(vscodeHost.executeCommand).toHaveBeenCalledWith(
       "setContext",
       "ktAutoCode.modulePanelVisible",

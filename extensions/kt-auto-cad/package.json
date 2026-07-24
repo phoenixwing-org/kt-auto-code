@@ -10,7 +10,7 @@
   "icon": "media/cn.kt.doc.AutoCode.Color.128.png",
   "repository": {
     "type": "git",
-    "url": "https://gitee.com/PhoenixWing321/kt-auto-code.git"
+    "url": "https://gitee.com/phoenixwing/kt-auto-code.git"
   },
   "engines": {
     "vscode": "^1.85.0"

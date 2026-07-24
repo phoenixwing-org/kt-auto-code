@@ -5,6 +5,7 @@ import { logOutput } from "../output.js";
 import { getTool, getTools } from "../tools/registry.js";
 import type {
   KtcRecentWorkingDirectories,
+  KtcWelcomeExtensionSummary,
   ToolRunContext,
   ToolSummary,
   ToolUiState,
@@ -61,6 +62,32 @@ import type {
 
 const FILE_SCOPE_STATE_KEY = "ktAutoCode.workspaceFileScopes";
 const MODULE_STATE_KEY = "ktAutoCode.modules.v1";
+const REPOSITORY_URL = "https://gitee.com/phoenixwing/kt-auto-code";
+const QUICK_START_URL = `${REPOSITORY_URL}/blob/develop/extension/README.md#%E4%BD%BF%E7%94%A8`;
+
+const WELCOME_EXTENSIONS = [
+  { id: "kuntai.kt-auto-code", title: "KT Auto Code", moduleId: "code" },
+  { id: "kuntai.kt-auto-cad", title: "KT Auto CAD", moduleId: "cad" },
+] as const;
+
+export function ktcWelcomeExtensionSummaries(
+  extensions: readonly { readonly id: string; readonly packageJSON?: unknown }[],
+): KtcWelcomeExtensionSummary[] {
+  const installed = new Map(extensions.map((extension) => [extension.id.toLowerCase(), extension]));
+  return WELCOME_EXTENSIONS.map((definition) => {
+    const extension = installed.get(definition.id);
+    const manifest = extension?.packageJSON;
+    const version = manifest && typeof manifest === "object" && "version" in manifest
+      && typeof manifest.version === "string" && manifest.version.trim()
+      ? manifest.version.trim()
+      : undefined;
+    return {
+      ...definition,
+      installed: !!extension,
+      ...(version ? { version } : {}),
+    };
+  });
+}
 
 interface InstalledModuleContribution {
   readonly extensionUri: vscode.Uri;
@@ -121,10 +148,12 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
   async refreshInstalledModules(): Promise<void> {
     const installed = this.getInstalledModuleIds();
-    if (installed.length === this.moduleState.installed.length
-      && installed.every((moduleId, index) => this.moduleState.installed[index] === moduleId)) return;
-    this.moduleState = ktcCreateModuleState(installed, ktcPersistedModuleState(this.moduleState));
-    await this.syncModuleState();
+    const changed = installed.length !== this.moduleState.installed.length
+      || !installed.every((moduleId, index) => this.moduleState.installed[index] === moduleId);
+    if (changed) {
+      this.moduleState = ktcCreateModuleState(installed, ktcPersistedModuleState(this.moduleState));
+      await this.syncModuleState();
+    }
     if (this.ribbonView) await this.sendInit(this.ribbonView);
     if (this.moduleView) await this.sendInit(this.moduleView);
   }
@@ -277,6 +306,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       return this.getToolBlockState();
     }
     await this.setModulePanelContext(false);
+    if (this.moduleView) this.moduleView.title = "欢迎";
     this.postToViews({ type: "openTools", activeToolId: this.activeToolId, openToolIds: [] });
     return this.getToolBlockState();
   }
@@ -406,6 +436,11 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
     const profileSnapshot = this.searchReplaceProfiles.snapshot(getWorkspaceRoot());
     const fileScopeSnapshot = await this.getWorkspaceFileScopeSnapshot();
+    if (target.viewType === SidebarViewProvider.moduleViewType) {
+      target.title = this.openToolIds.length
+        ? this.getToolTitle(this.activeToolId) ?? "工具界面"
+        : "欢迎";
+    }
     postToWebview(target, {
       type: "init",
       tools,
@@ -424,6 +459,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       selectedWorkspaceFileScopes: this.getSelectedWorkspaceFileScopes(),
       workspaceFileScopeError: fileScopeSnapshot.error,
       moduleState: this.moduleState,
+      extensionInstallations: ktcWelcomeExtensionSummaries(vscode.extensions.all),
     });
 
     for (const [toolId, state] of this.toolStates) {
@@ -441,6 +477,26 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
         source.title = this.getToolTitle(this.activeToolId) ?? "工具界面";
       }
       await this.sendInit(source);
+      return;
+    }
+
+    if (message.type === "welcomeAction") {
+      if (message.action === "installExtension") {
+        const extension = WELCOME_EXTENSIONS.find(({ id }) => id === message.extensionId);
+        if (!extension) return;
+        await vscode.commands.executeCommand("workbench.extensions.installExtension", extension.id);
+        return;
+      }
+      if (message.action === "openSettings") {
+        await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:kuntai.kt-auto-code");
+        return;
+      }
+      if (message.action === "openInstallGuide") {
+        await vscode.commands.executeCommand("workbench.extensions.search", "@id:kuntai.kt-auto-code");
+        return;
+      }
+      const url = message.action === "openQuickStart" ? QUICK_START_URL : REPOSITORY_URL;
+      await vscode.env.openExternal(vscode.Uri.parse(url));
       return;
     }
 

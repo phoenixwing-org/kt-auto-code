@@ -91,6 +91,9 @@ export async function run(): Promise<void> {
 
   const current = await service.readController(documentUri);
   assert.ok(current);
+  const changedItem = current.controller.param.items[0];
+  assert.ok(changedItem, "Codegen fixture must contain an item that can force a real Apply change");
+  changedItem.paramString = "Q2WidgetName";
   const blockKeys: readonly KtCodegenBlockKey[] = ["PARAM DECLARATION", "QT UPDATE DIALOG"];
   const preflight = await ktcRunCodegenPreflight({
     workspaceRoot: workspace.uri.fsPath,

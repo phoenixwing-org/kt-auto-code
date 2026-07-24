@@ -52,6 +52,18 @@ describe("sidebar panel HTML", () => {
     expect(html).not.toContain('type: "chooseAssociatedRule"');
     expect(html).toContain('body.detail-block #tabs');
     expect(html).toContain('id="module-block"');
+    expect(html).toContain('id="welcome-panel"');
+    expect(html).toContain('id="welcome-products"');
+    expect(html).toContain('class="welcome-brand-name">PHOENIX</h2>');
+    expect(html).toContain('data-welcome-action="openRepository">Gitee 主页</button>');
+    expect(html).toContain('data-welcome-action="openInstallGuide">安装说明</button>');
+    expect(html).toContain('data-welcome-action="openQuickStart">快速开始</button>');
+    expect(html).toContain('data-welcome-action="openSettings">插件设置</button>');
+    expect(html).toContain('body.welcome-mode .wrap > :not(#welcome-panel)');
+    expect(html).toContain('state.presentation === "detailBlock" && (state.openToolIds || []).length === 0');
+    expect(html).toContain('state.extensionInstallations = msg.extensionInstallations || []');
+    expect(html).toContain('type: "welcomeAction"');
+    expect(html).toContain('action: "installExtension"');
     expect(html).toContain('type: "moduleBlockAction"');
     expect(html).toContain('msg.type === "moduleBlock"');
     expect(html).toContain('body.external-module-block');
@@ -279,9 +291,7 @@ describe("sidebar panel HTML", () => {
     expect(manifest.contributes.views["kt-auto-code"]?.map((view) => view.initialSize)).toEqual([1, 12]);
     expect(manifest.contributes.viewsContainers?.activitybar).toHaveLength(1);
     expect(manifest.contributes.viewsContainers?.activitybar?.[0]?.id).toBe("kt-auto-code");
-    expect(manifest.contributes.views["kt-auto-code"]?.[1]?.when).toBe(
-      "ktAutoCode.modulePanelVisible",
-    );
+    expect(manifest.contributes.views["kt-auto-code"]?.[1]?.when).toBeUndefined();
     expect(manifest.contributes.menus["view/item/context"]).toBeUndefined();
     expect(manifest.contributes.commands.filter((command) => [
       "ktAutoCode.codegen.open",
@@ -307,6 +317,11 @@ describe("sidebar panel HTML", () => {
       submenu: "ktAutoCode.modulePanel.more",
       when: "view == ktAutoCode.modulePanel && ktAutoCode.modulePanel.activeTool == codegen",
       group: "navigation@8",
+    });
+    expect(manifest.contributes.menus["view/title"]).toContainEqual({
+      command: "ktAutoCode.modulePanel.close",
+      when: "view == ktAutoCode.modulePanel && ktAutoCode.modulePanelVisible",
+      group: "navigation@9",
     });
     expect(manifest.contributes.menus["ktAutoCode.modulePanel.more"]).toEqual([
       { command: "ktAutoCode.codegen.open", group: "navigation@1" },
