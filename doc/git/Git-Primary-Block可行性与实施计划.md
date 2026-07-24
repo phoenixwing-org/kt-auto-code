@@ -6,7 +6,7 @@ Owner：KT Auto Code maintainers
 
 适用版本：KT Auto Code 0.6.0
 
-最后核验：2026-07-21
+最后核验：2026-07-23
 
 ## 1. 目标
 
@@ -94,6 +94,7 @@ Git 不是“配置”，将它放入配置模块会掩盖历史改写风险，�
 
 ```text
 ┌ Git 提交整理 ──────────────────────────────────────┐
+│ 仓库：[PNXCaaStudy · packages/caa ▾]               │
 │ PNXCaaStudy · origin/sort · HEAD 4b4622d   [刷新] │
 │                                                    │
 │ 合并本地未发布 commit · 不自动 push                │
@@ -112,6 +113,26 @@ Git 不是“配置”，将它放入配置模块会掩盖历史改写风险，�
 ```
 
 列表必须有固定最大高度并独立滚动，Primary 页面不能因为 commit 数量无限增长。默认只读最近 20 条，按需“再加载 20 条”。
+
+### 5.1 多仓库发现与选择
+
+当前实现会遍历 `vscode.workspace.workspaceFolders`，并把每个工作区根目录当作一个候选仓库；模型和简报/合并命令已经携带 `repositoryId`。因此，多根工作区中“每个根目录本身就是 Git 仓库”时可以得到多个仓库项目，但当前 UI 会把它们逐个纵向渲染成完整区块。一个工作区根目录内部的 Git 子模块或其他嵌套仓库目前不会被发现，这也是只看到一个仓库区块的主要原因。
+
+2026-07-23 增量已改为单仓库上下文，不再堆叠多个完整 Git Block：
+
+- 复用标题下方现有“工作区：Trial”这一行；Git 工具激活时将它改为原生、不可搜索的 `仓库：[名称 · 相对路径 ▾]` 下拉，其他工具仍显示原来的工作区文本；
+- 即使只发现一个仓库，下拉也至少保留当前活动工作区对应的仓库作为唯一选项，用于明确简报和合并的操作对象；只有一个选项时可以禁用展开，但不得隐藏当前仓库上下文；
+- 多根 `.code-workspace` 的每个 Workspace Folder 都是候选入口；同一根目录通过 `git rev-parse --show-toplevel` 解析真实仓库根，避免打开仓库子目录时误建重复项；
+- 优先读取 VS Code 内置 Git 扩展已经发现的 repository 列表，以覆盖工作区根仓库、已打开的嵌套仓库和受 VS Code 管理的子模块；再用 Workspace Folder/活动编辑器路径补足，保证 Git API 尚未完成发现时仍至少得到活动仓库；
+- 注册的 Git submodule 可通过父仓库元数据补充发现；普通独立嵌套仓库不做无边界的递归磁盘扫描，避免大型工程、构建目录和依赖目录造成卡顿；
+- 仓库使用规范化真实根 URI 作为稳定 ID 并去重；显示一条连续的 `仓库名 · 工作区相对路径`，完整绝对路径放入 `title` 和 `aria-label`；工作区外仓库不在本功能中自动加入；
+- 刷新时优先保持当前手动选择；首次打开或原选择失效后依次选择：活动编辑器所属仓库 → 上次在当前工作区选中的仍有效仓库 → 当前 Workspace Folder 的根仓库 → 首个成功读取的仓库；活动编辑器变化不应强制跳库；
+- 当前选择属于每工作区的瞬时 UI 状态，保存到 `workspaceState`，不写 `.vscode/settings.json`；刷新后仓库仍存在则保持选择，失效时按上述默认顺序回退；
+- 下方只渲染所选仓库的一份分支摘要、最近 commit、简报和合并入口；仓库数量可保留为状态尾部 badge，不再用多个完整区块表达；
+- 简报草稿、合并预览、一次撤销记录和运行互斥锁都必须绑定 `repositoryId`。切换仓库时若存在未完成草稿，先提示放弃或取消切换；执行期间禁用仓库切换；绝不允许跨仓库勾选 commit 或组合一次合并；
+- 写操作执行前必须使用所选仓库根重新读取 HEAD、分支、状态和 refs，并校验 action 中的 `repositoryId`、`expectedHead` 与预览 revision，不能依赖下拉框的显示文字定位仓库。
+
+这里的“工作区”和“仓库”必须分开建模：一个 VS Code 工作区可以包含多个 Workspace Folder，一个 Workspace Folder 也可以包含根仓库、多个 submodule 或独立嵌套仓库。下拉选择的是 Git 仓库，不是切换 VS Code 工作区。
 
 ## 6. 功能一：commit 群消息简报
 
@@ -349,10 +370,11 @@ kt-auto-code/extension/media/tools/git.svg
 ### Phase 1：只读简报
 
 - 在 Code 模块最后增加 Git 工具和 Primary Block。
+- 在现有工作区信息行增加 Git 专用仓库下拉：合并 VS Code Git API、Workspace Folder 和活动编辑器的发现结果，以真实仓库根去重；下方一次只渲染所选仓库。
 - 完成仓库/upstream/remote URL/最近 commit 读取；勾选一个或多个节点生成简报，提供 `Git 地址`、`时间`、`@审查人`、默认审查人原生下拉、编辑与复制。下拉不做搜索过滤；可从末项输入新人员，删除/清空则进入插件设置。
 - 不出现任何改写历史的 Git 命令。
 
-验收：`origin`、`check`、无 upstream 和 detached 四类标签正确；复制内容与预览逐字一致。
+验收：单根、多根 `.code-workspace`、根目录内 submodule/嵌套仓库均按发现边界列出；至少显示活动仓库；切换后只读取所选仓库；`origin`、`check`、无 upstream 和 detached 四类标签正确；复制内容与预览逐字一致。
 
 ### Phase 2：合并预览但不写入
 
@@ -391,6 +413,8 @@ kt-auto-code/extension/media/tools/git.svg
 - `审查：Kevin`、`审查：@Kevin`、`Reviewed-by:`、无 reviewer、默认 reviewer 与关闭 `@`；
 - 多 commit 勾选顺序、顶部一次 remote URL、项目目录名条件显示与时间开关；
 - upstream 为 `origin`、`check`、无 upstream；
+- 单根工作区、多根 `.code-workspace`、工作区根不是仓库但活动文件位于仓库、submodule、独立嵌套仓库、重复真实根与仓库消失后的选择回退；
+- 仓库切换保持 `workspaceState` 选择，不污染 `.vscode/settings.json`；草稿未保存、合并执行中和撤销记录存在时遵守切换边界；
 - short SHA 最短唯一长度；
 - 连续/不连续/位于历史中间/merge/detached/dirty/进行中操作；
 - 受影响范围的 remote-tracking ref 可达性与其他分支/tag 占用警告、未确认拒绝、确认后引用不移动；
@@ -404,6 +428,7 @@ kt-auto-code/extension/media/tools/git.svg
 ### 人工点检
 
 - Primary 在普通、浅色、深色和高对比主题下保持单 Block；
+- Git 激活时原“工作区”行显示仓库下拉；单仓库至少显示活动仓库，多仓库切换后下方不堆叠其他仓库 Block；长仓库名与相对路径整体省略，悬浮可见完整路径；
 - commit 列表固定高度，长 subject/remote/邮箱不撑破布局；
 - 群消息复制到目标群聊后的 Markdown、换行与 `@` 显示符合预期；
 - 最终确认明确说明历史会改写、不会 push；
@@ -425,3 +450,5 @@ kt-auto-code/extension/media/tools/git.svg
 - [x] V1 reviewer 只识别 `审查：` 与 `Reviewed-by:`；新增内部格式以后按 fixture 扩展。
 - [x] V1 一律拒绝会被重写的签名 commit，避免静默移除无效签名。
 - [x] 用户已批准以 KT Auto Code 0.6.0 为目标开始编码，并纳入 Run Block。
+- [x] 多仓库交互采用现有工作区信息行中的仓库下拉；至少包含活动仓库，下方一次只显示所选仓库，不为每个仓库堆叠完整 Block。
+- [x] 已实现 VS Code Git API + Workspace Folder + 活动编辑器的仓库发现与真实根去重，并补齐 submodule/嵌套仓库、多根工作区及切换安全测试。

@@ -2,6 +2,15 @@
 
 所有显著变更会记录在本文件中。
 
+## 0.6.1
+
+- 没有打开任何功能 Block 时，下方工具界面改为紧凑 Welcome：显示 KT Auto Code / CAD 的安装状态与版本，缺失插件可直接安装，并在底部提供 Gitee、安装说明、快速开始和插件设置入口。
+- 仓库地址统一迁移到 `gitee.com/phoenixwing/kt-auto-code`；Welcome 的“安装说明”改为打开 VS Code 内置扩展搜索，避免外部 Marketplace 登录页脚本错误。
+- Git Primary 现在发现多根 VS Code 工作区、Git API 仓库与嵌套子模块，并在工作区信息行提供仓库下拉；简报、连续提交合并和撤销始终绑定当前选择的真实仓库根。
+- Codegen Primary、控制符目录、应用报告、成员排序、UUID 与搜索替换结果进一步收敛到 Phoenix Wing 的共享状态模型和 Host-neutral Web Component；Auto Code 保留 VS Code Host、权限确认与工作区编排。
+- Code 与 CAD 的 15 处 Phoenix Wing 依赖精确升级到 Registry 0.5.1；同步适配 Codegen 报告类型收窄及 0.5.1 的 Primary/预检组件打包边界。
+- 本补丁保持 KT Auto CAD 版本为 0.1.0，不新增 Marketplace 扩展标识，也不引入 `link:`、`file:`、workspace override 或本地 Wing 运行时回退。
+
 ## 0.6.0
 
 - 新增 Git Primary Block：可勾选一个或多个最近 commit，一次生成多条可编辑群消息简报；支持顶部一次 remote URL、committer 时间、`@审查人`，`++` 固定表示“代码已更新”。默认审查人候选进入可删除的机器级插件设置。

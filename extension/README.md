@@ -42,8 +42,8 @@ Desk Tools 本地 API 首选 `48375`，占用时由 Desk Tools 自动选择后�
 
 ## 文档与反馈
 
-- 源码与文档：[PhoenixWing321/kt-auto-code](https://gitee.com/PhoenixWing321/kt-auto-code)
-- 问题反馈：[Issues](https://gitee.com/PhoenixWing321/kt-auto-code/issues)
+- 源码与文档：[phoenixwing/kt-auto-code](https://gitee.com/phoenixwing/kt-auto-code)
+- 问题反馈：[Issues](https://gitee.com/phoenixwing/kt-auto-code/issues)
 - 发布说明：[CHANGELOG.md](CHANGELOG.md)
 
 ## 版权与许可证

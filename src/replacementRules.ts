@@ -8,6 +8,11 @@
  */
 
 import iconv from "iconv-lite";
+import {
+  pnwCodeReplaceStringByRules,
+  pnwCodeResolveReplacementRules,
+  pnwCodeSuggestNameReplacement,
+} from "@phoenix-wing/code-core";
 import type {
   ReplacementRule,
   ReplacementTextEncoding,
@@ -40,80 +45,15 @@ export function resolveReplacementRules(
   rules: readonly ReplacementRule[],
   preserveCase: boolean,
 ): ResolvedReplacementRule[] {
-  const explicit = rules
-    .map((rule, sourceIndex) => ({ rule, sourceIndex }))
-    .filter(({ rule }) => rule.enabled !== false && rule.search.length > 0)
-    .map(({ rule, sourceIndex }) => ({
-      id: rule.id ?? `rule-${sourceIndex + 1}`,
-      search: rule.search,
-      replace: rule.replace,
-      sourceIndex,
-      derived: false,
-    }));
-  if (explicit.length === 0) throw new Error("至少需要一条非空搜索规则");
-  if (explicit.some((rule) => rule.search === rule.replace)) {
-    throw new Error("搜索内容与替换内容不能相同");
-  }
-
-  const all = [...explicit];
-  if (preserveCase) {
-    for (const rule of explicit) {
-      const search = rule.search.toUpperCase();
-      const replace = rule.replace.toUpperCase();
-      if (search !== rule.search) {
-        all.push({ ...rule, id: `${rule.id}:upper`, search, replace, derived: true });
-      }
-    }
-  }
-
-  const deduped: ResolvedReplacementRule[] = [];
-  const bySearch = new Map<string, ResolvedReplacementRule>();
-  for (const rule of all) {
-    const existing = bySearch.get(rule.search);
-    if (existing) {
-      if (existing.replace !== rule.replace) {
-        throw new Error(`搜索规则冲突：${rule.search}`);
-      }
-      continue;
-    }
-    bySearch.set(rule.search, rule);
-    deduped.push(rule);
-  }
-  return deduped;
-}
-
-function winningStringRule(
-  input: string,
-  offset: number,
-  rules: readonly ResolvedReplacementRule[],
-): ResolvedReplacementRule | undefined {
-  let winner: ResolvedReplacementRule | undefined;
-  for (const rule of rules) {
-    if (!input.startsWith(rule.search, offset)) continue;
-    if (!winner || rule.search.length > winner.search.length) winner = rule;
-  }
-  return winner;
+  return [...pnwCodeResolveReplacementRules(rules, preserveCase)];
 }
 
 export function replaceStringByRules(
   input: string,
   rules: readonly ResolvedReplacementRule[],
 ): { output: string; matches: RuleMatchSummary[] } {
-  let output = "";
-  let offset = 0;
-  const counts = new Map<string, number>();
-  while (offset < input.length) {
-    const rule = winningStringRule(input, offset, rules);
-    if (!rule) {
-      output += input[offset];
-      offset++;
-      continue;
-    }
-    output += rule.replace;
-    counts.set(rule.id, (counts.get(rule.id) ?? 0) + 1);
-    offset += rule.search.length;
-  }
-  return { output, matches: summaries(rules, counts) };
+  const result = pnwCodeReplaceStringByRules(input, rules);
+  return { output: result.output, matches: [...result.matches] };
 }
 
 /** Returns a display-only rename suggestion without touching the file system. */
@@ -122,15 +62,9 @@ export function ktcSuggestNameReplacement(
   rules: readonly ReplacementRule[],
   preserveCase: boolean,
 ): KtcNameReplacementSuggestion | undefined {
-  const replacement = replaceStringByRules(currentName, resolveReplacementRules(rules, preserveCase));
-  if (replacement.matches.length === 0 || replacement.output === currentName) return undefined;
-  return {
-    currentName,
-    suggestedName: replacement.output,
-    matches: replacement.matches,
-  };
+  const suggestion = pnwCodeSuggestNameReplacement(currentName, rules, preserveCase);
+  return suggestion ? { ...suggestion, matches: [...suggestion.matches] } : undefined;
 }
-
 interface ByteRule {
   rule: ResolvedReplacementRule;
   search: Buffer;

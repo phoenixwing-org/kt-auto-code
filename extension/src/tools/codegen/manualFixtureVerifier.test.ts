@@ -33,6 +33,27 @@ import { ktcCodegenFingerprint } from "./documentService.js";
 
 const fixtureRoot = new URL("../../../../tests/fixtures/codegen-manual-workspace/", import.meta.url);
 const temporaryRoots: string[] = [];
+const LEGACY_PANEL_CSV = `NameSuffix,ID,Name,ParamString,DataType,TCKind,DefaultValue,CATAttrInOut,IsList,IsOnTree,Component,Count,IsParamDlg,Unit,Author,CreateDate,Notes
+Item,1,Legacy Enabled,LegacyEnabled,bool,Boolean,true,In,0,1,QCheckBox,1,1,,Manual QA,2026-07-16,CSV conversion input
+Item,2,Legacy Title,LegacyTitle,CATUnicodeString,String,,InOut,0,1,QLineEdit,1,1,,Manual QA,2026-07-16,CSV conversion input
+$NamePrefix,PNX,the prefix
+$NameMiddle,LegacyPanel,the middle name
+$NameSpace,PNX,the namespace
+$AppendFunction,push_back,the append function name
+`;
+
+function unappliedWidgetText(): string {
+  return [
+    "namespace PNX {", "",
+    "// START KEVIN CAA WIZARD SECTION PNXWidgetItem PARAM DECLARATION",
+    "int oldWidgetCount;",
+    "// END KEVIN CAA WIZARD SECTION PNXWidgetItem PARAM DECLARATION", "",
+    "// START KEVIN CAA WIZARD SECTION PNXWidgetItem QT UPDATE DIALOG",
+    "void updateOldWidgetDialog();",
+    "// END KEVIN CAA WIZARD SECTION PNXWidgetItem QT UPDATE DIALOG", "",
+    "} // namespace PNX", "",
+  ].join("\n");
+}
 
 function temporaryFixture(): string {
   const root = mkdtempSync(join(tmpdir(), "kt-codegen-qa-verifier-"));
@@ -61,6 +82,8 @@ describe("Codegen manual fixture verifier", () => {
   it("Checkpoint A 校验安全转换和冲突保留", () => {
     const root = temporaryFixture();
     const csvPath = join(root, "legacy/PNXLegacyPanelParam.csv");
+    writeFileSync(csvPath, LEGACY_PANEL_CSV);
+    rmSync(join(root, "legacy/PNXLegacyPanelParam.json"), { force: true });
     const controller = new KtCodegenController();
     expect(controller.readCsv(readFileSync(csvPath, "utf8")).ok).toBe(true);
     writeFileSync(join(root, "legacy/PNXLegacyPanelParam.json"), controller.writeJson().value!);
@@ -91,7 +114,7 @@ describe("Codegen manual fixture verifier", () => {
     writeFileSync(emptyPath, empty.writeJson().value!);
 
     const verification = verifyCodegenFixture(root, "c");
-    expect(verification.ok).toBe(true);
+    expect(verification.ok, JSON.stringify(verification.checks, null, 2)).toBe(true);
     expect(verification.checks.find((item) => item.id === "json-layout")?.message)
       .toContain("4 空格");
     recordCodegenFixtureVerification(root, verification);
@@ -112,6 +135,8 @@ describe("Codegen manual fixture verifier", () => {
     const preflightPath = join(cache, "preflight-v1/test.json");
     writeFileSync(preflightPath, JSON.stringify({ kind: "kt.codegen.preflight-cache" }));
     const source = join(root, "src/PNXWidget.cpp");
+    writeFileSync(source, unappliedWidgetText());
+    writeCodegenFixtureBaseline(root);
     const param = new KtCodegenController();
     expect(param.readJson(readFileSync(join(root, "PNXWidgetParam.json"), "utf8")).ok).toBe(true);
     const before = readFileSync(source);
@@ -149,7 +174,7 @@ describe("Codegen manual fixture verifier", () => {
     mkdirSync(join(cache, "apply-receipt-v1"), { recursive: true });
     writeFileSync(join(cache, "apply-receipt-v1/test.json"), ktcSerializeCodegenApplyReceipt(receipt));
     const verification = verifyCodegenFixture(root, "e");
-    expect(verification.ok).toBe(true);
+    expect(verification.ok, JSON.stringify(verification.checks, null, 2)).toBe(true);
     expect(verification.checks.find((item) => item.id === "apply-receipt")?.message)
       .toContain("当前源码字节验证");
     recordCodegenFixtureVerification(root, verification);

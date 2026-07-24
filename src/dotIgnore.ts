@@ -1,5 +1,10 @@
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import {
+  pnwCodeIsIgnoredPath,
+  pnwCodeParseIgnoreText,
+  pnwCodeShouldSkipDirName,
+} from "@phoenix-wing/code-core";
 
 /** 工作区下 Phoenix 配置目录 */
 export const PHOENIX_CONFIG_DIR = ".phoenix";
@@ -95,10 +100,7 @@ export function resolveIgnorePatterns(root: string): string[] {
 }
 
 export function parseDotIgnoreText(text: string): string[] {
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0 && !line.startsWith("#"));
+  return pnwCodeParseIgnoreText(text);
 }
 
 export function invalidateDotIgnoreCache(root: string): void {
@@ -126,81 +128,12 @@ export function loadDotIgnore(root: string): string[] {
   }
 }
 
-function normalizePath(p: string): string {
-  return p.replace(/\\/g, "/").replace(/^\.\//, "");
-}
-
-function globToRegExp(pattern: string): RegExp {
-  let p = normalizePath(pattern);
-  if (p.startsWith("/")) {
-    p = p.slice(1);
-  }
-  const escaped = p
-    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-    .replace(/\*\*/g, "{{GLOBSTAR}}")
-    .replace(/\*/g, "[^/]*")
-    .replace(/\?/g, "[^/]")
-    .replace(/\{\{GLOBSTAR\}\}/g, ".*");
-  return new RegExp(`^${escaped}$`);
-}
-
-function hasGlob(value: string): boolean {
-  return value.includes("*") || value.includes("?");
-}
-
-function matchesDirectoryRule(relativePath: string, dirPattern: string): boolean {
-  if (!hasGlob(dirPattern)) {
-    return relativePath === dirPattern
-      || relativePath.startsWith(`${dirPattern}/`)
-      || relativePath.split("/").includes(dirPattern);
-  }
-  const matcher = globToRegExp(dirPattern);
-  return relativePath.split("/").some((part) => matcher.test(part));
-}
-
 /** 相对路径是否命中 `.ignore` 规则 */
 export function isIgnoredPath(relativePath: string, patterns: string[]): boolean {
-  if (patterns.length === 0) {
-    return false;
-  }
-  const norm = normalizePath(relativePath);
-  const base = norm.split("/").pop() ?? norm;
-
-  for (const raw of patterns) {
-    const pattern = normalizePath(raw);
-    if (!pattern) continue;
-
-    if (pattern.endsWith("/")) {
-      const dir = pattern.slice(0, -1);
-      if (matchesDirectoryRule(norm, dir)) {
-        return true;
-      }
-      continue;
-    }
-
-    if (hasGlob(pattern)) {
-      if (globToRegExp(pattern).test(norm) || globToRegExp(pattern).test(base)) {
-        return true;
-      }
-      continue;
-    }
-
-    if (norm === pattern || norm.endsWith(`/${pattern}`) || base === pattern) {
-      return true;
-    }
-  }
-  return false;
+  return pnwCodeIsIgnoredPath(relativePath, patterns);
 }
 
 /** 遍历时是否跳过该目录名 */
 export function shouldSkipDirName(dirName: string, patterns: string[]): boolean {
-  for (const raw of patterns) {
-    const pattern = normalizePath(raw);
-    if (!pattern.endsWith("/")) continue;
-    const dir = pattern.slice(0, -1);
-    if (hasGlob(dir) ? globToRegExp(dir).test(dirName) : dirName === dir || dir.endsWith(`/${dirName}`)) {
-      return true;
-    }
-  }
-  return false;
+  return pnwCodeShouldSkipDirName(dirName, patterns);
 }

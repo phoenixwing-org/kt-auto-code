@@ -1,6 +1,7 @@
 {
-  "kind": "kt.codegen.control-view-model",
+  "kind": "kt.codegen.control-ui-model",
   "schemaVersion": 1,
+  "documentId": "file:///workspace/PNXBomAnalysis/PNXBomAnalysisParam.json",
   "uri": "file:///workspace/PNXBomAnalysis/PNXBomAnalysisParam.json",
   "fileName": "PNXBomAnalysisParam.json",
   "blocks": [
@@ -12,7 +13,10 @@
       "legacyCall": "UpdateParamConstructCode",
       "title": "参数构造",
       "controlWords": "PARAM CONSTRUCTOR",
-      "notes": "普通 C++ Parameter 构造初始化"
+      "notes": "普通 C++ Parameter 构造初始化",
+      "status": "hit",
+      "hitCount": 1,
+      "artifactCount": 1
     },
     {
       "key": "DLG SET ACTIVE FIELD",
@@ -22,13 +26,17 @@
       "legacyCall": "UpdateSetActiveFieldCode",
       "title": "设置活动字段",
       "controlWords": "DLG SET ACTIVE FIELD",
-      "notes": "保留旧控制符身份并显示 deprecated 标签"
+      "notes": "保留旧控制符身份并显示 deprecated 标签",
+      "status": "unselected",
+      "hitCount": 0,
+      "artifactCount": 0
     }
   ],
   "selectedBlockKeys": [
     "PARAM CONSTRUCTOR"
   ],
   "singleSelectionMode": false,
+  "unclosed": [],
   "presets": {
     "all": [
       "PARAM CONSTRUCTOR",

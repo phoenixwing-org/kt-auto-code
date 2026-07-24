@@ -39,6 +39,25 @@ function selectExportTarget(value) {
   return undefined;
 }
 
+function matchExportTarget(exportsField, exportKey) {
+  if (typeof exportsField === "string") {
+    return exportKey === "." ? exportsField : undefined;
+  }
+  const exact = selectExportTarget(exportsField?.[exportKey]);
+  if (exact) return exact;
+  for (const [key, value] of Object.entries(exportsField ?? {})) {
+    const wildcard = key.indexOf("*");
+    if (wildcard < 0) continue;
+    const prefix = key.slice(0, wildcard);
+    const suffix = key.slice(wildcard + 1);
+    if (!exportKey.startsWith(prefix) || !exportKey.endsWith(suffix)) continue;
+    const captured = exportKey.slice(prefix.length, exportKey.length - suffix.length);
+    const target = selectExportTarget(value);
+    if (target) return target.replaceAll("*", captured);
+  }
+  return undefined;
+}
+
 export function getDefaultLocalWingRoot(repoRoot) {
   return resolve(repoRoot, "..", "phoenix-wing");
 }
@@ -93,15 +112,15 @@ export function resolveLocalWingImport(specifier, packages) {
   }
   const exportKey = suffix ? "." + suffix : ".";
   const exportsField = localPackage.manifest.exports;
-  const exportValue = typeof exportsField === "string"
-    ? (exportKey === "." ? exportsField : undefined)
-    : exportsField?.[exportKey];
-  const target = selectExportTarget(exportValue)
+  const target = matchExportTarget(exportsField, exportKey)
     ?? (exportKey === "." ? localPackage.manifest.module ?? localPackage.manifest.main : undefined);
   if (!target || typeof target !== "string") {
     throw new Error(packageName + " 未声明本地入口 " + exportKey + "（import: " + specifier + "）");
   }
   const resolvedTarget = resolve(localPackage.packageRoot, target);
+  if (!isInside(localPackage.packageRoot, resolvedTarget)) {
+    throw new Error(specifier + " 的本地构建入口越出包目录：" + resolvedTarget);
+  }
   if (!existsSync(resolvedTarget)) {
     throw new Error(
       specifier + " 的本地构建入口不存在：" + resolvedTarget + "\n"

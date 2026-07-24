@@ -25,11 +25,13 @@ function session(): KtcCodegenDocumentModel {
 
 function controlModel(model: KtcCodegenDocumentModel): KtcCodegenControlViewModel {
   return {
-    kind: "kt.codegen.control-view-model",
+    kind: "kt.codegen.control-ui-model",
     schemaVersion: 1,
+    documentId: model.identity.uri,
     uri: model.identity.uri,
     fileName: model.identity.fileName,
     blocks: [],
+    unclosed: [],
     selectedBlockKeys: [],
     singleSelectionMode: false,
     showMissingTemplates: false,
@@ -60,7 +62,7 @@ describe("Codegen editor session presenter", () => {
       uri: model.identity.uri,
       fileName: "Demo.json",
       dirty: true,
-      controls: expect.objectContaining({ kind: "kt.codegen.control-view-model" }),
+      controls: expect.objectContaining({ kind: "kt.codegen.control-ui-model" }),
     }));
     expect(view.setDocumentState).toHaveBeenCalledWith(
       model.identity.uri, "Demo.json", true, false,

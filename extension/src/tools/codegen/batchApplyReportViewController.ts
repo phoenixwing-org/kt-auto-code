@@ -4,8 +4,8 @@ import type { KtcCodegenBatchApplyReport } from "./batchApplyReport.js";
 import { getCodegenBatchApplyReportHtml } from "./batchApplyReportHtml.js";
 
 export type KtcCodegenBatchApplyReportAction =
-  | { readonly kind: "json"; readonly uri: string }
-  | { readonly kind: "issue"; readonly file: string; readonly line?: number };
+  | { readonly kind: "json"; readonly documentId: string }
+  | { readonly kind: "issue"; readonly path: string; readonly line?: number };
 
 export interface KtcCodegenBatchApplyReportViewCallbacks {
   readonly openCodegenJson: (uri: string) => Promise<void>;
@@ -16,36 +16,46 @@ export function ktcResolveCodegenBatchApplyReportAction(
   report: KtcCodegenBatchApplyReport,
   message: unknown,
 ): KtcCodegenBatchApplyReportAction | undefined {
-  if (!isRecord(message) || typeof message.type !== "string") return undefined;
-  if (message.type === "openJson" && typeof message.uri === "string") {
-    const item = report.items.find((candidate) => candidate.uri === message.uri);
-    return item ? { kind: "json", uri: item.uri } : undefined;
+  if (!isRecord(message) || typeof message.action !== "string") return undefined;
+  if (message.action === "openDocument" && typeof message.documentId === "string") {
+    const item = report.items.find((candidate) => candidate.documentId === message.documentId);
+    return item ? { kind: "json", documentId: item.documentId } : undefined;
   }
-  if (message.type !== "openIssue" || typeof message.file !== "string") return undefined;
+  if (message.action !== "openIssue" || typeof message.path !== "string") return undefined;
   const line = typeof message.line === "number" && Number.isFinite(message.line)
     ? Math.max(1, Math.trunc(message.line))
     : undefined;
   const issue = report.items
     .flatMap((item) => item.issues)
-    .find((candidate) => candidate.file === message.file && candidate.line === line);
-  return issue?.file
-    ? { kind: "issue", file: issue.file, ...(issue.line === undefined ? {} : { line: issue.line }) }
+    .find((candidate) => candidate.path === message.path && candidate.line === line);
+  return issue?.path
+    ? { kind: "issue", path: issue.path, ...(issue.line === undefined ? {} : { line: issue.line }) }
     : undefined;
 }
 
 export class KtcCodegenBatchApplyReportViewController implements vscode.Disposable {
   private panel: vscode.WebviewPanel | undefined;
   private report: KtcCodegenBatchApplyReport | undefined;
+  private extensionUri: vscode.Uri | undefined;
 
   constructor(private readonly callbacks: KtcCodegenBatchApplyReportViewCallbacks) {}
 
+  initialize(extensionUri: vscode.Uri): void {
+    this.extensionUri = extensionUri;
+  }
+
   show(report: KtcCodegenBatchApplyReport): void {
+    if (!this.extensionUri) throw new Error("Codegen 报告 View 尚未初始化扩展资源根");
     this.report = report;
     if (!this.panel) this.panel = this.createPanel();
     this.panel.title = report.applyKind === "single" ? "Codegen 应用报告" : "Codegen 全部应用报告";
+    const componentScriptUri = this.panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, "dist", "codegen-apply-report.js"),
+    ).toString();
     this.panel.webview.html = getCodegenBatchApplyReportHtml(
       report,
       randomBytes(16).toString("base64url"),
+      componentScriptUri,
     );
     this.panel.reveal(vscode.ViewColumn.Active, false);
   }
@@ -62,7 +72,7 @@ export class KtcCodegenBatchApplyReportViewController implements vscode.Disposab
       "ktAutoCode.codegenBatchApplyReport",
       "Codegen 应用报告",
       { viewColumn: vscode.ViewColumn.Active, preserveFocus: false },
-      { enableScripts: true, retainContextWhenHidden: true },
+      { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: this.extensionUri ? [this.extensionUri] : [] },
     );
     panel.webview.onDidReceiveMessage(async (message: unknown) => {
       try {
@@ -87,10 +97,10 @@ export class KtcCodegenBatchApplyReportViewController implements vscode.Disposab
     const action = ktcResolveCodegenBatchApplyReportAction(this.report, message);
     if (!action) return;
     if (action.kind === "json") {
-      await this.callbacks.openCodegenJson(action.uri);
+      await this.callbacks.openCodegenJson(action.documentId);
       return;
     }
-    const uri = vscode.Uri.file(action.file);
+    const uri = vscode.Uri.file(action.path);
     const document = await vscode.workspace.openTextDocument(uri);
     if (action.line === undefined) {
       await vscode.window.showTextDocument(document, { preview: true });

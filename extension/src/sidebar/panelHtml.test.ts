@@ -52,6 +52,18 @@ describe("sidebar panel HTML", () => {
     expect(html).not.toContain('type: "chooseAssociatedRule"');
     expect(html).toContain('body.detail-block #tabs');
     expect(html).toContain('id="module-block"');
+    expect(html).toContain('id="welcome-panel"');
+    expect(html).toContain('id="welcome-products"');
+    expect(html).toContain('class="welcome-brand-name">PHOENIX</h2>');
+    expect(html).toContain('data-welcome-action="openRepository">Gitee 主页</button>');
+    expect(html).toContain('data-welcome-action="openInstallGuide">安装说明</button>');
+    expect(html).toContain('data-welcome-action="openQuickStart">快速开始</button>');
+    expect(html).toContain('data-welcome-action="openSettings">插件设置</button>');
+    expect(html).toContain('body.welcome-mode .wrap > :not(#welcome-panel)');
+    expect(html).toContain('state.presentation === "detailBlock" && (state.openToolIds || []).length === 0');
+    expect(html).toContain('state.extensionInstallations = msg.extensionInstallations || []');
+    expect(html).toContain('type: "welcomeAction"');
+    expect(html).toContain('action: "installExtension"');
     expect(html).toContain('type: "moduleBlockAction"');
     expect(html).toContain('msg.type === "moduleBlock"');
     expect(html).toContain('body.external-module-block');
@@ -65,7 +77,7 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('<ktc-reorder-members-panel id="reorder-members-panel" hidden>');
     expect(html).toContain("test-webview:/extension/dist/reorder-members-panel.js");
     expect(html).toContain('els.reorderMembersPanel.model = {');
-    expect(html).toContain('"ktc-reorder-members-action"');
+    expect(html).toContain('"pnw-code-reorder-members-action"');
     expect(html).toContain('type: "reorderAction"');
     expect(html).toContain('type: "reorderSelection"');
     expect(html).toContain('type: "run", toolId: "reorderMembers", action: detail.action');
@@ -86,9 +98,17 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('"项目覆盖：" + overrides.join(" · ")');
     expect(html).toContain('"所有文件均符合当前项目编码目标。"');
     expect(html).toContain('renderHeaderResults(ts, !!state.showDetails)');
-    expect(html).toContain('renderCodeRenameResults(ts)');
+    expect(html).toContain('<ktc-rename-results-panel id="rename-results-panel" hidden>');
+    expect(html).toContain("test-webview:/extension/dist/rename-results-panel.js");
+    expect(html).toContain('syncRenameResultsPanel(ts)');
+    expect(html).toContain('"pnw-code-rename-results-action"');
+    expect(html).not.toContain('renderCodeRenameResults(ts)');
     expect(html).toContain('renderIgnoreResults(ts)');
-    expect(html).toContain('renderUuidResults(ts)');
+    expect(html).toContain('<ktc-uuid-results-panel id="uuid-results-panel" hidden>');
+    expect(html).toContain("test-webview:/extension/dist/uuid-results-panel.js");
+    expect(html).toContain('syncUuidResultsPanel(ts)');
+    expect(html).toContain('"pnw-code-uuid-results-action"');
+    expect(html).not.toContain('renderUuidResults(ts)');
     expect(html).toContain('renderCaaResults(ts)');
     expect(html).toContain('renderEnvironment(ts)');
     expect(html).toContain('id="environment-block"');
@@ -97,10 +117,11 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('body.codegen-tool .wrap { padding-inline: 0; }');
     expect(html).toContain('body.codegen-tool .meta { margin: 4px 5px 5px; }');
     expect(html).toContain("test-webview:/extension/dist/codegen-primary-panel.js");
-    expect(html).toContain('els.codegenPanel.model = {');
+    expect(html).toContain('els.codegenPanel.model = model');
     expect(html).toContain('els.codegenPanel.hidden = !codegen');
-    expect(html).toContain('"ktc-codegen-primary-action"');
-    expect(html).toContain('Object.assign({ type: "codegenAction", toolId: "codegen" }, event.detail)');
+    expect(html).toContain('"kt-codegen-primary-action"');
+    expect(html).toContain('message.uri = detail.id');
+    expect(html).toContain('message.reportId = detail.id');
     expect(html).toContain('type, toolId: "codegen", uri');
     expect(html).toContain('postCodegenControl("codegenControlSelection"');
     expect(html).not.toContain('postCodegenControl("codegenControlDisplay"');
@@ -122,6 +143,12 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('els.gitPanel.hidden = !git');
     expect(html).toContain('"ktc-git-primary-action"');
     expect(html).toContain('type: "gitAction", toolId: "git"');
+    expect(html).toContain('id="git-repository-select"');
+    expect(html).toContain('els.workspaceContextLabel.textContent = git ? "仓库：" : "工作区："');
+    expect(html).toContain('option.textContent = repository.name + " · " + repository.relativePath');
+    expect(html).toContain('selected ? "Git 仓库：" + selected.name + " · " + selected.id : "Git 仓库"');
+    expect(html).toContain('action: "selectRepository", repositoryId');
+    expect(html).toContain('els.gitRepositorySelect.disabled = running || projects.length <= 1');
     expect(html).toContain('action: "pick"');
     expect(html).toContain('action: "set"');
     expect(html).toContain('action: "clear"');
@@ -205,52 +232,29 @@ describe("sidebar panel HTML", () => {
       `return function renderCodegen(ts, running) {${body!}\n};`,
     )(els) as (state: Record<string, unknown>, running: boolean) => void;
 
-    const documents = [{
-      uri: "file:///workspace/root.json",
-      fileName: "root.json",
-      displayPath: "root.json",
-      itemCount: 3,
-    }];
-    const candidates = [{
-      uri: "file:///workspace/Part.cpp",
-      displayPath: "Part.cpp",
-      markerCount: 2,
-      encoding: "UTF-8",
-    }];
-    const controls = { uri: "file:///workspace/root.json", blocks: [] };
-    renderCodegen({
-      codegenOperation: "discovery",
-      codegenActiveUri: "file:///workspace/root.json",
-      codegenDocuments: documents,
-      codegenCandidates: candidates,
-      codegenControls: controls,
-      codegenBatch: { current: 1, total: 2, fileName: "root.json" },
-    }, true);
-
-    expect(els.codegenPanel.model).toEqual({
-      documents,
-      activeUri: "file:///workspace/root.json",
-      controls,
-      candidates,
-      reports: [],
-      reportInvalidCount: 0,
-      operation: "discovery",
-      batch: undefined,
-      running: true,
-    });
-
-    renderCodegen({ codegenOperation: "batch-apply" }, true);
-    expect(els.codegenPanel.model).toEqual({
+    const codegen = {
+      kind: "kt.codegen.primary-ui-model",
+      schemaVersion: 1,
       documents: [],
-      activeUri: undefined,
-      controls: undefined,
       candidates: [],
       reports: [],
       reportInvalidCount: 0,
-      operation: undefined,
-      batch: undefined,
+      operation: "discovery",
       running: false,
-    });
+      capabilities: {
+        openJson: true,
+        importCsv: true,
+        applyAll: true,
+        scanCandidates: true,
+        openReportDirectory: false,
+      },
+    };
+    renderCodegen({ codegen }, true);
+
+    expect(els.codegenPanel.model).toEqual({ ...codegen, running: true });
+
+    renderCodegen({}, true);
+    expect(els.codegenPanel.model).toBeUndefined();
   });
 
   it("搜索替换只在真实运行时显示繁忙，普通校验给出可操作原因", () => {
@@ -287,9 +291,7 @@ describe("sidebar panel HTML", () => {
     expect(manifest.contributes.views["kt-auto-code"]?.map((view) => view.initialSize)).toEqual([1, 12]);
     expect(manifest.contributes.viewsContainers?.activitybar).toHaveLength(1);
     expect(manifest.contributes.viewsContainers?.activitybar?.[0]?.id).toBe("kt-auto-code");
-    expect(manifest.contributes.views["kt-auto-code"]?.[1]?.when).toBe(
-      "ktAutoCode.modulePanelVisible",
-    );
+    expect(manifest.contributes.views["kt-auto-code"]?.[1]?.when).toBeUndefined();
     expect(manifest.contributes.menus["view/item/context"]).toBeUndefined();
     expect(manifest.contributes.commands.filter((command) => [
       "ktAutoCode.codegen.open",
@@ -315,6 +317,11 @@ describe("sidebar panel HTML", () => {
       submenu: "ktAutoCode.modulePanel.more",
       when: "view == ktAutoCode.modulePanel && ktAutoCode.modulePanel.activeTool == codegen",
       group: "navigation@8",
+    });
+    expect(manifest.contributes.menus["view/title"]).toContainEqual({
+      command: "ktAutoCode.modulePanel.close",
+      when: "view == ktAutoCode.modulePanel && ktAutoCode.modulePanelVisible",
+      group: "navigation@9",
     });
     expect(manifest.contributes.menus["ktAutoCode.modulePanel.more"]).toEqual([
       { command: "ktAutoCode.codegen.open", group: "navigation@1" },

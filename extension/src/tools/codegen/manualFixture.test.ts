@@ -3,6 +3,14 @@ import { readFileSync } from "node:fs";
 import { KtCodegenController } from "@phoenix-wing/kt-codegen";
 
 const fixtureRoot = new URL("../../../../tests/fixtures/codegen-manual-workspace/", import.meta.url);
+const LEGACY_PANEL_CSV = `NameSuffix,ID,Name,ParamString,DataType,TCKind,DefaultValue,CATAttrInOut,IsList,IsOnTree,Component,Count,IsParamDlg,Unit,Author,CreateDate,Notes
+Item,1,Legacy Enabled,LegacyEnabled,bool,Boolean,true,In,0,1,QCheckBox,1,1,,Manual QA,2026-07-16,CSV conversion input
+Item,2,Legacy Title,LegacyTitle,CATUnicodeString,String,,InOut,0,1,QLineEdit,1,1,,Manual QA,2026-07-16,CSV conversion input
+$NamePrefix,PNX,the prefix
+$NameMiddle,LegacyPanel,the middle name
+$NameSpace,PNX,the namespace
+$AppendFunction,push_back,the append function name
+`;
 
 function text(path: string): string {
   return readFileSync(new URL(path, fixtureRoot), "utf8");
@@ -28,7 +36,7 @@ describe("Codegen manual QA fixture", () => {
 
   it("旧 CSV 可规范化成第三份 JSON", () => {
     const controller = new KtCodegenController();
-    const read = controller.readCsv(text("legacy/PNXLegacyPanelParam.csv"));
+    const read = controller.readCsv(LEGACY_PANEL_CSV);
     expect(read.ok).toBe(true);
     expect(controller.param.namePrefix).toBe("PNX");
     expect(controller.param.nameMiddle).toBe("LegacyPanel");

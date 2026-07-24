@@ -1,42 +1,27 @@
-import type {
-  KtcCodegenApplyChange,
-  KtcCodegenApplyHealth,
-  KtcCodegenApplyReasonCode,
-} from "./applyOutcome.js";
+import {
+  ktCodegenApplyReportTotals,
+  type KtCodegenApplyReportChange,
+  type KtCodegenApplyReportHealth,
+  type KtCodegenApplyReportTotals,
+} from "@phoenix-wing/kt-codegen/ui/report-model";
+import type { KtcCodegenApplyReasonCode } from "./applyOutcome.js";
 
 export interface KtcCodegenBatchApplyItemResult {
-  readonly uri: string;
+  readonly documentId: string;
   readonly fileName: string;
-  readonly health: KtcCodegenApplyHealth;
-  readonly change: KtcCodegenApplyChange;
+  readonly health: KtCodegenApplyReportHealth;
+  readonly change: KtCodegenApplyReportChange;
   readonly reasonCode: KtcCodegenApplyReasonCode;
   readonly errorCount: number;
 }
 
-export interface KtcCodegenBatchApplyTotals {
-  readonly total: number;
-  readonly success: number;
-  readonly warning: number;
-  readonly error: number;
-  readonly updated: number;
-  readonly unchanged: number;
-  readonly partial: number;
-  readonly notApplied: number;
-}
+export type KtcCodegenBatchApplyTotals = KtCodegenApplyReportTotals;
 
+/** 插件兼容名；真实双轴汇总算法由 Wing 共享。 */
 export function ktcCodegenBatchApplyTotals(
   items: readonly KtcCodegenBatchApplyItemResult[],
 ): KtcCodegenBatchApplyTotals {
-  return {
-    total: items.length,
-    success: items.filter((item) => item.health === "success").length,
-    warning: items.filter((item) => item.health === "warning").length,
-    error: items.filter((item) => item.health === "error").length,
-    updated: items.filter((item) => item.change === "updated").length,
-    unchanged: items.filter((item) => item.change === "unchanged").length,
-    partial: items.filter((item) => item.change === "partial").length,
-    notApplied: items.filter((item) => item.change === "not-applied").length,
-  };
+  return ktCodegenApplyReportTotals(items);
 }
 
 export function ktcCodegenBatchApplySummary(

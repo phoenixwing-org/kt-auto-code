@@ -49,6 +49,7 @@ import {
 } from "./workspaceOperationCoordinator.js";
 import { ktcFindCodegenControlLocation } from "./controlNavigation.js";
 import { KtcCodegenControlSessionController } from "./controlSessionController.js";
+import { ktcCodegenPrimaryUiModel } from "./primaryViewModel.js";
 import { ktcResolveCodegenWorkspaceRoot } from "./workspaceRootResolver.js";
 import {
   ktcShouldRetainCodegenSessionInList,
@@ -202,6 +203,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
 
   initialize(context: vscode.ExtensionContext): void {
     const extensionUri = context.extensionUri;
+    this.batchApplyReports.initialize(extensionUri);
     this.extensionVersion = String((context.extension.packageJSON as { version?: unknown }).version ?? "unknown");
     this.problemReporter = new KtcCodegenProblemReporter();
     this.editorViews = new KtcCodegenEditorViewController(extensionUri, {
@@ -525,8 +527,9 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     },
   ): KtcCodegenBatchApplyReportItem {
     return {
-      uri: document.uri,
+      documentId: document.uri,
       fileName: document.fileName,
+      displayPath: document.uri,
       health: result.health,
       change: result.change,
       reasonCode: result.reasonCode,
@@ -565,7 +568,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     ctx.postState({
       status: "running",
       message: "正在查找 Codegen JSON/CSV…",
-      codegenOperation: "discovery",
+      codegen: this.primaryUiModel(ctx, "discovery", true),
     });
     try {
       const result = await this.discovery.discover(
@@ -770,7 +773,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     ctx.postState({
       status: "running",
       message: "正在扫描含控制符的候选源码…",
-      codegenOperation: "candidates",
+      codegen: this.primaryUiModel(ctx, "candidates", true),
     });
     try {
       let indexedFileCount = 0;
@@ -833,7 +836,11 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     message: string,
   ): void {
     if (!this.workspaceOperations.isCurrent(cancellation) || cancellation.token.isCancellationRequested) return;
-    ctx.postState({ status: "running", message, codegenOperation: this.workspaceOperations.kind });
+    ctx.postState({
+      status: "running",
+      message,
+      codegen: this.primaryUiModel(ctx, this.workspaceOperations.kind, true),
+    });
   }
 
   private async openCandidate(uriString: string, ctx: ToolRunContext): Promise<void> {
@@ -1645,7 +1652,17 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
         ctx.log(ktcCodegenApplyDiagnosticLog(warning));
       }
     }
-    session.markPreflightApplied(receiptDiagnostics);
+    const updatedRegionIds = new Set(
+      writes.flatMap((write) => write.regions.map((region) => region.id)),
+    );
+    const artifactRegionIds = new Set(plan.artifacts.map((artifact) => artifact.regionId));
+    const regionOutcomes = plan.markerRegions
+      .filter((region) => artifactRegionIds.has(region.id))
+      .map((region) => ({
+        regionId: region.id,
+        change: updatedRegionIds.has(region.id) ? "updated" as const : "unchanged" as const,
+      }));
+    session.markPreflightApplied(receiptDiagnostics, regionOutcomes);
     this.sessionPresenter.publishControls(session);
     this.problemReporter?.publish(session.identity.uri, session.identity.fsPath, [...plan.diagnostics, ...receiptDiagnostics]);
     const regionCount = writes.reduce((total, write) => total + write.regionCount, 0);
@@ -1863,17 +1880,31 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
   ): void {
     const activeSession = this.activeUri ? this.sessions.get(this.activeUri) : undefined;
     const batch = this.batchApplyProgress;
+    const operation = batch ? "batch-apply" as const : this.workspaceOperations.kind;
+    const running = Boolean(batch || (status === "done" && this.workspaceOperations.kind));
     ctx.postState({
-      status: batch || (status === "done" && this.workspaceOperations.kind) ? "running" : status,
+      status: running ? "running" : status,
       message,
-      codegenActiveUri: this.activeUri,
-      codegenDocuments: this.summaries(ctx.workspaceRoot),
-      codegenControls: activeSession ? this.controlSessions.catalogModel(activeSession) : undefined,
-      codegenCandidates: this.candidates,
-      codegenReports: this.applyReportSummaries,
-      codegenReportInvalidCount: this.applyReportInvalidCount,
-      codegenOperation: batch ? "batch-apply" : this.workspaceOperations.kind,
-      codegenBatch: batch,
+      codegen: this.primaryUiModel(ctx, operation, running, activeSession),
+    });
+  }
+
+  private primaryUiModel(
+    ctx: ToolRunContext,
+    operation: KtcCodegenWorkspaceOperationKind | "batch-apply" | undefined,
+    running: boolean,
+    activeSession = this.activeUri ? this.sessions.get(this.activeUri) : undefined,
+  ) {
+    return ktcCodegenPrimaryUiModel({
+      documents: this.summaries(ctx.workspaceRoot),
+      activeUri: this.activeUri,
+      controls: activeSession ? this.controlSessions.catalogModel(activeSession) : undefined,
+      candidates: this.candidates,
+      reports: this.applyReportSummaries,
+      reportInvalidCount: this.applyReportInvalidCount,
+      operation,
+      batch: this.batchApplyProgress,
+      running,
     });
   }
 

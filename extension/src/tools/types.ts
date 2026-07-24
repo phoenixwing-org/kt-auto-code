@@ -17,12 +17,13 @@ import type {
 } from "./codegen/controlViewModel.js";
 import type {
   KtcCodegenBatchApplyProgress,
-  KtcCodegenApplyReportSummary,
   KtcCodegenDocumentSummary,
+  KtcCodegenPrimaryViewModel,
   KtcCodegenSourceCandidateSummary,
 } from "./codegen/primaryViewModel.js";
 import type { KtcRunViewModel } from "../../../src/run/KtcRunModel.js";
 import type { KtcGitViewModel } from "../../../src/git/KtcGitModel.js";
+import type { PnwCodeUuidFileResultRow } from "@phoenix-wing/code-core/ui/model";
 
 export type { KtcCodegenMetaField } from "./codegen/contracts.js";
 export type {
@@ -48,6 +49,15 @@ export type {
 /** Webview → Extension */
 export type WebviewInboundMessage =
   | { type: "ready" }
+  | {
+      type: "welcomeAction";
+      action: "openRepository" | "openInstallGuide" | "openQuickStart" | "openSettings";
+    }
+  | {
+      type: "welcomeAction";
+      action: "installExtension";
+      extensionId: "kuntai.kt-auto-code" | "kuntai.kt-auto-cad";
+    }
   | { type: "runModuleTool"; moduleId: KtcModuleId; command: string }
   | { type: "moduleBlockAction"; actionId: string }
   | { type: "selectTool"; toolId: string }
@@ -67,6 +77,7 @@ export type WebviewInboundMessage =
         | "refresh"
         | "openScm"
         | "openOutput"
+        | "selectRepository"
         | "openAction"
         | "selectCommit"
         | "copySummary"
@@ -173,6 +184,7 @@ export type WebviewOutboundMessage =
       selectedWorkspaceFileScopes: Record<string, string>;
       workspaceFileScopeError?: string;
       moduleState: KtcModuleState;
+      extensionInstallations: readonly KtcWelcomeExtensionSummary[];
     }
   | { type: "workspace"; label: string }
   | { type: "scope"; scope: { includeHeaders: boolean; includeSource: boolean; includeMarkdown: boolean } }
@@ -229,6 +241,14 @@ export interface ToolSummary {
 export interface KtcRecentWorkingDirectories {
   workspace: readonly string[];
   external: readonly string[];
+}
+
+export interface KtcWelcomeExtensionSummary {
+  id: "kuntai.kt-auto-code" | "kuntai.kt-auto-cad";
+  title: "KT Auto Code" | "KT Auto CAD";
+  moduleId: "code" | "cad";
+  installed: boolean;
+  version?: string;
 }
 
 export type KtcAssociatedRulePickerMode = "custom" | "common" | "caa" | "row";
@@ -289,14 +309,7 @@ export interface ToolUiState {
   uuidStrategy?: "map_per_value" | "fresh_per_hit";
   uuidSelectedUris?: string[];
   environmentValues?: ProjectEnvironmentValueSummary[];
-  codegenDocuments?: KtcCodegenDocumentSummary[];
-  codegenActiveUri?: string;
-  codegenControls?: KtcCodegenControlCatalogViewModel;
-  codegenCandidates?: KtcCodegenSourceCandidateSummary[];
-  codegenReports?: KtcCodegenApplyReportSummary[];
-  codegenReportInvalidCount?: number;
-  codegenOperation?: "discovery" | "candidates" | "batch-apply";
-  codegenBatch?: KtcCodegenBatchApplyProgress;
+  codegen?: KtcCodegenPrimaryViewModel;
   run?: KtcRunViewModel;
   git?: KtcGitViewModel;
 }
@@ -311,17 +324,7 @@ export interface ProjectEnvironmentValueSummary {
   pathExists?: boolean;
 }
 
-export interface UuidFileResultSummary {
-  uri: string;
-  relativePath: string;
-  encoding: string;
-  hitCount: number;
-  firstLine: number;
-  state: "pending" | "cancelled" | "applied" | "blocked";
-  hasApplied: boolean;
-  warnings: readonly string[];
-  mappings: readonly { line: number; column: number; from: string; to: string }[];
-}
+export type UuidFileResultSummary = PnwCodeUuidFileResultRow;
 
 export interface CaaDialogFileResultSummary {
   uri: string;

@@ -78,6 +78,20 @@ const codegenPrimaryPanelOptions = {
 };
 
 /** @type {import('esbuild').BuildOptions} */
+const codegenApplyReportOptions = {
+  entryPoints: ["src/tools/codegen/batchApplyReportEntry.ts"],
+  bundle: true,
+  outfile: "dist/codegen-apply-report.js",
+  platform: "browser",
+  format: "iife",
+  target: "es2022",
+  sourcemap: true,
+  logLevel: "info",
+  metafile: Boolean(localWing),
+  plugins: localWingPlugins,
+};
+
+/** @type {import('esbuild').BuildOptions} */
 const runPrimaryPanelOptions = {
   entryPoints: ["src/tools/run/KtcRunPrimaryPanelEntry.ts"],
   bundle: true,
@@ -110,6 +124,34 @@ const reorderMembersPanelOptions = {
   entryPoints: ["src/sidebar/reorderMembersPanelEntry.ts"],
   bundle: true,
   outfile: "dist/reorder-members-panel.js",
+  platform: "browser",
+  format: "iife",
+  target: "es2022",
+  sourcemap: true,
+  logLevel: "info",
+  metafile: Boolean(localWing),
+  plugins: localWingPlugins,
+};
+
+/** @type {import('esbuild').BuildOptions} */
+const uuidResultsPanelOptions = {
+  entryPoints: ["src/sidebar/uuidResultsPanelEntry.ts"],
+  bundle: true,
+  outfile: "dist/uuid-results-panel.js",
+  platform: "browser",
+  format: "iife",
+  target: "es2022",
+  sourcemap: true,
+  logLevel: "info",
+  metafile: Boolean(localWing),
+  plugins: localWingPlugins,
+};
+
+/** @type {import('esbuild').BuildOptions} */
+const renameResultsPanelOptions = {
+  entryPoints: ["src/sidebar/renameResultsPanelEntry.ts"],
+  bundle: true,
+  outfile: "dist/rename-results-panel.js",
   platform: "browser",
   format: "iife",
   target: "es2022",
@@ -154,13 +196,16 @@ if (watch) {
   const tableContext = await esbuild.context(codegenTableOptions);
   const controlCatalogContext = await esbuild.context(codegenControlCatalogOptions);
   const primaryPanelContext = await esbuild.context(codegenPrimaryPanelOptions);
+  const applyReportContext = await esbuild.context(codegenApplyReportOptions);
   const runPrimaryPanelContext = await esbuild.context(runPrimaryPanelOptions);
   const gitPrimaryPanelContext = await esbuild.context(gitPrimaryPanelOptions);
   const reorderMembersPanelContext = await esbuild.context(reorderMembersPanelOptions);
+  const uuidResultsPanelContext = await esbuild.context(uuidResultsPanelOptions);
+  const renameResultsPanelContext = await esbuild.context(renameResultsPanelOptions);
   const associatedRulePickerContext = await esbuild.context(associatedRulePickerOptions);
   await Promise.all([
-    extensionContext.watch(), tableContext.watch(), controlCatalogContext.watch(), primaryPanelContext.watch(),
-    runPrimaryPanelContext.watch(), gitPrimaryPanelContext.watch(), reorderMembersPanelContext.watch(), associatedRulePickerContext.watch(),
+    extensionContext.watch(), tableContext.watch(), controlCatalogContext.watch(), primaryPanelContext.watch(), applyReportContext.watch(),
+    runPrimaryPanelContext.watch(), gitPrimaryPanelContext.watch(), reorderMembersPanelContext.watch(), uuidResultsPanelContext.watch(), renameResultsPanelContext.watch(), associatedRulePickerContext.watch(),
   ]);
   console.log("watching extension…");
 } else {
@@ -170,9 +215,12 @@ if (watch) {
     esbuild.build(codegenTableOptions),
     esbuild.build(codegenControlCatalogOptions),
     esbuild.build(codegenPrimaryPanelOptions),
+    esbuild.build(codegenApplyReportOptions),
     esbuild.build(runPrimaryPanelOptions),
     esbuild.build(gitPrimaryPanelOptions),
     esbuild.build(reorderMembersPanelOptions),
+    esbuild.build(uuidResultsPanelOptions),
+    esbuild.build(renameResultsPanelOptions),
     esbuild.build(associatedRulePickerOptions),
     esbuild.build(extensionHostSmokeOptions),
   ]);

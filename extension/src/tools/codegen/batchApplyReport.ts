@@ -1,45 +1,24 @@
 import type { KtCodegenDiagnostic } from "@phoenix-wing/kt-codegen";
 import {
-  ktcCodegenBatchApplyTotals,
-  type KtcCodegenBatchApplyItemResult,
-} from "./batchApplyV1.js";
+  KT_CODEGEN_APPLY_REPORT_KIND,
+  KT_CODEGEN_APPLY_REPORT_SCHEMA_VERSION,
+  ktCodegenBuildApplyReport,
+  type KtCodegenApplyReportIssue,
+  type KtCodegenApplyReportItem,
+  type KtCodegenApplyReportUiModel,
+} from "@phoenix-wing/kt-codegen/ui/report-model";
+import type { KtcCodegenApplyReasonCode } from "./applyOutcome.js";
 
-export const KTC_CODEGEN_APPLY_REPORT_KIND = "kt.codegen.apply-report" as const;
-export const KTC_CODEGEN_APPLY_REPORT_SCHEMA_VERSION = 1 as const;
+export const KTC_CODEGEN_APPLY_REPORT_KIND = KT_CODEGEN_APPLY_REPORT_KIND;
+export const KTC_CODEGEN_APPLY_REPORT_SCHEMA_VERSION = KT_CODEGEN_APPLY_REPORT_SCHEMA_VERSION;
 export type KtcCodegenApplyReportKind = "single" | "batch";
-
-export interface KtcCodegenBatchApplyReportIssue {
-  readonly severity: "error" | "warning";
-  readonly code: string;
-  readonly message: string;
-  readonly file?: string;
-  readonly line?: number;
+export type KtcCodegenBatchApplyReportIssue = KtCodegenApplyReportIssue;
+export interface KtcCodegenBatchApplyReportItem extends KtCodegenApplyReportItem {
+  readonly reasonCode: KtcCodegenApplyReasonCode;
 }
-
-export interface KtcCodegenBatchApplyReportItem extends KtcCodegenBatchApplyItemResult {
-  readonly preflightRegionCount: number;
-  readonly preflightArtifactCount: number;
-  readonly preflightDiagnosticCount: number;
-  readonly preflightErrorCount: number;
-  readonly modifiedFileCount: number;
-  readonly writtenRegionCount: number;
-  readonly elapsedMilliseconds: number;
-  readonly issues: readonly KtcCodegenBatchApplyReportIssue[];
-}
-
-export interface KtcCodegenBatchApplyReport {
-  readonly kind: typeof KTC_CODEGEN_APPLY_REPORT_KIND;
-  readonly schemaVersion: typeof KTC_CODEGEN_APPLY_REPORT_SCHEMA_VERSION;
-  readonly reportId: string;
-  readonly applyKind: KtcCodegenApplyReportKind;
-  readonly startedAt: string;
-  readonly finishedAt: string;
-  readonly elapsedMilliseconds: number;
+export type KtcCodegenBatchApplyReport = Omit<KtCodegenApplyReportUiModel, "items"> & {
   readonly items: readonly KtcCodegenBatchApplyReportItem[];
-  readonly totals: ReturnType<typeof ktcCodegenBatchApplyTotals>;
-  readonly errorCount: number;
-  readonly warningCount: number;
-}
+};
 
 export function ktcCodegenBatchApplyReport(
   items: readonly KtcCodegenBatchApplyReportItem[],
@@ -53,48 +32,38 @@ export function ktcCodegenBatchApplyReport(
 ): KtcCodegenBatchApplyReport {
   const finishedAt = validDate(metadata.finishedAt) ?? new Date().toISOString();
   const duration = finiteDuration(elapsedMilliseconds);
-  return {
-    kind: KTC_CODEGEN_APPLY_REPORT_KIND,
-    schemaVersion: KTC_CODEGEN_APPLY_REPORT_SCHEMA_VERSION,
+  const report = ktCodegenBuildApplyReport({
     reportId: metadata.reportId ?? globalThis.crypto.randomUUID(),
     applyKind: metadata.applyKind ?? "batch",
     startedAt: validDate(metadata.startedAt)
       ?? new Date(Math.max(0, Date.parse(finishedAt) - duration)).toISOString(),
     finishedAt,
     elapsedMilliseconds: duration,
-    items: [...items],
-    totals: ktcCodegenBatchApplyTotals(items),
-    errorCount: items.reduce(
-      (total, item) => total + item.issues.filter((issue) => issue.severity === "error").length,
-      0,
-    ),
-    warningCount: items.reduce(
-      (total, item) => total + item.issues.filter((issue) => issue.severity === "warning").length,
-      0,
-    ),
-  };
+    items,
+  });
+  return { ...report, items };
 }
 
 export function ktcCodegenBatchApplyReportIssues(
   diagnostics: readonly KtCodegenDiagnostic[],
-  fallbackFile?: string,
+  fallbackPath?: string,
 ): readonly KtcCodegenBatchApplyReportIssue[] {
   const seen = new Set<string>();
   const issues: KtcCodegenBatchApplyReportIssue[] = [];
   for (const diagnostic of diagnostics) {
     if (diagnostic.severity !== "error" && diagnostic.severity !== "warning") continue;
-    const file = diagnostic.path?.file ?? fallbackFile;
+    const path = diagnostic.path?.file ?? fallbackPath;
     const line = diagnostic.path?.row === undefined
       ? undefined
       : Math.max(1, Math.trunc(diagnostic.path.row) + 1);
-    const key = `${diagnostic.severity}\u0000${diagnostic.code}\u0000${diagnostic.message}\u0000${file ?? ""}\u0000${line ?? ""}`;
+    const key = `${diagnostic.severity}\u0000${diagnostic.code}\u0000${diagnostic.message}\u0000${path ?? ""}\u0000${line ?? ""}`;
     if (seen.has(key)) continue;
     seen.add(key);
     issues.push({
       severity: diagnostic.severity,
       code: diagnostic.code,
       message: diagnostic.message,
-      ...(file ? { file } : {}),
+      ...(path ? { path } : {}),
       ...(line === undefined ? {} : { line }),
     });
   }
@@ -104,9 +73,9 @@ export function ktcCodegenBatchApplyReportIssues(
 export function ktcCodegenBatchApplyReportFailure(
   code: string,
   message: string,
-  file?: string,
+  path?: string,
 ): KtcCodegenBatchApplyReportIssue {
-  return { severity: "error", code, message, ...(file ? { file } : {}) };
+  return { severity: "error", code, message, ...(path ? { path } : {}) };
 }
 
 function finiteDuration(value: number): number {

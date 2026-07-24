@@ -243,9 +243,9 @@ export function getCodegenEditorHtml(
     function syncDetailStickyTop() {
       const height = viewToolbar ? Math.ceil(viewToolbar.getBoundingClientRect().height) : 50;
       const stickyTop = height + 8;
-      document.body.style.setProperty("--ktc-codegen-detail-sticky-top", stickyTop + "px");
+      document.body.style.setProperty("--pnw-codegen-detail-sticky-top", stickyTop + "px");
       document.body.style.setProperty(
-        "--ktc-codegen-detail-available-height",
+        "--pnw-codegen-detail-height",
         Math.max(240, window.innerHeight - stickyTop - 8) + "px",
       );
     }
@@ -341,18 +341,18 @@ export function getCodegenEditorHtml(
     document.getElementById("apply").onclick = () => post({
       type: "codegenEditorAction", action: "apply", table: table.getData(),
     });
-    controlPanel.addEventListener("ktc-codegen-control-open", (event) => post({
+    controlPanel.addEventListener("kt-codegen-control-open", (event) => post({
       type: "codegenControlOpen",
       path: event.detail.path,
       line: event.detail.line,
     }));
-    controlPanel.addEventListener("ktc-codegen-control-copy-end", (event) => post({
+    controlPanel.addEventListener("kt-codegen-control-copy-end", (event) => post({
       type: "codegenControlCopyEnd",
       blockKey: event.detail.blockKey,
       path: event.detail.path,
       line: event.detail.line,
     }));
-    controlPanel.addEventListener("ktc-codegen-control-split-change", (event) => post({
+    controlPanel.addEventListener("kt-codegen-control-split-change", (event) => post({
       type: "codegenEditorLayout",
       layout: { controlSplitPercent: event.detail.ratio },
     }));

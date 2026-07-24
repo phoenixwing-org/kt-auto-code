@@ -151,12 +151,15 @@ export class KtcGitPrimaryPanel extends HTMLElement {
     status.append(statusText, statusTail);
 
     const fragments: (Node | string)[] = [style, toolbar, status];
-    if (model.lastOperation) fragments.push(this.KtcOperation(model));
-    if (model.summaryDraft) fragments.push(this.KtcSummaryEditor(model));
-    if (model.squashDraft) fragments.push(this.KtcSquashEditor(model));
+    if (model.lastOperation?.repositoryId === model.selectedRepositoryId) fragments.push(this.KtcOperation(model));
+    if (model.summaryDraft?.repositoryId === model.selectedRepositoryId) fragments.push(this.KtcSummaryEditor(model));
+    if (model.squashDraft?.repositoryId === model.selectedRepositoryId) fragments.push(this.KtcSquashEditor(model));
     const projects = document.createElement("div");
-    if (model.projects.length === 0) projects.append(this.KtcEmpty("打开 Git 工作区后，这里会显示仓库与 commit。"));
-    else for (const project of model.projects) projects.append(this.KtcProject(project));
+    const selectedProject = model.projects.find((project) => (
+      project.repository.id === model.selectedRepositoryId
+    ));
+    if (!selectedProject) projects.append(this.KtcEmpty("当前工作区未发现 Git 仓库。"));
+    else projects.append(this.KtcProject(selectedProject));
     const note = document.createElement("div");
     note.className = "note";
     note.textContent = "历史合并只更新当前本地分支，不自动 push；共享引用会要求确认，HEAD、工作区和 Git 操作状态仍会再次校验。";

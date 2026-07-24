@@ -17,16 +17,19 @@ function createWingPackage(root: string, name: string) {
   const folder = name.slice("@phoenix-wing/".length);
   const packageRoot = resolve(root, "packages", folder);
   mkdirSync(resolve(packageRoot, "dist", "table"), { recursive: true });
+  mkdirSync(resolve(packageRoot, "tests", "fixtures", "contracts"), { recursive: true });
   writeFileSync(resolve(packageRoot, "package.json"), JSON.stringify({
     name,
     scripts: { build: "tsc" },
     exports: {
       ".": { import: "./dist/index.js" },
       "./table": { import: "./dist/table/index.js" },
+      "./fixtures/*": "./tests/fixtures/contracts/*",
     },
   }));
   writeFileSync(resolve(packageRoot, "dist", "index.js"), "export {};\n");
   writeFileSync(resolve(packageRoot, "dist", "table", "index.js"), "export {};\n");
+  writeFileSync(resolve(packageRoot, "tests", "fixtures", "contracts", "sample.json"), "{}\n");
 }
 
 function createFakeWing() {
@@ -54,7 +57,7 @@ describe("本地 Wing 并列开发解析", () => {
     );
   });
 
-  it("解析主入口与 kt-codegen/table 到本地 dist", () => {
+  it("解析主入口、子入口与 fixtures 通配导出到本地仓库", () => {
     const root = createFakeWing();
     const packages = discoverLocalWingPackages(root);
     expect(resolveLocalWingImport("@phoenix-wing/kt-codegen", packages)).toBe(
@@ -62,6 +65,9 @@ describe("本地 Wing 并列开发解析", () => {
     );
     expect(resolveLocalWingImport("@phoenix-wing/kt-codegen/table", packages)).toBe(
       resolve(root, "packages/kt-codegen/dist/table/index.js"),
+    );
+    expect(resolveLocalWingImport("@phoenix-wing/kt-codegen/fixtures/sample.json", packages)).toBe(
+      resolve(root, "packages/kt-codegen/tests/fixtures/contracts/sample.json"),
     );
   });
 

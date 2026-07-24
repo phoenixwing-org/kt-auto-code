@@ -236,12 +236,13 @@ describe("KtcCodegenDocumentModel", () => {
     model.setPreflight(result);
     model.markPreflightApplied([{
       code: "apply.receipt-write-failed", severity: "warning", message: "回执失败",
-    }]);
+    }], [{ regionId: "region-1", change: "unchanged" }]);
 
     expect(model.preflight).toBeUndefined();
     expect(model.preflightSnapshot).toMatchObject({
       state: "applied",
       message: "已应用；再次 Apply 前需重新预检",
+      regionOutcomes: [{ regionId: "region-1", change: "unchanged" }],
       result: { plan: { diagnostics: [
         { code: "marker.missing-end", severity: "error" },
         { code: "apply.receipt-write-failed", severity: "warning" },

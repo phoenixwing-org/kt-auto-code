@@ -6,7 +6,7 @@ Owner：KT Auto Code maintainers
 
 适用版本：KT Auto Code 0.6.0
 
-最后核验：2026-07-21
+最后核验：2026-07-23
 
 本目录记录 Git Primary Block 的可行性、已冻结交互、安全算法与 0.6.0 实现基线。功能已进入本地发布候选；未经用户明确授权不执行 Marketplace 发布。
 
@@ -22,6 +22,7 @@ Owner：KT Auto Code maintainers
 - 简报文本框拖动后的高度保存在机器级用户设置 `ktAutoCode.git.summaryTextHeight`，下次打开简报时恢复，不写入工程 `.vscode/settings.json`。
 - 群消息中的 `++` 是固定状态后缀，表示“代码已更新”；默认生成但允许在预览中编辑。
 - 功能二“合并提交”为历史改写能力。V1 允许选择当前分支直线历史中间的连续区间；remote/其他分支或 tag 占用时询问是否只改写当前本地分支，其他安全问题仍硬阻断。
+- 多仓库增量已复用标题下方现有工作区信息行，Git 激活时显示仓库下拉。候选合并多根 `.code-workspace`、VS Code Git API 已发现的 submodule/嵌套仓库及活动编辑器所属仓库；至少保留活动仓库，下方一次只显示所选仓库，不堆叠多个完整 Git Block。
 
 ## 计划范围
 

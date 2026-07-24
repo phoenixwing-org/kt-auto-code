@@ -111,44 +111,44 @@ describe("Codegen MVC dependency boundary", () => {
     expect(host).not.toContain('executeCommand("revealFileInOS", directory)');
   });
 
-  it("Primary 目录与 JSON View 预检结果共用 Auto 高层 Web Component，但 full 不复制目录", () => {
+  it("Primary 与 JSON View 分别消费 Wing 共享 Web Component，Auto 只保留 Host tag 和消息桥", () => {
     const editor = source("./editorHtml.ts");
     const sidebar = source("../../sidebar/panelHtml.ts");
-    const catalog = source("./controlCatalog.ts");
-    const panel = source("./controlPanel.ts");
-    const primary = source("./primaryPanel.ts");
+    const controlEntry = source("./controlCatalogEntry.ts");
+    const primaryEntry = source("./primaryPanelEntry.ts");
     expect(editor).toContain('<ktc-codegen-control-panel id="control-panel" mode="full">');
     expect(sidebar).toContain('<ktc-codegen-primary-panel id="codegen-panel" hidden>');
-    expect(primary).toContain('controlPanel.setAttribute("mode", "compact")');
-    expect(panel).toContain('document.createElement("ktc-codegen-control-catalog")');
-    expect(panel).not.toContain('grid-template-rows: repeat(2, minmax(0, 1fr))');
-    expect(panel).toContain('"ktc-codegen-control-split-change"');
-    expect(panel).toContain('role", "separator"');
-    expect(panel).toContain('"显示路径"');
-    expect(panel).toContain("this.root.replaceChildren(style, results)");
-    expect(catalog).toContain(':host([mode="full"]) .list');
-    expect(catalog).toContain("overflow: visible");
+    expect(primaryEntry).toContain('@phoenix-wing/kt-codegen/ui');
+    expect(primaryEntry).toContain('ktCodegenDefinePrimaryPanelElement("ktc-codegen-primary-panel")');
+    expect(controlEntry).toContain('@phoenix-wing/kt-codegen/ui');
+    expect(controlEntry).toContain('ktCodegenDefineControlPanelElement("ktc-codegen-control-panel")');
+    expect(existsSync(new URL("./primaryPanel.ts", import.meta.url))).toBe(false);
+    expect(existsSync(new URL("./controlPanel.ts", import.meta.url))).toBe(false);
+    expect(existsSync(new URL("./controlCatalog.ts", import.meta.url))).toBe(false);
     expect(editor).not.toContain("function renderBlocks");
     expect(editor).not.toContain("function renderPreflight");
     expect(sidebar).not.toContain("block.controlWords");
-    expect(catalog).toContain("ktc-codegen-control-selection-change");
-    expect(catalog).not.toContain("ktc-codegen-control-display-change");
-    expect(catalog).toContain("ktc-codegen-control-output");
-    expect(catalog).not.toMatch(/acquireVsCodeApi|from ["']vscode["']|workspace\.fs|clipboard/);
-    expect(panel).not.toMatch(/acquireVsCodeApi|from ["']vscode["']|workspace\.fs|clipboard/);
+    expect(sidebar).toContain('"kt-codegen-control-selection-change"');
+    expect(sidebar).toContain('"kt-codegen-control-output"');
+    expect(editor).toContain('"kt-codegen-control-open"');
+    expect(editor).toContain('"kt-codegen-control-copy-end"');
+    expect(editor).toContain('"kt-codegen-control-split-change"');
   });
 
-  it("Primary 页面壳拥有 Codegen DOM，Sidebar 只投影状态并转发语义事件", () => {
+  it("Primary ViewModel 由 Host 投影为 Wing 契约，Sidebar 不再拥有 Codegen 业务 DOM", () => {
     const sidebar = source("../../sidebar/panelHtml.ts");
-    const primary = source("./primaryPanel.ts");
-    expect(sidebar).toContain("els.codegenPanel.model = {");
-    expect(sidebar).toContain('"ktc-codegen-primary-action"');
+    const primary = source("./primaryViewModel.ts");
+    expect(sidebar).toContain("els.codegenPanel.model = model");
+    expect(sidebar).toContain('"kt-codegen-primary-action"');
+    expect(sidebar).toContain("message.uri = detail.id");
+    expect(sidebar).toContain("message.reportId = detail.id");
     expect(sidebar).not.toContain("for (const entry of documents)");
     expect(sidebar).not.toContain('className = "codegen-row"');
-    expect(primary).toContain("for (const entry of model.documents)");
-    expect(primary).toContain("for (const candidate of model.candidates)");
-    expect(primary).toContain('"ktc-codegen-primary-action"');
-    expect(primary).not.toMatch(/acquireVsCodeApi|from ["']vscode["']|workspace\.fs|clipboard/);
+    expect(primary).toContain('kind: "kt.codegen.primary-ui-model"');
+    expect(primary).toContain("id: entry.uri");
+    expect(primary).toContain("id: candidate.uri");
+    expect(primary).toContain("id: report.reportId");
+    expect(primary).not.toMatch(/acquireVsCodeApi|from ["']vscode["']|workspace\.fs|document\.createElement|document\.querySelector|window\./);
   });
 
   it("控制符 ViewModel 与命令状态机独立于 VS Code 总 Controller", () => {

@@ -21,6 +21,21 @@
 }
 ```
 
+## 0.6.1 已发布（2026-07-24）
+
+0.6.1 收口三库共享 Code/Codegen 界面与宿主边界，补齐 Git Primary 的多仓库选择，并为未打开 Block 的下方区域增加 Welcome。根 workspace 与 Code 扩展同步升级到 0.6.1，KT Auto CAD 保持 0.1.0；Code 与 CAD 的 15 处 Wing manifest 引用精确使用 Registry 0.5.1。
+
+- 下方工具 View 改为常驻：没有打开 Block 时显示紧凑 Welcome，列出 Code/CAD 的安装状态和版本，缺失插件可直接安装，底部提供 Gitee、安装说明、快速开始和插件设置入口；打开功能后仍只显示原有单 Block 内容。
+- Git remote、manifest、README、VSIX 内容链接与 Welcome 外部链接统一迁移到 `https://gitee.com/phoenixwing/kt-auto-code.git`；“安装说明”使用 VS Code 内置扩展搜索，不再打开可能进入异常登录页的 Marketplace 网页。
+- Git 仓库发现合并多根 VS Code 工作区、Git API、嵌套子模块和活动文件来源，按真实仓库根去重；简报草稿、合并预检、执行与撤销均绑定当前仓库。
+- Codegen Primary、控制符目录、应用报告、成员排序、UUID 和搜索替换结果复用 Wing 共享状态模型与 Host-neutral Web Component，Auto Code 继续拥有 VS Code Host、权限和工作区编排。
+- 适配 Wing 0.5.1 扩宽的报告构造返回类型，并按 Primary 内含控制符目录、独立预检结果面板的新边界更新 VSIX 制品门禁。
+- 正式候选必须使用 Node 22、当前 `pnpm-lock.yaml` 与 npm Registry 依赖执行 `pnpm ext:dev:registry:prepare` 和 `pnpm verify:ci`；不得使用本地并列 Wing 制品替代发布包。
+- 2026-07-24 使用 Node 22.23.1 完成正式门禁：78 份 Markdown、160 个生产源文件、25 个 pure graph、17 个 View root、129 个测试文件与 585 项测试通过；Code/CAD 双 typecheck、Registry 0.5.1 构建和双 VSIX 制品内容门禁通过。VS Code 1.130.0 真实 Extension Host 完成激活、命令注册、Codegen open/preview/conflict/apply/saveReload/rollback 及 Git/Run Block 代表流程。
+- 正式候选 `extension/kt-auto-code-0.6.1.vsix` 为 38 个文件、534363 bytes，SHA-256 `d74472c55c4fd7dd845f607b47745511dfcec11c23c55f8b8a8083c60f100e6d`；辅助复核的 CAD 0.1.0 制品为 9 个文件、40332 bytes，SHA-256 `6c55065fd14683c77a4b7e2a5518e076a0554f413651d2e0490393b2a63ac603`。
+- 2026-07-24 用户使用上述本地候选完成 Marketplace 上传，并确认人工审查通过；`kuntai.kt-auto-code@0.6.1` 的公开发布闭环完成。本地制品哈希作为上传源归档，未额外下载 Marketplace 制品复算哈希。
+- 本地代理未执行 `vsce publish`、Marketplace 上传、Git push 或标签创建；发布操作与审查结果均来自用户回执。
+
 ## 0.6.0 发布候选（2026-07-22）
 
 0.6.0 新增 Git 与 Run 两个 Code Primary Block，根 workspace 与 Code 扩展同步升级到 0.6.0，KT Auto CAD 保持 0.1.0。Git/Run 的共享实现来自 Phoenix Wing 新包 `git-core`、`git-node`、`run-core`、`run-node`；Code 与 CAD 的 15 处 Wing manifest 引用统一精确升级到 Registry 0.5.0。

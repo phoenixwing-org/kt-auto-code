@@ -4,9 +4,14 @@ import type {
   KtCodegenPlan,
   KtCodegenPlatform,
 } from "@phoenix-wing/kt-codegen";
+import type {
+  KtCodegenControlBlockStateUiModel,
+  KtCodegenControlUiModel,
+  KtCodegenPreflightUiModel,
+} from "@phoenix-wing/kt-codegen/ui";
 import type { KtcCodegenControlTemplate } from "./controlTemplates.js";
 
-export interface KtcCodegenControlBlockViewModel {
+export interface KtcCodegenControlBlockViewModel extends KtCodegenControlBlockStateUiModel {
   readonly key: KtCodegenBlockKey;
   readonly legacyId: number;
   readonly platform: KtCodegenPlatform;
@@ -29,6 +34,7 @@ export interface KtcCodegenUnclosedControl {
   readonly line: number;
   readonly column: number;
   readonly classId: string;
+  readonly blockKey: KtCodegenBlockKey;
   readonly expectedEnd: string;
   readonly boundary?: {
     readonly kind: "start" | "end";
@@ -39,12 +45,13 @@ export interface KtcCodegenUnclosedControl {
 }
 
 /** Primary / JSON View 共用的控制符目录与会话状态投影。 */
-export interface KtcCodegenControlCatalogViewModel {
-  readonly kind: "kt.codegen.control-view-model";
-  readonly schemaVersion: 1;
+export interface KtcCodegenControlCatalogViewModel
+  extends Omit<KtCodegenControlUiModel, "blocks" | "unclosed" | "preflight"> {
+  readonly documentId: string;
   readonly uri: string;
   readonly fileName: string;
   readonly blocks: readonly KtcCodegenControlBlockViewModel[];
+  readonly unclosed: readonly KtcCodegenUnclosedControl[];
   readonly selectedBlockKeys: readonly KtCodegenBlockKey[];
   readonly singleSelectionMode: boolean;
   readonly showMissingTemplates: boolean;
@@ -60,12 +67,6 @@ export interface KtcCodegenControlCatalogViewModel {
 
 /** JSON View 在共享目录投影上附加完整预检结果。 */
 export interface KtcCodegenControlViewModel extends KtcCodegenControlCatalogViewModel {
-  readonly preflight?: {
-    readonly plan: KtCodegenPlan;
-    readonly reused: boolean;
-    readonly createdAt: string;
-    /** ready 才有可执行 plan；applied/stale 只是最近结果的只读快照。 */
-    readonly state: "ready" | "applied" | "stale";
-    readonly message: string;
-  };
+  /** ready 才有可执行 plan；applied/stale 只是最近结果的只读快照。 */
+  readonly preflight?: KtCodegenPreflightUiModel;
 }

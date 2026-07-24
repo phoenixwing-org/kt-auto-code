@@ -44,6 +44,9 @@ export function KtcParseGitAction(message: unknown): KtcGitActionMessage | undef
   if (["refresh", "openScm", "openOutput", "closeSummary", "cancelSquash"].includes(candidate.action)) {
     return candidate as unknown as KtcGitActionMessage;
   }
+  if (candidate.action === "selectRepository" && typeof candidate.repositoryId === "string") {
+    return candidate as unknown as KtcGitActionMessage;
+  }
   if (candidate.action === "openAction"
     && typeof candidate.actionId === "string"
     && typeof candidate.repositoryId === "string") return candidate as unknown as KtcGitActionMessage;

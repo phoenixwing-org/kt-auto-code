@@ -57,6 +57,19 @@ function plan(fingerprint = "sha256:before"): KtCodegenPlan {
   } as unknown as KtCodegenPlan;
 }
 
+function unappliedWidgetText(eol = "\n"): string {
+  return [
+    "namespace PNX {", "",
+    "// START KEVIN CAA WIZARD SECTION PNXWidgetItem PARAM DECLARATION",
+    "int oldWidgetCount;",
+    "// END KEVIN CAA WIZARD SECTION PNXWidgetItem PARAM DECLARATION", "",
+    "// START KEVIN CAA WIZARD SECTION PNXWidgetItem QT UPDATE DIALOG",
+    "void updateOldWidgetDialog();",
+    "// END KEVIN CAA WIZARD SECTION PNXWidgetItem QT UPDATE DIALOG", "",
+    "} // namespace PNX", "",
+  ].join(eol);
+}
+
 describe("Codegen source Apply projection", () => {
   it("与 Wing 使用同一 v1 fixture 锁定投影、冲突和最终字节", () => {
     const result = ktcProjectCodegenApply(contractFixture.plan, [contractFixture.source]);
@@ -139,7 +152,7 @@ describe("Codegen source Apply projection", () => {
     const fixture = new URL("../../../../tests/fixtures/codegen-manual-workspace/", import.meta.url);
     const controller = new KtCodegenController();
     expect(controller.readJson(readFileSync(new URL("PNXWidgetParam.json", fixture), "utf8")).ok).toBe(true);
-    const decoded = ktcDecodeCodegenSource(readFileSync(new URL("src/PNXWidget.cpp", fixture)))!;
+    const decoded = ktcDecodeCodegenSource(Buffer.from(unappliedWidgetText(), "utf8"))!;
     const path = "/workspace/src/PNXWidget.cpp";
     const realPlan = controller.analyze({
       targets: ["cpp.parameter", "qt.dialog"],
@@ -164,8 +177,7 @@ describe("Codegen source Apply projection", () => {
     const fixture = new URL("../../../../tests/fixtures/codegen-manual-workspace/", import.meta.url);
     const controller = new KtCodegenController();
     expect(controller.readJson(readFileSync(new URL("PNXWidgetParam.json", fixture), "utf8")).ok).toBe(true);
-    const originalText = readFileSync(new URL("src/PNXWidget.cpp", fixture), "utf8")
-      .replace(/\r?\n/g, "\r\n");
+    const originalText = unappliedWidgetText("\r\n");
     const decoded = ktcDecodeCodegenSource(Buffer.from(originalText, "utf8"))!;
     const path = "/workspace/src/PNXWidget.cpp";
     const request = {
