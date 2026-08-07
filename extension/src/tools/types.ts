@@ -51,7 +51,7 @@ export type WebviewInboundMessage =
   | { type: "ready" }
   | {
       type: "welcomeAction";
-      action: "openRepository" | "openInstallGuide" | "openQuickStart" | "openSettings";
+      action: "openRepository" | "openInstallGuide" | "openQuickStart" | "openSettings" | "openDiagnostics";
     }
   | {
       type: "welcomeAction";

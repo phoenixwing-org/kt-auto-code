@@ -37,6 +37,10 @@ export class KtcCodegenWorkspaceWatchService implements vscode.Disposable {
 
   constructor(private readonly callbacks: KtcCodegenWorkspaceWatchCallbacks) {}
 
+  get watcherCount(): number {
+    return this.watchers.length;
+  }
+
   start(): void {
     if (this.watchers.length) return;
     for (const pattern of [

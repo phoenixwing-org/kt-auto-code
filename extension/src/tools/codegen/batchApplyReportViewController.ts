@@ -44,6 +44,10 @@ export class KtcCodegenBatchApplyReportViewController implements vscode.Disposab
     this.extensionUri = extensionUri;
   }
 
+  get isOpen(): boolean {
+    return this.panel !== undefined;
+  }
+
   show(report: KtcCodegenBatchApplyReport): void {
     if (!this.extensionUri) throw new Error("Codegen 报告 View 尚未初始化扩展资源根");
     this.report = report;

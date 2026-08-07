@@ -13,6 +13,7 @@ Owner：KT Auto Code maintainers
 ## 当前路线与架构
 
 - [当前路线](current-roadmap.md)
+- [运行性能、Git 按需加载与 Codegen 刷新研究](运行性能与按需加载研究.md)（含非模态运行诊断与内存点检方案）
 - [产品功能归属矩阵](产品功能归属矩阵.md)（与 Desk 使用相同 `featureId`，并引用 Wing 实际 `capabilityId`）
 - [Phoenix 三形态产品架构](Phoenix三形态产品架构计划.md)
 - [可选模块接入契约](可选模块接入契约.md)
@@ -39,6 +40,7 @@ Owner：KT Auto Code maintainers
 
 - [讨论入口与当前推荐结论](git/README.md)
 - [Git Primary Block 可行性与实施计划](git/Git-Primary-Block可行性与实施计划.md)
+- [最新简报优先、历史与合并按需加载研究](运行性能与按需加载研究.md#5-git-加载缓慢的根因)
 
 ## Run Primary Block（0.6.0）
 

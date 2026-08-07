@@ -352,7 +352,7 @@ describe("Codegen MVC dependency boundary", () => {
   it("JSON Save 通过 DocumentService 的临时复读与保存时 guard，不在 Controller 直接覆盖", () => {
     const controller = source("./index.ts");
     const start = controller.indexOf("private async save(");
-    const end = controller.indexOf("private async revert(", start);
+    const end = controller.indexOf("private async reload(", start);
     const save = controller.slice(start, end);
     expect(save).toContain("writeValidatedJson");
     expect(save).not.toContain("workspace.fs.writeFile");

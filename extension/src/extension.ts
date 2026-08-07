@@ -14,11 +14,12 @@ import { registerReorderMembersSupport, reorderMembersTool } from "./tools/reord
 import { ignoreSettingsTool } from "./tools/ignoreSettings/index.js";
 import { uuidReplaceTool } from "./tools/uuidReplace/index.js";
 import { caaDialogTool } from "./tools/caaDialog/index.js";
-import { KtcGitTool } from "./tools/git/KtcGitTool.js";
+import { getGitRuntimeDiagnosticsSnapshot, KtcGitTool } from "./tools/git/KtcGitTool.js";
 import { KtcRunTool } from "./tools/run/KtcRunTool.js";
 import { environmentSettingsTool } from "./tools/environmentSettings/index.js";
 import {
   codegenTool,
+  getCodegenRuntimeDiagnosticsSnapshot,
   notifyCodegenWorkspaceFoldersChanged,
   registerCodegenSupport,
 } from "./tools/codegen/index.js";
@@ -28,6 +29,7 @@ import { ktcOpenCaaSettings, ktcResolveDeskToolsNativeProvider } from "./caaSett
 import { ktcMigrateLegacyDeskToolsSettings } from "./deskToolsSettingsMigration.js";
 import { ktcRegisterResultAccordion } from "./workbench/resultAccordion.js";
 import { ktcRegisterEditorMatchHighlight } from "./workbench/editorMatchHighlight.js";
+import { ktcRegisterRuntimeDiagnostics } from "./runtimeDiagnostics.js";
 import type { KtcAutoCodeShellApiV2 } from "../../src/moduleShellContract.js";
 
 let sidebarProvider: SidebarViewProvider | undefined;
@@ -70,6 +72,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<KtcAut
 
   sidebarProvider = new SidebarViewProvider(context.extensionUri, context.globalState, context.workspaceState);
   await sidebarProvider.initializeModuleState();
+  ktcRegisterRuntimeDiagnostics(
+    context,
+    () => sidebarProvider!.getRuntimeDiagnosticsSnapshot(),
+    getCodegenRuntimeDiagnosticsSnapshot,
+    getGitRuntimeDiagnosticsSnapshot,
+  );
   context.subscriptions.push(ktcRegisterResultAccordion(SidebarViewProvider.moduleViewType, sidebarProvider));
 
   for (const tool of getTools()) {

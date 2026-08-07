@@ -40,6 +40,7 @@ describe("Extension Development Host launcher", () => {
     expect(result.stdout).toContain("kt-auto-code-local-host-<runtime>");
     expect(result.stdout).toContain("本地快照");
     expect(result.stdout).toContain("旧 Development Host 不会自动关闭");
+    expect(result.stdout).toContain("快照不会随仓库重新构建而变化");
     expect(result.stdout).toContain("只在刚打开的窗口测试");
     expect(result.stderr).not.toContain("当前只加载已有 dist");
     expect(result.stdout.match(/--extensionDevelopmentPath=/g)).toHaveLength(2);

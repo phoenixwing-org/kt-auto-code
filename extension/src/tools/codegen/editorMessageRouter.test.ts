@@ -31,6 +31,7 @@ const MODEL: KtcCodegenEditorModel = {
   },
   dirty: false,
   externalConflict: false,
+  externalState: "current",
 };
 
 function route(message: KtcCodegenEditorInboundMessage) {
@@ -80,7 +81,7 @@ describe("Codegen editor message router", () => {
       line: 91,
     };
     expect(route(copyEnd)).toEqual({ kind: "control", message: copyEnd });
-    for (const action of ["ready", "revert", "cancelPreflight"] as const) {
+    for (const action of ["ready", "reload", "cancelPreflight"] as const) {
       expect(route({ type: "codegenEditorAction", toolId: "codegen", uri: URI, action }))
         .toEqual({ kind: action });
     }

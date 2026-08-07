@@ -41,6 +41,7 @@ const MODEL: KtcCodegenEditorModel = {
   },
   dirty: false,
   externalConflict: false,
+  externalState: "current",
 };
 const CONTROL: KtcCodegenControlMessage = {
   type: "codegenControlDisplay",
@@ -110,8 +111,8 @@ function fakeActions(
     save: vi.fn(async () => {
       events.push("save");
     }),
-    revert: vi.fn(async () => {
-      events.push("revert");
+    reload: vi.fn(async () => {
+      events.push("reload");
     }),
     cancelPreflight: vi.fn((uri: string) => {
       events.push(`cancel:${uri}`);
@@ -176,12 +177,12 @@ describe("Codegen editor command controller", () => {
     expect(unchanged.actions.didMutate).not.toHaveBeenCalled();
   });
 
-  it("ready、revert 与 cancelPreflight 精确委托各自 Host 动作", async () => {
+  it("ready、reload 与 cancelPreflight 精确委托各自 Host 动作", async () => {
     const ready = await execute({ kind: "ready" });
     expect(ready.events).toEqual(["model"]);
 
-    const revert = await execute({ kind: "revert" });
-    expect(revert.events).toEqual(["revert"]);
+    const reload = await execute({ kind: "reload" });
+    expect(reload.events).toEqual(["reload"]);
 
     const cancel = await execute({ kind: "cancelPreflight" });
     expect(cancel.events).toEqual([`cancel:${URI}`]);

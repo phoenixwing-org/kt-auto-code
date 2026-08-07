@@ -54,6 +54,7 @@ export class KtcCodegenEditorSessionPresenter {
       type: "codegenDocumentState",
       dirty: session.dirty,
       externalConflict: session.hasExternalConflict,
+      externalState: session.externalState,
     });
   }
 
@@ -79,6 +80,7 @@ export class KtcCodegenEditorSessionPresenter {
       controls: this.controls.viewModel(session),
       dirty: session.dirty,
       externalConflict: session.hasExternalConflict,
+      externalState: session.externalState,
     };
   }
 

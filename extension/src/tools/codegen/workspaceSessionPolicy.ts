@@ -12,6 +12,15 @@ export interface KtcCodegenStableListEntry {
   readonly displayPath: string;
 }
 
+export interface KtcCodegenSessionReleaseState {
+  readonly open: boolean;
+  readonly dirty: boolean;
+  readonly externalState: "current" | "changed" | "deleted";
+  readonly operationCount: number;
+  readonly preflightRunning: boolean;
+  readonly batchRunning: boolean;
+}
+
 /**
  * Block 中的 JSON 顺序只由路径决定；打开、激活或编辑文档都不能让行跳位。
  * 返回新数组，避免排序 UI 投影时改变发现缓存的插入顺序。
@@ -32,4 +41,16 @@ export function ktcShouldRetainCodegenSessionInList(
     || session.dirty
     || session.externalConflict
     || Boolean(ktcResolveCodegenWorkspaceRoot(session.documentPath, workspaceRoots));
+}
+
+/** 关闭 View 只释放没有草稿、冲突或运行中 owner 的 session。 */
+export function ktcCanReleaseClosedCodegenSession(
+  session: KtcCodegenSessionReleaseState,
+): boolean {
+  return !session.open
+    && !session.dirty
+    && session.externalState === "current"
+    && session.operationCount <= 0
+    && !session.preflightRunning
+    && !session.batchRunning;
 }

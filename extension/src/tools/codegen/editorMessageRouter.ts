@@ -10,7 +10,7 @@ export type KtcCodegenEditorCommand =
   | { readonly kind: "control"; readonly message: KtcCodegenControlMessage }
   | { readonly kind: "dirty"; readonly itemCount: number }
   | { readonly kind: "exchange"; readonly action: "sync" | "save"; readonly model: KtcCodegenEditorModel }
-  | { readonly kind: "ready" | "revert" | "cancelPreflight" }
+  | { readonly kind: "ready" | "reload" | "cancelPreflight" }
   | { readonly kind: "preflight" | "apply"; readonly table?: KtCodegenTableData };
 
 /** 把 Webview 传输消息收敛为文档会话命令；不读取 Host 或修改领域状态。 */

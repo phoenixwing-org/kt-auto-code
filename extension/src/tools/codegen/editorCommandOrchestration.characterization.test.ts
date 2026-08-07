@@ -43,7 +43,7 @@ describe("Codegen editor command orchestration characterization", () => {
       "dirty",
       "exchange",
       "ready",
-      "revert",
+      "reload",
       "cancelPreflight",
       "preflight",
     ]) {
@@ -117,5 +117,19 @@ describe("Codegen editor command orchestration characterization", () => {
       "actions.didMutate(",
       "return true",
     );
+  });
+
+  it("手工重新加载始终读盘，并在 clean View 发现磁盘修改时先确认", () => {
+    const reload = section(
+      workspaceController,
+      "private async reload(session:",
+      "private didMutate(",
+    );
+    expect(reload).toContain("this.documents.readSnapshot");
+    expect(reload).toContain("snapshot.fingerprint !== session.diskFingerprint");
+    expect(reload).toContain("的磁盘内容已有修改，是否重新加载？");
+    expect(reload).toContain('const label = "重新加载磁盘修改"');
+    expect(reload).toContain("已发现磁盘修改；重新加载已取消");
+    expect(reload).toContain('"manual"');
   });
 });

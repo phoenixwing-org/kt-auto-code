@@ -1,9 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { getPanelHtml, ktcSearchReplaceButtonState } from "./panelHtml.js";
+import { getPanelHtml, ktcGitPanelModel, ktcSearchReplaceButtonState } from "./panelHtml.js";
 import { ktcNextReorderSelection } from "./reorderMembersPanelState.js";
 
 describe("sidebar panel HTML", () => {
+  it("Git 状态尚未到达时也渲染空状态按钮，并只请求一次刷新", () => {
+    expect(ktcGitPanelModel(undefined, true)).toMatchObject({
+      projects: [],
+      statusText: "当前工作区未发现 Git 仓库。",
+      workspaceFolderCount: 1,
+      workspaceRepositoryCount: 0,
+      discovery: { status: "idle" },
+    });
+
+    const source = readFileSync(new URL("./panelHtml.ts", import.meta.url), "utf8");
+    expect(source).toContain("els.gitPanel.model = gitPanelModel(ts, workspaceAvailable)");
+    expect(source).toContain("let gitRefreshRequested = false");
+    expect(source).toContain("else if (!running && !gitRefreshRequested)");
+    expect(source).toContain('action: "refresh"');
+    expect(source).toContain("if (git) renderGit(ts, running)");
+  });
+
   it("与 Desk Tools 共用自动代码名称和 Operation 图标语义", () => {
     const source = readFileSync(new URL("./panelHtml.ts", import.meta.url), "utf8");
     const icon = readFileSync(new URL("../../media/tools/codegen.svg", import.meta.url), "utf8");
@@ -59,6 +76,10 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('data-welcome-action="openInstallGuide">安装说明</button>');
     expect(html).toContain('data-welcome-action="openQuickStart">快速开始</button>');
     expect(html).toContain('data-welcome-action="openSettings">插件设置</button>');
+    expect(html).toContain('data-welcome-action="openDiagnostics">运行诊断</button>');
+    expect(html).toContain('const label = repository.groupLabel || "当前工作区"');
+    expect(html).toContain('group = document.createElement("optgroup")');
+    expect(html).toContain("group.appendChild(option)");
     expect(html).toContain('body.welcome-mode .wrap > :not(#welcome-panel)');
     expect(html).toContain('state.presentation === "detailBlock" && (state.openToolIds || []).length === 0');
     expect(html).toContain('state.extensionInstallations = msg.extensionInstallations || []');
@@ -139,7 +160,7 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('type: "runAction", toolId: "run"');
     expect(html).toContain('<ktc-git-primary-panel id="git-panel" hidden>');
     expect(html).toContain("test-webview:/extension/dist/ktc-git-primary-panel.js");
-    expect(html).toContain('els.gitPanel.model = ts.git');
+    expect(html).toContain('els.gitPanel.model = gitPanelModel(ts, workspaceAvailable)');
     expect(html).toContain('els.gitPanel.hidden = !git');
     expect(html).toContain('"ktc-git-primary-action"');
     expect(html).toContain('type: "gitAction", toolId: "git"');

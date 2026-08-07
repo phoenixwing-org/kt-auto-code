@@ -50,6 +50,7 @@ function model(uri: string, fileName: string, dirty = false): KtcCodegenEditorMo
     },
     dirty,
     externalConflict: false,
+    externalState: "current",
   };
 }
 

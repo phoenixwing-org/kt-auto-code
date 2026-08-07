@@ -55,6 +55,7 @@ describe("codegen editor HTML", () => {
       },
       dirty: false,
       externalConflict: false,
+      externalState: "current",
     });
     expect(html).toContain("Codegen JSON 编辑 View");
     expect(html).toContain('<kt-codegen-table id="codegen-table" layout="page" collapsible>');
@@ -66,7 +67,8 @@ describe("codegen editor HTML", () => {
     expect(html).toContain('action: "save"');
     expect(html).toContain('action: "sync"');
     expect(html).not.toContain('type: "codegenEditorCell"');
-    expect(html).toContain('action: "revert"');
+    expect(html).toContain('action: "reload"');
+    expect(html).toContain("↻ 重新加载");
     expect(html).toContain('action: "preflight"');
     expect(html).toContain('action: "cancelPreflight"');
     expect(html).toContain('message.type === "codegenPreflightState"');

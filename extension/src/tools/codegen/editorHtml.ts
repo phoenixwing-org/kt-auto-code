@@ -197,7 +197,7 @@ export function getCodegenEditorHtml(
     <button id="controls" type="button" aria-expanded="false">预检结果</button>
     <button id="apply" type="button" title="没有缓存时会先自动预检；写入前重验源码指纹">Apply</button>
     <span class="separator" aria-hidden="true"></span>
-    <button id="revert" type="button" disabled>↶ 还原</button>
+    <button id="reload" type="button" title="重新读取磁盘 JSON；未保存时会先确认">↻ 重新加载</button>
     <button class="primary" id="save" type="button">保存 JSON</button>
   </header>
   <kt-codegen-table id="codegen-table" layout="page" collapsible></kt-codegen-table>
@@ -221,7 +221,7 @@ export function getCodegenEditorHtml(
     const fileName = document.getElementById("file-name");
     const documentState = document.getElementById("document-state");
     const save = document.getElementById("save");
-    const revert = document.getElementById("revert");
+    const reload = document.getElementById("reload");
     const preflight = document.getElementById("preflight");
     const controls = document.getElementById("controls");
     const controlDrawer = document.getElementById("control-drawer");
@@ -256,12 +256,12 @@ export function getCodegenEditorHtml(
     function syncHeader() {
       fileName.textContent = model.fileName;
       save.textContent = model.dirty ? "保存 JSON *" : "保存 JSON";
-      documentState.textContent = model.externalConflict
+      documentState.textContent = model.externalState === "deleted"
+        ? "磁盘文件已删除 · 当前内容仍保留"
+        : model.externalConflict
         ? "外部文件已变更 · 请重新加载或保存时处理"
         : model.dirty ? "Codegen JSON 编辑 View · 未保存" : "Codegen JSON 编辑 View";
       documentState.className = model.externalConflict ? "conflict" : model.dirty ? "dirty" : "";
-      revert.textContent = model.externalConflict && !model.dirty ? "↻ 重新加载" : "↶ 还原";
-      revert.disabled = !model.dirty && !model.externalConflict;
     }
 
     function markDirty(itemCount) {
@@ -283,6 +283,7 @@ export function getCodegenEditorHtml(
         controls: controlsModel,
         dirty: true,
         externalConflict: !!model.externalConflict,
+        externalState: model.externalState || (model.externalConflict ? "changed" : "current"),
       };
     }
 
@@ -328,7 +329,7 @@ export function getCodegenEditorHtml(
       else draftSyncTimer = setTimeout(exchangeDraft, 600);
     });
     save.onclick = () => post({ type: "codegenEditorExchange", action: "save", model: currentExchangeModel() });
-    revert.onclick = () => post({ type: "codegenEditorAction", action: "revert" });
+    reload.onclick = () => post({ type: "codegenEditorAction", action: "reload" });
     preflight.onclick = () => {
       if (preflight.dataset.running === "true") {
         post({ type: "codegenEditorAction", action: "cancelPreflight" });
@@ -372,6 +373,7 @@ export function getCodegenEditorHtml(
       } else if (message.type === "codegenDocumentState") {
         model.dirty = !!message.dirty;
         model.externalConflict = !!message.externalConflict;
+        model.externalState = message.externalState || (model.externalConflict ? "changed" : "current");
         if (model.dirty) dirtyNotified = true;
         syncHeader();
       } else if (message.type === "codegenPreflightState") {
@@ -392,6 +394,7 @@ export function getCodegenEditorHtml(
           clearTimeout(draftSyncTimer);
           model.dirty = false;
           model.externalConflict = false;
+          model.externalState = "current";
           dirtyNotified = false;
           table.markCheckpoint(message.documentRevision ?? table.getData().documentRevision);
           model.table = table.getData();

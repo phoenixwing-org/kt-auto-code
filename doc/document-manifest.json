@@ -288,6 +288,13 @@
       "reason": "Run Primary Block 0.6.0 实施计划"
     },
     {
+      "path": "doc/运行性能与按需加载研究.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.6.x",
+      "lastVerified": "2026-07-17"
+    },
+    {
       "path": "doc/真实工作区只读验收.md",
       "status": "archived",
       "owner": "KT Auto Code maintainers",
