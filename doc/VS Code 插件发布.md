@@ -36,6 +36,10 @@
 - 2026-07-24 用户使用上述本地候选完成 Marketplace 上传，并确认人工审查通过；`kuntai.kt-auto-code@0.6.1` 的公开发布闭环完成。本地制品哈希作为上传源归档，未额外下载 Marketplace 制品复算哈希。
 - 本地代理未执行 `vsce publish`、Marketplace 上传、Git push 或标签创建；发布操作与审查结果均来自用户回执。
 
+### 0.6.1 发布后开发状态（2026-07-31）
+
+工作树已将 Code/CAD 的全部 Phoenix Wing 依赖精确升级到 Registry 0.6.0，并接入 Git 轻量 summary、expected HEAD + OID 游标分页与取消接口；完整 Git 仓库快照只在合并预检中读取。无 Git 工作区新增“新建 / 搜索所有子目录 / 停止”空状态。此段是下一次候选的开发记录，不改写 2026-07-24 已发布制品的依赖、哈希或验证回执。
+
 ## 0.6.0 发布候选（2026-07-22）
 
 0.6.0 新增 Git 与 Run 两个 Code Primary Block，根 workspace 与 Code 扩展同步升级到 0.6.0，KT Auto CAD 保持 0.1.0。Git/Run 的共享实现来自 Phoenix Wing 新包 `git-core`、`git-node`、`run-core`、`run-node`；Code 与 CAD 的 15 处 Wing manifest 引用统一精确升级到 Registry 0.5.0。

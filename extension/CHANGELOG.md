@@ -2,6 +2,13 @@
 
 所有显著变更会记录在本文件中。
 
+## 0.6.2
+
+- Code 与 CAD 的 15 处 Phoenix Wing 依赖精确升级到 Registry 0.6.2；Git 首屏改用轻量仓库摘要，更多 commit 使用 expected HEAD + OID 游标分页，切库和刷新可取消过期读取，完整快照仅用于合并安全预检。
+- 当前工作区没有 Git 仓库时，Git Primary 提供“新建 Git 仓库”和“搜索所有子目录”；搜索结果逐个加入仓库下拉，首个立即显示，扫描完成前可随时停止并保留已发现结果。
+- Codegen 增加磁盘变化检测、冲突提示和始终可用的手动重新加载，避免关闭 View 后仍保留过期 JSON 会话。
+- 增加非模态运行诊断页面，可输出 Extension Host 内存、Block、Codegen、Git 与 watcher 等调试信息，并明确内存统计边界。
+
 ## 0.6.1
 
 - 没有打开任何功能 Block 时，下方工具界面改为紧凑 Welcome：显示 KT Auto Code / CAD 的安装状态与版本，缺失插件可直接安装，并在底部提供 Gitee、安装说明、快速开始和插件设置入口。

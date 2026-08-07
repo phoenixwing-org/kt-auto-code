@@ -71,6 +71,7 @@ try {
     || receipt.flows?.saveReload !== true
     || receipt.flows?.rollback !== true
     || receipt.flows?.gitBlock !== true
+    || receipt.flows?.gitEmptyState !== true
     || receipt.flows?.runBlock !== true
     || !receipt.evidence?.commands?.includes("ktAutoCode.git.open")
     || !receipt.evidence?.commands?.includes("ktAutoCode.run.open")

@@ -12,6 +12,7 @@ export interface KtcCodegenDocumentSnapshotPort {
   readonly readSnapshot: (
     identity: KtcCodegenDocumentIdentity,
   ) => Promise<KtcCodegenTextSnapshot>;
+  readonly isFileNotFoundError?: (error: unknown) => boolean;
 }
 
 export interface KtcCodegenDocumentOpenRequest {
@@ -23,6 +24,13 @@ export interface KtcCodegenDocumentOpenRequest {
 export type KtcCodegenDocumentOpenResult =
   | { readonly kind: "existing" | "opened"; readonly session: KtcCodegenDocumentModel }
   | { readonly kind: "error"; readonly message: string };
+
+export type KtcCodegenDocumentReconcileResult =
+  | { readonly kind: "current"; readonly conflictCleared: boolean }
+  | { readonly kind: "reloaded" }
+  | { readonly kind: "conflict" }
+  | { readonly kind: "deleted" }
+  | { readonly kind: "invalid" | "error"; readonly message: string };
 
 /**
  * 单一 Extension Host 生命周期内的 Codegen 文档会话 Controller。
@@ -84,6 +92,54 @@ export class KtcCodegenDocumentSessionController {
         message: error instanceof Error ? error.message : String(error),
       };
     }
+  }
+
+  /**
+   * 把现有 session 与磁盘 checkpoint 对齐。watcher、显式重开和手动重新加载
+   * 必须共用该状态机；读取的调度与 UI 投影仍由 Host 负责。
+   */
+  async reconcile(
+    session: KtcCodegenDocumentModel,
+    options: { readonly discardDirty?: boolean } = {},
+  ): Promise<KtcCodegenDocumentReconcileResult> {
+    if (this.registry.get(session.identity.uri) !== session) {
+      return { kind: "error", message: "Codegen 文档会话已经释放" };
+    }
+    let snapshot: KtcCodegenTextSnapshot;
+    try {
+      snapshot = await this.snapshots.readSnapshot(session.identity);
+    } catch (error) {
+      if (this.snapshots.isFileNotFoundError?.(error)) {
+        session.markExternalDeleted();
+        return { kind: "deleted" };
+      }
+      session.markExternalChanged();
+      return {
+        kind: "error",
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+
+    const sameFingerprint = snapshot.fingerprint === session.diskFingerprint;
+    if (sameFingerprint && !(options.discardDirty && session.dirty)) {
+      const conflictCleared = session.hasExternalConflict;
+      session.observeExternalFingerprint(snapshot.fingerprint);
+      return { kind: "current", conflictCleared };
+    }
+    if (session.dirty && !options.discardDirty) {
+      session.observeExternalFingerprint(snapshot.fingerprint);
+      return { kind: "conflict" };
+    }
+
+    session.observeExternalFingerprint(snapshot.fingerprint);
+    const result = session.reloadFromJson(snapshot.text, snapshot.fingerprint);
+    if (!result.ok || !result.value) {
+      return {
+        kind: "invalid",
+        message: ktcCodegenDiagnosticsText(result.diagnostics) || "磁盘 JSON 无法读取",
+      };
+    }
+    return { kind: "reloaded" };
   }
 
   activate(session: KtcCodegenDocumentModel): boolean {

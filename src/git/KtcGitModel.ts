@@ -9,7 +9,8 @@ export interface KtcGitIdentity {
 
 export interface KtcGitCommitInput {
   readonly oid: string;
-  readonly parentOids: readonly string[];
+  /** Present on full safety snapshots; lightweight history intentionally omits it. */
+  readonly parentOids?: readonly string[];
   readonly subject: string;
   readonly body: string;
   readonly author: KtcGitIdentity;
@@ -30,6 +31,9 @@ export interface KtcGitRepositoryInput {
   readonly operationState?: string;
   readonly commits?: readonly KtcGitCommitInput[];
   readonly recentCommitLimit?: number;
+  readonly hasMoreCommits?: boolean;
+  readonly loaded?: boolean;
+  readonly sourceGroup?: "workspace" | "external";
   readonly error?: string;
 }
 
@@ -43,6 +47,10 @@ export interface KtcGitRepository {
   readonly stateLabel: string;
   readonly detached: boolean;
   readonly clean: boolean;
+  readonly loaded: boolean;
+  readonly external: boolean;
+  readonly groupLabel: "当前工作区" | "我的仓库";
+  readonly headOid?: string;
   readonly error?: string;
 }
 
@@ -112,9 +120,18 @@ export interface KtcGitViewModel {
   readonly selectedRepositoryId?: string;
   readonly statusText: string;
   readonly recentCommitLimit: number;
+  readonly workspaceFolderCount: number;
+  readonly workspaceRepositoryCount: number;
+  readonly discovery: KtcGitDiscoveryState;
   readonly summaryDraft?: KtcGitSummaryDraft;
   readonly squashDraft?: KtcGitSquashDraft;
   readonly lastOperation?: KtcGitLastOperation;
+}
+
+export interface KtcGitDiscoveryState {
+  readonly status: "idle" | "searching" | "complete" | "stopped";
+  readonly scannedDirectories: number;
+  readonly foundRepositories: number;
 }
 
 export function KtcCreateGitModel(input: {
@@ -124,22 +141,31 @@ export function KtcCreateGitModel(input: {
   readonly summaryDraft?: KtcGitSummaryDraft;
   readonly squashDraft?: KtcGitSquashDraft;
   readonly lastOperation?: KtcGitLastOperation;
+  readonly workspaceFolderCount?: number;
+  readonly discovery?: KtcGitDiscoveryState;
 }): KtcGitViewModel {
   const recentCommitLimit = KtcNormalizeRecentCommitLimit(input.recentCommitLimit);
   const projects = input.repositories.map((repository) => KtcCreateGitProject(repository, recentCommitLimit));
-  const loaded = projects.filter((project) => !project.repository.error).length;
+  const loaded = projects.filter((project) => project.repository.loaded && !project.repository.error).length;
   const selectedRepositoryId = projects.some((project) => project.repository.id === input.selectedRepositoryId)
     ? input.selectedRepositoryId
     : projects[0]?.repository.id;
+  const workspaceRepositoryCount = projects.filter((project) => !project.repository.external).length;
+  const discovery = input.discovery ?? { status: "idle", scannedDirectories: 0, foundRepositories: 0 };
   return {
     projects,
     ...(selectedRepositoryId ? { selectedRepositoryId } : {}),
     recentCommitLimit,
-    statusText: projects.length === 0
+    workspaceFolderCount: input.workspaceFolderCount ?? 0,
+    workspaceRepositoryCount,
+    discovery,
+    statusText: discovery.status === "searching"
+      ? `正在搜索 Git 仓库：已检查 ${discovery.scannedDirectories} 个目录，找到 ${discovery.foundRepositories} 个。`
+      : projects.length === 0
       ? "当前工作区未发现 Git 仓库。"
       : loaded === projects.length
         ? `已读取 ${loaded} 个 Git 仓库。`
-        : `已读取 ${loaded}/${projects.length} 个 Git 仓库；其余工作区不是仓库或读取失败。`,
+        : `已读取当前 ${loaded}/${projects.length} 个 Git 仓库；其余切换后按需读取。`,
     ...(input.summaryDraft ? { summaryDraft: input.summaryDraft } : {}),
     ...(input.squashDraft ? { squashDraft: input.squashDraft } : {}),
     ...(input.lastOperation ? { lastOperation: input.lastOperation } : {}),
@@ -157,6 +183,7 @@ function KtcCreateGitProject(
   const upstreamLabel = source.upstream
     || (source.branch ? `local/${source.branch}` : "无 upstream");
   const readable = !source.error;
+  const loaded = source.loaded !== false;
   const operationIdle = !source.operationState || source.operationState === "idle";
   const visibleCommitLimit = KtcNormalizeRecentCommitLimit(source.recentCommitLimit ?? recentCommitLimit);
   const allCommits = [...(source.commits ?? [])];
@@ -164,7 +191,7 @@ function KtcCreateGitProject(
     .reverse()
     .slice(0, visibleCommitLimit)
     .map((commit) => ({ ...commit, shortOid: KtcShortOid(commit.oid), isHead: commit.isHead === true }));
-  const squashEnabled = readable && !detached && source.clean === true && operationIdle && visibleCommits.length >= 2;
+  const squashEnabled = readable && loaded && !detached;
   return {
     repository: {
       id: source.id,
@@ -175,11 +202,17 @@ function KtcCreateGitProject(
       headLabel: KtcShortOid(source.head),
       stateLabel: source.error
         ? source.error
+        : !loaded
+          ? "选择后读取"
         : source.clean === true
           ? operationIdle ? "工作区干净" : `正在 ${source.operationState}`
           : source.clean === false ? "存在本地变更" : "状态待读取",
       detached,
       clean: source.clean === true,
+      loaded,
+      external: source.sourceGroup === "external",
+      groupLabel: source.sourceGroup === "external" ? "我的仓库" : "当前工作区",
+      ...(source.head ? { headOid: source.head } : {}),
       ...(source.error ? { error: source.error } : {}),
     },
     actions: [
@@ -188,13 +221,11 @@ function KtcCreateGitProject(
         title: "合并本地未发布 commit",
         description: source.error
           ? "仓库读取成功后才可预检。"
+          : !loaded
+            ? "选择仓库后再准备合并。"
           : detached
             ? "detached HEAD 不能合并。"
-            : source.clean !== true
-              ? "请先处理工作区变更。"
-              : !operationIdle
-                ? `Git 正在 ${source.operationState}，不能改写。`
-                : "选择直线历史中的连续区间；允许区间后面仍有提交。",
+            : "点击后读取完整状态并检查工作区、Git 操作和直线历史。",
         buttonLabel: "选择并预检",
         tone: "caution",
         badge: "不自动 push",
@@ -204,7 +235,7 @@ function KtcCreateGitProject(
     commits: visibleCommits,
     visibleCommitLimit,
     totalCommitCount: allCommits.length,
-    hasMoreCommits: allCommits.length > visibleCommits.length,
+    hasMoreCommits: source.hasMoreCommits === true || allCommits.length > visibleCommits.length,
   };
 }
 

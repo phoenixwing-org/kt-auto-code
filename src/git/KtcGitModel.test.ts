@@ -105,4 +105,56 @@ describe("Git Primary model", () => {
     expect(KtcCreateGitModel({ repositories: [] }).statusText).toBe("当前工作区未发现 Git 仓库。");
   });
 
+  it("区分工作区与用户仓库，并允许未读取仓库作为按需占位", () => {
+    const model = KtcCreateGitModel({
+      repositories: [
+        { id: "workspace", name: "Workspace", loaded: false, sourceGroup: "workspace" },
+        { id: "external", name: "External", loaded: false, sourceGroup: "external" },
+      ],
+    });
+    expect(model.projects[0]?.repository).toMatchObject({
+      groupLabel: "当前工作区",
+      loaded: false,
+      external: false,
+      stateLabel: "选择后读取",
+    });
+    expect(model.projects[1]?.repository).toMatchObject({
+      groupLabel: "我的仓库",
+      loaded: false,
+      external: true,
+    });
+    expect(model.projects[1]?.actions[0]).toMatchObject({ enabled: false });
+  });
+
+  it("投影可停止的递进仓库搜索，并允许轻量 commit 点击后再做合并预检", () => {
+    const model = KtcCreateGitModel({
+      workspaceFolderCount: 1,
+      discovery: { status: "searching", scannedDirectories: 120, foundRepositories: 1 },
+      repositories: [{
+        id: "repo",
+        name: "repo",
+        branch: "develop",
+        head: "abcdef0123456789",
+        loaded: true,
+        sourceGroup: "workspace",
+        commits: [{
+          oid: "abcdef0123456789",
+          subject: "轻量摘要",
+          body: "",
+          author: identity,
+          committer: identity,
+          isHead: true,
+        }],
+      }],
+    });
+
+    expect(model).toMatchObject({
+      workspaceFolderCount: 1,
+      workspaceRepositoryCount: 1,
+      discovery: { status: "searching", scannedDirectories: 120, foundRepositories: 1 },
+    });
+    expect(model.statusText).toContain("已检查 120 个目录");
+    expect(model.projects[0]?.actions[0]).toMatchObject({ enabled: true });
+  });
+
 });

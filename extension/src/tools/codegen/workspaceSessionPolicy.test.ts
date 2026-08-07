@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ktcCanReleaseClosedCodegenSession,
   ktcShouldRetainCodegenSessionInList,
   ktcSortCodegenDocumentList,
 } from "./workspaceSessionPolicy.js";
@@ -42,5 +43,24 @@ describe("Codegen workspace session list policy", () => {
     expect(ktcShouldRetainCodegenSessionInList({ ...removed, dirty: true }, [])).toBe(true);
     expect(ktcShouldRetainCodegenSessionInList({ ...removed, externalConflict: true }, []))
       .toBe(true);
+  });
+
+  it("只释放关闭、干净、current 且没有运行 owner 的 session", () => {
+    const releasable = {
+      open: false,
+      dirty: false,
+      externalState: "current" as const,
+      operationCount: 0,
+      preflightRunning: false,
+      batchRunning: false,
+    };
+    expect(ktcCanReleaseClosedCodegenSession(releasable)).toBe(true);
+    expect(ktcCanReleaseClosedCodegenSession({ ...releasable, open: true })).toBe(false);
+    expect(ktcCanReleaseClosedCodegenSession({ ...releasable, dirty: true })).toBe(false);
+    expect(ktcCanReleaseClosedCodegenSession({ ...releasable, externalState: "changed" })).toBe(false);
+    expect(ktcCanReleaseClosedCodegenSession({ ...releasable, externalState: "deleted" })).toBe(false);
+    expect(ktcCanReleaseClosedCodegenSession({ ...releasable, operationCount: 1 })).toBe(false);
+    expect(ktcCanReleaseClosedCodegenSession({ ...releasable, preflightRunning: true })).toBe(false);
+    expect(ktcCanReleaseClosedCodegenSession({ ...releasable, batchRunning: true })).toBe(false);
   });
 });

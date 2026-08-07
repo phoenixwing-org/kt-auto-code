@@ -9,6 +9,8 @@ import { ktcRunCodegenPreflight } from "../tools/codegen/preflight.js";
 import { ktcProjectCodegenApply } from "../tools/codegen/sourceApply.js";
 import { ktcCommitCodegenApplyWrites } from "../tools/codegen/sourceApplyTransaction.js";
 import { ktcDecodeCodegenSource, ktcEncodeCodegenSource } from "../tools/codegen/sourceCodec.js";
+import { KtcGitTool } from "../tools/git/KtcGitTool.js";
+import type { ToolUiState } from "../tools/types.js";
 
 interface ExtensionApi {
   readonly version: number;
@@ -35,6 +37,33 @@ export async function run(): Promise<void> {
   assert.equal(await api.showModuleTool("code", "git"), true);
   assert.equal(await api.showModuleTool("code", "run"), true);
   assert.equal(await api.showModuleTool("code", "codegen"), true);
+
+  let fixtureHasGitDirectory = true;
+  try {
+    await vscode.workspace.fs.stat(vscode.Uri.joinPath(workspace.uri, ".git"));
+  } catch {
+    fixtureHasGitDirectory = false;
+  }
+  assert.equal(fixtureHasGitDirectory, false, "Git empty-state fixture must not contain .git");
+  const gitStates: ToolUiState[] = [];
+  const gitLogs: string[] = [];
+  await KtcGitTool.runAction("refresh", {
+    workspaceRoot: workspace.uri.fsPath,
+    workspaceLabel: workspace.name,
+    workspaceFileScopeId: "workspace",
+    postState: (state) => gitStates.push(state),
+    log: (line) => gitLogs.push(line),
+  });
+  const finalGitState = gitStates.at(-1);
+  assert.ok(finalGitState?.git, "Git refresh must always publish a renderable view model");
+  assert.equal(finalGitState.status, "done");
+  assert.equal(finalGitState.git.projects.length, 0);
+  assert.equal(finalGitState.git.workspaceRepositoryCount, 0);
+  assert.equal(finalGitState.git.statusText, "当前工作区未发现 Git 仓库。");
+  assert.ok(
+    gitLogs.some((line) => line.includes("posting empty repository state")),
+    "Git refresh must reach the final empty repository state",
+  );
 
   const commands = await vscode.commands.getCommands(true);
   for (const command of [
@@ -187,6 +216,7 @@ export async function run(): Promise<void> {
       saveReload: true,
       rollback: true,
       gitBlock: true,
+      gitEmptyState: true,
       runBlock: true,
     },
     evidence: {

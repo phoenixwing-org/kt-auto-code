@@ -86,6 +86,10 @@ export class KtcCodegenEditorViewController implements vscode.Disposable {
     return this.panels.has(uri);
   }
 
+  get openPanelCount(): number {
+    return this.panels.size;
+  }
+
   dispose(): void {
     this.disposing = true;
     for (const panel of this.panels.values()) panel.dispose();

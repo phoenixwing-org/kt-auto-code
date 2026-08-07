@@ -6,6 +6,7 @@ import type { KtcCodegenMetaField } from "./contracts.js";
 import type {
   KtcCodegenControlViewModel,
 } from "./controlViewModel.js";
+import type { KtcCodegenExternalState } from "./documentModel.js";
 import type { KtcCodegenEditorLayoutState } from "./editorLayoutState.js";
 
 export interface KtcCodegenEditorModel {
@@ -15,6 +16,7 @@ export interface KtcCodegenEditorModel {
   readonly controls: KtcCodegenControlViewModel;
   readonly dirty: boolean;
   readonly externalConflict: boolean;
+  readonly externalState: KtcCodegenExternalState;
 }
 
 export type KtcCodegenSidebarActionMessage = {
@@ -90,7 +92,7 @@ export type KtcCodegenEditorInboundMessage =
       readonly type: "codegenEditorAction";
       readonly toolId: "codegen";
       readonly uri: string;
-      readonly action: "ready" | "revert" | "preflight" | "cancelPreflight" | "apply";
+      readonly action: "ready" | "reload" | "preflight" | "cancelPreflight" | "apply";
       readonly table?: KtCodegenTableData;
     }
   | {
@@ -114,7 +116,12 @@ export type KtcCodegenInboundMessage = KtcCodegenSidebarActionMessage | KtcCodeg
 export type KtcCodegenEditorOutboundMessage =
   | { readonly type: "codegenModel"; readonly model: KtcCodegenEditorModel }
   | { readonly type: "codegenControlsModel"; readonly model: KtcCodegenControlViewModel }
-  | { readonly type: "codegenDocumentState"; readonly dirty: boolean; readonly externalConflict: boolean }
+  | {
+      readonly type: "codegenDocumentState";
+      readonly dirty: boolean;
+      readonly externalConflict: boolean;
+      readonly externalState: KtcCodegenExternalState;
+    }
   | { readonly type: "codegenPreflightState"; readonly running: boolean }
   | {
       readonly type: "codegenBatchState";

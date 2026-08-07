@@ -1,4 +1,6 @@
 import * as vscode from "vscode";
+import { realpath } from "node:fs/promises";
+import { basename, relative, resolve } from "node:path";
 import {
   KtcCreateGitModel,
   type KtcGitIdentity,
@@ -11,11 +13,13 @@ import { KtcFormatGitDate, KtcNormalizeGitDateInput } from "../../../../src/git/
 import type { ToolRunContext, ToolUiState } from "../types.js";
 import {
   KtcGitWingAdapter,
+  type KtcPnwGitCommitSummary,
   type KtcPnwGitIdentity,
-  type KtcPnwGitRepositorySnapshot,
+  type KtcPnwGitRepositorySummary,
   type KtcPnwGitSquashBlocker,
   type KtcPnwGitSquashExecutionResult,
 } from "./KtcGitWingAdapter.js";
+import { KtcSearchWorkspaceGitRepositories } from "./KtcGitWorkspaceSearch.js";
 import {
   KtcChooseGitRepositoryId,
   KtcCollectGitRepositoryCandidates,
@@ -24,20 +28,43 @@ import {
   type KtcGitRepositoryDisplay,
   type KtcGitWorkspaceFolderSeed,
 } from "./KtcGitRepositoryDiscovery.js";
+import type { KtcGitRuntimeDiagnostics } from "../../runtimeDiagnostics.js";
 
 export type KtcGitActionMessage =
-  | { readonly action: "refresh" | "openScm" | "openOutput" }
+  | {
+      readonly action:
+        | "refresh"
+        | "openScm"
+        | "openOutput"
+        | "addRepository"
+        | "initializeRepository"
+        | "searchRepositories"
+        | "stopRepositorySearch";
+    }
   | { readonly action: "selectRepository"; readonly repositoryId: string }
-  | { readonly action: "loadMore"; readonly repositoryId: string }
+  | { readonly action: "removeRepository"; readonly repositoryId: string }
+  | {
+      readonly action: "loadOlderCommits";
+      readonly repositoryId: string;
+      readonly expectedHeadOid: string;
+      readonly count: 1 | 5;
+    }
   | { readonly action: "openAction"; readonly actionId: string; readonly repositoryId: string }
   | {
       readonly action: "selectCommits";
       readonly selectedOids: readonly string[];
       readonly repositoryId: string;
+      readonly expectedHeadOid: string;
       readonly copyAfterGenerate: boolean;
     }
   | { readonly action: "saveSummaryTextHeight"; readonly height: number }
-  | { readonly action: "copySummary"; readonly repositoryId: string; readonly selectedOids: readonly string[]; readonly text: string }
+  | {
+      readonly action: "copySummary";
+      readonly repositoryId: string;
+      readonly expectedHeadOid: string;
+      readonly selectedOids: readonly string[];
+      readonly text: string;
+    }
   | {
       readonly action: "updateSummaryOptions";
       readonly repositoryId: string;
@@ -60,7 +87,40 @@ export type KtcGitActionMessage =
   | { readonly action: "undoSquash"; readonly repositoryId: string };
 
 interface KtcGitSession {
-  readonly snapshot: KtcPnwGitRepositorySnapshot;
+  readonly snapshot: KtcGitReadSnapshot;
+  readonly nextBeforeOid?: string;
+  readonly hasMoreCommits: boolean;
+}
+
+interface KtcGitReadSnapshot {
+  readonly root: string;
+  readonly name: string;
+  readonly currentRef?: string;
+  readonly branch?: string;
+  readonly upstream?: string;
+  readonly remoteUrl?: string;
+  readonly headOid: string;
+  readonly detached: boolean;
+  /** Oldest to newest, matching the existing Auto view-model boundary. */
+  readonly history: readonly KtcPnwGitCommitSummary[];
+}
+
+interface KtcGitRepositorySearchState {
+  readonly status: "idle" | "searching" | "complete" | "stopped";
+  readonly scannedDirectories: number;
+  readonly foundRepositories: number;
+}
+
+interface KtcGitDirectory {
+  readonly root: string;
+  readonly name: string;
+  readonly relativePath: string;
+  readonly sourceGroup: "workspace" | "external";
+}
+
+interface KtcGitWorkspaceRepositoryState {
+  readonly workspaceFolderUri: string;
+  readonly relativePath: string;
 }
 
 interface KtcGitUndoState {
@@ -73,7 +133,16 @@ export class KtcGitController {
   private readonly KtcAdapter = new KtcGitWingAdapter();
   private readonly KtcSessions = new Map<string, KtcGitSession>();
   private readonly KtcRunningRepositories = new Set<string>();
-  private readonly KtcRecentCommitLimits = new Map<string, number>();
+  private KtcDirectories: KtcGitDirectory[] = [];
+  private KtcDirectoriesInitialized = false;
+  private KtcReadGeneration = 0;
+  private KtcReadCancellation: AbortController | undefined;
+  private KtcRepositorySearchCancellation: AbortController | undefined;
+  private KtcRepositorySearchState: KtcGitRepositorySearchState = {
+    status: "idle",
+    scannedDirectories: 0,
+    foundRepositories: 0,
+  };
   private KtcRepositoryInputs: KtcGitRepositoryInput[] = [];
   private KtcSelectedRepositoryId: string | undefined;
   private KtcSummaryDraft: KtcGitSummaryDraft | undefined;
@@ -82,59 +151,103 @@ export class KtcGitController {
   private KtcLegacyReviewers: readonly string[] = [];
   private KtcReviewerMigration: Promise<void> = Promise.resolve();
   private KtcExtensionContext: vscode.ExtensionContext | undefined;
+  private KtcLastRunContext: ToolRunContext | undefined;
 
   register(context: vscode.ExtensionContext): void {
     this.KtcExtensionContext = context;
     this.KtcLegacyReviewers = context.globalState.get<readonly string[]>(KtcGitReviewerStateKey) ?? [];
     this.KtcReviewerMigration = this.KtcMigrateReviewerSettings(context);
+    context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      this.KtcStopRepositorySearch();
+      this.KtcAbortRead();
+      this.KtcDirectoriesInitialized = false;
+      this.KtcReadGeneration += 1;
+      const ctx = this.KtcLastRunContext;
+      if (!ctx) return;
+      void this.KtcLoad(ctx, true).catch((error) => {
+        ctx.log(`[Git] workspace folders changed: ${KtcErrorMessage(error)}`);
+        this.KtcPostState(ctx, "error", `重新读取 Git 仓库失败：${KtcErrorMessage(error)}`);
+      });
+    }));
+  }
+
+  async show(ctx: ToolRunContext): Promise<void> {
+    this.KtcLastRunContext = ctx;
+    await this.KtcLoad(ctx, false);
+  }
+
+  getRuntimeDiagnosticsSnapshot(): KtcGitRuntimeDiagnostics {
+    const selected = this.KtcSelectedRepositoryId ? this.KtcSessions.get(this.KtcSelectedRepositoryId) : undefined;
+    return {
+      catalogEntries: this.KtcDirectories.length,
+      workspaceRepositories: this.KtcDirectories.filter((item) => item.sourceGroup === "workspace").length,
+      userRepositories: this.KtcDirectories.filter((item) => item.sourceGroup === "external").length,
+      loadedRepositories: this.KtcSessions.size,
+      selectedCommitCount: selected?.snapshot.history.length ?? 0,
+      runningWriteOperations: this.KtcRunningRepositories.size,
+      summaryOpen: this.KtcSummaryDraft !== undefined,
+      squashDraftOpen: this.KtcSquashDraft !== undefined,
+    };
   }
 
   async refresh(ctx: ToolRunContext): Promise<void> {
-    ctx.postState({ status: "running", message: "正在读取 Git 仓库…" });
+    this.KtcLastRunContext = ctx;
+    await this.KtcLoad(ctx, true);
+  }
+
+  private async KtcLoad(ctx: ToolRunContext, rediscover: boolean): Promise<void> {
+    if (rediscover) {
+      this.KtcStopRepositorySearch();
+      this.KtcRepositorySearchState = { status: "idle", scannedDirectories: 0, foundRepositories: 0 };
+    }
+    this.KtcAbortRead();
+    const generation = ++this.KtcReadGeneration;
+    this.KtcPostState(
+      ctx,
+      "running",
+      rediscover ? "正在重新搜索 Git 仓库…" : "正在读取当前 Git 仓库…",
+    );
     const folders: KtcGitWorkspaceFolderSeed[] = (vscode.workspace.workspaceFolders ?? []).map((folder) => ({
       name: folder.name,
       fsPath: folder.uri.fsPath,
     }));
-    const gitRepositories = await KtcReadVsCodeGitRepositories(ctx);
     const activeFilePath = vscode.window.activeTextEditor?.document.uri.scheme === "file"
       ? vscode.window.activeTextEditor.document.uri.fsPath
       : undefined;
-    const candidates = KtcCollectGitRepositoryCandidates({
-      workspaceFolders: folders,
-      gitRepositories,
-      ...(activeFilePath ? { activeFilePath } : {}),
-    });
-    const results = await Promise.all(candidates.map(async (candidate): Promise<{
-      readonly input: KtcGitRepositoryInput;
-      readonly snapshot: KtcPnwGitRepositorySnapshot;
-    } | undefined> => {
-      try {
-        const snapshot = await this.KtcAdapter.readRepository(candidate.startPath, 200);
-        const display = KtcDescribeGitRepository(snapshot.root, snapshot.name || candidate.workspaceName, folders);
-        return { snapshot, input: this.KtcRepositoryInput(snapshot, display) };
-      } catch (error) {
-        ctx.log(`[Git] discovery ${candidate.source} ${candidate.startPath}: ${KtcErrorMessage(error)}`);
-        return undefined;
-      }
-    }));
-    const unique = new Map<string, NonNullable<(typeof results)[number]>>();
-    for (const result of results) if (result && !unique.has(result.snapshot.root)) unique.set(result.snapshot.root, result);
-    this.KtcSessions.clear();
-    for (const result of unique.values()) this.KtcSessions.set(result.snapshot.root, { snapshot: result.snapshot });
-    this.KtcRepositoryInputs = [...unique.values()].map((result) => result.input);
-    const validIds = new Set(this.KtcRepositoryInputs.map((item) => item.id));
+    if (rediscover || !this.KtcDirectoriesInitialized) {
+      this.KtcDirectories = await this.KtcDiscoverDirectories(folders, activeFilePath, ctx);
+      this.KtcDirectoriesInitialized = true;
+    }
+    if (generation !== this.KtcReadGeneration) return;
+    const validIds = new Set(this.KtcDirectories.map((item) => item.root));
     if (this.KtcSummaryDraft && !validIds.has(this.KtcSummaryDraft.repositoryId)) this.KtcSummaryDraft = undefined;
     if (this.KtcSquashDraft && !validIds.has(this.KtcSquashDraft.repositoryId)) this.KtcSquashDraft = undefined;
     if (this.KtcUndoState && !validIds.has(this.KtcUndoState.repositoryId)) this.KtcUndoState = undefined;
+    const workspaceRoots = this.KtcDirectories
+      .filter((item) => item.sourceGroup === "workspace")
+      .map((item) => item.root);
+    const storedId = this.KtcExtensionContext?.workspaceState.get<string>(KtcGitSelectedRepositoryStateKey);
+    const preferredStoredId = workspaceRoots.length > 0 && storedId && !workspaceRoots.includes(storedId)
+      ? undefined
+      : storedId;
     this.KtcSelectedRepositoryId = KtcChooseGitRepositoryId({
-      repositoryRoots: [...validIds],
+      repositoryRoots: this.KtcDirectories.map((item) => item.root),
       currentId: this.KtcSelectedRepositoryId,
-      storedId: this.KtcExtensionContext?.workspaceState.get<string>(KtcGitSelectedRepositoryStateKey),
+      storedId: preferredStoredId,
       ...(activeFilePath ? { activeFilePath } : {}),
     });
     await this.KtcPersistSelectedRepository();
-    this.KtcPostState(ctx);
-    ctx.log(`[Git] repositories=${this.KtcSessions.size} workspaces=${folders.length} candidates=${candidates.length}`);
+    this.KtcRepositoryInputs = this.KtcDirectories.map((item) => this.KtcDirectoryInput(item));
+    const selected = this.KtcSelectedRepositoryId;
+    if (!selected) {
+      this.KtcSessions.clear();
+      ctx.log(`[Git] directories=${this.KtcDirectories.length}; posting empty repository state`);
+      this.KtcPostState(ctx);
+      return;
+    }
+    await this.KtcReadSelectedRepository(selected, generation, ctx);
+    if (generation !== this.KtcReadGeneration) return;
+    ctx.log(`[Git] directories=${this.KtcDirectories.length} selected=${selected} commits=1`);
   }
 
   async handle(action: KtcGitActionMessage, ctx: ToolRunContext): Promise<void> {
@@ -150,25 +263,36 @@ export class KtcGitController {
       ctx.log("[Git] 已从 Git Primary 打开 KT Auto Code 输出。");
       return;
     }
+    if (action.action === "addRepository") {
+      await this.KtcAddExternalRepository(ctx);
+      return;
+    }
+    if (action.action === "initializeRepository") {
+      await this.KtcInitializeWorkspaceRepository(ctx);
+      return;
+    }
+    if (action.action === "searchRepositories") {
+      await this.KtcSearchWorkspaceRepositories(ctx);
+      return;
+    }
+    if (action.action === "stopRepositorySearch") {
+      this.KtcStopRepositorySearch();
+      this.KtcPostState(ctx, "done", "已停止搜索 Git 仓库。已发现的仓库仍然保留。");
+      return;
+    }
     if (action.action === "selectRepository") {
       await this.KtcSelectRepository(action.repositoryId, ctx);
+      return;
+    }
+    if (action.action === "removeRepository") {
+      await this.KtcRemoveExternalRepository(action.repositoryId, ctx);
       return;
     }
     if ("repositoryId" in action && action.repositoryId !== this.KtcSelectedRepositoryId) {
       throw new Error("Git 操作仓库与当前选择不一致，请刷新后重试。");
     }
-    if (action.action === "loadMore") {
-      const session = this.KtcRequireSession(action.repositoryId);
-      const current = this.KtcRecentCommitLimits.get(action.repositoryId) ?? 20;
-      this.KtcRecentCommitLimits.set(action.repositoryId, Math.min(200, current + 20));
-      const existing = this.KtcRepositoryInputs.find((item) => item.id === action.repositoryId);
-      this.KtcRepositoryInputs = this.KtcRepositoryInputs.map((item) => item.id === action.repositoryId
-        ? this.KtcRepositoryInput(session.snapshot, existing ?? {
-            name: session.snapshot.name,
-            relativePath: session.snapshot.name,
-          })
-        : item);
-      this.KtcPostState(ctx);
+    if (action.action === "loadOlderCommits") {
+      await this.KtcLoadOlderCommits(action, ctx);
       return;
     }
     if (action.action === "closeSummary") {
@@ -190,11 +314,17 @@ export class KtcGitController {
       return;
     }
     if (action.action === "selectCommits") {
-      await this.KtcOpenSummary(action.repositoryId, action.selectedOids, action.copyAfterGenerate, ctx);
+      await this.KtcOpenSummary(
+        action.repositoryId,
+        action.expectedHeadOid,
+        action.selectedOids,
+        action.copyAfterGenerate,
+        ctx,
+      );
       return;
     }
     if (action.action === "copySummary") {
-      await this.KtcCopySummary(action.repositoryId, action.selectedOids, action.text);
+      await this.KtcCopySummary(action.repositoryId, action.expectedHeadOid, action.selectedOids, action.text, ctx);
       return;
     }
     if (action.action === "updateSummaryOptions") {
@@ -215,8 +345,10 @@ export class KtcGitController {
   }
 
   private async KtcSelectRepository(repositoryId: string, ctx: ToolRunContext): Promise<void> {
-    if (!this.KtcSessions.has(repositoryId)) throw new Error("所选仓库已不存在，请刷新 Git Block。");
-    if (repositoryId === this.KtcSelectedRepositoryId) {
+    if (!this.KtcDirectories.some((item) => item.root === repositoryId)) {
+      throw new Error("所选仓库已不存在，请重新搜索 Git 仓库。");
+    }
+    if (repositoryId === this.KtcSelectedRepositoryId && this.KtcSessions.has(repositoryId)) {
       this.KtcPostState(ctx);
       return;
     }
@@ -236,7 +368,401 @@ export class KtcGitController {
     this.KtcSquashDraft = undefined;
     this.KtcSelectedRepositoryId = repositoryId;
     await this.KtcPersistSelectedRepository();
-    this.KtcPostState(ctx);
+    const generation = ++this.KtcReadGeneration;
+    ctx.postState({ status: "running", message: "正在读取所选仓库的最新 commit…" });
+    await this.KtcReadSelectedRepository(repositoryId, generation, ctx);
+  }
+
+  private async KtcDiscoverDirectories(
+    folders: readonly KtcGitWorkspaceFolderSeed[],
+    activeFilePath: string | undefined,
+    ctx: ToolRunContext,
+  ): Promise<KtcGitDirectory[]> {
+    const gitRepositories = await KtcReadVsCodeGitRepositories(ctx);
+    const candidates = KtcCollectGitRepositoryCandidates({
+      workspaceFolders: folders,
+      gitRepositories,
+      ...(activeFilePath ? { activeFilePath } : {}),
+    });
+    const workspace = new Map<string, KtcGitDirectory>();
+    const resolvedCandidates = await Promise.all(candidates.map(async (candidate): Promise<{
+      readonly root: string;
+      readonly candidate: (typeof candidates)[number];
+    } | undefined> => {
+      try {
+        const root = await KtcCanonicalGitRoot(await this.KtcAdapter.findRepositoryRoot(candidate.startPath));
+        return { root, candidate };
+      } catch (error) {
+        ctx.log(`[Git] directory ${candidate.source} ${candidate.startPath}: ${KtcErrorMessage(error)}`);
+        return undefined;
+      }
+    }));
+    for (const resolvedCandidate of resolvedCandidates) {
+      if (!resolvedCandidate) continue;
+      const key = KtcGitPathKey(resolvedCandidate.root);
+      if (workspace.has(key)) continue;
+      const display = KtcDescribeGitRepository(resolvedCandidate.root, basename(resolvedCandidate.root), folders);
+      workspace.set(key, {
+        root: resolvedCandidate.root,
+        name: display.name,
+        relativePath: display.relativePath,
+        sourceGroup: "workspace",
+      });
+    }
+    for (const storedPath of this.KtcWorkspaceRepositoryRoots()) {
+      if (!folders.some((folder) => KtcGitPathContains(folder.fsPath, storedPath))) continue;
+      try {
+        const root = await KtcCanonicalGitRoot(await this.KtcAdapter.findRepositoryRoot(storedPath));
+        const key = KtcGitPathKey(root);
+        if (workspace.has(key)) continue;
+        const display = KtcDescribeGitRepository(root, basename(root), folders);
+        workspace.set(key, {
+          root,
+          name: display.name,
+          relativePath: display.relativePath,
+          sourceGroup: "workspace",
+        });
+      } catch (error) {
+        ctx.log(`[Git] cached workspace repository unavailable ${storedPath}: ${KtcErrorMessage(error)}`);
+      }
+    }
+    const external: KtcGitDirectory[] = [];
+    for (const storedPath of this.KtcExternalRepositoryRoots()) {
+      try {
+        const root = await KtcCanonicalGitRoot(await this.KtcAdapter.findRepositoryRoot(storedPath));
+        const key = KtcGitPathKey(root);
+        if (workspace.has(key) || external.some((item) => KtcGitPathKey(item.root) === key)) continue;
+        external.push({
+          root,
+          name: basename(root),
+          relativePath: root,
+          sourceGroup: "external",
+        });
+      } catch (error) {
+        ctx.log(`[Git] external repository unavailable ${storedPath}: ${KtcErrorMessage(error)}`);
+      }
+    }
+    return [...workspace.values(), ...external];
+  }
+
+  private async KtcReadSelectedRepository(
+    repositoryId: string,
+    generation: number,
+    ctx: ToolRunContext,
+  ): Promise<void> {
+    const directory = this.KtcDirectories.find((item) => item.root === repositoryId);
+    if (!directory) return;
+    const cancellation = this.KtcBeginRead();
+    try {
+      const summary = await this.KtcAdapter.readRepositorySummary(directory.root, 1, true, cancellation.signal);
+      if (generation !== this.KtcReadGeneration || this.KtcSelectedRepositoryId !== repositoryId) return;
+      if (KtcGitPathKey(summary.root) !== KtcGitPathKey(directory.root)) {
+        throw new Error("Git 仓库根目录在读取期间发生变化。");
+      }
+      const snapshot = KtcGitReadSnapshotFromSummary(summary, directory.name);
+      const session = {
+        snapshot,
+        ...(summary.commits.at(-1)?.oid ? { nextBeforeOid: summary.commits.at(-1)!.oid } : {}),
+        hasMoreCommits: summary.commits.length > 0,
+      } satisfies KtcGitSession;
+      this.KtcSessions.clear();
+      this.KtcSessions.set(repositoryId, session);
+      this.KtcRepositoryInputs = this.KtcDirectories.map((item) => item.root === repositoryId
+        ? this.KtcRepositoryInput(snapshot, item, session.hasMoreCommits)
+        : this.KtcDirectoryInput(item));
+      this.KtcPostState(ctx);
+    } catch (error) {
+      if (generation !== this.KtcReadGeneration || KtcIsAbortError(error)) return;
+      this.KtcSessions.clear();
+      this.KtcRepositoryInputs = this.KtcDirectories.map((item) => item.root === repositoryId
+        ? { ...this.KtcDirectoryInput(item), error: KtcErrorMessage(error) }
+        : this.KtcDirectoryInput(item));
+      this.KtcPostState(ctx, "error", `读取 Git 仓库失败：${KtcErrorMessage(error)}`);
+    } finally {
+      if (this.KtcReadCancellation === cancellation) this.KtcReadCancellation = undefined;
+    }
+  }
+
+  private async KtcLoadOlderCommits(
+    action: Extract<KtcGitActionMessage, { readonly action: "loadOlderCommits" }>,
+    ctx: ToolRunContext,
+  ): Promise<void> {
+    const session = this.KtcRequireSession(action.repositoryId);
+    if (session.snapshot.headOid !== action.expectedHeadOid) throw new Error("HEAD 已变化，请重新加载最新 commit。");
+    if (!session.hasMoreCommits) return;
+    const generation = ++this.KtcReadGeneration;
+    const remaining = Math.max(0, 100 - session.snapshot.history.length);
+    const limit = Math.min(action.count, remaining);
+    if (limit === 0) return;
+    const cancellation = this.KtcBeginRead();
+    ctx.postState({ status: "running", message: `正在加载更早的 ${action.count} 条 commit…` });
+    try {
+      const page = await this.KtcAdapter.readCommitPage(
+        session.snapshot.root,
+        action.expectedHeadOid,
+        session.nextBeforeOid,
+        limit,
+        cancellation.signal,
+      );
+      if (generation !== this.KtcReadGeneration || this.KtcSelectedRepositoryId !== action.repositoryId) return;
+      const history = [...page.commits].reverse().concat(session.snapshot.history);
+      const updated = {
+        snapshot: { ...session.snapshot, history },
+        ...(page.nextBeforeOid ? { nextBeforeOid: page.nextBeforeOid } : {}),
+        hasMoreCommits: page.hasMore && history.length < 100,
+      } satisfies KtcGitSession;
+      this.KtcSessions.set(action.repositoryId, updated);
+      this.KtcRepositoryInputs = this.KtcDirectories.map((item) => item.root === action.repositoryId
+        ? this.KtcRepositoryInput(updated.snapshot, item, updated.hasMoreCommits)
+        : this.KtcDirectoryInput(item));
+      this.KtcPostState(ctx);
+    } catch (error) {
+      if (generation !== this.KtcReadGeneration || KtcIsAbortError(error)) return;
+      const refreshGeneration = ++this.KtcReadGeneration;
+      await this.KtcReadSelectedRepository(action.repositoryId, refreshGeneration, ctx);
+      throw new Error(`加载更早 commit 失败，已刷新 HEAD：${KtcErrorMessage(error)}`);
+    } finally {
+      if (this.KtcReadCancellation === cancellation) this.KtcReadCancellation = undefined;
+    }
+  }
+
+  private async KtcRevalidateHead(
+    repositoryId: string,
+    expectedHeadOid: string,
+    ctx: ToolRunContext,
+  ): Promise<KtcGitReadSnapshot> {
+    const session = this.KtcRequireSession(repositoryId);
+    if (session.snapshot.headOid !== expectedHeadOid) throw new Error("HEAD 已变化，请重新生成简报。");
+    const latest = await this.KtcAdapter.readRepositorySummary(session.snapshot.root, 1, false);
+    if (KtcGitPathKey(latest.root) !== KtcGitPathKey(session.snapshot.root)) {
+      throw new Error("Git 仓库根目录已变化，请重新选择仓库。");
+    }
+    if (latest.headOid !== expectedHeadOid) {
+      const generation = ++this.KtcReadGeneration;
+      await this.KtcReadSelectedRepository(repositoryId, generation, ctx);
+      throw new Error("HEAD 已变化，已刷新最新 commit，请重新生成简报。");
+    }
+    return session.snapshot;
+  }
+
+  private async KtcInitializeWorkspaceRepository(ctx: ToolRunContext): Promise<void> {
+    if (this.KtcRunningRepositories.size > 0) throw new Error("Git 操作执行期间不能新建仓库。");
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    if (folders.length === 0) throw new Error("请先打开一个工作区目录，再新建 Git 仓库。");
+    let folder = folders[0];
+    if (folders.length > 1) {
+      const selected = await vscode.window.showQuickPick(
+        folders.map((candidate) => ({ label: candidate.name, description: candidate.uri.fsPath, folder: candidate })),
+        { title: "选择要新建 Git 仓库的工作区目录", placeHolder: "将在所选目录创建 .git" },
+      );
+      if (!selected) return;
+      folder = selected.folder;
+    }
+    const api = await KtcGetVsCodeGitApi(ctx);
+    if (!api?.init) {
+      await vscode.commands.executeCommand("git.init");
+    } else {
+      await api.init(folder.uri);
+    }
+    this.KtcDirectoriesInitialized = false;
+    await this.KtcLoad(ctx, true);
+  }
+
+  private async KtcSearchWorkspaceRepositories(ctx: ToolRunContext): Promise<void> {
+    if (this.KtcRepositorySearchCancellation) return;
+    if (this.KtcRunningRepositories.size > 0) throw new Error("Git 操作执行期间不能搜索仓库。");
+    const folders: KtcGitWorkspaceFolderSeed[] = (vscode.workspace.workspaceFolders ?? []).map((folder) => ({
+      name: folder.name,
+      fsPath: folder.uri.fsPath,
+    }));
+    if (folders.length === 0) throw new Error("请先打开一个工作区目录，再搜索 Git 仓库。");
+    const cancellation = new AbortController();
+    this.KtcRepositorySearchCancellation = cancellation;
+    this.KtcRepositorySearchState = {
+      status: "searching",
+      scannedDirectories: 0,
+      foundRepositories: 0,
+    };
+    this.KtcPostState(ctx, "running", "正在搜索工作区子目录中的 Git 仓库…");
+    try {
+      await KtcSearchWorkspaceGitRepositories(folders.map((folder) => folder.fsPath), {
+        signal: cancellation.signal,
+        onError: (directory, error) => ctx.log(`[Git] search skipped ${directory}: ${KtcErrorMessage(error)}`),
+        onProgress: async ({ scannedDirectories, repositoryRoot }) => {
+          if (cancellation.signal.aborted) return;
+          let added = false;
+          if (repositoryRoot) {
+            try {
+              added = await this.KtcAddDiscoveredWorkspaceRepository(repositoryRoot, folders, cancellation.signal, ctx);
+            } catch (error) {
+              if (KtcIsAbortError(error)) throw error;
+              ctx.log(`[Git] discovered repository unavailable ${repositoryRoot}: ${KtcErrorMessage(error)}`);
+            }
+          }
+          this.KtcRepositorySearchState = {
+            status: "searching",
+            scannedDirectories,
+            foundRepositories: this.KtcRepositorySearchState.foundRepositories + (added ? 1 : 0),
+          };
+          this.KtcPostState(ctx, "running");
+        },
+      });
+      if (this.KtcRepositorySearchCancellation !== cancellation) return;
+      this.KtcRepositorySearchState = { ...this.KtcRepositorySearchState, status: "complete" };
+      this.KtcPostState(ctx, "done", `Git 仓库搜索完成：找到 ${this.KtcRepositorySearchState.foundRepositories} 个。`);
+    } catch (error) {
+      if (!KtcIsAbortError(error)) throw error;
+    } finally {
+      if (this.KtcRepositorySearchCancellation === cancellation) this.KtcRepositorySearchCancellation = undefined;
+    }
+  }
+
+  private async KtcAddDiscoveredWorkspaceRepository(
+    candidateRoot: string,
+    folders: readonly KtcGitWorkspaceFolderSeed[],
+    signal: AbortSignal,
+    ctx: ToolRunContext,
+  ): Promise<boolean> {
+    const root = await KtcCanonicalGitRoot(await this.KtcAdapter.findRepositoryRoot(candidateRoot, signal));
+    if (this.KtcDirectories.some((item) => KtcGitPathKey(item.root) === KtcGitPathKey(root))) return false;
+    const display = KtcDescribeGitRepository(root, basename(root), folders);
+    const directory: KtcGitDirectory = {
+      root,
+      name: display.name,
+      relativePath: display.relativePath,
+      sourceGroup: "workspace",
+    };
+    const externalIndex = this.KtcDirectories.findIndex((item) => item.sourceGroup === "external");
+    if (externalIndex < 0) this.KtcDirectories.push(directory);
+    else this.KtcDirectories.splice(externalIndex, 0, directory);
+    this.KtcDirectoriesInitialized = true;
+    await this.KtcRememberWorkspaceRepository(root);
+    this.KtcSyncRepositoryInputs();
+    if (!this.KtcSelectedRepositoryId) {
+      this.KtcSelectedRepositoryId = root;
+      await this.KtcPersistSelectedRepository();
+      const generation = ++this.KtcReadGeneration;
+      await this.KtcReadSelectedRepository(root, generation, ctx);
+    }
+    return true;
+  }
+
+  private KtcStopRepositorySearch(): void {
+    const cancellation = this.KtcRepositorySearchCancellation;
+    if (!cancellation) return;
+    this.KtcRepositorySearchCancellation = undefined;
+    cancellation.abort();
+    this.KtcRepositorySearchState = { ...this.KtcRepositorySearchState, status: "stopped" };
+  }
+
+  private KtcBeginRead(): AbortController {
+    this.KtcAbortRead();
+    const cancellation = new AbortController();
+    this.KtcReadCancellation = cancellation;
+    return cancellation;
+  }
+
+  private KtcAbortRead(): void {
+    this.KtcReadCancellation?.abort();
+    this.KtcReadCancellation = undefined;
+  }
+
+  private KtcSyncRepositoryInputs(): void {
+    this.KtcRepositoryInputs = this.KtcDirectories.map((item) => {
+      const session = this.KtcSessions.get(item.root);
+      return session
+        ? this.KtcRepositoryInput(session.snapshot, item, session.hasMoreCommits)
+        : this.KtcDirectoryInput(item);
+    });
+  }
+
+  private async KtcAddExternalRepository(ctx: ToolRunContext): Promise<void> {
+    if (this.KtcRunningRepositories.size > 0) throw new Error("Git 操作执行期间不能添加仓库。");
+    const selected = await vscode.window.showOpenDialog({
+      canSelectFiles: false,
+      canSelectFolders: true,
+      canSelectMany: false,
+      openLabel: "添加 Git 仓库",
+      title: "选择 Git 仓库或仓库内目录",
+    });
+    const selectedPath = selected?.[0]?.fsPath;
+    if (!selectedPath) return;
+    const canonical = await KtcCanonicalGitRoot(await this.KtcAdapter.findRepositoryRoot(selectedPath));
+    const inWorkspace = (vscode.workspace.workspaceFolders ?? []).some((folder) => KtcGitPathContains(folder.uri.fsPath, canonical));
+    if (inWorkspace) {
+      await this.KtcRememberWorkspaceRepository(canonical);
+    } else {
+      const roots = [canonical, ...this.KtcExternalRepositoryRoots()]
+        .filter((value, index, values) => values.findIndex((other) => KtcGitPathKey(other) === KtcGitPathKey(value)) === index)
+        .slice(0, 12);
+      await vscode.workspace.getConfiguration("ktAutoCode").update(
+        "git.repositories",
+        roots,
+        vscode.ConfigurationTarget.Global,
+      );
+    }
+    this.KtcSelectedRepositoryId = canonical;
+    this.KtcDirectoriesInitialized = false;
+    await this.KtcLoad(ctx, true);
+  }
+
+  private async KtcRemoveExternalRepository(repositoryId: string, ctx: ToolRunContext): Promise<void> {
+    const directory = this.KtcDirectories.find((item) => item.root === repositoryId);
+    if (!directory || directory.sourceGroup !== "external") throw new Error("只能移除“我的仓库”中的目录。");
+    if (this.KtcRunningRepositories.size > 0) throw new Error("Git 操作执行期间不能移除仓库。");
+    const answer = await vscode.window.showWarningMessage(
+      `从“我的仓库”移除 ${directory.name}？不会删除磁盘上的仓库。`,
+      { modal: true, detail: directory.root },
+      "移除",
+    );
+    if (answer !== "移除") return;
+    const remaining = this.KtcExternalRepositoryRoots()
+      .filter((root) => KtcGitPathKey(root) !== KtcGitPathKey(repositoryId));
+    await vscode.workspace.getConfiguration("ktAutoCode").update(
+      "git.repositories",
+      remaining,
+      vscode.ConfigurationTarget.Global,
+    );
+    if (this.KtcSelectedRepositoryId === repositoryId) this.KtcSelectedRepositoryId = undefined;
+    this.KtcDirectoriesInitialized = false;
+    await this.KtcLoad(ctx, true);
+  }
+
+  private KtcExternalRepositoryRoots(): readonly string[] {
+    return vscode.workspace.getConfiguration("ktAutoCode").get<readonly string[]>("git.repositories", []);
+  }
+
+  private KtcWorkspaceRepositoryRoots(): readonly string[] {
+    const entries = this.KtcExtensionContext?.workspaceState.get<readonly KtcGitWorkspaceRepositoryState[]>(
+      KtcGitWorkspaceRepositoriesStateKey,
+    ) ?? [];
+    const folders = new Map((vscode.workspace.workspaceFolders ?? []).map((folder) => [folder.uri.toString(), folder]));
+    return entries.flatMap((entry) => {
+      const folder = folders.get(entry.workspaceFolderUri);
+      if (!folder) return [];
+      const root = resolve(folder.uri.fsPath, entry.relativePath);
+      return KtcGitPathContains(folder.uri.fsPath, root) ? [root] : [];
+    });
+  }
+
+  private async KtcRememberWorkspaceRepository(repositoryRoot: string): Promise<void> {
+    const folder = (vscode.workspace.workspaceFolders ?? [])
+      .filter((candidate) => KtcGitPathContains(candidate.uri.fsPath, repositoryRoot))
+      .sort((left, right) => right.uri.fsPath.length - left.uri.fsPath.length)[0];
+    if (!folder) return;
+    const entry: KtcGitWorkspaceRepositoryState = {
+      workspaceFolderUri: folder.uri.toString(),
+      relativePath: relative(folder.uri.fsPath, repositoryRoot).replaceAll("\\", "/") || ".",
+    };
+    const current = this.KtcExtensionContext?.workspaceState.get<readonly KtcGitWorkspaceRepositoryState[]>(
+      KtcGitWorkspaceRepositoriesStateKey,
+    ) ?? [];
+    const entries = [entry, ...current]
+      .filter((value, index, values) => values.findIndex((other) => (
+        other.workspaceFolderUri === value.workspaceFolderUri && other.relativePath === value.relativePath
+      )) === index)
+      .slice(0, 12);
+    await this.KtcExtensionContext?.workspaceState.update(KtcGitWorkspaceRepositoriesStateKey, entries);
   }
 
   private async KtcPersistSelectedRepository(): Promise<void> {
@@ -248,11 +774,12 @@ export class KtcGitController {
 
   private async KtcOpenSummary(
     repositoryId: string,
+    expectedHeadOid: string,
     selectedOids: readonly string[],
     copyAfterGenerate: boolean,
     ctx: ToolRunContext,
   ): Promise<void> {
-    const snapshot = this.KtcRequireSession(repositoryId).snapshot;
+    const snapshot = await this.KtcRevalidateHead(repositoryId, expectedHeadOid, ctx);
     const commits = this.KtcSelectedSummaryCommits(snapshot, selectedOids);
     const reviewerChoices = this.KtcReviewerChoices();
     const includeRemoteUrl = this.KtcSummaryDraft?.includeRemoteUrl ?? false;
@@ -280,8 +807,14 @@ export class KtcGitController {
     }
   }
 
-  private async KtcCopySummary(repositoryId: string, selectedOids: readonly string[], text: string): Promise<void> {
-    const snapshot = this.KtcRequireSession(repositoryId).snapshot;
+  private async KtcCopySummary(
+    repositoryId: string,
+    expectedHeadOid: string,
+    selectedOids: readonly string[],
+    text: string,
+    ctx: ToolRunContext,
+  ): Promise<void> {
+    const snapshot = await this.KtcRevalidateHead(repositoryId, expectedHeadOid, ctx);
     this.KtcSelectedSummaryCommits(snapshot, selectedOids);
     const normalized = text.trim();
     if (!normalized || normalized.length > 10_000) throw new Error("简报内容必须为 1–10000 个字符。");
@@ -324,9 +857,9 @@ export class KtcGitController {
   }
 
   private KtcSelectedSummaryCommits(
-    snapshot: KtcPnwGitRepositorySnapshot,
+    snapshot: KtcGitReadSnapshot,
     selectedOids: readonly string[],
-  ): KtcPnwGitRepositorySnapshot["history"] {
+  ): KtcGitReadSnapshot["history"] {
     const selected = new Set(selectedOids);
     if (selected.size === 0) throw new Error("请至少勾选 1 个 commit。");
     const commits = [...snapshot.history].reverse().filter((commit) => selected.has(commit.oid));
@@ -335,8 +868,8 @@ export class KtcGitController {
   }
 
   private KtcFormatSummaries(
-    snapshot: KtcPnwGitRepositorySnapshot,
-    commits: KtcPnwGitRepositorySnapshot["history"],
+    snapshot: KtcGitReadSnapshot,
+    commits: KtcGitReadSnapshot["history"],
     includeRemoteUrl: boolean,
     includeCommitTime: boolean,
     mentionReviewer: boolean,
@@ -397,8 +930,18 @@ export class KtcGitController {
 
   private async KtcSelectAndAnalyzeSquash(repositoryId: string, ctx: ToolRunContext): Promise<void> {
     const session = this.KtcRequireSession(repositoryId);
-    const snapshot = session.snapshot;
-    const picks = [...snapshot.history].reverse().map((commit) => ({
+    const operationGeneration = ++this.KtcReadGeneration;
+    const expectedHeadOid = session.snapshot.headOid;
+    ctx.postState({ status: "running", message: "正在按需加载合并候选…" });
+    const candidates = await this.KtcAdapter.readRepository(session.snapshot.root, 200);
+    if (operationGeneration !== this.KtcReadGeneration || this.KtcSelectedRepositoryId !== repositoryId) return;
+    if (KtcGitPathKey(candidates.root) !== KtcGitPathKey(session.snapshot.root)
+      || candidates.headOid !== expectedHeadOid) {
+      const generation = ++this.KtcReadGeneration;
+      await this.KtcReadSelectedRepository(repositoryId, generation, ctx);
+      throw new Error("HEAD 已变化，已刷新最新 commit，请重新选择合并区间。");
+    }
+    const picks = [...candidates.history].reverse().map((commit) => ({
       label: `${commit.oid.slice(0, 7)}  ${commit.subject || "(无标题)"}`,
       description: `${commit.author.name} · ${KtcFormatGitDate(commit.author.date)}`,
       detail: commit.parentOids.length === 1 ? undefined : `父节点 ${commit.parentOids.length} 个；预检会阻断非直线历史`,
@@ -409,20 +952,28 @@ export class KtcGitController {
       matchOnDescription: true,
       matchOnDetail: true,
       placeHolder: "选择同一直线中的连续 commit（至少 2 个；最新端不必是 HEAD）",
-      title: `${snapshot.name}：合并本地未发布 commit`,
+      title: `${candidates.name}：合并本地未发布 commit`,
     });
-    if (!selected) return;
-    if (selected.length < 2) {
-      void vscode.window.showWarningMessage("至少选择 2 个 commit。可选择直线历史中间的连续区间。");
+    if (!selected) {
+      this.KtcPostState(ctx);
       return;
     }
+    if (selected.length < 2) {
+      void vscode.window.showWarningMessage("至少选择 2 个 commit。可选择直线历史中间的连续区间。");
+      this.KtcPostState(ctx);
+      return;
+    }
+    if (operationGeneration !== this.KtcReadGeneration || this.KtcSelectedRepositoryId !== repositoryId) return;
     const selectedOids = selected.map((item) => item.oid);
     ctx.postState({ status: "running", message: "正在执行 Git 安全预检…" });
-    const analysis = await this.KtcAdapter.analyzeSquash(snapshot.root, selectedOids);
-    this.KtcSessions.set(repositoryId, { snapshot: analysis.snapshot });
-    this.KtcRepositoryInputs = this.KtcRepositoryInputs.map((item) => item.id === repositoryId
-      ? this.KtcRepositoryInput(analysis.snapshot, item)
-      : item);
+    const analysis = await this.KtcAdapter.analyzeSquash(candidates.root, selectedOids);
+    if (operationGeneration !== this.KtcReadGeneration || this.KtcSelectedRepositoryId !== repositoryId) return;
+    if (analysis.snapshot.headOid !== expectedHeadOid
+      || KtcGitPathKey(analysis.snapshot.root) !== KtcGitPathKey(session.snapshot.root)) {
+      const generation = ++this.KtcReadGeneration;
+      await this.KtcReadSelectedRepository(repositoryId, generation, ctx);
+      throw new Error("HEAD 或仓库根目录在预检期间变化，请重新选择合并区间。");
+    }
     if (!analysis.plan.valid || !analysis.draft || !analysis.plan.currentRef || !analysis.plan.oldHeadOid
       || !analysis.plan.baseParentOid || !analysis.plan.selectedTipTreeOid || !analysis.plan.finalTreeOid) {
       const message = KtcBlockerMessage(analysis.plan.blockers);
@@ -462,6 +1013,19 @@ export class KtcGitController {
     ctx: ToolRunContext,
   ): Promise<void> {
     const session = this.KtcRequireSession(action.repositoryId);
+    const directory = this.KtcDirectories.find((item) => item.root === action.repositoryId);
+    if (!directory) throw new Error("Git 仓库目录已失效，请重新选择。");
+    const canonicalRoot = await KtcCanonicalGitRoot(await this.KtcAdapter.findRepositoryRoot(directory.root));
+    if (KtcGitPathKey(canonicalRoot) !== KtcGitPathKey(directory.root)) {
+      throw new Error("Git 仓库根目录已变化，不能执行合并。");
+    }
+    const current = await this.KtcAdapter.readRepository(canonicalRoot, 1);
+    if (current.headOid !== action.expectedHeadOid || current.currentRef !== session.snapshot.currentRef) {
+      throw new Error("HEAD 或当前分支已变化，不能执行合并；请重新预检。");
+    }
+    if (!current.clean || current.operationState !== "idle") {
+      throw new Error("工作区状态或 Git 操作已变化，不能执行合并；请处理后重新预检。");
+    }
     if (this.KtcRunningRepositories.has(action.repositoryId)) throw new Error("这个仓库已有 Git 操作正在执行。");
     const trusted = this.KtcSquashDraft;
     if (!trusted
@@ -474,17 +1038,21 @@ export class KtcGitController {
     const draft = KtcValidatedDraft(action.message, action.author, action.committer);
     const hasWarnings = trusted.warnings.length > 0;
     const confirmLabel = hasWarnings ? "确认仅改写本地" : "确认合并";
+    const repositoryDetail = directory.sourceGroup === "external"
+      ? [`工作区外仓库：${directory.root}`, `分支：${current.branch ?? "detached"}`, `HEAD：${current.headOid.slice(0, 12)}`, ""]
+      : [];
     const warningDetail = hasWarnings
       ? [
+          ...repositoryDetail,
           ...trusted.warnings.map((warning) => `• ${warning.label}`),
           "",
           "确认后仅更新当前本地分支；不会 push，不会删除或移动 remote、其他分支和标签。它们会继续指向旧历史。",
         ].join("\n")
-      : `当前 HEAD ${action.expectedHeadOid.slice(0, 12)}；失败时原分支保持不变。`;
+      : [...repositoryDetail, `当前 HEAD ${action.expectedHeadOid.slice(0, 12)}；失败时原分支保持不变。`].join("\n");
     const answer = await vscode.window.showWarningMessage(
       hasWarnings
-        ? `受影响历史已被共享引用。仍要合并 ${action.selectedOids.length} 个 commit 吗？`
-        : `将 ${action.selectedOids.length} 个 commit 合并，并逐个重放其后的提交。操作只更新本地分支，不会 push。`,
+        ? `${directory.sourceGroup === "external" ? "工作区外仓库；" : ""}受影响历史已被共享引用。仍要合并 ${action.selectedOids.length} 个 commit 吗？`
+        : `${directory.sourceGroup === "external" ? "工作区外仓库；" : ""}将 ${action.selectedOids.length} 个 commit 合并，并逐个重放其后的提交。操作只更新本地分支，不会 push。`,
       { modal: true, detail: warningDetail },
       confirmLabel,
     );
@@ -505,10 +1073,16 @@ export class KtcGitController {
       this.KtcUndoState = { repositoryId: action.repositoryId, currentRef, result };
       this.KtcSummaryDraft = undefined;
       this.KtcSquashDraft = undefined;
-      const refreshed = await this.KtcAdapter.readRepository(session.snapshot.root, 200);
-      this.KtcSessions.set(action.repositoryId, { snapshot: refreshed });
+      const refreshed = await this.KtcAdapter.readRepositorySummary(session.snapshot.root, 1, true);
+      const refreshedSnapshot = KtcGitReadSnapshotFromSummary(refreshed, session.snapshot.name);
+      const refreshedSession = {
+        snapshot: refreshedSnapshot,
+        ...(refreshed.commits.at(-1)?.oid ? { nextBeforeOid: refreshed.commits.at(-1)!.oid } : {}),
+        hasMoreCommits: refreshed.commits.length > 0,
+      } satisfies KtcGitSession;
+      this.KtcSessions.set(action.repositoryId, refreshedSession);
       this.KtcRepositoryInputs = this.KtcRepositoryInputs.map((item) => item.id === action.repositoryId
-        ? this.KtcRepositoryInput(refreshed, item)
+        ? this.KtcRepositoryInput(refreshedSnapshot, item, refreshedSession.hasMoreCommits)
         : item);
       this.KtcPostState(ctx);
       ctx.log(`[Git] squash ${result.oldHeadOid.slice(0, 12)} -> ${result.newHeadOid.slice(0, 12)}; backup=${result.backupRef}`);
@@ -555,8 +1129,12 @@ export class KtcGitController {
   }
 
   private KtcRepositoryInput(
-    snapshot: KtcPnwGitRepositorySnapshot,
-    display: Pick<KtcGitRepositoryDisplay, "name"> & { readonly relativePath?: string },
+    snapshot: KtcGitReadSnapshot,
+    display: Pick<KtcGitRepositoryDisplay, "name"> & {
+      readonly relativePath?: string;
+      readonly sourceGroup?: "workspace" | "external";
+    },
+    hasMoreCommits: boolean,
   ): KtcGitRepositoryInput {
     return {
       id: snapshot.root,
@@ -566,19 +1144,31 @@ export class KtcGitController {
       upstream: snapshot.upstream,
       remoteUrl: snapshot.remoteUrl,
       head: snapshot.headOid,
-      clean: snapshot.clean,
       detached: snapshot.detached,
-      operationState: snapshot.operationState,
+      loaded: true,
+      sourceGroup: display.sourceGroup ?? "workspace",
+      hasMoreCommits,
       commits: snapshot.history.map((commit) => ({
         oid: commit.oid,
-        parentOids: commit.parentOids,
         subject: commit.subject,
         body: commit.body,
         author: KtcIdentity(commit.author),
         committer: KtcIdentity(commit.committer),
         isHead: commit.oid === snapshot.headOid,
       })),
-      recentCommitLimit: this.KtcRecentCommitLimits.get(snapshot.root) ?? 20,
+      recentCommitLimit: snapshot.history.length,
+    };
+  }
+
+  private KtcDirectoryInput(directory: KtcGitDirectory): KtcGitRepositoryInput {
+    return {
+      id: directory.root,
+      name: directory.name,
+      relativePath: directory.relativePath,
+      sourceGroup: directory.sourceGroup,
+      loaded: false,
+      recentCommitLimit: 1,
+      hasMoreCommits: false,
     };
   }
 
@@ -590,6 +1180,8 @@ export class KtcGitController {
     const git: KtcGitViewModel = KtcCreateGitModel({
       repositories: this.KtcRepositoryInputs,
       selectedRepositoryId: this.KtcSelectedRepositoryId,
+      workspaceFolderCount: vscode.workspace.workspaceFolders?.length ?? 0,
+      discovery: this.KtcRepositorySearchState,
       summaryDraft: this.KtcSummaryDraft,
       squashDraft: this.KtcSquashDraft,
       ...(this.KtcUndoState ? {
@@ -608,6 +1200,7 @@ export class KtcGitController {
 
 const KtcGitReviewerStateKey = "ktAutoCode.git.reviewers.v1";
 const KtcGitSelectedRepositoryStateKey = "ktAutoCode.git.selectedRepository.v1";
+const KtcGitWorkspaceRepositoriesStateKey = "ktAutoCode.git.workspaceRepositories.v1";
 
 interface KtcVsCodeGitRepository {
   readonly rootUri: vscode.Uri;
@@ -618,6 +1211,7 @@ interface KtcVsCodeGitRepository {
 
 interface KtcVsCodeGitApi {
   readonly repositories: readonly KtcVsCodeGitRepository[];
+  init?(root: vscode.Uri): Promise<KtcVsCodeGitRepository | null>;
 }
 
 interface KtcVsCodeGitExports {
@@ -626,10 +1220,7 @@ interface KtcVsCodeGitExports {
 
 async function KtcReadVsCodeGitRepositories(ctx: ToolRunContext): Promise<KtcGitApiRepositorySeed[]> {
   try {
-    const extension = vscode.extensions.getExtension<KtcVsCodeGitExports>("vscode.git");
-    if (!extension) return [];
-    const exports = extension.isActive ? extension.exports : await extension.activate();
-    const api = exports?.getAPI(1);
+    const api = await KtcGetVsCodeGitApi(ctx);
     return (api?.repositories ?? [])
       .filter((repository) => repository.rootUri.scheme === "file")
       .map((repository) => ({
@@ -639,6 +1230,18 @@ async function KtcReadVsCodeGitRepositories(ctx: ToolRunContext): Promise<KtcGit
   } catch (error) {
     ctx.log(`[Git] VS Code Git API discovery unavailable: ${KtcErrorMessage(error)}`);
     return [];
+  }
+}
+
+async function KtcGetVsCodeGitApi(ctx: ToolRunContext): Promise<KtcVsCodeGitApi | undefined> {
+  try {
+    const extension = vscode.extensions.getExtension<KtcVsCodeGitExports>("vscode.git");
+    if (!extension) return undefined;
+    const exports = extension.isActive ? extension.exports : await extension.activate();
+    return exports?.getAPI(1);
+  } catch (error) {
+    ctx.log(`[Git] VS Code Git API unavailable: ${KtcErrorMessage(error)}`);
+    return undefined;
   }
 }
 
@@ -730,4 +1333,42 @@ function KtcWarningLabel(warning: { readonly code: string; readonly refName?: st
 
 function KtcErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function KtcIsAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+function KtcGitReadSnapshotFromSummary(
+  summary: KtcPnwGitRepositorySummary,
+  fallbackName: string,
+): KtcGitReadSnapshot {
+  return {
+    root: summary.root,
+    name: basename(summary.root) || fallbackName,
+    ...(summary.currentRef ? { currentRef: summary.currentRef } : {}),
+    ...(summary.branch ? { branch: summary.branch } : {}),
+    ...(summary.upstream ? { upstream: summary.upstream } : {}),
+    ...(summary.remoteUrl ? { remoteUrl: summary.remoteUrl } : {}),
+    headOid: summary.headOid,
+    detached: !summary.currentRef,
+    history: [...summary.commits].reverse(),
+  };
+}
+
+function KtcGitPathKey(value: string): string {
+  const normalized = resolve(value);
+  return process.platform === "win32" ? normalized.toLocaleLowerCase() : normalized;
+}
+
+async function KtcCanonicalGitRoot(value: string): Promise<string> {
+  return resolve(await realpath(resolve(value)));
+}
+
+function KtcGitPathContains(parentPath: string, candidatePath: string): boolean {
+  const parent = KtcGitPathKey(parentPath);
+  const candidate = KtcGitPathKey(candidatePath);
+  if (parent === candidate) return true;
+  const separator = process.platform === "win32" ? "\\" : "/";
+  return candidate.startsWith(parent.endsWith(separator) ? parent : `${parent}${separator}`);
 }

@@ -75,7 +75,7 @@ describe("Codegen editor session presenter", () => {
     presenter.publishDocumentState(model);
     presenter.publishModel(model);
     expect(view.postEditor).toHaveBeenCalledWith(model.identity.uri, {
-      type: "codegenDocumentState", dirty: false, externalConflict: false,
+      type: "codegenDocumentState", dirty: false, externalConflict: false, externalState: "current",
     });
     expect(view.postEditor).toHaveBeenCalledWith(model.identity.uri, expect.objectContaining({
       type: "codegenModel",

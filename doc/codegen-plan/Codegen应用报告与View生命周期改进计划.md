@@ -225,3 +225,9 @@ Primary 新增可折叠的“应用报告”区，默认放在“JSON 配置”�
 - [x] 真实 Extension Host 人工点检通过：内容一致标签、single/batch 报告落盘、Primary 历史重开、Codegen View 导航、批量无额外标签、用户原有 View 保留、部分更新错误状态和顶层 schema 字段均已确认。
 
 自动验证回执：107 个测试文件、539 项通过；Extension TypeScript 检查通过；140 个源码文件、24 个纯依赖图和 13 个 View Root 的架构门禁通过；69 份 Markdown 分类与链接通过；Extension 构建与同级 Wing 联合准备通过。
+
+## 12. 2026-07-29 外部刷新与内存后续
+
+本计划完成的是批量 Apply 不创建大量 View 与 batch-owned session 回收。用户正常打开的 JSON View 仍有两个独立后续问题：existing session 重开前不复读磁盘，以及关闭 clean View 后 Host session 仍长期保留。文件 watcher 漏报时，两者共同造成“磁盘已改、关闭再打开仍是旧内容”。
+
+2026-07-29 已完成 show/reopen 前 fingerprint 校验、始终可用的“重新加载”、per-URI 串行 reconcile、关闭 clean/current/无运行 owner 的 View 释放 session，以及运行诊断计数。手工重新加载发现磁盘修改时先提示确认；dirty/conflict/deleted/非法 JSON 均保留最后有效模型。实现边界与人工验收见[运行性能、Git 按需加载与 Codegen 刷新研究](../运行性能与按需加载研究.md#6-codegen-外部修改不刷新的根因)。

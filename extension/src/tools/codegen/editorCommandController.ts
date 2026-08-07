@@ -27,7 +27,7 @@ export interface KtcCodegenEditorCommandActions {
   publish(message: string): void;
   log(line: string): void;
   save(): Promise<void>;
-  revert(): Promise<void>;
+  reload(): Promise<void>;
   cancelPreflight(uri: string): void;
   runPreflight(timer?: KtcCodegenOperationTimer): Promise<void>;
   apply(timer: KtcCodegenOperationTimer): Promise<void>;
@@ -88,8 +88,8 @@ export async function ktcExecuteCodegenEditorCommand(
     actions.publishModel();
     return;
   }
-  if (command.kind === "revert") {
-    await actions.revert();
+  if (command.kind === "reload") {
+    await actions.reload();
     return;
   }
   if (command.kind === "cancelPreflight") {

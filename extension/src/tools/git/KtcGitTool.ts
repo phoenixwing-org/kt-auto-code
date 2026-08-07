@@ -24,7 +24,7 @@ export const KtcGitTool: KtTool = {
   },
 
   onDidShow(ctx): Promise<void> {
-    return KtcController.refresh(ctx);
+    return KtcController.show(ctx);
   },
 
   async handleMessage(message: WebviewInboundMessage, ctx: ToolRunContext): Promise<void> {
@@ -37,14 +37,31 @@ export const KtcGitTool: KtTool = {
   },
 };
 
+export function getGitRuntimeDiagnosticsSnapshot() {
+  return KtcController.getRuntimeDiagnosticsSnapshot();
+}
+
 export function KtcParseGitAction(message: unknown): KtcGitActionMessage | undefined {
   if (!message || typeof message !== "object") return undefined;
   const candidate = message as Record<string, unknown>;
   if (candidate.type !== "gitAction" || candidate.toolId !== "git" || typeof candidate.action !== "string") return undefined;
-  if (["refresh", "openScm", "openOutput", "closeSummary", "cancelSquash"].includes(candidate.action)) {
+  if ([
+    "refresh",
+    "openScm",
+    "openOutput",
+    "addRepository",
+    "initializeRepository",
+    "searchRepositories",
+    "stopRepositorySearch",
+    "closeSummary",
+    "cancelSquash",
+  ].includes(candidate.action)) {
     return candidate as unknown as KtcGitActionMessage;
   }
   if (candidate.action === "selectRepository" && typeof candidate.repositoryId === "string") {
+    return candidate as unknown as KtcGitActionMessage;
+  }
+  if (candidate.action === "removeRepository" && typeof candidate.repositoryId === "string") {
     return candidate as unknown as KtcGitActionMessage;
   }
   if (candidate.action === "openAction"
@@ -53,12 +70,14 @@ export function KtcParseGitAction(message: unknown): KtcGitActionMessage | undef
   if (candidate.action === "selectCommits"
     && KtcIsStringArray(candidate.selectedOids)
     && typeof candidate.repositoryId === "string"
+    && typeof candidate.expectedHeadOid === "string"
     && typeof candidate.copyAfterGenerate === "boolean") return candidate as unknown as KtcGitActionMessage;
   if (candidate.action === "saveSummaryTextHeight"
     && typeof candidate.height === "number"
     && Number.isFinite(candidate.height)) return candidate as unknown as KtcGitActionMessage;
   if (candidate.action === "copySummary"
     && typeof candidate.repositoryId === "string"
+    && typeof candidate.expectedHeadOid === "string"
     && KtcIsStringArray(candidate.selectedOids)
     && typeof candidate.text === "string") return candidate as unknown as KtcGitActionMessage;
   if (candidate.action === "updateSummaryOptions"
@@ -71,7 +90,10 @@ export function KtcParseGitAction(message: unknown): KtcGitActionMessage | undef
   if (candidate.action === "undoSquash" && typeof candidate.repositoryId === "string") {
     return candidate as unknown as KtcGitActionMessage;
   }
-  if (candidate.action === "loadMore" && typeof candidate.repositoryId === "string") {
+  if (candidate.action === "loadOlderCommits"
+    && typeof candidate.repositoryId === "string"
+    && typeof candidate.expectedHeadOid === "string"
+    && (candidate.count === 1 || candidate.count === 5)) {
     return candidate as unknown as KtcGitActionMessage;
   }
   if (candidate.action === "executeSquash"

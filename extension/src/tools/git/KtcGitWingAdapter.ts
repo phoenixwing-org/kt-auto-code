@@ -16,6 +16,31 @@ export interface KtcPnwGitCommitRecord {
   readonly extraHeaders: readonly string[];
 }
 
+export interface KtcPnwGitCommitSummary {
+  readonly oid: string;
+  readonly author: KtcPnwGitIdentity;
+  readonly committer: KtcPnwGitIdentity;
+  readonly subject: string;
+  readonly body: string;
+}
+
+export interface KtcPnwGitRepositorySummary {
+  readonly root: string;
+  readonly headOid: string;
+  readonly currentRef?: string;
+  readonly branch?: string;
+  readonly upstream?: string;
+  readonly remoteUrl?: string;
+  readonly commits: readonly KtcPnwGitCommitSummary[];
+}
+
+export interface KtcPnwGitCommitPage {
+  readonly headOid: string;
+  readonly commits: readonly KtcPnwGitCommitSummary[];
+  readonly nextBeforeOid?: string;
+  readonly hasMore: boolean;
+}
+
 export interface KtcPnwGitRepositorySnapshot {
   readonly root: string;
   readonly name: string;
@@ -84,7 +109,7 @@ interface KtcPnwGitCoreModule {
     readonly repositoryName: string;
     readonly branch?: string;
     readonly upstream?: string;
-    readonly commit: KtcPnwGitCommitRecord;
+    readonly commit: KtcPnwGitCommitSummary;
     readonly visibleOids?: readonly string[];
     readonly includeRepositoryContext?: boolean;
     readonly includeCommitTime?: boolean;
@@ -95,7 +120,7 @@ interface KtcPnwGitCoreModule {
     readonly repositoryName: string;
     readonly branch?: string;
     readonly upstream?: string;
-    readonly commits: readonly KtcPnwGitCommitRecord[];
+    readonly commits: readonly KtcPnwGitCommitSummary[];
     readonly visibleOids?: readonly string[];
     readonly remoteUrl?: string;
     readonly includeRemoteUrl?: boolean;
@@ -109,9 +134,29 @@ interface KtcPnwGitCoreModule {
 }
 
 interface KtcPnwGitNodeModule {
+  pnwFindGitRepositoryRoot(startPath: string, gitExecutable?: string, signal?: AbortSignal): Promise<string>;
+  pnwReadGitRepositorySummary(
+    startPath: string,
+    options?: {
+      readonly maxCommits?: number;
+      readonly includeRemoteUrl?: boolean;
+      readonly gitExecutable?: string;
+      readonly signal?: AbortSignal;
+    },
+  ): Promise<KtcPnwGitRepositorySummary>;
+  pnwReadGitCommitPage(
+    startPath: string,
+    options: {
+      readonly expectedHeadOid: string;
+      readonly beforeOid?: string;
+      readonly limit?: number;
+      readonly gitExecutable?: string;
+      readonly signal?: AbortSignal;
+    },
+  ): Promise<KtcPnwGitCommitPage>;
   pnwReadGitRepository(
     startPath: string,
-    options?: { readonly maxCommits?: number; readonly gitExecutable?: string },
+    options?: { readonly maxCommits?: number; readonly gitExecutable?: string; readonly signal?: AbortSignal },
   ): Promise<KtcPnwGitRepositorySnapshot>;
   pnwAnalyzeGitSquash(
     startPath: string,
@@ -141,6 +186,38 @@ const KtcGitCore = KtcGitCoreImport as KtcPnwGitCoreModule;
 const KtcGitNode = KtcGitNodeImport as KtcPnwGitNodeModule;
 
 export class KtcGitWingAdapter {
+  findRepositoryRoot(startPath: string, signal?: AbortSignal): Promise<string> {
+    return KtcGitNode.pnwFindGitRepositoryRoot(startPath, undefined, signal);
+  }
+
+  readRepositorySummary(
+    startPath: string,
+    maxCommits = 1,
+    includeRemoteUrl = true,
+    signal?: AbortSignal,
+  ): Promise<KtcPnwGitRepositorySummary> {
+    return KtcGitNode.pnwReadGitRepositorySummary(startPath, {
+      maxCommits,
+      includeRemoteUrl,
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  readCommitPage(
+    startPath: string,
+    expectedHeadOid: string,
+    beforeOid: string | undefined,
+    limit: number,
+    signal?: AbortSignal,
+  ): Promise<KtcPnwGitCommitPage> {
+    return KtcGitNode.pnwReadGitCommitPage(startPath, {
+      expectedHeadOid,
+      ...(beforeOid ? { beforeOid } : {}),
+      limit,
+      ...(signal ? { signal } : {}),
+    });
+  }
+
   readRepository(startPath: string, maxCommits = 200): Promise<KtcPnwGitRepositorySnapshot> {
     return KtcGitNode.pnwReadGitRepository(startPath, { maxCommits });
   }

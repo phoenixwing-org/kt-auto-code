@@ -40,6 +40,7 @@ import { ktcIsPathInsideWorkspace } from "../../../src/workspace/workspacePath.j
 import { ktcActivateResultAccordion } from "../workbench/resultAccordion.js";
 import { ktcListWorkspaceFileScopes, ktcOpenWorkspaceWorksets } from "../worksets.js";
 import { ktcActivateToolBlock, ktcCloseToolBlock } from "./toolBlockHistory.js";
+import type { KtcSidebarRuntimeDiagnostics } from "../runtimeDiagnostics.js";
 import {
   ktcActivateModule,
   ktcCreateModuleState,
@@ -491,6 +492,10 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
         await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:kuntai.kt-auto-code");
         return;
       }
+      if (message.action === "openDiagnostics") {
+        await vscode.commands.executeCommand("ktAutoCode.runtimeDiagnostics.open");
+        return;
+      }
       if (message.action === "openInstallGuide") {
         await vscode.commands.executeCommand("workbench.extensions.search", "@id:kuntai.kt-auto-code");
         return;
@@ -702,6 +707,21 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       enabled: [...this.moduleState.enabled],
       visible: [...this.moduleState.visible],
       known: [...this.moduleState.known],
+    };
+  }
+
+  /** 只返回无路径、无正文的宿主资源计数，不触发工具刷新。 */
+  getRuntimeDiagnosticsSnapshot(): KtcSidebarRuntimeDiagnostics {
+    return {
+      resolvedViews: Number(this.ribbonView !== undefined) + Number(this.moduleView !== undefined),
+      ribbonResolved: this.ribbonView !== undefined,
+      modulePanelResolved: this.moduleView !== undefined,
+      ribbonVisible: this.ribbonView?.visible === true,
+      modulePanelVisible: this.moduleView?.visible === true,
+      openToolCount: this.openToolIds.length,
+      openToolIds: [...this.openToolIds],
+      retainedToolStateCount: this.toolStates.size,
+      moduleBlockProviderCount: this.moduleBlockProviders.size,
     };
   }
 

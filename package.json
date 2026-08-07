@@ -1,7 +1,7 @@
 {
   "name": "@phoenix/code-plugin",
   "author": "上海锟钛",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "license": "Apache-2.0",
   "private": true,
   "type": "module",
@@ -57,12 +57,12 @@
     "vitest": "^4.1.9"
   },
   "dependencies": {
-    "@phoenix-wing/code-core": "0.5.1",
-    "@phoenix-wing/git-core": "0.5.1",
-    "@phoenix-wing/git-node": "0.5.1",
-    "@phoenix-wing/kt-codegen": "0.5.1",
-    "@phoenix-wing/run-core": "0.5.1",
-    "@phoenix-wing/run-node": "0.5.1",
+    "@phoenix-wing/code-core": "0.6.2",
+    "@phoenix-wing/git-core": "0.6.2",
+    "@phoenix-wing/git-node": "0.6.2",
+    "@phoenix-wing/kt-codegen": "0.6.2",
+    "@phoenix-wing/run-core": "0.6.2",
+    "@phoenix-wing/run-node": "0.6.2",
     "iconv-lite": "0.6.3"
   }
 }

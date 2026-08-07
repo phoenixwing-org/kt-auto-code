@@ -135,4 +135,80 @@ describe("Codegen document session controller", () => {
     expect(sessions.activeUri).toBeUndefined();
     expect(sessions.get(IDENTITY.uri)).toBeUndefined();
   });
+
+  it("重开校验在 fingerprint 未变时复用模型，并可清除已经恢复的冲突", async () => {
+    const { sessions, readSnapshot } = fixture();
+    const opened = await sessions.open(request());
+    if (opened.kind === "error") throw new Error(opened.message);
+    opened.session.markExternalChanged();
+
+    const result = await sessions.reconcile(opened.session);
+
+    expect(result).toEqual({ kind: "current", conflictCleared: true });
+    expect(opened.session.externalState).toBe("current");
+    expect(readSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it("磁盘变化时 clean session 自动重载，dirty session 保留草稿并进入冲突", async () => {
+    let snapshot = { text: JSON_TEXT, fingerprint: "sha256:open" };
+    const sessions = new KtcCodegenDocumentSessionController({
+      readSnapshot: vi.fn(async () => snapshot),
+    });
+    const opened = await sessions.open(request());
+    if (opened.kind === "error") throw new Error(opened.message);
+    snapshot = {
+      text: JSON_TEXT.replace('"NameMiddle":"Demo"', '"NameMiddle":"Disk"'),
+      fingerprint: "sha256:disk",
+    };
+
+    expect(await sessions.reconcile(opened.session)).toEqual({ kind: "reloaded" });
+    expect(opened.session.controller.param.nameMiddle).toBe("Disk");
+    expect(opened.session.diskFingerprint).toBe("sha256:disk");
+
+    opened.session.updateMeta("nameMiddle", "Draft");
+    snapshot = {
+      text: JSON_TEXT.replace('"NameMiddle":"Demo"', '"NameMiddle":"External"'),
+      fingerprint: "sha256:external",
+    };
+    expect(await sessions.reconcile(opened.session)).toEqual({ kind: "conflict" });
+    expect(opened.session.controller.param.nameMiddle).toBe("Draft");
+    expect(opened.session.externalState).toBe("changed");
+
+    expect(await sessions.reconcile(opened.session, { discardDirty: true }))
+      .toEqual({ kind: "reloaded" });
+    expect(opened.session.controller.param.nameMiddle).toBe("External");
+    expect(opened.session.dirty).toBe(false);
+  });
+
+  it("无效、删除和读取失败都保留最后有效 Param，并给出可区分状态", async () => {
+    let mode: "valid" | "invalid" | "deleted" | "failed" = "valid";
+    const sessions = new KtcCodegenDocumentSessionController({
+      readSnapshot: vi.fn(async () => {
+        if (mode === "deleted") throw Object.assign(new Error("missing"), { code: "ENOENT" });
+        if (mode === "failed") throw new Error("permission denied");
+        return mode === "invalid"
+          ? { text: "{ broken", fingerprint: "sha256:invalid" }
+          : { text: JSON_TEXT, fingerprint: "sha256:open" };
+      }),
+      isFileNotFoundError: (error) => (error as { code?: string }).code === "ENOENT",
+    });
+    const opened = await sessions.open(request());
+    if (opened.kind === "error") throw new Error(opened.message);
+    const original = opened.session.controller.param;
+
+    mode = "invalid";
+    expect(await sessions.reconcile(opened.session)).toEqual(expect.objectContaining({ kind: "invalid" }));
+    expect(opened.session.controller.param).toBe(original);
+    expect(opened.session.externalState).toBe("changed");
+
+    mode = "deleted";
+    expect(await sessions.reconcile(opened.session)).toEqual({ kind: "deleted" });
+    expect(opened.session.controller.param).toBe(original);
+    expect(opened.session.externalState).toBe("deleted");
+
+    mode = "failed";
+    expect(await sessions.reconcile(opened.session)).toEqual({ kind: "error", message: "permission denied" });
+    expect(opened.session.controller.param).toBe(original);
+    expect(opened.session.externalState).toBe("changed");
+  });
 });

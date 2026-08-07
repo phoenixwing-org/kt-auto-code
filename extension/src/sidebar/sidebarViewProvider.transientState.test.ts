@@ -255,6 +255,9 @@ describe("SidebarViewProvider transient tool state", () => {
       "@ext:kuntai.kt-auto-code",
     );
 
+    await internals.onMessage({ type: "welcomeAction", action: "openDiagnostics" }, module);
+    expect(vscodeHost.executeCommand).toHaveBeenCalledWith("ktAutoCode.runtimeDiagnostics.open");
+
     await internals.onMessage({
       type: "welcomeAction",
       action: "installExtension",
@@ -264,6 +267,24 @@ describe("SidebarViewProvider transient tool state", () => {
       "workbench.extensions.installExtension",
       "kuntai.kt-auto-cad",
     );
+  });
+
+  it("运行诊断快照只公开 Sidebar 资源计数和工具 ID", () => {
+    const { provider, internals } = createProvider();
+    internals.setToolState("headerAscii", { status: "done", message: "/private/secret.h" });
+
+    expect(provider.getRuntimeDiagnosticsSnapshot()).toEqual({
+      resolvedViews: 2,
+      ribbonResolved: true,
+      modulePanelResolved: true,
+      ribbonVisible: true,
+      modulePanelVisible: true,
+      openToolCount: 0,
+      openToolIds: [],
+      retainedToolStateCount: 1,
+      moduleBlockProviderCount: 0,
+    });
+    expect(JSON.stringify(provider.getRuntimeDiagnosticsSnapshot())).not.toContain("secret.h");
   });
 
   it("编码目标写入后立即刷新 GBK 选项并废弃旧预检结果", async () => {

@@ -1,10 +1,12 @@
 import type * as vscode from "vscode";
 import type {
   ToolSummary,
+  ToolUiState,
   WebviewInboundMessage,
   WebviewOutboundMessage,
 } from "../tools/types.js";
 import type { KtcReplacementRuleDraft } from "../../../src/associatedReplacementRules.js";
+import type { KtcGitViewModel } from "../../../src/git/KtcGitModel.js";
 import { ktcCreateWebviewSecurity } from "../webviewSupport.js";
 import { KtcCompactManagerLabelStyle } from "../ui/KtcCompactManagerLabel.js";
 
@@ -45,6 +47,25 @@ export function ktcAssociatedRulePickerAppendMessage(input: {
     primarySearch: input.primarySearch,
     rules: [...input.rules],
     existingRules: [...input.existingRules],
+  };
+}
+
+/**
+ * The Git component must always receive a renderable model. A missing tool
+ * state is a Host/Webview bootstrap condition, not a reason to leave the
+ * component on its internal loading placeholder.
+ */
+export function ktcGitPanelModel(
+  toolState: Pick<ToolUiState, "git"> | undefined,
+  workspaceAvailable: boolean,
+): KtcGitViewModel {
+  return toolState?.git ?? {
+    projects: [],
+    statusText: "当前工作区未发现 Git 仓库。",
+    recentCommitLimit: 1,
+    workspaceFolderCount: workspaceAvailable ? 1 : 0,
+    workspaceRepositoryCount: 0,
+    discovery: { status: "idle", scannedDirectories: 0, foundRepositories: 0 },
   };
 }
 
@@ -653,6 +674,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         <button class="welcome-link" type="button" data-welcome-action="openInstallGuide">安装说明</button>
         <button class="welcome-link" type="button" data-welcome-action="openQuickStart">快速开始</button>
         <button class="welcome-link" type="button" data-welcome-action="openSettings">插件设置</button>
+        <button class="welcome-link" type="button" data-welcome-action="openDiagnostics">运行诊断</button>
       </footer>
     </section>
     <div class="title-row">
@@ -887,6 +909,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     state.replace.defaultEncoding = state.replace.defaultEncoding === "gbk" ? "gbk" : "utf8";
     state.replace.preserveCase = !!state.replace.preserveCase;
     const toolScrollPositions = new Map();
+    const gitPanelModel = ${ktcGitPanelModel.toString()};
+    let gitRefreshRequested = false;
 
     function switchActiveTool(nextToolId) {
       const next = nextToolId || state.activeToolId;
@@ -1718,8 +1742,19 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.runPanel.model = model ? Object.assign({}, model, { running: !!running }) : undefined;
     }
 
-    function renderGit(ts) {
-      els.gitPanel.model = ts.git;
+    function renderGit(ts, running) {
+      const workspaceAvailable = els.workspace.textContent !== "（未打开工作区）";
+      els.gitPanel.model = gitPanelModel(ts, workspaceAvailable);
+      if (ts.git) {
+        gitRefreshRequested = false;
+      } else if (!running && !gitRefreshRequested) {
+        gitRefreshRequested = true;
+        queueMicrotask(() => vscode.postMessage({
+          type: "gitAction",
+          toolId: "git",
+          action: "refresh",
+        }));
+      }
     }
 
     function renderGitRepositoryContext(ts, running, git) {
@@ -1739,13 +1774,22 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         empty.textContent = "未发现 Git 仓库";
         els.gitRepositorySelect.appendChild(empty);
       } else {
+        const groups = new Map();
         for (const project of projects) {
           const repository = project.repository;
+          const label = repository.groupLabel || "当前工作区";
+          let group = groups.get(label);
+          if (!group) {
+            group = document.createElement("optgroup");
+            group.label = label;
+            groups.set(label, group);
+            els.gitRepositorySelect.appendChild(group);
+          }
           const option = document.createElement("option");
           option.value = repository.id;
           option.textContent = repository.name + " · " + repository.relativePath;
           option.title = repository.name + " · " + repository.id;
-          els.gitRepositorySelect.appendChild(option);
+          group.appendChild(option);
         }
       }
       els.gitRepositorySelect.value = model?.selectedRepositoryId || projects[0]?.repository.id || "";
@@ -1935,7 +1979,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
 
       if (codegen) renderCodegen(ts, running);
       if (run) renderRun(ts, running);
-      if (git) renderGit(ts);
+      if (git) renderGit(ts, running);
 
       if (reorder) {
         els.reorderMembersPanel.model = {
