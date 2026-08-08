@@ -218,9 +218,9 @@ Owner：KT Auto Code maintainers
 
 ## 已合并的旧路线
 
-- `下一阶段实施计划.md`：已完成的 Ignore/搜索替换主体成为稳定基线，未完成 Extension Host 验收进入本路线第 3 项。
-- `Codegen下一阶段实施计划.md`：已完成的预检和 Apply 不再作为未来计划；Custom Editor/真实宿主验证并入第 3 项。
-- `0.4.0-Block工作流改造计划.md`：完成态 Block 改造转为历史证据。
+- `历史/下一阶段实施计划.md`：已完成的 Ignore/搜索替换主体成为稳定基线，未完成 Extension Host 验收进入本路线第 3 项。
+- `历史/Codegen下一阶段实施计划.md`：已完成的预检和 Apply 不再作为未来计划；Custom Editor/真实宿主验证并入第 3 项。
+- `历史/0.4.0-Block工作流改造计划.md`：完成态 Block 改造转为历史证据。
 - Codegen 各轮评分只保留当时证据，不再作为当前全工程评分。
 
 ## 边界

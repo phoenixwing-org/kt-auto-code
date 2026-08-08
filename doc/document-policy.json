@@ -5,7 +5,7 @@
   "appliesTo": "0.6.x",
   "rules": [
     {
-      "match": "^doc/(下一阶段实施计划|Codegen下一阶段实施计划|0\\.4\\.0-Block工作流改造计划)\\.md$",
+      "match": "^doc/历史/(下一阶段实施计划|Codegen下一阶段实施计划|0\\.4\\.0-Block工作流改造计划)\\.md$",
       "status": "superseded",
       "sourceOfTruth": "doc/current-roadmap.md",
       "reason": "重叠路线已合并为当前 roadmap"
@@ -23,7 +23,7 @@
       "reason": "阶段评分证据，不代表当前全工程成熟度"
     },
     {
-      "match": "^doc/(vscode插件规划|侧边栏界面改进计划)\\.md$",
+      "match": "^doc/历史/(vscode插件规划|侧边栏界面改进计划)\\.md$",
       "status": "archived",
       "sourceOfTruth": "doc/current-roadmap.md",
       "reason": "完成态旧 UI/插件规划"

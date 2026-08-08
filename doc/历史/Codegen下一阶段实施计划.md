@@ -1,5 +1,7 @@
 # Codegen 下一阶段实施计划
 
+> 历史归档：当前路线与剩余事项以 [`current-roadmap.md`](../current-roadmap.md) 为准。
+
 > 状态说明（2026-07-17）：本文保留最初阶段规划。当前实现已按实测反馈把控制符/预检内嵌到 JSON View 下方，并开启带源码指纹复验、原编码写回和失败回滚的真实 Apply；下文关于独立控制符 View 与 dry-run 的描述仅作历史决策记录。
 
 > 状态：第三轮可靠性点检已完成。除第二轮内容外，独立 Workspace Watch Service、根/子目录发现回归测试、外部 JSON fingerprint 冲突门、扫描/预检取消与进度也已完成；Custom Editor/Hot Exit、真实 Apply 和 DeskTools wrapper 尚未执行。

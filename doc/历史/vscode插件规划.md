@@ -46,7 +46,7 @@ CAA / 达索生态下的 C++ 工程有明确的编码约束：
 | 阶段     | 工具 ID         | 显示名          | 说明                                                |
 | ------ | ------------- | ------------ | ------------------------------------------------- |
 | **首期** | `headerAscii` | 头文件 ASCII 修正 | 扫描 / 修复 `.h` 等头文件中的问题字节（本文详述） |
-| **规划** | `encodingFix` | **编码修正** | 整文件编码检测；GBK→UTF-8 等；见 [编码修正.md](./编码修正.md) |
+| **规划** | `encodingFix` | **编码修正** | 整文件编码检测；GBK→UTF-8 等；见 [编码修正.md](../编码修正.md) |
 | **已实现** | `ignoreSettings` | **Ignore 设置** | 打开、同步并共享 `.phoenix/.ignore` |
 | **已实现** | `codeRename` | **搜索替换** | Side Bar 配置搜索/替换与范围，右侧主视图展示文本/文件名/文件夹名预览 |
 | 待定     | `sourceAscii` | 源文件 ASCII 修正 | 扩展到头文件 + `.cpp` 等（复用同一 core，`headersOnly: false`） |
@@ -235,7 +235,7 @@ Side Bar：Vue 3 + 轻量 phoenix-wing 组件
 Workbench：Vue 3 + phoenix-wing，按需使用少量 Element Plus
 ```
 
-Vue 3 是正式 View 技术栈；Pinia 按实际共享状态需要引入，不作为强制依赖。Element Plus 不得全量注册或全量导入 CSS，只允许进入确实使用它的 Webview bundle。详细约束以[前端开发规则](./前端开发规则.md)为准。
+Vue 3 是正式 View 技术栈；Pinia 按实际共享状态需要引入，不作为强制依赖。Element Plus 不得全量注册或全量导入 CSS，只允许进入确实使用它的 Webview bundle。详细约束以[前端开发规则](../前端开发规则.md)为准。
 
 ### 2.5 Activity Bar
 

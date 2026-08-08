@@ -71,15 +71,6 @@
       "reason": "旧版本、已完成点检或阶段性共享提取证据"
     },
     {
-      "path": "doc/0.4.0-Block工作流改造计划.md",
-      "status": "superseded",
-      "owner": "KT Auto Code maintainers",
-      "appliesTo": "0.6.x",
-      "lastVerified": "2026-08-08",
-      "sourceOfTruth": "doc/current-roadmap.md",
-      "reason": "重叠路线已合并为当前 roadmap"
-    },
-    {
       "path": "doc/0.4.0-DeskTools复用盘点.md",
       "status": "archived",
       "owner": "KT Auto Code maintainers",
@@ -117,13 +108,11 @@
       "lastVerified": "2026-08-08"
     },
     {
-      "path": "doc/侧边栏界面改进计划.md",
-      "status": "archived",
+      "path": "doc/仓库结构与扁平化迁移计划.md",
+      "status": "current",
       "owner": "KT Auto Code maintainers",
-      "appliesTo": "historical",
-      "lastVerified": "2026-08-08",
-      "sourceOfTruth": "doc/current-roadmap.md",
-      "reason": "完成态旧 UI/插件规划"
+      "appliesTo": "0.6.x",
+      "lastVerified": "2026-08-08"
     },
     {
       "path": "doc/产品功能归属矩阵.md",
@@ -193,6 +182,58 @@
       "reason": "尚未晋升为当前承诺的方案"
     },
     {
+      "path": "doc/历史/0.4.0-Block工作流改造计划.md",
+      "status": "superseded",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.6.x",
+      "lastVerified": "2026-08-08",
+      "sourceOfTruth": "doc/current-roadmap.md",
+      "reason": "重叠路线已合并为当前 roadmap"
+    },
+    {
+      "path": "doc/历史/侧边栏界面改进计划.md",
+      "status": "archived",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "historical",
+      "lastVerified": "2026-08-08",
+      "sourceOfTruth": "doc/current-roadmap.md",
+      "reason": "完成态旧 UI/插件规划"
+    },
+    {
+      "path": "doc/历史/下一阶段实施计划.md",
+      "status": "superseded",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.6.x",
+      "lastVerified": "2026-08-08",
+      "sourceOfTruth": "doc/current-roadmap.md",
+      "reason": "重叠路线已合并为当前 roadmap"
+    },
+    {
+      "path": "doc/历史/Codegen下一阶段实施计划.md",
+      "status": "superseded",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.6.x",
+      "lastVerified": "2026-08-08",
+      "sourceOfTruth": "doc/current-roadmap.md",
+      "reason": "重叠路线已合并为当前 roadmap"
+    },
+    {
+      "path": "doc/历史/README.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.6.x",
+      "lastVerified": "2026-08-08"
+    },
+    {
+      "path": "doc/历史/vscode插件规划.md",
+      "status": "archived",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "historical",
+      "lastVerified": "2026-08-08",
+      "sourceOfTruth": "doc/current-roadmap.md",
+      "reason": "完成态旧 UI/插件规划"
+    },
+    {
       "path": "doc/前端开发规则.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
@@ -237,15 +278,6 @@
       "lastVerified": "2026-08-08",
       "sourceOfTruth": "doc/current-roadmap.md",
       "reason": "尚未晋升为当前承诺的方案"
-    },
-    {
-      "path": "doc/下一阶段实施计划.md",
-      "status": "superseded",
-      "owner": "KT Auto Code maintainers",
-      "appliesTo": "0.6.x",
-      "lastVerified": "2026-08-08",
-      "sourceOfTruth": "doc/current-roadmap.md",
-      "reason": "重叠路线已合并为当前 roadmap"
     },
     {
       "path": "doc/项目调查.md",
@@ -442,15 +474,6 @@
       "lastVerified": "2026-08-08"
     },
     {
-      "path": "doc/Codegen下一阶段实施计划.md",
-      "status": "superseded",
-      "owner": "KT Auto Code maintainers",
-      "appliesTo": "0.6.x",
-      "lastVerified": "2026-08-08",
-      "sourceOfTruth": "doc/current-roadmap.md",
-      "reason": "重叠路线已合并为当前 roadmap"
-    },
-    {
       "path": "doc/current-roadmap.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
@@ -524,15 +547,6 @@
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.6.x",
       "lastVerified": "2026-08-08"
-    },
-    {
-      "path": "doc/vscode插件规划.md",
-      "status": "archived",
-      "owner": "KT Auto Code maintainers",
-      "appliesTo": "historical",
-      "lastVerified": "2026-08-08",
-      "sourceOfTruth": "doc/current-roadmap.md",
-      "reason": "完成态旧 UI/插件规划"
     },
     {
       "path": "extension/CHANGELOG.md",

@@ -18,6 +18,7 @@ Owner：KT Auto Code maintainers
 - [Phoenix 三形态产品架构](Phoenix三形态产品架构计划.md)
 - [Code/CAD 简明功能关系与可选模块接入契约](可选模块接入契约.md)
 - [项目调查](项目调查.md)
+- [仓库结构与扁平化迁移计划](仓库结构与扁平化迁移计划.md)（`extension/` 当前有效；根包扁平化尚未实施）
 - [代码规范](代码规范.md)、[UI 开发规则](前端开发规则.md)与[工程配置/隐藏状态存储规则](工程配置与隐藏状态存储规则.md)
 
 ## Code 与 Codegen
@@ -58,6 +59,6 @@ Owner：KT Auto Code maintainers
 
 ## 历史与草案
 
-0.1/0.3 发布记录、六轮 Codegen 评分、已完成的 0.4 Block 改造以及共享提取执行记录继续保留在原路径，但标为 `archived` 或 `superseded`；尚未批准的文件改名与共享 UI 方案标为 `draft`。CAD 专属研究和迁移历史已移入 CAD 仓，不在本仓复制。
+0.1/0.3 发布记录、六轮 Codegen 评分、已完成的 0.4 Block 改造以及共享提取执行记录标为 `archived` 或 `superseded`；早期 VS Code/侧栏规划和三份已被 roadmap 取代的实施计划已移入 `doc/历史/`。尚未批准的文件改名与共享 UI 方案标为 `draft`。CAD 专属研究和迁移历史已移入 CAD 仓，不在本仓复制。
 
 仓库入口见根目录 [README](../README.md)。

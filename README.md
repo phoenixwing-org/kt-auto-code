@@ -85,12 +85,16 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 ## 仓库结构
 
 ```text
-src/           # 核心（无 vscode 依赖）
-extension/     # KT Auto Code VS Code 插件壳
-scripts/       # CLI
-tests/fixtures/
-doc/           # 中文文档
+package.json          # 私有编排包、开发/验证/发布入口
+src/                  # Auto 专属 Host-neutral 模型、工作流和算法（无 vscode 依赖）
+extension/            # 当前有效的 KT Auto Code VS Code 扩展包根
+scripts/              # CLI + 开发、构建、测试、打包与发布门禁
+tests/fixtures/       # 核心、CLI 与 Extension Host 代表夹具
+doc/                  # 当前中文文档、专项计划与历史归档
+dist/vsix/            # Git ignored 的 VSIX 与 SHA-256
 ```
+
+`extension/` 当前不是遗留目录：Marketplace manifest、Extension Host 源码、Webview、资源和运行 bundle 都仍在其中。CAD 拆仓后，Auto Code 根目录扁平化已列为独立迁移目标；现状、目标结构和验收门禁见[仓库结构与扁平化迁移计划](doc/仓库结构与扁平化迁移计划.md)。
 
 ## 版权、技术来源与许可证
 
