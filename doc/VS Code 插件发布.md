@@ -9,7 +9,7 @@
 - Marketplace 发布者 ID：`kuntai`
 - Marketplace 发布者名称：`Shanghai Kuntai`
 - 当前版本：以 [`extension/package.json`](../extension/package.json) 的 `version` 为准
-- Marketplace 当前公开版本为 KT Auto Code `0.5.1`、KT Auto CAD `0.1.0`；两者均由 `kuntai` 发布并已通过人工审查。
+- Marketplace 当前公开版本为 KT Auto Code `0.6.1`，由 `kuntai` 发布并已通过人工审查。CAD 当前版本由 [KT Auto CAD 发布说明](https://gitee.com/PhoenixWing321/kt-auto-cad/blob/master/doc/发布.md)维护。
 - 开源许可：[Apache License 2.0](../LICENSE)
 
 当前扩展标识由下列清单字段组成：
@@ -122,6 +122,45 @@ Marketplace 机器回执已确认发布完成：`kuntai.kt-auto-code@0.5.1` 的�
 
 首次使用 `vsce login` 时输入该 PAT。PAT 是短期兼容方案；发布自动化应逐步改用 Microsoft Entra ID 的无密钥发布方式。具体以 [VS Code 官方发布文档](https://code.visualstudio.com/api/working-with-extensions/publishing-extension) 的最新要求为准。
 
+## 隔离发布 worktree（推荐）
+
+日常 `pnpm dev` 与 `pnpm ext:dev:prepare` 用于消费并列本地 Wing 的开发联调，不作为正式发布来源。正式候选使用固定且可复用的 detached worktree；目录名不携带版本，版本身份由切入的 tag 或完整 commit 决定：
+
+```text
+phoenix/.worktrees/
+└── kt-auto-code-release/
+```
+
+首次建立：
+
+```bash
+git worktree add --detach ../.worktrees/kt-auto-code-release <tag或commit>
+```
+
+后续发布不需要重建目录，只需把 Auto worktree 切到本轮已经点检的 tag 或 commit，并确认 tracked 工作区为空：
+
+```bash
+git -C ../.worktrees/kt-auto-code-release switch --detach <tag或commit>
+git -C ../.worktrees/kt-auto-code-release status --short
+```
+
+Auto Code 正式候选：
+
+```bash
+cd ../.worktrees/kt-auto-code-release
+pnpm install --frozen-lockfile
+env -u PHOENIX_WING_ROOT -u PHOENIX_WING_DEV_MODE pnpm verify:ci
+```
+
+制品位于仓库根 `dist/vsix/kt-auto-code-<version>.vsix`，相邻 `.vsix.sha256` 由打包入口生成并由制品门禁复核。根 `dist/` 已被 Git 忽略；`extension/dist/` 仍只保存扩展运行 bundle。`pnpm package` 等价于 Auto 内部的 `pnpm ext:package`。发布 worktree 可以重复使用；若需要长期保留某次发布现场，再另外建立带版本号的只读 worktree。
+
+KT Auto CAD 的 worktree、`release:check` 和制品规则由 [CAD 仓发布说明](https://gitee.com/PhoenixWing321/kt-auto-cad/blob/master/doc/发布.md)独立维护，本文不再复制。
+
+### TODO：发布入口收敛
+
+- [ ] 增加受控发布脚本：接收 tag/commit，检查 release worktree、Node/pnpm、clean 状态和 frozen lockfile，并执行正式门禁。
+- [ ] 在现有 `.vsix.sha256` 基础上，自动生成包含 commit、版本、文件数与字节数的本地发布回执；脚本不得自动 push、创建 tag 或上传 Marketplace。
+
 ## 本地构建、验证与发布
 
 从仓库根目录执行，`<发布者ID>` 替换为 Marketplace 发布者 ID：
@@ -129,7 +168,7 @@ Marketplace 机器回执已确认发布完成：`kuntai.kt-auto-code@0.5.1` 的�
 ```bash
 pnpm -C extension build
 pnpm -C extension exec vsce login <发布者ID>
-pnpm -C extension exec vsce package --no-dependencies
+pnpm ext:package
 pnpm -C extension exec vsce publish
 ```
 

@@ -129,7 +129,12 @@ interface KtcPnwGitCoreModule {
     readonly fallbackReviewer?: string;
   }): {
     readonly text: string;
-    readonly summaries: readonly { readonly reviewer?: string }[];
+    readonly summaries: readonly {
+      readonly text: string;
+      readonly shortOid: string;
+      readonly referenceLabel: string;
+      readonly reviewer?: string;
+    }[];
   };
 }
 
@@ -223,11 +228,24 @@ export class KtcGitWingAdapter {
   }
 
   formatGroupSummary(input: Parameters<KtcPnwGitCoreModule["pnwFormatGitGroupSummary"]>[0]): ReturnType<KtcPnwGitCoreModule["pnwFormatGitGroupSummary"]> {
-    return KtcGitCore.pnwFormatGitGroupSummary(input);
+    return KtcIncludeCommitBody(KtcGitCore.pnwFormatGitGroupSummary(input), input.commit.body);
   }
 
   formatGroupSummaries(input: Parameters<KtcPnwGitCoreModule["pnwFormatGitGroupSummaries"]>[0]): ReturnType<KtcPnwGitCoreModule["pnwFormatGitGroupSummaries"]> {
-    return KtcGitCore.pnwFormatGitGroupSummaries(input);
+    const result = KtcGitCore.pnwFormatGitGroupSummaries(input);
+    const summaries = result.summaries.map((summary, index) => (
+      KtcIncludeCommitBody(summary, input.commits[index]?.body ?? "")
+    ));
+    if (summaries.every((summary, index) => summary === result.summaries[index])) return result;
+    const originalSummaryText = result.summaries.map((summary) => summary.text).join("\n");
+    const prefix = result.text.endsWith(originalSummaryText)
+      ? result.text.slice(0, -originalSummaryText.length)
+      : "";
+    return {
+      ...result,
+      text: `${prefix}${summaries.map((summary) => summary.text).join("\n")}`,
+      summaries,
+    };
   }
 
   analyzeSquash(startPath: string, selectedOids: readonly string[]): Promise<KtcPnwGitSquashAnalysis> {
@@ -246,6 +264,13 @@ export class KtcGitWingAdapter {
   ): Promise<string> {
     return KtcGitNode.pnwUndoGitSquash(repositoryRoot, currentRef, expectedNewHeadOid, backupRef);
   }
+}
+
+// TODO: Wing 0.6.3 发布并完成 Registry 消费验证后删除；见 doc/git/README.md。
+function KtcIncludeCommitBody<T extends { readonly text: string }>(summary: T, rawBody: string): T {
+  const body = rawBody.replace(/\r\n?/gu, "\n").trim();
+  if (!body || summary.text.endsWith(`\n\n${body}`)) return summary;
+  return { ...summary, text: `${summary.text}\n\n${body}` };
 }
 import * as KtcGitCoreImport from "@phoenix-wing/git-core";
 import * as KtcGitNodeImport from "@phoenix-wing/git-node";

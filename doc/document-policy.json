@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "owner": "KT Auto Code maintainers",
-  "lastVerified": "2026-07-17",
+  "lastVerified": "2026-08-08",
   "appliesTo": "0.6.x",
   "rules": [
     {
@@ -29,7 +29,7 @@
       "reason": "完成态旧 UI/插件规划"
     },
     {
-      "match": "^doc/(CAD插件-DeskTools功能克隆与界面规划|文件克隆与改名计划|跨产品共享算法与UI适配计划|FCStd-TypeScript读写可行性)\\.md$",
+      "match": "^doc/(文件克隆与改名计划|跨产品共享算法与UI适配计划)\\.md$",
       "status": "draft",
       "sourceOfTruth": "doc/current-roadmap.md",
       "reason": "尚未晋升为当前承诺的方案"

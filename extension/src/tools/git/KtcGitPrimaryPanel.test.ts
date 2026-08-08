@@ -40,7 +40,11 @@ describe("Git Primary panel", () => {
     expect(source).toContain('action: "updateSummaryOptions"');
     expect(source).toContain('execute.textContent = "确认并执行"');
     expect(source).toContain('undo.textContent = "撤销"');
-    expect(source).toContain('historyTitle.textContent = `更多 commit（已加载 ${project.commits.length}）`');
+    expect(source).toContain('historyTitle.textContent = `更多 commit（已加载 ${Math.max(0, project.commits.length - 1)}）`');
+    expect(source).toContain("private readonly KtcHistoryAutoLoadHeads");
+    expect(source).toContain("if (!project.hasMoreCommits");
+    expect(source).toContain('action: "loadOlderCommits"');
+    expect(source).toContain("count: 1");
     expect(source).toContain('action: "loadOlderCommits"');
     expect(source).toContain('[["下一条", 1], ["下 5 条", 5]]');
     expect(source).toContain('squashTitle.textContent = "合并本地 commit（高级）"');

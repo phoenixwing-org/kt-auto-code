@@ -6,7 +6,7 @@ Owner：KT Auto Code maintainers
 
 适用版本：0.6.x
 
-最后核验：2026-07-21
+最后核验：2026-08-08
 
 本页是当前文档的唯一导航。全部 Markdown 的状态、owner、适用版本和替代关系由 [`document-manifest.json`](document-manifest.json) 记录；运行 `pnpm docs:check` 检查清单漂移和 current 文档断链。
 
@@ -16,7 +16,7 @@ Owner：KT Auto Code maintainers
 - [运行性能、Git 按需加载与 Codegen 刷新研究](运行性能与按需加载研究.md)（含非模态运行诊断与内存点检方案）
 - [产品功能归属矩阵](产品功能归属矩阵.md)（与 Desk 使用相同 `featureId`，并引用 Wing 实际 `capabilityId`）
 - [Phoenix 三形态产品架构](Phoenix三形态产品架构计划.md)
-- [可选模块接入契约](可选模块接入契约.md)
+- [Code/CAD 简明功能关系与可选模块接入契约](可选模块接入契约.md)
 - [项目调查](项目调查.md)
 - [代码规范](代码规范.md)、[UI 开发规则](前端开发规则.md)与[工程配置/隐藏状态存储规则](工程配置与隐藏状态存储规则.md)
 
@@ -47,9 +47,9 @@ Owner：KT Auto Code maintainers
 - [讨论入口与当前推荐结论](运行模块/README.md)
 - [Run Primary Block 可行性与实施计划](运行模块/Run-Primary-Block可行性与实施计划.md)
 
-## CAD、开发与发布
+## 可选 CAD 集成、开发与发布
 
-- [KT Auto CAD 同仓契约](KT%20Auto%20CAD同仓实施计划.md)
+- [KT Auto CAD 文档](https://gitee.com/PhoenixWing321/kt-auto-cad/tree/master/doc)（CAD 功能、研究、历史与发布均由 CAD 仓维护）
 - [CAA UI 交接契约](CAA对话框-DeskTools交接契约.md)与[人工验收清单](CAA-UI-DeskTools人工验收清单.md)
 - [本地 Wing 并列开发](本地Wing并列开发.md)
 - [开发与测试](开发与测试.md)
@@ -58,6 +58,6 @@ Owner：KT Auto Code maintainers
 
 ## 历史与草案
 
-0.1/0.3 发布记录、六轮 Codegen 评分、已完成的 0.4 Block 改造以及共享提取执行记录继续保留在原路径，但标为 `archived` 或 `superseded`；尚未批准的 CAD/克隆/共享 UI 方案标为 `draft`。它们不再由 README 当成当前操作指南。
+0.1/0.3 发布记录、六轮 Codegen 评分、已完成的 0.4 Block 改造以及共享提取执行记录继续保留在原路径，但标为 `archived` 或 `superseded`；尚未批准的文件改名与共享 UI 方案标为 `draft`。CAD 专属研究和迁移历史已移入 CAD 仓，不在本仓复制。
 
 仓库入口见根目录 [README](../README.md)。

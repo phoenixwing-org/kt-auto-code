@@ -17,7 +17,7 @@ describe("Extension Development Host launcher", () => {
     expect(result.status).toBe(0);
     expect(result.stdout.match(/--extensionDevelopmentPath=/g)).toHaveLength(2);
     expect(result.stdout).toContain(path.join(root, "extension"));
-    expect(result.stdout).toContain(path.join(root, "extensions/kt-auto-cad"));
+    expect(result.stdout).toContain(path.join(root, "..", "kt-auto-cad"));
     expect(result.stderr).toContain("当前只加载已有 dist");
     expect(result.stderr).toContain("pnpm dev");
   });
@@ -26,7 +26,7 @@ describe("Extension Development Host launcher", () => {
     const result = runDryLaunch("--code-only");
     expect(result.status).toBe(0);
     expect(result.stdout.match(/--extensionDevelopmentPath=/g)).toHaveLength(1);
-    expect(result.stdout).not.toContain(path.join(root, "extensions/kt-auto-cad"));
+    expect(result.stdout).not.toContain(path.join(root, "..", "kt-auto-cad"));
   });
 
   it("uses an isolated snapshot and a new window for local Wing development", () => {
@@ -87,7 +87,7 @@ describe("Extension Development Host launcher", () => {
     expect(launch.configurations[0].name).toBe("Run Code + CAD Extensions");
     expect(launch.configurations[0].args).toEqual([
       "--extensionDevelopmentPath=${workspaceFolder}/extension",
-      "--extensionDevelopmentPath=${workspaceFolder}/extensions/kt-auto-cad",
+      "--extensionDevelopmentPath=${workspaceFolder}/../kt-auto-cad",
     ]);
   });
 });

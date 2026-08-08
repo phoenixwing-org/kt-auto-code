@@ -22,7 +22,6 @@ export default defineConfig({
     include: [
       "src/**/*.test.ts",
       "extension/src/**/*.test.ts",
-      "extensions/kt-auto-cad/src/**/*.test.ts",
     ],
   },
 });

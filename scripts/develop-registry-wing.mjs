@@ -20,9 +20,9 @@ function run(command, args) {
 
 console.log("[registry-wing] 模式：npm Registry / 当前 pnpm-lock.yaml（非本地 Wing）");
 run(pnpm, ["verify:wing-dependencies"]);
-run(pnpm, ["extensions:build"]);
+run(pnpm, ["ext:build"]);
 if (prepareOnly) {
   console.log("[registry-wing] prepare-only 完成，未启动 VS Code");
   process.exit(0);
 }
-run(process.execPath, [resolve(repoRoot, "scripts/launch-extension-host.mjs")]);
+run(process.execPath, [resolve(repoRoot, "scripts/launch-extension-host.mjs"), "--code-only"]);

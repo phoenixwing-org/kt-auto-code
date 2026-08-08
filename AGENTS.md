@@ -2,8 +2,9 @@
 
 ## Local Phoenix Wing development
 
-- The supported local integration layout is sibling repositories: `kt-auto-code`, `phoenix-wing`, and optionally `phoenix-desk-tools`.
-- Use `pnpm dev` or `pnpm ext:dev` for local Wing development. These commands must resolve `../phoenix-wing`, build its required Code and CAD packages, build both Auto extensions, and launch both extension development paths.
+- The supported local integration layout is sibling repositories: `kt-auto-code`, `kt-auto-cad`, `phoenix-wing`, and optionally `phoenix-desk-tools`.
+- Use `pnpm dev` or `pnpm ext:dev` for full local Wing development. These commands must resolve `../phoenix-wing` and `../kt-auto-cad`, build required Code/CAD Wing packages, build each extension in its owning repository, and launch both extension development paths.
+- Use `pnpm ext:dev:code` when intentionally developing only KT Auto Code, or `pnpm ext:dev:code:prepare` for its build-only gate. The formal Auto build, Registry comparison and release must never require the CAD repository.
 - For build-only AI verification, use `pnpm ext:dev:prepare`. Use `pnpm ext:dev:check` only for a fast repository contract check.
 - If sibling Wing is absent, local development must fail. Never add a silent Registry fallback.
 - Use `pnpm dev:registry` when comparing against the exact npm Registry versions in the committed lockfile.

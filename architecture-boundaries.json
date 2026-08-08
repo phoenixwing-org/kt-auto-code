@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "currentDate": "2026-07-21",
-  "scanRoots": ["src", "extension/src", "extensions/kt-auto-cad/src"],
+  "scanRoots": ["src", "extension/src"],
   "exclude": ["\\.test\\.", "\\.spec\\.", "(?:^|/)dist/"],
   "pureEntrypoints": [
     "src/associatedReplacementRules.ts",
@@ -55,7 +55,7 @@
   ],
   "forbiddenViewImports": ["^(?:node:fs|fs$|fs/|node:child_process|node:sqlite)"],
   "forbiddenViewCalls": ["writeFile", "writeFileSync", "rename", "renameSync", "unlink", "unlinkSync", "rm", "rmSync"],
-  "hostRoots": ["extension/src", "extensions/kt-auto-cad/src"],
+  "hostRoots": ["extension/src"],
   "hostForbiddenDeclarations": [
     "ktCodegenProjectApply",
     "ktCodegenNormalizeGeneratedEol",

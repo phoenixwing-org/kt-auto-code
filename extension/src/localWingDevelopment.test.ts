@@ -108,11 +108,11 @@ describe("本地 Wing 并列开发解析", () => {
     })).toThrow(/pnpm dev:registry/u);
   });
 
-  it("根命令、Code/CAD 接线和 Registry 清理脚本保持显式", () => {
+  it("根命令、并列 CAD 接线和 Registry 清理脚本保持显式", () => {
     const root = resolve(import.meta.dirname, "../..");
     const manifest = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
     const codeBuild = readFileSync(resolve(root, "extension/esbuild.mjs"), "utf8");
-    const cadBuild = readFileSync(resolve(root, "extensions/kt-auto-cad/esbuild.mjs"), "utf8");
+    const cadSiblingResolution = readFileSync(resolve(root, "scripts/cad-sibling-resolution.mjs"), "utf8");
     const registryLauncher = readFileSync(resolve(root, "scripts/develop-registry-wing.mjs"), "utf8");
     const localLauncher = readFileSync(resolve(root, "scripts/develop-local-wing.mjs"), "utf8");
     const markerRuntimeCheck = readFileSync(
@@ -121,12 +121,14 @@ describe("本地 Wing 并列开发解析", () => {
     );
     expect(manifest.scripts.dev).toBe("pnpm ext:dev");
     expect(manifest.scripts["dev:registry"]).toBe("pnpm ext:dev:registry");
+    expect(manifest.scripts["ext:dev:code:prepare"]).toContain("--code-only --prepare-only");
     expect(manifest.scripts["ext:dev:registry:prepare"]).toContain("--prepare-only");
     expect(codeBuild).toContain("verifyLocalWingBuildResults");
     expect(codeBuild).toContain("__KTC_WING_BUILD_MODE__");
     expect(codeBuild).toContain("__KTC_WING_BUILD_ROOT__");
     expect(codeBuild).toContain('localWing ? "local" : "registry"');
-    expect(cadBuild).toContain("verifyLocalWingBuildResults");
+    expect(cadSiblingResolution).toContain('resolve(repoRoot, "..", "kt-auto-cad")');
+    expect(localLauncher).toContain('run(pnpm, ["--dir", cadRoot, "dev:prepare"]');
     expect(localLauncher).toContain("verify-local-wing-marker-runtime.mjs");
     expect(localLauncher.indexOf("verify-local-wing-marker-runtime.mjs")).toBeLessThan(
       localLauncher.indexOf("const localEnvironment"),

@@ -38,6 +38,22 @@ export async function run(): Promise<void> {
   assert.equal(await api.showModuleTool("code", "run"), true);
   assert.equal(await api.showModuleTool("code", "codegen"), true);
 
+  const cadSmoke = process.env.KTC_CAD_EXTENSION_HOST_SMOKE === "1";
+  let cadEvidence: { id: string; version: string; active: boolean } | undefined;
+  if (cadSmoke) {
+    const cadExtension = vscode.extensions.getExtension("kuntai.kt-auto-cad");
+    assert.ok(cadExtension, "KT Auto CAD sibling development extension was not discovered");
+    await cadExtension.activate();
+    assert.equal(cadExtension.isActive, true);
+    assert.ok(api.getModuleState().installed.includes("cad"));
+    assert.equal(await api.showModuleTool("cad", "cadFilename"), true);
+    cadEvidence = {
+      id: cadExtension.id,
+      version: cadExtension.packageJSON.version as string,
+      active: cadExtension.isActive,
+    };
+  }
+
   let fixtureHasGitDirectory = true;
   try {
     await vscode.workspace.fs.stat(vscode.Uri.joinPath(workspace.uri, ".git"));
@@ -79,6 +95,19 @@ export async function run(): Promise<void> {
     "ktAutoCode.run.open",
   ]) {
     assert.ok(commands.includes(command), `real Extension Host did not register ${command}`);
+  }
+  if (cadSmoke) {
+    for (const command of [
+      "ktAutoCad.module.show",
+      "ktAutoCad.module.hide",
+      "ktAutoCad.block.filename",
+      "ktAutoCad.block.scan",
+      "ktAutoCad.block.read",
+      "ktAutoCad.block.query",
+      "ktAutoCad.block.diagnostics",
+    ]) {
+      assert.ok(commands.includes(command), `real Extension Host did not register ${command}`);
+    }
   }
 
   const documentUri = vscode.Uri.joinPath(workspace.uri, "PNXWidgetParam.json");
@@ -208,6 +237,7 @@ export async function run(): Promise<void> {
       active: extension.isActive,
       apiVersion: api.version,
     },
+    cadExtension: cadEvidence,
     flows: {
       open: true,
       preview: true,

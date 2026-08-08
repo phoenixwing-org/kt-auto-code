@@ -11,6 +11,7 @@ import {
   resolveLocalWingRoot,
   validateRequiredLocalWingPackages,
 } from "./local-wing-resolution.mjs";
+import { resolveCadSiblingRoot } from "./cad-sibling-resolution.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const codeOnly = process.argv.includes("--code-only");
@@ -18,13 +19,16 @@ const prepareOnly = process.argv.includes("--prepare-only");
 const checkOnly = process.argv.includes("--check-only");
 const requiredPackages = codeOnly ? LOCAL_WING_CODE_PACKAGES : LOCAL_WING_ALL_PACKAGES;
 const wingRoot = resolveLocalWingRoot({ repoRoot });
+const cadRoot = codeOnly ? undefined : resolveCadSiblingRoot({ repoRoot });
 const protectedFiles = [
   "package.json",
   "extension/package.json",
-  "extensions/kt-auto-cad/package.json",
   "pnpm-lock.yaml",
-];
-const before = new Map(protectedFiles.map((path) => [path, readFileSync(resolve(repoRoot, path), "utf8")]));
+].map((path) => resolve(repoRoot, path));
+if (cadRoot) {
+  protectedFiles.push(resolve(cadRoot, "package.json"), resolve(cadRoot, "pnpm-lock.yaml"));
+}
+const before = new Map(protectedFiles.map((path) => [path, readFileSync(path, "utf8")]));
 
 function run(command, args, options = {}) {
   console.log("> " + command + " " + args.join(" "));
@@ -39,7 +43,7 @@ function run(command, args, options = {}) {
 
 function assertDependencyFilesUntouched() {
   const changed = protectedFiles.filter(
-    (path) => readFileSync(resolve(repoRoot, path), "utf8") !== before.get(path),
+    (path) => readFileSync(path, "utf8") !== before.get(path),
   );
   if (changed.length > 0) {
     throw new Error("[local-wing] 本地开发不得修改正式依赖文件：" + changed.join("、"));
@@ -56,7 +60,8 @@ function withoutLocalWingEnvironment() {
 validateRequiredLocalWingPackages(wingRoot, requiredPackages);
 console.log("[local-wing] 模式：本地并列仓库（非 npm Registry）");
 console.log("[local-wing] Wing：" + wingRoot);
-console.log("[local-wing] 插件：" + (codeOnly ? "KT Auto Code" : "KT Auto Code + KT Auto CAD"));
+console.log("[local-wing] Code：" + repoRoot);
+if (cadRoot) console.log("[local-wing] CAD：" + cadRoot);
 
 if (checkOnly) {
   console.log("[local-wing] 检查通过：" + requiredPackages.join("、"));
@@ -79,11 +84,8 @@ const localEnvironment = {
   [LOCAL_WING_ENV]: wingRoot,
   [LOCAL_WING_MODE_ENV]: "1",
 };
-run(
-  pnpm,
-  [codeOnly ? "ext:build" : "extensions:build"],
-  { env: localEnvironment },
-);
+run(pnpm, ["ext:build"], { env: localEnvironment });
+if (cadRoot) run(pnpm, ["--dir", cadRoot, "dev:prepare"], { env: localEnvironment });
 assertDependencyFilesUntouched();
 run(pnpm, ["verify:wing-dependencies"], { env: registryEnvironment });
 console.log("[local-wing] Auto 扩展已嵌入本地 Wing dist；正式 manifests 与 lockfile 未修改");

@@ -20,14 +20,15 @@ import {
   LOCAL_EXTENSION_SNAPSHOT_PREVIEW_ROOT,
   snapshotExtensionPaths,
 } from "./extension-host-snapshot.mjs";
+import { resolveCadSiblingRoot } from "./cad-sibling-resolution.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const codeExtensionPath = resolve(repoRoot, "extension");
 const codeExtensionVersion = String(JSON.parse(
   readFileSync(resolve(codeExtensionPath, "package.json"), "utf8"),
 ).version ?? "unknown");
-const cadExtensionPath = resolve(repoRoot, "extensions/kt-auto-cad");
 const codeOnly = process.argv.includes("--code-only");
+const cadExtensionPath = codeOnly ? undefined : resolveCadSiblingRoot({ repoRoot });
 const dryRun = process.argv.includes("--dry-run");
 const codegenFixture = process.argv.includes("--codegen-fixture");
 const prepareOnly = process.argv.includes("--prepare-only");
@@ -48,7 +49,7 @@ if (prepareOnly && !codegenFixture) {
 if (!dryRun && !prepareOnly) {
   for (const extension of sourceExtensions) {
     if (!existsSync(resolve(extension.path, "dist/extension.js"))) {
-      const buildCommand = codeOnly ? "pnpm ext:build" : "pnpm extensions:build";
+      const buildCommand = codeOnly ? "pnpm ext:build" : "pnpm dev";
       console.error(`未找到 ${resolve(extension.path, "dist/extension.js")}，请先执行: ${buildCommand}`);
       process.exit(1);
     }

@@ -30,18 +30,16 @@
     },
     {
       "label": "build CAD extension",
-      "type": "npm",
-      "script": "cad:build",
-      "path": ".",
+      "type": "shell",
+      "command": "pnpm --dir ../kt-auto-cad build",
       "problemMatcher": "$esbuild"
     },
     {
       "label": "build extensions",
-      "type": "npm",
-      "script": "extensions:build",
-      "path": ".",
+      "dependsOn": ["build extension", "build CAD extension"],
+      "dependsOrder": "parallel",
       "group": "build",
-      "problemMatcher": "$esbuild"
+      "problemMatcher": []
     }
   ]
 }
