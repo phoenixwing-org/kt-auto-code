@@ -15,6 +15,7 @@ const files = execFileSync(
   .trim()
   .split("\n")
   .filter(Boolean)
+  .filter((file) => fs.existsSync(path.join(root, file)))
   .sort((left, right) => left.localeCompare(right, "zh-CN"));
 
 const entries = files.map((file) => {

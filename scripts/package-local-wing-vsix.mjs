@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
-import { existsSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,8 +25,10 @@ if (bundle.includes('require("@phoenix-wing/git-core")')
   throw new Error("Refusing to package: Git/Run Wing dependencies were not bundled");
 }
 
-const output = path.join(extensionRoot, `kt-auto-code-${manifest.version}.vsix`);
-const receiptPath = path.join(extensionRoot, `kt-auto-code-${manifest.version}.local-wing.json`);
+const outputRoot = path.join(repoRoot, "dist", "vsix");
+const output = path.join(outputRoot, `kt-auto-code-${manifest.version}.vsix`);
+const receiptPath = path.join(outputRoot, `kt-auto-code-${manifest.version}.local-wing.json`);
+mkdirSync(outputRoot, { recursive: true });
 if (existsSync(receiptPath)) unlinkSync(receiptPath);
 const require = createRequire(import.meta.url);
 const { pack } = require("../extension/node_modules/@vscode/vsce/out/package.js");
@@ -40,6 +42,8 @@ const result = await pack({
 });
 
 const archive = readFileSync(output);
+const sha256 = createHash("sha256").update(archive).digest("hex");
+writeFileSync(`${output}.sha256`, `${sha256}  ${path.basename(output)}\n`, "utf8");
 const receipt = {
   schemaVersion: 1,
   kind: "kt.auto-code.local-wing-vsix",
@@ -49,7 +53,7 @@ const receipt = {
   artifact: path.basename(output),
   bytes: statSync(output).size,
   files: result.files.length,
-  sha256: createHash("sha256").update(archive).digest("hex"),
+  sha256,
   publishable: false,
   note: "Local sibling Wing candidate only; rebuild from Registry packages before Marketplace publication.",
 };

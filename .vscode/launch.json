@@ -7,11 +7,11 @@
       "request": "launch",
       "args": [
         "--extensionDevelopmentPath=${workspaceFolder}/extension",
-        "--extensionDevelopmentPath=${workspaceFolder}/extensions/kt-auto-cad"
+        "--extensionDevelopmentPath=${workspaceFolder}/../kt-auto-cad"
       ],
       "outFiles": [
         "${workspaceFolder}/extension/dist/**/*.js",
-        "${workspaceFolder}/extensions/kt-auto-cad/dist/**/*.js"
+        "${workspaceFolder}/../kt-auto-cad/dist/**/*.js"
       ],
       "preLaunchTask": "build extensions"
     },

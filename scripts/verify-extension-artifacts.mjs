@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { inflateRawSync } from "node:zlib";
@@ -5,28 +6,18 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const codePackage = readPackage(path.join(root, "extension", "package.json"));
-const cadPackage = readPackage(path.join(root, "extensions", "kt-auto-cad", "package.json"));
-const allArtifacts = [
+const artifacts = [
   {
     kind: "code",
-    file: path.join(root, "extension", `kt-auto-code-${codePackage.version}.vsix`),
+    file: path.join(root, "dist", "vsix", `kt-auto-code-${codePackage.version}.vsix`),
     packagePath: "extension/package.json",
     bundlePath: "extension/dist/extension.js",
     expectedPackage: codePackage,
   },
-  {
-    kind: "cad",
-    file: path.join(root, "extension", `kt-auto-cad-${cadPackage.version}.vsix`),
-    packagePath: "extension/package.json",
-    bundlePath: "extension/dist/extension.js",
-    expectedPackage: cadPackage,
-  },
 ];
-const artifacts = process.argv.includes("--code-only")
-  ? allArtifacts.filter((artifact) => artifact.kind === "code")
-  : allArtifacts;
 
 for (const artifact of artifacts) {
+  verifySha256Sidecar(artifact.file);
   const zip = readZip(artifact.file);
   const names = [...zip.keys()].sort();
   for (const name of names) {
@@ -45,16 +36,15 @@ for (const artifact of artifacts) {
   if (/element-plus|node-sqlite3-wasm|@phoenix-wing\/cad-rust-source/u.test(bundle)) {
     throw new Error(`${artifact.kind} VSIX bundle contains a forbidden Wing/UI/native dependency`);
   }
-  if (artifact.kind === "code") {
-    for (const wingPackage of ["code-core", "git-core", "git-node", "kt-codegen", "run-core", "run-node"]) {
+  for (const wingPackage of ["code-core", "git-core", "git-node", "kt-codegen", "run-core", "run-node"]) {
       const dependency = `@phoenix-wing/${wingPackage}`;
       assertEqual(
         manifest.dependencies?.[dependency],
         codePackage.dependencies?.[dependency],
         `Code VSIX ${wingPackage} version`,
       );
-    }
-    if (/require\(["']@phoenix-wing\/(?:code-core|git-core|git-node|kt-codegen|run-core|run-node)["']\)/u.test(bundle)) {
+  }
+  if (/require\(["']@phoenix-wing\/(?:code-core|git-core|git-node|kt-codegen|run-core|run-node)["']\)/u.test(bundle)) {
       throw new Error("Code VSIX must bundle all Phoenix Wing Code/Git/Run dependencies");
     }
     const tableBundle = readText(zip, "extension/dist/codegen-table.js");
@@ -165,61 +155,20 @@ for (const artifact of artifacts) {
       && candidate.command.startsWith("ktAutoCad."))) {
       throw new Error("Code VSIX must not own CAD Header commands");
     }
-    if (names.includes("extension/media/tools/cad-provider.svg")) {
-      throw new Error("Code VSIX must not retain the removed standalone CAD provider icon");
-    }
-  } else {
-    assertEqual(manifest.extensionDependencies?.[0], "kuntai.kt-auto-code", "CAD base extension dependency");
-    assertEqual(manifest.icon, "media/cn.kt.doc.AutoCode.Color.128.png", "CAD Marketplace icon");
-    if (!names.includes(`extension/${manifest.icon}`)) {
-      throw new Error(`CAD VSIX is missing its Marketplace icon: ${manifest.icon}`);
-    }
-    if (manifest.contributes?.viewsContainers !== undefined) {
-      throw new Error("CAD VSIX must not contribute another Activity Bar container");
-    }
-    if (manifest.contributes?.views !== undefined) {
-      throw new Error("CAD VSIX must consume the Shell-owned Block container instead of contributing a View");
-    }
-    const moduleTools = manifest.ktAutoCodeModule?.id === "cad"
-      ? manifest.ktAutoCodeModule.tools
-      : undefined;
-    if (!Array.isArray(moduleTools) || moduleTools.length !== 5) {
-      throw new Error("CAD VSIX must publish five data-defined shared Ribbon tools");
-    }
-    if (moduleTools.some((tool) => tool.id === "cadProvider")) {
-      throw new Error("CAD VSIX must not publish a standalone Desk Tools connection tool");
-    }
-    if (!moduleTools.every((tool) => tool.command.startsWith("ktAutoCad.block."))) {
-      throw new Error("CAD Ribbon tools must open Blocks without directly running business actions");
-    }
-    assertEqual(manifest.ktAutoCodeModule?.title, "CAD", "CAD module title");
-    assertEqual(manifest.ktAutoCodeModule?.order, 20, "CAD module order");
-    assertEqual(manifest.ktAutoCodeModule?.commandPrefix, "ktAutoCad.", "CAD command prefix");
-    const titleCommands = manifest.contributes?.menus?.["view/title"] ?? [];
-    const cadShow = titleCommands.find((candidate) => candidate.command === "ktAutoCad.module.show");
-    const cadHide = titleCommands.find((candidate) => candidate.command === "ktAutoCad.module.hide");
-    if (!cadShow?.when?.includes("!ktAutoCode.module.cad.visible")
-        || !cadHide?.when?.includes("ktAutoCode.module.cad.visible")) {
-      throw new Error("CAD VSIX must own visible checked/unchecked Header commands");
-    }
-    const requirements = Object.fromEntries(moduleTools.map((tool) => [tool.id, tool.requirement]));
-    assertEqual(requirements.cadFilename, "none", "CAD filename requirement");
-    assertEqual(requirements.cadScan, "none", "CAD scan requirement");
-    assertEqual(requirements.cadRead, "optional-desk-provider", "CAD native read requirement");
-    assertEqual(requirements.cadQuery, "workspace-database", "CAD query requirement");
-    const queryTool = moduleTools.find((tool) => tool.id === "cadQuery");
-    if (!queryTool?.description?.includes("无需 Desk Tools")) {
-      throw new Error("CAD database query must declare that it does not require Desk Tools");
-    }
-    if (!bundle.includes("node:sqlite") || bundle.includes("queryTool.binaryPath")) {
-      throw new Error("CAD VSIX must query through built-in SQLite rather than the Desk provider binary");
-    }
-    if (!bundle.includes("registerModuleBlockProvider") || bundle.includes("registerWebviewViewProvider")) {
-      throw new Error("CAD VSIX must inject UI through the Shell Block provider API");
-    }
-    if (names.length !== 9) throw new Error(`CAD VSIX must remain thin (expected 9 files, got ${names.length})`);
+  if (names.includes("extension/media/tools/cad-provider.svg")) {
+    throw new Error("Code VSIX must not retain the removed standalone CAD provider icon");
   }
   process.stdout.write(`[verify] ${artifact.kind} VSIX: ${names.length} files, ${fs.statSync(artifact.file).size} bytes passed\n`);
+}
+
+function verifySha256Sidecar(file) {
+  const sidecar = `${file}.sha256`;
+  const content = fs.readFileSync(sidecar, "utf8").trim();
+  const match = /^([0-9a-f]{64})  ([^\r\n]+)$/u.exec(content);
+  if (!match) throw new Error(`Invalid SHA-256 sidecar format: ${sidecar}`);
+  assertEqual(match[2], path.basename(file), "SHA-256 sidecar artifact name");
+  const actual = createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+  assertEqual(match[1], actual, "VSIX SHA-256");
 }
 
 function readPackage(filename) {

@@ -6,7 +6,6 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const manifestFiles = [
   "package.json",
   "extension/package.json",
-  "extensions/kt-auto-cad/package.json",
 ];
 const dependencySections = [
   "dependencies",

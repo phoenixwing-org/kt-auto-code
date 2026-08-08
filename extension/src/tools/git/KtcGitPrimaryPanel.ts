@@ -141,6 +141,7 @@ export class KtcGitPrimaryPanel extends HTMLElement {
   private readonly KtcRoot = this.attachShadow({ mode: "open" });
   private readonly KtcSelectedSummaryOids = new Map<string, Set<string>>();
   private readonly KtcExpandedHistoryRepositories = new Set<string>();
+  private readonly KtcHistoryAutoLoadHeads = new Map<string, string>();
   private readonly KtcExpandedSquashRepositories = new Set<string>();
   private KtcCurrentModel: KtcGitViewModel | undefined;
   private KtcSummaryTextHeight: number | undefined;
@@ -606,12 +607,30 @@ export class KtcGitPrimaryPanel extends HTMLElement {
     const history = document.createElement("details");
     history.className = "disclosure";
     history.open = this.KtcExpandedHistoryRepositories.has(project.repository.id);
+    if (!project.hasMoreCommits) {
+      this.KtcHistoryAutoLoadHeads.delete(project.repository.id);
+    }
     history.ontoggle = () => {
-      if (history.open) this.KtcExpandedHistoryRepositories.add(project.repository.id);
-      else this.KtcExpandedHistoryRepositories.delete(project.repository.id);
+      if (!history.open) {
+        this.KtcExpandedHistoryRepositories.delete(project.repository.id);
+        this.KtcHistoryAutoLoadHeads.delete(project.repository.id);
+        return;
+      }
+      this.KtcExpandedHistoryRepositories.add(project.repository.id);
+      const headOid = project.repository.headOid;
+      if (!project.hasMoreCommits
+        || !headOid
+        || this.KtcHistoryAutoLoadHeads.get(project.repository.id) === headOid) return;
+      this.KtcHistoryAutoLoadHeads.set(project.repository.id, headOid);
+      this.KtcEmit({
+        action: "loadOlderCommits",
+        repositoryId: project.repository.id,
+        expectedHeadOid: headOid,
+        count: 1,
+      });
     };
     const historyTitle = document.createElement("summary");
-    historyTitle.textContent = `更多 commit（已加载 ${project.commits.length}）`;
+    historyTitle.textContent = `更多 commit（已加载 ${Math.max(0, project.commits.length - 1)}）`;
     const older = document.createElement("div");
     older.className = "commits";
     for (const commit of project.commits.slice(1)) {

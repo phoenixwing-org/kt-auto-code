@@ -1,32 +1,40 @@
 # KT Auto Code
 
-面向 **CAA / MSVC C++ 与 CAD** 的小工具集合：核心在 `src/`，通过 **CLI** 或 **VS Code / Cursor 插件** 使用。本仓库同时产出基础插件 `KT Auto Code` 与依赖它的可选模块 `KT Auto CAD`，两者共用一个 Activity Bar 入口。
+面向 **CAA / MSVC C++** 的开发效率工具：核心在 `src/`，通过 **CLI** 或 **VS Code / Cursor 插件** 使用。本仓库只产出基础插件 `KT Auto Code`；可选 CAD 能力由并列仓库 `kt-auto-cad` 独立构建和发布，安装后仍接入同一个 Activity Bar、Ribbon 与 Block 容器。
 
 源码仓库：[phoenixwing/kt-auto-code](https://gitee.com/phoenixwing/kt-auto-code)。
 
 当前插件提供 **头文件编码修正、文件转码、Ignore 设置、工作区搜索替换、C++ 成员排序、UUID 替换、CAA UI、工程环境管理与 Codegen 参数表原型**。成员排序、UUID、搜索替换、CAA 扫描和 Codegen 预检可共用 `.phoenix/worksets.json`；工程环境 Block 直接维护操作系统用户环境变量，不使用 VS Code Settings 伪装系统值；其他插件配置仍使用 VS Code Settings。写盘前会检查冲突和文件快照，结果统一显示在单 Block 中；Codegen Apply 会自动预检、重验源码指纹并保持 UTF-8/BOM/GBK 原编码，批量写入失败时尝试回滚。
+
+## Code 与 CAD 功能关系
+
+![KT Auto Code 与 KT Auto CAD 功能关系](doc/assets/KT-Auto-Code-CAD功能关系.png)
 
 ## 快速开始
 
 ```bash
 pnpm install
 
-# 本地 Wing 联调：要求 ../phoenix-wing，构建并启动 Code + CAD
+# 完整联调：要求 ../phoenix-wing 与 ../kt-auto-cad
 pnpm dev
 
 # npm Registry 精确版本对照
 pnpm dev:registry
 
 pnpm test
-pnpm extensions:typecheck
-pnpm extensions:build
+pnpm ext:typecheck
+pnpm ext:build
 pnpm scan-encoding --headers --ascii tests/fixtures/multiChar   # 预检
 pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎用）
 ```
 
 **基础插件**：`pnpm ext:watch` → 本仓库 **F5** → Host 窗口打开 CAA 工程 → Side Bar **KT Auto Code**。
 
-开发环境使用 Node.js 22 LTS 与 pnpm 10。`pnpm dev` 是默认双插件联调入口，强制消费并列本地 Wing；Wing 构建后先用 PNXBomAnalysis 反例验证“2 条 missing-end、5 个后续区域、旧级联 0 条”，再把 Code/CAD 扩展复制到独立临时快照并启动全新 Host 窗口，后续普通 Registry 构建不会覆盖本次联调产物。旧 Development Host 不会自动关闭，必须只在带 `Auto · Wing 本地` 状态栏标识的窗口验收；悬停标识或查看 `KT Auto Code` Output 首行可核对临时 `extensionPath` 与 `wingRoot`。AI 只构建验证可用 `pnpm ext:dev:prepare`。正式 npm 包行为用 `pnpm dev:registry` 对照，详见[本地 Wing 并列开发](doc/本地Wing并列开发.md)。CAD 不创建第二个 Activity Bar 图标，Code/CAD 在工具栏 Header 独立勾选，工具按钮共用同一个 Ribbon。后续可选模块按[可选模块接入契约](doc/可选模块接入契约.md)接入。
+开发环境使用 Node.js 22 LTS 与 pnpm 10。`pnpm dev` 是默认跨仓双插件联调入口，强制消费并列本地 Wing，并分别在 Auto 与 CAD 所属仓库构建扩展；`pnpm ext:dev:code` 只构建基础插件。完成来源门禁后，启动器把两个仓库的扩展复制到独立临时快照并启动全新 Host 窗口。正式 Auto Registry 对照与发布不要求 CAD 仓库存在，使用 `pnpm dev:registry` 或 `pnpm ext:release-candidate`。详见[本地 Wing 并列开发](doc/本地Wing并列开发.md)、[可选模块接入契约](doc/可选模块接入契约.md)与 [KT Auto CAD 仓库](https://gitee.com/PhoenixWing321/kt-auto-cad)。
+
+## 发布
+
+正式 VSIX 建议从 `../.worktrees/kt-auto-code-release` 的 detached worktree 构建，切到明确 tag 或 commit 后执行 `pnpm install --frozen-lockfile && pnpm verify:ci`；不要把 `pnpm dev` 的本地 Wing 联调产物用于发布。Auto 的完整 worktree 更新、制品位置、人工安装与 Marketplace 点检见[VS Code 插件发布](doc/VS%20Code%20插件发布.md)；CAD 发布由 [KT Auto CAD 仓库](https://gitee.com/PhoenixWing321/kt-auto-cad)独立维护。
 
 ## 文档
 
@@ -54,15 +62,18 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 
 | 命令 | 说明 |
 | --- | --- |
-| `pnpm dev` / `pnpm ext:dev` | 构建并列 `../phoenix-wing`，构建并启动 Code + CAD |
+| `pnpm dev` / `pnpm ext:dev` | 构建并列 `../phoenix-wing`、`../kt-auto-cad`，联调 Code + CAD |
 | `pnpm ext:dev:prepare` | 使用本地 Wing 构建双插件并验证来源，不启动 GUI |
-| `pnpm dev:registry` | 清除本地模式并用 Registry 精确版本构建、启动双插件 |
-| `pnpm ext:dev:registry:prepare` | 使用 Registry 精确版本构建双插件，不启动 GUI |
+| `pnpm ext:dev:code` | 只构建并启动 Auto Code + 本地 Wing |
+| `pnpm ext:dev:code:prepare` | 只构建 Auto Code + 本地 Wing 并验证来源，不启动 GUI |
+| `pnpm dev:registry` | 清除本地模式并用 Registry 精确版本构建、启动 Auto Code |
+| `pnpm ext:dev:registry:prepare` | 使用 Registry 精确版本构建 Auto Code，不启动 GUI |
 | `pnpm ext:watch` | 监听编译扩展 |
 | `pnpm ext:launch` | 同时加载 Code + CAD 的 Extension Host（默认 F5 配置） |
 | `pnpm ext:launch:code` | 只加载 KT Auto Code 的 Extension Host |
 | `pnpm ext:launch:codegen` | 构建插件、复制新 Codegen QA fixture 并启动 Extension Host |
 | `pnpm ext:test:host` | 在独立配置中启动真实 VS Code，自动验收 Codegen 代表宿主流程 |
+| `pnpm ext:test:host:cad` | 加载并列 Auto + CAD，自动验收扩展发现、Shell API v2 和 CAD 命令注册 |
 | `pnpm ext:prepare:codegen` | 只准备新的临时 Codegen QA 工作区 |
 | `pnpm ext:verify:codegen -- <路径> [--checkpoint-a|--checkpoint-e]` | 验证 fixture 基线、CSV 或真实 Apply 结果 |
 | `pnpm ext:report:codegen -- <路径>` | 查看或记录 A–F 手工验收进度 |
@@ -75,8 +86,7 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 
 ```text
 src/           # 核心（无 vscode 依赖）
-extension/     # VS Code 插件壳
-extensions/kt-auto-cad/ # 可选 CAD VS Code 插件壳
+extension/     # KT Auto Code VS Code 插件壳
 scripts/       # CLI
 tests/fixtures/
 doc/           # 中文文档

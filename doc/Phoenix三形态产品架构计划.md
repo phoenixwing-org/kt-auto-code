@@ -1,12 +1,12 @@
 # Phoenix 三形态产品架构计划
 
-> 目标：用 Wing 的同一套 Code/CAD 核心，为用户提供 VS Code、Tauri、Web 三种形态。跨语言多包、Rust 源码与数据库契约的权威总计划位于 `phoenix-wing/doc/跨语言多包架构与三库迁移计划.md`；本文只描述产品组合。`kt-auto-cad` 的具体实施见 [KT Auto CAD 同仓实施计划](KT%20Auto%20CAD同仓实施计划.md)。
+> 目标：用 Wing 的同一套 Code/CAD 核心，为用户提供 VS Code、Tauri、Web 三种形态。本文只描述产品组合；CAD 当前仓库边界与迁移记录由 [KT Auto CAD 仓库](https://gitee.com/PhoenixWing321/kt-auto-cad)维护。
 
 ## 1. 已确认结论
 
-1. 只维护三个 Git 仓库：`phoenix-wing`、`kt-auto-code`、`phoenix-desk-tools`。
-2. 不新建 `phoenix-cad` 仓库；CAD 插件正式命名为 `kt-auto-cad`。
-3. `kt-auto-code` Git 仓库产出两个 VSIX：`kt-auto-code` 是基础插件，`kt-auto-cad` 声明对它的扩展依赖。
+1. 维护四个职责清晰的 Git 仓库：`phoenix-wing`、`kt-auto-code`、`kt-auto-cad`、`phoenix-desk-tools`。
+2. CAD 插件仓库与产品均命名为 `kt-auto-cad`。
+3. `kt-auto-code` 与 `kt-auto-cad` 分别产出自己的 VSIX；CAD 仍声明对基础插件的扩展依赖。
 4. Wing 是跨语言、多 npm 子包的共享核心与 UI 底座，同时发布 CAD Rust 源码。
 5. Desk Tools 是 Tauri/Web 聚合产品，只保留产品宿主、复杂 UI 和外部软件桥接。
 6. Rust 在产品构建阶段编译并随 VSIX/Tauri 产物发布；最终用户不安装 Cargo，也不在插件激活时编译。
@@ -25,12 +25,12 @@ phoenix-wing（跨语言共享真源）
              │
         ┌────┴─────────────────────┐
         ▼                          ▼
-kt-auto-code Git              phoenix-desk-tools Git
-  ├── kt-auto-code VSIX         ├── Tauri desktop
-  └── kt-auto-cad VSIX          └── Web + Node/Hono
+kt-auto-code Git   kt-auto-cad Git   phoenix-desk-tools Git
+  └── Code VSIX      └── CAD VSIX      ├── Tauri desktop
+                                      └── Web + Node/Hono
 ```
 
-`kt-auto-code` 与 `kt-auto-cad` 是两个安装产品，不是两个 Git 仓库。Code 可以单独安装；CAD 必须在 Code 基础插件之上安装，并共享它注册的唯一 Activity Bar/Primary Side Bar container。
+`kt-auto-code` 与 `kt-auto-cad` 是两个安装产品和两个并列 Git 仓库。Code 可以单独安装；CAD 必须在 Code 基础插件之上安装，并共享它注册的唯一 Activity Bar/Primary Side Bar container。
 
 ## 3. 产品矩阵
 
@@ -128,15 +128,15 @@ CAD manifest 不注册新的 `viewsContainers.activitybar`；它只向基础插�
 
 CAD 的依赖按能力拆分，而不是把整个模块绑定到 Desk Tools：文件名语义、工作区 FCStd 检索和基础 View 直接可用；已有工作区数据库的查询入口标记为数据库能力；只有解析 FCStd 内容或调用外部原生工具时才要求 native provider。CAD manifest 不声明 Desk Tools 扩展安装依赖。
 
-### 6.3 同仓共享
+### 6.3 跨仓共享边界
 
-仅将已经出现真实双端重复的代码放入本仓库内部 `vscode-host-core`，例如：
+仅将已经出现真实双端重复且具有稳定契约的代码放入 Wing 或独立的纯契约入口，例如：
 
 - Webview CSP、资源 URI 和消息信封；
 - Output Channel、任务广播和协议错误展示；
 - native tool 路径选择和版本检查的通用部分。
 
-Code/CAD 领域实现仍分别来自 Wing 子包，内部壳层包不得反向依赖领域 core。
+Code/CAD 领域实现仍分别来自 Wing 子包；CAD 通过版本化 Shell API 接入 Auto，不通过相对路径导入 Auto 源码。
 
 ## 7. UI 策略
 
@@ -185,8 +185,8 @@ Wing 持有 CAD DDL、Schema 版本、迁移规则和查询契约；产品持有
 
 ### Phase 0：计划与基线
 
-- [x] 确认三 Git 仓库和 Wing 跨语言定位。
-- [x] 确认同仓双 VSIX 与 `kt-auto-cad` 名称。
+- [x] 确认四个产品/共享 Git 仓库和 Wing 跨语言定位。
+- [x] 确认双 VSIX 独立仓库与 `kt-auto-cad` 名称。
 - [x] 确认多 npm 子包和 Rust source 发布方式。
 - [ ] 冻结跨端 fixture、协议输出和数据库 Schema 哈希。
 
@@ -222,7 +222,7 @@ Wing 持有 CAD DDL、Schema 版本、迁移规则和查询契约；产品持有
 
 ## 11. 验收标准
 
-1. 不存在第四个共享 Git 仓库。
+1. 不新增承载重复算法的共享仓库；第四个仓库 `kt-auto-cad` 只承载 CAD 产品宿主。
 2. `kt-auto-code` 可独立安装；`kt-auto-cad` 正确声明依赖，安装后不新增 Activity Bar 图标，卸载后基础插件继续正常运行。
 3. 任一 core 消费者不会被迫安装 Vue、Element Plus 或预编译 Rust 二进制。
 4. Wing Rust source 从 npm tarball 可锁定编译；最终用户无需 Rust。
