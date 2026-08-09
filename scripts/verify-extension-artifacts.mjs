@@ -5,7 +5,7 @@ import { inflateRawSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const codePackage = readPackage(path.join(root, "extension", "package.json"));
+const codePackage = readPackage(path.join(root, "package.json"));
 const artifacts = [
   {
     kind: "code",
@@ -145,11 +145,13 @@ for (const artifact of artifacts) {
       throw new Error("Code VSIX must not depend on the Vue/UI aggregate phoenix-wing package");
     }
     const titleCommands = manifest.contributes?.menus?.["view/title"] ?? [];
-    const codeShow = titleCommands.find((candidate) => candidate.command === "ktAutoCode.module.code.show");
-    const codeHide = titleCommands.find((candidate) => candidate.command === "ktAutoCode.module.code.hide");
-    if (!codeShow?.when?.includes("!ktAutoCode.module.code.visible")
-        || !codeHide?.when?.includes("ktAutoCode.module.code.visible")) {
-      throw new Error("Code VSIX is missing its visible checked/unchecked Header commands");
+    if (titleCommands.some((candidate) => [
+      "ktAutoCode.module.code.show",
+      "ktAutoCode.module.code.hide",
+      "ktAutoCode.sidebar.toggleStyle",
+      "ktAutoCode.ribbon.customize",
+    ].includes(candidate.command))) {
+      throw new Error("Code VSIX must keep Ribbon module/layout controls out of the View Header");
     }
     if (titleCommands.some((candidate) => typeof candidate.command === "string"
       && candidate.command.startsWith("ktAutoCad."))) {

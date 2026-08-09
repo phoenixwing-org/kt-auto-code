@@ -8,7 +8,7 @@ import { resolve } from "node:path";
 import {
   formatWorkspaceReport,
   runWorkspaceEncodingScan,
-} from "../src/sourceEncodingWalk.js";
+} from "../src/core/sourceEncodingWalk.js";
 
 interface CliOptions {
   fix: boolean;

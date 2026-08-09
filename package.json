@@ -1,13 +1,613 @@
 {
-  "name": "@phoenix/code-plugin",
+  "name": "kt-auto-code",
+  "displayName": "KT Auto Code",
+  "description": "CAA / MSVC C++ 工具：编码修正、Ignore、搜索替换、成员排序与 Codegen 参数表",
   "author": "上海锟钛",
   "version": "0.6.3",
   "license": "Apache-2.0",
+  "publisher": "kuntai",
   "private": true,
-  "type": "module",
-  "packageManager": "pnpm@10.15.1",
+  "repository": {
+    "type": "git",
+    "url": "https://gitee.com/phoenixwing/kt-auto-code.git"
+  },
+  "homepage": "https://gitee.com/phoenixwing/kt-auto-code",
+  "bugs": {
+    "url": "https://gitee.com/phoenixwing/kt-auto-code/issues"
+  },
+  "keywords": [
+    "CAA",
+    "CATIA",
+    "MSVC",
+    "C++",
+    "encoding",
+    "refactor",
+    "search replace",
+    "member sort",
+    "code generation"
+  ],
   "engines": {
+    "vscode": "^1.85.0",
     "node": ">=22"
+  },
+  "categories": [
+    "Other",
+    "Programming Languages",
+    "Formatters"
+  ],
+  "galleryBanner": {
+    "color": "#1F4E79",
+    "theme": "dark"
+  },
+  "activationEvents": [
+    "onView:ktAutoCode.modulePanel"
+  ],
+  "main": "./dist/extension.js",
+  "icon": "media/cn.kt.doc.AutoCode.Color.128.png",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "kt-auto-code",
+          "title": "KT Auto Code",
+          "icon": "media/kt-auto-code.svg"
+        }
+      ]
+    },
+    "views": {
+      "kt-auto-code": [
+        {
+          "type": "webview",
+          "id": "ktAutoCode.modulePanel",
+          "name": "工具栏",
+          "visibility": "visible"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "ktAutoCode.headerAscii.scan",
+        "title": "头文件 ASCII 修正：扫描",
+        "icon": "$(search)"
+      },
+      {
+        "command": "ktAutoCode.headerAscii.fix",
+        "title": "头文件 ASCII 修正：修复",
+        "icon": "$(wrench)"
+      },
+      {
+        "command": "ktAutoCode.settings.headerAscii",
+        "title": "KT Auto Code：打开 ASCII 修正设置",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "ktAutoCode.settings.scope",
+        "title": "KT Auto Code：打开扫描范围设置",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "ktAutoCode.encodingFix.scan",
+        "title": "编码修正：预检",
+        "icon": "$(search)"
+      },
+      {
+        "command": "ktAutoCode.encodingFix.convert",
+        "title": "编码修正：转换",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "ktAutoCode.ignore.open",
+        "title": "KT Auto Code：打开忽略设置",
+        "icon": "$(exclude)"
+      },
+      {
+        "command": "ktAutoCode.ignore.sync",
+        "title": "KT Auto Code：从 .gitignore 同步",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "ktAutoCode.ignore.analyze",
+        "title": "KT Auto Code：分析 Ignore 推荐",
+        "icon": "$(search)"
+      },
+      {
+        "command": "ktAutoCode.ignore.openAdvanced",
+        "title": "KT Auto Code：打开高级 Ignore 配置",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "ktAutoCode.searchReplace.open",
+        "title": "KT Auto Code：搜索替换",
+        "icon": "$(replace-all)"
+      },
+      {
+        "command": "ktAutoCode.codeRename.configure",
+        "title": "KT Auto Code：打开搜索替换 Block",
+        "icon": "$(replace-all)"
+      },
+      {
+        "command": "ktAutoCode.codeRename.openAdvanced",
+        "title": "KT Auto Code：打开高级搜索替换配置",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "ktAutoCode.codegen.open",
+        "title": "打开 JSON…",
+        "category": "KT Auto Code",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "ktAutoCode.codegen.importCsv",
+        "title": "导入 CSV…",
+        "category": "KT Auto Code",
+        "icon": "$(file-symlink-file)"
+      },
+      {
+        "command": "ktAutoCode.codegen.applyAll",
+        "title": "全部应用",
+        "category": "KT Auto Code",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "ktAutoCode.codegen.refresh",
+        "title": "刷新列表",
+        "category": "KT Auto Code",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "ktAutoCode.codegen.scanCandidates",
+        "title": "扫描候选源码",
+        "category": "KT Auto Code",
+        "icon": "$(search)"
+      },
+      {
+        "command": "ktAutoCode.codegen.diagnostics",
+        "title": "复制运行诊断",
+        "category": "KT Auto Code",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "ktAutoCode.runtimeDiagnostics.open",
+        "title": "打开运行诊断",
+        "category": "KT Auto Code",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "ktAutoCode.searchReplace.preview",
+        "title": "KT Auto Code：搜索替换预览",
+        "icon": "$(search)"
+      },
+      {
+        "command": "ktAutoCode.reorderMembers.preview",
+        "title": "KT Auto Code：C++ 成员排序预览",
+        "icon": "$(list-ordered)"
+      },
+      {
+        "command": "ktAutoCode.reorderMembers.showResults",
+        "title": "KT Auto Code：显示成员排序 Block",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "ktAutoCode.reorderMembers.closeResults",
+        "title": "关闭成员排序 Block",
+        "icon": "$(close)"
+      },
+      {
+        "command": "ktAutoCode.uuidReplace.scan",
+        "title": "KT Auto Code：扫描 UUID",
+        "icon": "$(search)"
+      },
+      {
+        "command": "ktAutoCode.uuidReplace.apply",
+        "title": "KT Auto Code：应用 UUID 替换",
+        "icon": "$(replace-all)"
+      },
+      {
+        "command": "ktAutoCode.caaDialog.scan",
+        "title": "KT Auto Code：扫描 CAA UI 文件",
+        "icon": "$(search)"
+      },
+      {
+        "command": "ktAutoCode.caaDialog.selectFiles",
+        "title": "KT Auto Code：显示 CAA UI 文件列表",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "ktAutoCode.caa.openSettings",
+        "title": "KT Auto Code：打开 Desk Tools 设置",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "ktAutoCode.deskTools.openSettings",
+        "title": "KT Auto Code：打开 Desk Tools 设置",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "ktAutoCode.environment.open",
+        "title": "KT Auto Code：检查工程环境",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "ktAutoCode.run.open",
+        "title": "KT Auto Code：打开 Run",
+        "icon": "$(play)"
+      },
+      {
+        "command": "ktAutoCode.git.open",
+        "title": "KT Auto Code：打开 Git 提交整理",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "ktAutoCode.sidebar.toggleStyle",
+        "title": "KT Auto Code：切换图标与文字 / 仅图标",
+        "icon": "$(layout)"
+      },
+      {
+        "command": "ktAutoCode.ribbon.customize",
+        "title": "KT Auto Code：自定义工具栏",
+        "icon": "$(ellipsis)"
+      },
+      {
+        "command": "ktAutoCode.module.code.show",
+        "title": "☐ Code"
+      },
+      {
+        "command": "ktAutoCode.module.code.hide",
+        "title": "☑ Code"
+      },
+      {
+        "command": "ktAutoCode.modulePanel.close",
+        "title": "关闭当前工具界面",
+        "icon": "$(close)"
+      }
+    ],
+    "submenus": [
+      {
+        "id": "ktAutoCode.modulePanel.more",
+        "label": "更多",
+        "icon": "$(ellipsis)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "ktAutoCode.searchReplace.preview",
+          "when": "view == ktAutoCode.modulePanel",
+          "group": "navigation@20"
+        },
+        {
+          "command": "ktAutoCode.environment.open",
+          "when": "view == ktAutoCode.modulePanel",
+          "group": "navigation@23"
+        },
+        {
+          "submenu": "ktAutoCode.modulePanel.more",
+          "when": "view == ktAutoCode.modulePanel && ktAutoCode.modulePanel.activeTool == codegen",
+          "group": "navigation@8"
+        }
+      ],
+      "ktAutoCode.modulePanel.more": [
+        {
+          "command": "ktAutoCode.codegen.open",
+          "group": "navigation@1"
+        },
+        {
+          "command": "ktAutoCode.codegen.importCsv",
+          "group": "navigation@2"
+        },
+        {
+          "command": "ktAutoCode.codegen.applyAll",
+          "group": "navigation@3"
+        },
+        {
+          "command": "ktAutoCode.codegen.refresh",
+          "group": "navigation@4"
+        },
+        {
+          "command": "ktAutoCode.codegen.scanCandidates",
+          "group": "navigation@5"
+        },
+        {
+          "command": "ktAutoCode.codegen.diagnostics",
+          "group": "navigation@6"
+        }
+      ]
+    },
+    "problemPatterns": [
+      {
+        "name": "pnwCaaMsCompile",
+        "regexp": "^(.+?)\\((\\d+)(?:,(\\d+))?\\)\\s*:\\s*(fatal error|error|warning)\\s+([A-Za-z]+\\d+):\\s*(.*)$",
+        "file": 1,
+        "line": 2,
+        "column": 3,
+        "severity": 4,
+        "code": 5,
+        "message": 6
+      },
+      {
+        "name": "pnwCmake",
+        "regexp": "^CMake (Error|Warning)(?: at (.+):(\\d+) \\([^)]*\\))?:\\s*(.*)$",
+        "severity": 1,
+        "file": 2,
+        "line": 3,
+        "message": 4
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "pnwCaaMsCompile",
+        "owner": "cpp",
+        "fileLocation": "autoDetect",
+        "pattern": "$pnwCaaMsCompile"
+      },
+      {
+        "name": "pnwCmake",
+        "owner": "cmake",
+        "fileLocation": "autoDetect",
+        "pattern": "$pnwCmake"
+      }
+    ],
+    "configuration": {
+      "title": "KT Auto Code",
+      "properties": {
+        "ktAutoCode.git.reviewers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "default": [],
+          "scope": "machine",
+          "description": "Git 群消息简报的本机审查人候选；第一个作为默认值。可在此删除或清空。"
+        },
+        "ktAutoCode.git.summaryTextHeight": {
+          "type": "integer",
+          "minimum": 78,
+          "maximum": 1200,
+          "default": 78,
+          "scope": "machine",
+          "description": "Git 群消息简报文本框的本机高度（像素）；拖动文本框后自动更新。"
+        },
+        "ktAutoCode.git.repositories": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "default": [],
+          "maxItems": 12,
+          "uniqueItems": true,
+          "scope": "machine",
+          "markdownDescription": "本机常用的工作区外 Git 仓库目录。由 Git 提交整理中的“添加仓库”维护，可在这里删除；只保存仓库根目录，不保存 commit 内容。"
+        },
+        "ktAutoCode.run.caaVersion": {
+          "type": "string",
+          "pattern": "^(?:[A-Za-z]?\\d{2,4})?$",
+          "default": "",
+          "scope": "machine",
+          "description": "Run Block 的本机默认 CAA 版本。Primary 中每个工程的当前选择只覆盖本工作区；留空时读取 CAA_MK_VERSION，再回退到 19。"
+        },
+        "ktAutoCode.run.caaRelatedProjects": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "default": [],
+          "scope": "resource",
+          "description": "Run Block 当前 CAA 项目的关联工程 / MK Preq 目录。Primary 优先写入相对路径到 .vscode/settings.json。"
+        },
+        "ktAutoCode.run.caaProjects": {
+          "type": "object",
+          "default": {},
+          "scope": "resource",
+          "description": "同一 Workspace Folder 内存在多个 CAA 子工程时的工程级覆盖；key 为子工程相对路径。Primary 自动维护，路径相对各自 project root。",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "caaRelatedProjects": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "default": []
+              }
+            }
+          }
+        },
+        "ktAutoCode.headerAscii.preserveGbk": {
+          "type": "boolean",
+          "default": false,
+          "description": "头文件扫描/修复时保留 GBK 中文注释。默认关闭（纯 ASCII，推荐）。"
+        },
+        "ktAutoCode.headerAscii.stripBom": {
+          "type": "boolean",
+          "default": false,
+          "description": "修复时去除 UTF-8 BOM (EF BB BF)，并将 UTF-16 等转为 UTF-8。未开启时宽字节文件不做字节级修复。"
+        },
+        "ktAutoCode.encodingFix.defaultTarget": {
+          "type": "string",
+          "enum": [
+            "utf8",
+            "gbk"
+          ],
+          "enumDescriptions": [
+            "UTF-8 无 BOM",
+            "GBK / Windows 本地代码页（CP936）"
+          ],
+          "default": "utf8",
+          "scope": "resource",
+          "description": "编码修正的当前项目默认目标。Primary 中的目标选择会写入工作区设置。"
+        },
+        "ktAutoCode.encodingFix.headerTarget": {
+          "type": "string",
+          "enum": [
+            "inherit",
+            "ascii",
+            "utf8",
+            "gbk"
+          ],
+          "enumDescriptions": [
+            "继承默认目标",
+            "纯 ASCII；含非 ASCII 内容时只报告，不静默删除",
+            "UTF-8 无 BOM",
+            "GBK / Windows 本地代码页（CP936）"
+          ],
+          "default": "inherit",
+          "scope": "resource",
+          "description": "头文件（.h / .hpp / .inl 等）的项目级目标覆盖。"
+        },
+        "ktAutoCode.encodingFix.sourceTarget": {
+          "type": "string",
+          "enum": [
+            "inherit",
+            "ascii",
+            "utf8",
+            "gbk"
+          ],
+          "enumDescriptions": [
+            "继承默认目标",
+            "纯 ASCII；含非 ASCII 内容时只报告，不静默删除",
+            "UTF-8 无 BOM",
+            "GBK / Windows 本地代码页（CP936）"
+          ],
+          "default": "inherit",
+          "scope": "resource",
+          "description": "源文件（.cpp / .c / .m 等）的项目级目标覆盖。"
+        },
+        "ktAutoCode.encodingFix.markdownTarget": {
+          "type": "string",
+          "enum": [
+            "inherit",
+            "ascii",
+            "utf8",
+            "gbk"
+          ],
+          "enumDescriptions": [
+            "继承默认目标",
+            "纯 ASCII；含非 ASCII 内容时只报告，不静默删除",
+            "UTF-8 无 BOM",
+            "GBK / Windows 本地代码页（CP936）"
+          ],
+          "default": "inherit",
+          "scope": "resource",
+          "description": "Markdown（.md / .mdx）的项目级目标覆盖。通常建议 UTF-8。"
+        },
+        "ktAutoCode.scope.includeHeaders": {
+          "type": "boolean",
+          "default": true,
+          "description": "扫描范围：头文件 (.h / .hpp …)"
+        },
+        "ktAutoCode.scope.includeSource": {
+          "type": "boolean",
+          "default": true,
+          "description": "扫描范围：源文件 (.cpp / .c …)"
+        },
+        "ktAutoCode.scope.includeMarkdown": {
+          "type": "boolean",
+          "default": true,
+          "description": "扫描范围：.md / .mdx（仅「编码修正」工具）"
+        },
+        "ktAutoCode.sidebar.toolPickerStyle": {
+          "type": "string",
+          "enum": [
+            "ribbon",
+            "compact"
+          ],
+          "enumDescriptions": [
+            "显示图标与最多两行短标题",
+            "只显示紧凑图标，悬停查看名称"
+          ],
+          "default": "ribbon",
+          "description": "Side Bar 顶部工具入口的显示密度。"
+        },
+        "ktAutoCode.sidebar.blockExpansionMode": {
+          "type": "string",
+          "enum": [
+            "exclusive",
+            "multiple"
+          ],
+          "enumDescriptions": [
+            "排他展开：除 Ribbon 外只展开最近使用的工具界面或结果",
+            "允许多个工具/结果 Block 同时保持展开"
+          ],
+          "default": "exclusive",
+          "description": "控制 Ribbon 下方 Block 的展开方式。推荐排他展开以获得更大可用高度。"
+        },
+        "ktAutoCode.deskTools.discoveryMode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "custom",
+            "disabled"
+          ],
+          "enumDescriptions": [
+            "自动读取 Desk Tools 本机服务注册",
+            "使用手动配置的服务地址",
+            "禁用 Desk Tools 桌面服务交接"
+          ],
+          "default": "auto",
+          "scope": "machine",
+          "description": "Desk Tools 桌面服务发现方式；自动模式会读取当前用户的平台标准注册目录并执行协议健康校验。"
+        },
+        "ktAutoCode.deskTools.serviceEndpoint": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Desk Tools CAA 打开接口的高级手动覆盖。仅在发现方式为 custom 时使用，例如 http://127.0.0.1:48375/api/caa/dialog/open。"
+        },
+        "ktAutoCode.deskTools.executable": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "可选 Desk Tools/外部编辑器命令。配置后 CAA 文件交接优先直接启动该程序；不会经 shell 执行。"
+        },
+        "ktAutoCode.deskTools.executableArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "machine",
+          "description": "自定义程序参数，支持 ${file}、${workspace} 占位符；留空时兼容读取旧 CAA 参数设置。"
+        },
+        "ktAutoCode.deskTools.nativeProviderManifest": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Auto CAD 深度读取器 native-provider.json 的手动覆盖。留空时从 Desk Tools 安装注册自动发现。"
+        },
+        "ktAutoCode.caa.externalEditor.command": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "CAA 外部编辑器命令或可执行文件路径。仅在用户点击 CATDlg 行的“打开外部编辑器”图标时启动。macOS 可配置 open，Windows 可配置编辑器 .exe。",
+          "deprecationMessage": "请改用 ktAutoCode.deskTools.executable。"
+        },
+        "ktAutoCode.caa.externalEditor.args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "${file}"
+          ],
+          "scope": "resource",
+          "description": "CAA 外部编辑器参数；仅允许普通参数及 ${file}、${workspace} 占位符。不会经 shell 执行。",
+          "deprecationMessage": "请改用 ktAutoCode.deskTools.executableArgs。"
+        },
+        "ktAutoCode.caa.externalEditor.endpoint": {
+          "type": "string",
+          "default": "http://127.0.0.1:5180/api/caa/dialog/open",
+          "scope": "resource",
+          "description": "Desk Tools 本地 CAA 打开接口。未配置 command 时，点击外部编辑器会把 workspaceRoot 与 CATDlg 文件路径投递到此接口。",
+          "deprecationMessage": "请使用自动服务发现，或改用 ktAutoCode.deskTools.serviceEndpoint。"
+        }
+      }
+    }
   },
   "scripts": {
     "dev": "pnpm ext:dev",
@@ -18,7 +618,7 @@
     "fix-headers": "tsx scripts/scan-source-encoding.ts --fix --headers --ascii",
     "scan-file-encoding": "tsx scripts/scan-file-encoding.ts",
     "convert-file-encoding": "tsx scripts/scan-file-encoding.ts --convert",
-    "ext:build": "pnpm -C extension build",
+    "ext:build": "pnpm build",
     "ext:dev": "node scripts/develop-local-wing.mjs",
     "ext:dev:code": "node scripts/develop-local-wing.mjs --code-only",
     "ext:dev:code:prepare": "node scripts/develop-local-wing.mjs --code-only --prepare-only",
@@ -26,7 +626,7 @@
     "ext:dev:prepare": "node scripts/develop-local-wing.mjs --prepare-only",
     "ext:dev:registry": "node scripts/develop-registry-wing.mjs",
     "ext:dev:registry:prepare": "node scripts/develop-registry-wing.mjs --prepare-only",
-    "ext:watch": "pnpm -C extension watch",
+    "ext:watch": "pnpm watch",
     "ext:launch": "node scripts/launch-extension-host.mjs",
     "ext:launch:code": "node scripts/launch-extension-host.mjs --code-only",
     "ext:launch:codegen": "pnpm ext:build && node scripts/launch-extension-host.mjs --code-only --codegen-fixture",
@@ -35,23 +635,22 @@
     "ext:prepare:codegen": "node scripts/launch-extension-host.mjs --code-only --codegen-fixture --prepare-only",
     "ext:verify:codegen": "node scripts/verify-codegen-fixture.mjs",
     "ext:report:codegen": "node scripts/record-codegen-checkpoint.mjs",
-    "ext:typecheck": "pnpm -C extension typecheck",
+    "ext:typecheck": "pnpm typecheck",
     "package": "pnpm ext:package",
-    "ext:package": "pnpm -C extension package",
+    "ext:package": "node scripts/package-registry-vsix.mjs",
     "ext:package:local-wing": "node scripts/package-local-wing-vsix.mjs",
     "ext:verify-artifact": "node scripts/verify-extension-artifacts.mjs",
-    "ext:release-candidate": "pnpm test && pnpm -C extension typecheck && pnpm ext:package && pnpm ext:verify-artifact",
+    "ext:release-candidate": "pnpm test && pnpm typecheck && pnpm ext:package && pnpm ext:verify-artifact",
+    "release:check": "pnpm verify:ci",
     "verify:wing-dependencies": "node scripts/verify-wing-dependencies.mjs",
     "docs:manifest": "node scripts/generate-doc-manifest.mjs",
     "docs:check": "node scripts/generate-doc-manifest.mjs --check",
     "verify:architecture": "node scripts/verify-import-boundaries.mjs",
-    "verify:ci": "pnpm docs:check && pnpm verify:architecture && pnpm verify:wing-dependencies && pnpm ext:release-candidate"
-  },
-  "devDependencies": {
-    "@types/node": "^22.10.0",
-    "tsx": "^4.19.3",
-    "typescript": "~5.7.2",
-    "vitest": "^4.1.9"
+    "verify:ci": "pnpm docs:check && pnpm verify:architecture && pnpm verify:wing-dependencies && pnpm ext:release-candidate",
+    "vscode:prepublish": "pnpm run build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch"
   },
   "dependencies": {
     "@phoenix-wing/code-core": "0.6.2",
@@ -61,5 +660,15 @@
     "@phoenix-wing/run-core": "0.6.2",
     "@phoenix-wing/run-node": "0.6.2",
     "iconv-lite": "0.6.3"
-  }
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.3",
+    "typescript": "~5.7.2",
+    "vitest": "^4.1.9",
+    "@types/vscode": "1.85.0",
+    "esbuild": "^0.28.0",
+    "@vscode/vsce": "^3.2.1"
+  },
+  "packageManager": "pnpm@10.15.1"
 }

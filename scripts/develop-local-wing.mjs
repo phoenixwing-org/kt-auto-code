@@ -22,7 +22,6 @@ const wingRoot = resolveLocalWingRoot({ repoRoot });
 const cadRoot = codeOnly ? undefined : resolveCadSiblingRoot({ repoRoot });
 const protectedFiles = [
   "package.json",
-  "extension/package.json",
   "pnpm-lock.yaml",
 ].map((path) => resolve(repoRoot, path));
 if (cadRoot) {

@@ -8,7 +8,7 @@ import { resolve } from "node:path";
 import {
   formatFileEncodingReport,
   runFileEncodingWalk,
-} from "../src/fileEncodingWalk.js";
+} from "../src/core/fileEncodingWalk.js";
 
 interface CliOptions {
   convert: boolean;

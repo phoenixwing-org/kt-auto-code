@@ -8,7 +8,7 @@ Owner：KT Auto Code maintainers
 
 最后核验：2026-07-22
 
-> 2026-07-22：本表记录 Auto 私有控制符 Tree 的历史行为，已被 Wing `@phoenix-wing/kt-codegen/ui` 的 Primary/Control 组件替代。文中 `primaryPanel.ts`、`controlPanel.ts`、`controlCatalog.ts`、`controlCatalogState.ts` 及其测试已删除，不得作为当前实现入口。当前责任和消费者路径见[产品功能归属矩阵](../产品功能归属矩阵.md)与 Wing [共享能力目录](../../../phoenix-wing/doc/共享能力目录.md)。若未来确需恢复分组/范围交互，应先作为 Wing 的双端需求设计并补共享组件测试，不得在 Auto 重建私有 DOM。
+> 2026-07-22：本表记录 Auto 私有控制符 Tree 的历史行为，已被 Wing `@phoenix-wing/kt-codegen/ui` 的 Primary/Control 组件替代。文中 `primaryPanel.ts`、`controlPanel.ts`、`controlCatalog.ts`、`controlCatalogState.ts` 及其测试已删除，不得作为当前实现入口。当前责任和消费者路径见[产品功能归属矩阵](../产品功能归属矩阵.md)与 Wing [共享能力目录](https://gitee.com/phoenixwing/phoenix-wing/blob/develop/doc/共享能力目录.md)。若未来确需恢复分组/范围交互，应先作为 Wing 的双端需求设计并补共享组件测试，不得在 Auto 重建私有 DOM。
 
 ## 本轮确认范围
 
@@ -22,7 +22,7 @@ Primary 面向用户显示稳定的 `#0–#31` 小型编号标签，与内部 `l
 
 | 层 | 文件 | 本轮责任 | 不得承担 |
 | --- | --- | --- | --- |
-| Domain Model | `extension/src/tools/codegen/documentModel.ts` | 保存 Host session 的选择、单选模式、预检与模板显示状态 | Tree 分组、DOM 展开状态 |
+| Domain Model | `src/tools/codegen/documentModel.ts` | 保存 Host session 的选择、单选模式、预检与模板显示状态 | Tree 分组、DOM 展开状态 |
 | ViewModel / Controller | `controlViewModel.ts`、`controlSessionController.ts` | 从同一 session 投影目录；校验并恢复 legacyId 顺序 | 保存 Webview 本地筛选或折叠 |
 | Host adapter | `sidebar/panelHtml.ts`、`editorHtml.ts` | 传递既有语义事件和 Host snapshot | 复制第二套选择状态、改消息 schema |
 | Page shell | `primaryPanel.ts`、`controlPanel.ts` | Primary compact / JSON View full 复用同一高层组件；Primary 重绘复用实例 | 重建目录实例导致筛选和折叠丢失 |

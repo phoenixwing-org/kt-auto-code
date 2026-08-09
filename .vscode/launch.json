@@ -6,11 +6,11 @@
       "type": "extensionHost",
       "request": "launch",
       "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}/extension",
+        "--extensionDevelopmentPath=${workspaceFolder}",
         "--extensionDevelopmentPath=${workspaceFolder}/../kt-auto-cad"
       ],
       "outFiles": [
-        "${workspaceFolder}/extension/dist/**/*.js",
+        "${workspaceFolder}/dist/**/*.js",
         "${workspaceFolder}/../kt-auto-cad/dist/**/*.js"
       ],
       "preLaunchTask": "build extensions"
@@ -19,8 +19,8 @@
       "name": "Run Code Extension Only",
       "type": "extensionHost",
       "request": "launch",
-      "args": ["--extensionDevelopmentPath=${workspaceFolder}/extension"],
-      "outFiles": ["${workspaceFolder}/extension/dist/**/*.js"],
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
       "preLaunchTask": "build extension"
     },
     {
@@ -28,10 +28,10 @@
       "type": "extensionHost",
       "request": "launch",
       "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}/extension",
+        "--extensionDevelopmentPath=${workspaceFolder}",
         "${workspaceFolder}/tests/fixtures/multiChar"
       ],
-      "outFiles": ["${workspaceFolder}/extension/dist/**/*.js"],
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
       "preLaunchTask": "build extension"
     }
   ]

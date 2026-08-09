@@ -12,7 +12,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const extensionPath = join(repoRoot, "extension");
+const extensionPath = repoRoot;
 const testPath = join(extensionPath, "dist", "test", "extension-host-smoke.js");
 const fixturePath = join(repoRoot, "tests", "fixtures", "codegen-manual-workspace");
 const macCode = "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code";

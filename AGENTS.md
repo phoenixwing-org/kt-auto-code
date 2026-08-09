@@ -15,11 +15,28 @@
 
 See [doc/本地Wing并列开发.md](doc/本地Wing并列开发.md) for commands and the manual checklist.
 
+## Locked three-block shell
+
+- The Primary sidebar has one Webview View with exactly three ordered, full-width VS Code-style sections: `工具栏`, `工作目录与 Ignore`, and the current tool Block.
+- All three sections collapse independently. Only the current tool Block owns the vertical content scrollbar; the Webview page itself must not become the normal scrolling boundary. The toolbar header owns the only ribbon customization `…`. The current tool header owns both its collapse toggle and the explicit `×`, whose only meaning is closing the current logical tool Block with the existing MRU fallback.
+- Treat that section count, order, responsibility split, collapse boundary, single-ellipsis rule, and close semantics as a locked outer-shell contract. Ordinary feature, styling, or cleanup work must not change them incidentally.
+- Titles, icons, spacing, responsive styling, accessibility, and all content inside an individual Block may be improved as long as the locked outer-shell contract remains intact.
+- Before implementing a request that would change the locked contract, explicitly tell the user which rule would be broken, why the change is necessary, and what migration or regression risk it creates. Wait for explicit user confirmation before changing code or this rule.
+
+See [doc/前端开发规则.md](doc/前端开发规则.md) for the authoritative UI contract and acceptance checklist.
+
 ## Compact manager lists
 
 - Primary/sidebar manager file rows default to one continuous `file name · relative path` label. Let that single label consume the remaining width and ellipsize as a whole; do not reserve separate fixed or percentage widths for the name and path. Inline child spans may distinguish the file name (primary/semibold) from the path (secondary/smaller), but both must remain inside the same flexible truncation container.
 - Keep status/count/encoding badges in one fixed right-side tail. Preserve the full path in `title` and `aria-label`.
 - For VS Code-style manager blocks, prefer full-width section borders and very small internal padding over card-like outer horizontal gaps. Retain a small inner inset for text and icon toolbars so interactive content does not touch the edge.
+
+## Locked Primary shell
+
+- Preserve the approved three first-level Blocks in this exact order: Toolbar, Working Directory & Ignore, Current Tool. All three are independently collapsible; only Current Tool has the separate close action.
+- Preserve the VS Code section-header visual baseline: full-width adjoining rows, native 16px chevron alignment, shared top/bottom separators, compact height, title on the left, contextual actions on the right, and no card gap or draggable separator.
+- Toolbar header keeps the density action and one overflow action. Current Tool keeps collapse and close as independent actions. Internal features may evolve, but changing this outer structure or visual baseline requires warning the user and receiving explicit confirmation first.
+- A future shared ShellBlock component must be a behavior- and appearance-preserving extraction. Follow [doc/ShellBlock控件提炼TODO.md](doc/ShellBlock控件提炼TODO.md); do not combine the extraction with feature work.
 
 ## Plugin configuration storage
 

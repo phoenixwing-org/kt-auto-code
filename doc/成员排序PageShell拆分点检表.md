@@ -18,11 +18,11 @@ Owner：KT Auto Code maintainers
 
 | 层 | 文件 | 唯一责任 | 禁止拥有 |
 | --- | --- | --- | --- |
-| Domain/Host Controller | `extension/src/tools/reorderMembers/index.ts` | revision、session、选择真源、扫描、确认、fingerprint、写盘、还原与状态广播 | Web Component DOM |
-| 纯 Panel State | `extension/src/sidebar/reorderMembersPanelState.ts` | Host 快照选择收敛、pending/blocked/applied 分组和 Apply 投影 | DOM、VS Code API、文件系统、clipboard |
-| Page shell | `extension/src/sidebar/reorderMembersPanel.ts` | Sidebar/Detail 两种展示、列表、三态组选择、Realm 本地筛选、语义事件 | `acquireVsCodeApi()`、`postMessage()`、写盘与确认 |
-| Webview Host adapter | `extension/src/sidebar/panelHtml.ts` | `ToolUiState` 的窄 model 投影，以及 CustomEvent 到既有 Webview 消息的映射 | 成员排序行 DOM、状态算法 |
-| Bundle/制品门禁 | `extension/src/sidebar/reorderMembersPanelEntry.ts`、`extension/esbuild.mjs`、`scripts/verify-extension-artifacts.mjs` | 独立浏览器 bundle、VSIX 必需文件和 Host-neutral 检查 | 业务状态 |
+| Domain/Host Controller | `src/tools/reorderMembers/index.ts` | revision、session、选择真源、扫描、确认、fingerprint、写盘、还原与状态广播 | Web Component DOM |
+| 纯 Panel State | `src/sidebar/reorderMembersPanelState.ts` | Host 快照选择收敛、pending/blocked/applied 分组和 Apply 投影 | DOM、VS Code API、文件系统、clipboard |
+| Page shell | `src/sidebar/reorderMembersPanel.ts` | Sidebar/Detail 两种展示、列表、三态组选择、Realm 本地筛选、语义事件 | `acquireVsCodeApi()`、`postMessage()`、写盘与确认 |
+| Webview Host adapter | `src/sidebar/panelHtml.ts` | `ToolUiState` 的窄 model 投影，以及 CustomEvent 到既有 Webview 消息的映射 | 成员排序行 DOM、状态算法 |
+| Bundle/制品门禁 | `src/sidebar/reorderMembersPanelEntry.ts`、`esbuild.mjs`、`scripts/verify-extension-artifacts.mjs` | 独立浏览器 bundle、VSIX 必需文件和 Host-neutral 检查 | 业务状态 |
 
 依赖方向固定为：
 
@@ -69,7 +69,7 @@ Extension Host Controller
 - [x] Web Component 测试覆盖幂等注册、Sidebar/Detail、Realm 本地筛选、两条 pending 的 partial/all/none 组选择、单行与批量事件、Host 覆盖、Running 禁用和 applied 动作。
 - [x] Sidebar contract 证明旧 `run`、`reorderAction`、`reorderSelection` 消息形状未变，旧行 DOM/render helper 已退出总壳。
 - [x] import graph 将 Panel State 纳入 pure graph，将 Component/entry 纳入 View roots；组件不得直接文件写入。
-- [x] `extension/test-fixtures/reorder-members-panel.html` 在真实 Browser 验证两条 pending 三态、360×640、280×640、长路径、Sidebar/Detail、Running、blocked、applied、显示无变更、Host 空选择、单行与批量 Apply。
+- [x] `tests/webview/reorder-members-panel.html` 在真实 Browser 验证两条 pending 三态、360×640、280×640、长路径、Sidebar/Detail、Running、blocked、applied、显示无变更、Host 空选择、单行与批量 Apply。
 - [x] 360px：document `360/360`、panel `344/344`、shell `342/342`；280px：document `280/280`、panel `264/264`、shell `262/262`，均无页面横向溢出。
 - [x] Detail 形态标题/说明 `display:none`、shell border `0px`，两个动作宽度均为 129px（280px viewport）。
 - [x] Browser 控制台为 0 error/warning；临时 viewport 已恢复，点检页已关闭。

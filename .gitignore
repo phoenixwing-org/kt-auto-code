@@ -1,9 +1,8 @@
 node_modules/
 .pnpm-store/
 /dist/
-/extension/dist/
-extension/node_modules/
 *.vsix
 *.local-wing.json
 *.swp
 .phoenix/
+.obsidian/

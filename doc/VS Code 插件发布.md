@@ -4,11 +4,11 @@
 
 ## 项目信息
 
-- 扩展目录：[`extension/`](../extension/)
+- 扩展目录：仓库根目录（[`package.json`](../package.json) 为唯一 manifest）
 - 当前扩展标识：`kuntai.kt-auto-code`
 - Marketplace 发布者 ID：`kuntai`
 - Marketplace 发布者名称：`Shanghai Kuntai`
-- 当前版本：以 [`extension/package.json`](../extension/package.json) 的 `version` 为准
+- 当前版本：以 [`package.json`](../package.json) 的 `version` 为准
 - Marketplace 当前公开版本为 KT Auto Code `0.6.1`，由 `kuntai` 发布并已通过人工审查。CAD 当前版本由 [KT Auto CAD 发布说明](https://gitee.com/PhoenixWing321/kt-auto-cad/blob/master/doc/发布.md)维护。
 - 开源许可：[Apache License 2.0](../LICENSE)
 
@@ -21,6 +21,20 @@
 }
 ```
 
+## 0.6.3 发布候选（2026-08-09）
+
+0.6.3 完成扩展根目录扁平化，并将侧栏收敛为单 Webview 三段式工作台。本轮只发布 `kuntai.kt-auto-code@0.6.3`；KT Auto CAD 继续由独立仓库维护，版本保持 0.1.0。正式包精确消费 Registry 中的 Phoenix Wing 0.6.2，不携带本地 Wing 路径或开发变量。
+
+- 仓库根 `package.json` 成为唯一扩展 manifest；源码、资源、构建脚本和 VSIX 入口同步上移，删除单成员 workspace 与重复配置。
+- 三个一级 Block 固定为“工具栏”“工作目录与 Ignore”“当前工具”，均可独立折叠；当前工具保留独立关闭与内部滚动，Primary 页面不整体滚动。
+- Ribbon 支持 Code/CAD 筛选、显示密度、固定、整行拖动和上下排序；菜单在极窄侧栏内可滚动、可键盘操作并持久化，不再把模块和布局入口放入 View Header。
+- 搜索替换采用紧凑双行界面，搜索可独立执行，替换内容为空时禁止写盘；共享工作目录覆盖当前目录、一级子目录、多根工作区和外部目录。
+- Git 简报保留完整 commit 正文与空行；更多 commit 默认懒加载，每次展开追加一条并保留显式分页。
+- 发布统一执行 `pnpm release:check`；该入口等价于完整 `verify:ci`，包含文档、架构、Wing 依赖、测试、类型、Registry 打包和 VSIX 内容门禁。
+- 2026-08-09 使用 Node 22.23.1 在固定 detached release worktree 完成正式门禁：79 份 Markdown、156 个生产源文件、25 个 pure graph、17 个 View root、126 个测试文件与 606 项测试全部通过；类型检查、Registry Wing 0.6.2 依赖和 VSIX 内容门禁通过。
+- 正式候选 `dist/vsix/kt-auto-code-0.6.3.vsix` 为 39 个文件、559107 bytes，SHA-256 `9e869cc0ee99d35fd0fbd543cd48f1f1aad34ea5a7928267744b27519b5be902`。
+- AI 只生成本地候选与校验回执，不执行 `vsce publish`、Marketplace 上传、Git push 或标签创建；用户安装点检后手动上传。
+
 ## 0.6.1 已发布（2026-07-24）
 
 0.6.1 收口三库共享 Code/Codegen 界面与宿主边界，补齐 Git Primary 的多仓库选择，并为未打开 Block 的下方区域增加 Welcome。根 workspace 与 Code 扩展同步升级到 0.6.1，KT Auto CAD 保持 0.1.0；Code 与 CAD 的 15 处 Wing manifest 引用精确使用 Registry 0.5.1。
@@ -32,7 +46,7 @@
 - 适配 Wing 0.5.1 扩宽的报告构造返回类型，并按 Primary 内含控制符目录、独立预检结果面板的新边界更新 VSIX 制品门禁。
 - 正式候选必须使用 Node 22、当前 `pnpm-lock.yaml` 与 npm Registry 依赖执行 `pnpm ext:dev:registry:prepare` 和 `pnpm verify:ci`；不得使用本地并列 Wing 制品替代发布包。
 - 2026-07-24 使用 Node 22.23.1 完成正式门禁：78 份 Markdown、160 个生产源文件、25 个 pure graph、17 个 View root、129 个测试文件与 585 项测试通过；Code/CAD 双 typecheck、Registry 0.5.1 构建和双 VSIX 制品内容门禁通过。VS Code 1.130.0 真实 Extension Host 完成激活、命令注册、Codegen open/preview/conflict/apply/saveReload/rollback 及 Git/Run Block 代表流程。
-- 正式候选 `extension/kt-auto-code-0.6.1.vsix` 为 38 个文件、534363 bytes，SHA-256 `d74472c55c4fd7dd845f607b47745511dfcec11c23c55f8b8a8083c60f100e6d`；辅助复核的 CAD 0.1.0 制品为 9 个文件、40332 bytes，SHA-256 `6c55065fd14683c77a4b7e2a5518e076a0554f413651d2e0490393b2a63ac603`。
+- 正式候选 `dist/vsix/kt-auto-code-0.6.1.vsix` 为 38 个文件、534363 bytes，SHA-256 `d74472c55c4fd7dd845f607b47745511dfcec11c23c55f8b8a8083c60f100e6d`；辅助复核的 CAD 0.1.0 制品为 9 个文件、40332 bytes，SHA-256 `6c55065fd14683c77a4b7e2a5518e076a0554f413651d2e0490393b2a63ac603`。
 - 2026-07-24 用户使用上述本地候选完成 Marketplace 上传，并确认人工审查通过；`kuntai.kt-auto-code@0.6.1` 的公开发布闭环完成。本地制品哈希作为上传源归档，未额外下载 Marketplace 制品复算哈希。
 - 本地代理未执行 `vsce publish`、Marketplace 上传、Git push 或标签创建；发布操作与审查结果均来自用户回执。
 
@@ -50,7 +64,7 @@
 - Phoenix Wing 0.5.0 的 12 个 npm 包已发布并完成隔离 Registry 消费验证；Auto Code manifest 与 lockfile 已闭环到正式包，禁止提交 `link:`、`file:`、workspace override 或本地路径。
 - 2026-07-21 的并列 Wing 本地候选仅作为历史验证证据，不作为发布制品；0.6.0 最终 VSIX 必须由 Registry 依赖路径重新构建并通过制品门禁。
 - 2026-07-22 使用 Node 22.14.0 完成正式门禁：77 份 Markdown、158 个生产源文件、26 个 pure graph、17 个 View root、122 个测试文件与 583 项测试通过；Code/CAD 双 typecheck、Registry 0.5.0 构建、并列 Wing 六包来源门禁及 VS Code 1.129.1 Extension Host smoke 通过，Git/Run 命令均已真实注册和激活。
-- 正式归档 `extension/kt-auto-code-0.6.0.vsix`：35 个文件、525810 bytes、SHA-256 `378ac17b78b0aefb62d0d4aeb970842b61ee3882f86ee97df2c7490a442b523c`。制品不包含本地 Wing 回执或外部 Wing runtime require；辅助复核的 CAD 0.1.0 制品为 9 个文件、40342 bytes。
+- 正式归档 `dist/vsix/kt-auto-code-0.6.0.vsix`：35 个文件、525810 bytes、SHA-256 `378ac17b78b0aefb62d0d4aeb970842b61ee3882f86ee97df2c7490a442b523c`。制品不包含本地 Wing 回执或外部 Wing runtime require；辅助复核的 CAD 0.1.0 制品为 9 个文件、40342 bytes。
 - 未经用户明确授权，不执行 `vsce publish` 或 Marketplace 上传；本轮由 AI 完成本地打包，用户手动发布。
 
 ## 0.5.3 发布候选（2026-07-21）
@@ -102,7 +116,7 @@
 
 Marketplace 机器回执已确认发布完成：`kuntai.kt-auto-code@0.5.1` 的公开 VSIX SHA-256 为 `3829b5436972b101785f6688cbbfdad7c93896da813057c604d4ecd58092bfcf`，`kuntai.kt-auto-cad@0.1.0` 为 `b9778df10c9e25c8e3de6db4849489396e716681974b2f765261d15f382708b8`，均与本地已验证制品逐字一致；用户同时确认 Marketplace 人工审查通过。本轮公开发布闭环完成。
 
-发布前须确认 Marketplace 中已存在 `kuntai` 发布者；若使用新的发布者 ID，必须先同步修改 `extension/package.json` 的 `publisher` 字段。发布者 ID 创建后不可修改，建议使用公司或品牌的长期唯一标识。
+发布前须确认 Marketplace 中已存在 `kuntai` 发布者；若使用新的发布者 ID，必须先同步修改 `package.json` 的 `publisher` 字段。发布者 ID 创建后不可修改，建议使用公司或品牌的长期唯一标识。
 
 ## 首次发布准备
 
@@ -149,10 +163,10 @@ Auto Code 正式候选：
 ```bash
 cd ../.worktrees/kt-auto-code-release
 pnpm install --frozen-lockfile
-env -u PHOENIX_WING_ROOT -u PHOENIX_WING_DEV_MODE pnpm verify:ci
+env -u PHOENIX_WING_ROOT -u PHOENIX_WING_DEV_MODE pnpm release:check
 ```
 
-制品位于仓库根 `dist/vsix/kt-auto-code-<version>.vsix`，相邻 `.vsix.sha256` 由打包入口生成并由制品门禁复核。根 `dist/` 已被 Git 忽略；`extension/dist/` 仍只保存扩展运行 bundle。`pnpm package` 等价于 Auto 内部的 `pnpm ext:package`。发布 worktree 可以重复使用；若需要长期保留某次发布现场，再另外建立带版本号的只读 worktree。
+制品位于仓库根 `dist/vsix/kt-auto-code-<version>.vsix`，相邻 `.vsix.sha256` 由打包入口生成并由制品门禁复核。根 `dist/` 已被 Git 忽略；`dist/*.js` 保存扩展运行 bundle，`dist/vsix/` 保存发布制品。`pnpm package` 等价于 Auto 内部的 `pnpm ext:package`。发布 worktree 可以重复使用；若需要长期保留某次发布现场，再另外建立带版本号的只读 worktree。
 
 KT Auto CAD 的 worktree、`release:check` 和制品规则由 [CAD 仓发布说明](https://gitee.com/PhoenixWing321/kt-auto-cad/blob/master/doc/发布.md)独立维护，本文不再复制。
 
@@ -166,10 +180,10 @@ KT Auto CAD 的 worktree、`release:check` 和制品规则由 [CAD 仓发布说�
 从仓库根目录执行，`<发布者ID>` 替换为 Marketplace 发布者 ID：
 
 ```bash
-pnpm -C extension build
-pnpm -C extension exec vsce login <发布者ID>
+pnpm build
+pnpm exec vsce login <发布者ID>
 pnpm ext:package
-pnpm -C extension exec vsce publish
+pnpm exec vsce publish
 ```
 
 建议先执行打包命令，再在 VS Code 中使用 **Extensions: Install from VSIX…** 安装生成的 `.vsix` 文件进行验证。确认扩展可正常激活、各工具可用且市场展示信息正确后，再执行 `publish`。
@@ -178,11 +192,11 @@ pnpm -C extension exec vsce publish
 
 ## 每次发布检查清单
 
-- 更新 `extension/package.json` 中的 `version`。
-- 更新或创建 `extension/CHANGELOG.md`，说明本次变更。
+- 更新 `package.json` 中的 `version`。
+- 更新或创建 `CHANGELOG.md`，说明本次变更。
 - 执行构建与测试，并安装 VSIX 完成一次本地验证。
 - 检查 README：功能简介、使用方法、截图、隐私说明和支持渠道应准确可用。
-- Marketplace 图标位于 `extension/media/cn.kt.doc.AutoCode.Color.128.png`（128 × 128 PNG），由扩展清单顶层字段 `"icon": "media/cn.kt.doc.AutoCode.Color.128.png"` 声明；Activity Bar 的 `kt-auto-code.svg` 不是 Marketplace 图标。替换图标后必须递增 `version`、重新打包 VSIX，再上传新包。
+- Marketplace 图标位于 `media/cn.kt.doc.AutoCode.Color.128.png`（128 × 128 PNG），由扩展清单顶层字段 `"icon": "media/cn.kt.doc.AutoCode.Color.128.png"` 声明；Activity Bar 的 `kt-auto-code.svg` 不是 Marketplace 图标。替换图标后必须递增 `version`、重新打包 VSIX，再上传新包。
 - 补齐 `repository`、`homepage`、`bugs`、`keywords` 和合适的 `categories` 等上架元数据。
 - 确认 README 与 CHANGELOG 使用的远程图片均为 HTTPS 地址。
 - 确认许可证、版权声明和第三方通知随发布包一同保留。

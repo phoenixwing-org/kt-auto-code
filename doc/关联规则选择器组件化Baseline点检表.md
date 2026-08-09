@@ -18,11 +18,11 @@ Side Bar 搜索替换中“添加关联规则”对话框已经完成 baseline �
 
 | 当前责任 | 文件 |
 | --- | --- |
-| Dialog DOM、Shadow DOM 样式、局部输入与语义事件 | `extension/src/sidebar/associatedRulePicker.ts` |
-| Custom Element 显式注册 | `extension/src/sidebar/associatedRulePickerEntry.ts` |
-| 一次性 model 投影与 confirm → Host 消息适配 | `extension/src/sidebar/panelHtml.ts` |
-| transient 定向投递与 durable state 隔离 | `extension/src/sidebar/sidebarViewProvider.ts` |
-| 候选 ViewModel | `extension/src/tools/codeRename/associatedRulePicker.ts` |
+| Dialog DOM、Shadow DOM 样式、局部输入与语义事件 | `src/sidebar/associatedRulePicker.ts` |
+| Custom Element 显式注册 | `src/sidebar/associatedRulePickerEntry.ts` |
+| 一次性 model 投影与 confirm → Host 消息适配 | `src/sidebar/panelHtml.ts` |
+| transient 定向投递与 durable state 隔离 | `src/sidebar/sidebarViewProvider.ts` |
+| 候选 ViewModel | `src/tools/codeRename/associatedRulePicker.ts` |
 | 候选派生、追加竞争与去重 | `src/associatedReplacementRules.ts`、CodeRename Host |
 
 ## 责任边界
@@ -30,10 +30,10 @@ Side Bar 搜索替换中“添加关联规则”对话框已经完成 baseline �
 | 层 | 当前/目标文件 | 唯一责任 | 禁止拥有 |
 | --- | --- | --- | --- |
 | 纯规则 Model | `src/associatedReplacementRules.ts` | 候选派生、追加、同 Source 竞争与去重 | DOM、默认勾选、VS Code API |
-| Picker ViewModel | `extension/src/tools/codeRename/associatedRulePicker.ts` | 标题、候选顺序和 common/CAA/custom 默认勾选 | Dialog DOM、`postMessage()`、写盘 |
-| Picker View | `extension/src/sidebar/associatedRulePicker.ts` | 候选/自定义行、确认启用、focus、close/cancel/Escape、语义事件 | `acquireVsCodeApi()`、候选派生、去重、Webview state、工作区 |
-| Sidebar Host adapter | `extension/src/sidebar/panelHtml.ts` | 把一次性 ViewModel 交给组件，并将选中规则补齐为现有 Host 消息 | Picker 行 DOM、候选算法 |
-| Extension Host Tool | `extension/src/tools/codeRename/index.ts` | 创建 Picker ViewModel、追加与去重、广播一次性状态 | Dialog DOM、组件局部输入 |
+| Picker ViewModel | `src/tools/codeRename/associatedRulePicker.ts` | 标题、候选顺序和 common/CAA/custom 默认勾选 | Dialog DOM、`postMessage()`、写盘 |
+| Picker View | `src/sidebar/associatedRulePicker.ts` | 候选/自定义行、确认启用、focus、close/cancel/Escape、语义事件 | `acquireVsCodeApi()`、候选派生、去重、Webview state、工作区 |
+| Sidebar Host adapter | `src/sidebar/panelHtml.ts` | 把一次性 ViewModel 交给组件，并将选中规则补齐为现有 Host 消息 | Picker 行 DOM、候选算法 |
+| Extension Host Tool | `src/tools/codeRename/index.ts` | 创建 Picker ViewModel、追加与去重、广播一次性状态 | Dialog DOM、组件局部输入 |
 
 依赖方向固定为：
 
@@ -98,7 +98,7 @@ type KtcAssociatedRulePickerActionDetail =
 - [x] 组件幂等注册、Shadow DOM、单一 union 事件、raw Source、Source/Target Enter 拦截和 confirm/cancel 单次语义。
 - [x] 独立 bundle 进入 esbuild build/watch、架构 viewRoots 和 VSIX 必需制品；制品门禁拒绝 VS Code API、`postMessage`、clipboard、工作区、`primarySearch` 与 `existingRules` 泄漏。
 
-已有 `extension/src/tools/codeRename/associatedRulePicker.test.ts` 继续覆盖候选生成，本组件测试不复制规则算法。Fake DOM 与源码/制品门禁证明组件语义和依赖边界；真实 Browser Dialog 仍按下节 TODO 单独回执。
+已有 `src/tools/codeRename/associatedRulePicker.test.ts` 继续覆盖候选生成，本组件测试不复制规则算法。Fake DOM 与源码/制品门禁证明组件语义和依赖边界；真实 Browser Dialog 仍按下节 TODO 单独回执。
 
 ## 暂停后的保留 TODO
 

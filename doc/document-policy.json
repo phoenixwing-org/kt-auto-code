@@ -5,7 +5,7 @@
   "appliesTo": "0.6.x",
   "rules": [
     {
-      "match": "^doc/(下一阶段实施计划|Codegen下一阶段实施计划|0\\.4\\.0-Block工作流改造计划)\\.md$",
+      "match": "^doc/历史/(下一阶段实施计划|Codegen下一阶段实施计划|0\\.4\\.0-Block工作流改造计划)\\.md$",
       "status": "superseded",
       "sourceOfTruth": "doc/current-roadmap.md",
       "reason": "重叠路线已合并为当前 roadmap"
@@ -23,7 +23,7 @@
       "reason": "阶段评分证据，不代表当前全工程成熟度"
     },
     {
-      "match": "^doc/(vscode插件规划|侧边栏界面改进计划)\\.md$",
+      "match": "^doc/历史/(vscode插件规划|侧边栏界面改进计划)\\.md$",
       "status": "archived",
       "sourceOfTruth": "doc/current-roadmap.md",
       "reason": "完成态旧 UI/插件规划"
@@ -33,6 +33,16 @@
       "status": "draft",
       "sourceOfTruth": "doc/current-roadmap.md",
       "reason": "尚未晋升为当前承诺的方案"
+    },
+    {
+      "match": "^doc/Ribbon与基础上下文Block改进计划\\.md$",
+      "status": "current",
+      "reason": "已确认的单 View Ribbon、用户定制与共享工作目录实施计划"
+    },
+    {
+      "match": "^doc/工作集退场与多目录范围调查\\.md$",
+      "status": "current",
+      "reason": "已确认的工作集退场决策、消费者审计与多目录替代方案"
     },
     {
       "match": "^doc/git/README\\.md$",
