@@ -5,8 +5,8 @@ export function getDefaultCadSiblingRoot(repoRoot) {
   return resolve(repoRoot, "..", "kt-auto-cad");
 }
 
-export function resolveCadSiblingRoot({ repoRoot }) {
-  const root = getDefaultCadSiblingRoot(repoRoot);
+export function resolveCadSiblingRoot({ repoRoot, cadRoot }) {
+  const root = cadRoot ? resolve(cadRoot) : getDefaultCadSiblingRoot(repoRoot);
   const manifestPath = resolve(root, "package.json");
   if (!existsSync(manifestPath)) {
     throw new Error(

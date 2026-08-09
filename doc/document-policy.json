@@ -35,6 +35,16 @@
       "reason": "尚未晋升为当前承诺的方案"
     },
     {
+      "match": "^doc/Ribbon与基础上下文Block改进计划\\.md$",
+      "status": "current",
+      "reason": "已确认的单 View Ribbon、用户定制与共享工作目录实施计划"
+    },
+    {
+      "match": "^doc/工作集退场与多目录范围调查\\.md$",
+      "status": "current",
+      "reason": "已确认的工作集退场决策、消费者审计与多目录替代方案"
+    },
+    {
       "match": "^doc/git/README\\.md$",
       "status": "current",
       "reason": "Git Primary Block 0.6.0 实现与验收基线"

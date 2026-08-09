@@ -17,6 +17,13 @@
       "lastVerified": "2026-08-08"
     },
     {
+      "path": "CHANGELOG.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.6.x",
+      "lastVerified": "2026-08-08"
+    },
+    {
       "path": "doc/0.1.0-插件市场发布归档.md",
       "status": "archived",
       "owner": "KT Auto Code maintainers",
@@ -146,6 +153,21 @@
     },
     {
       "path": "doc/工程配置与隐藏状态存储规则.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.6.x",
+      "lastVerified": "2026-08-08"
+    },
+    {
+      "path": "doc/工作集退场与多目录范围调查.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.6.x",
+      "lastVerified": "2026-08-08",
+      "reason": "已确认的工作集退场决策、消费者审计与多目录替代方案"
+    },
+    {
+      "path": "doc/固定与排序菜单控件.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.6.x",
@@ -542,21 +564,22 @@
       "lastVerified": "2026-08-08"
     },
     {
+      "path": "doc/Ribbon与基础上下文Block改进计划.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.6.x",
+      "lastVerified": "2026-08-08",
+      "reason": "已确认的单 View Ribbon、用户定制与共享工作目录实施计划"
+    },
+    {
+      "path": "doc/ShellBlock控件提炼TODO.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.6.x",
+      "lastVerified": "2026-08-08"
+    },
+    {
       "path": "doc/VS Code 插件发布.md",
-      "status": "current",
-      "owner": "KT Auto Code maintainers",
-      "appliesTo": "0.6.x",
-      "lastVerified": "2026-08-08"
-    },
-    {
-      "path": "extension/CHANGELOG.md",
-      "status": "current",
-      "owner": "KT Auto Code maintainers",
-      "appliesTo": "0.6.x",
-      "lastVerified": "2026-08-08"
-    },
-    {
-      "path": "extension/README.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.6.x",

@@ -40,7 +40,7 @@ Owner：KT Auto Code maintainers
 
 ### 3.1 Auto Code Primary
 
-- Code Ribbon 顺序来自 `extension/src/extension.ts` 中 `KtTool` 的注册顺序；当前最后一个工具是 CAA UI。
+- Code Ribbon 顺序来自 `src/extension.ts` 中 `KtTool` 的注册顺序；当前最后一个工具是 CAA UI。
 - Git 讨论稿已预留 CAA UI 之后的位置。Run 推荐成为 Git 之后的下一个 `KtTool`：`… → CAA UI → Git → Run`。
 - 所有 Code 工具共享 `ktAutoCode.modulePanel` Primary Block、打开态和 MRU 恢复。Run 不需要第二套 View 协议。
 - 当前 `ToolRunContext.workspaceRoot` 和 `getWorkspaceRoot()` 只表示第一个 Workspace Folder，不能满足本计划的多根/多项目运行。Run controller 必须直接消费 `vscode.workspace.workspaceFolders`，并在目标 DTO 中保存所属 folder 与 project root；不能把第一个根继续当成全局事实。
@@ -104,7 +104,7 @@ Owner：KT Auto Code maintainers
 
 本次只读扫描在 KT Auto Code 工作区发现：
 
-- `.vscode/tasks.json` 与 `extension/.vscode/tasks.json`；
+- 根 `.vscode/tasks.json`；
 - 命名 matcher `$esbuild` 与一个 inline background matcher；
 - 用户源码范围内没有 `ps1`、`bat`、`cmd`、`sh`；
 - `.phoenix/native-build` 下有大量生成可执行文件，证明发现规则必须默认排除内部缓存/构建缓存，而不能递归枚举后静默截断；
@@ -592,7 +592,7 @@ Wing 最终拆分边界：
 推荐发布结构：
 
 ```text
-extension/resources/run/
+resources/run/
   runner-manifest.json
   windows/
     caa-build.cmd
@@ -963,7 +963,7 @@ running → succeeded | failed | ended-unknown
 以下只是未来实施建议，本轮不创建：
 
 ```text
-extension/src/tools/run/
+src/tools/run/
   index.ts                    # KtTool、命令与 Primary 接线
   runController.ts            # Host 编排与语义消息
   runWorkspaceDiscovery.ts    # VS Code folder/remote adapter
@@ -974,7 +974,7 @@ extension/src/tools/run/
   runViewModel.ts
   *.test.ts
 
-extension/resources/run/
+resources/run/
   runner-manifest.json
   windows/caa-build.cmd
   windows/caa-run.cmd

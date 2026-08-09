@@ -4,7 +4,7 @@
 
 源码仓库：[phoenixwing/kt-auto-code](https://gitee.com/phoenixwing/kt-auto-code)。
 
-当前插件提供 **头文件编码修正、文件转码、Ignore 设置、工作区搜索替换、C++ 成员排序、UUID 替换、CAA UI、工程环境管理与 Codegen 参数表原型**。成员排序、UUID、搜索替换、CAA 扫描和 Codegen 预检可共用 `.phoenix/worksets.json`；工程环境 Block 直接维护操作系统用户环境变量，不使用 VS Code Settings 伪装系统值；其他插件配置仍使用 VS Code Settings。写盘前会检查冲突和文件快照，结果统一显示在单 Block 中；Codegen Apply 会自动预检、重验源码指纹并保持 UTF-8/BOM/GBK 原编码，批量写入失败时尝试回滚。
+当前插件提供 **头文件编码修正、文件转码、Ignore 设置、工作区搜索替换、C++ 成员排序、UUID 替换、CAA UI、工程环境管理与 Codegen 参数表原型**。成员排序、UUID、CAA 扫描和 Codegen 预检可共用 `.phoenix/worksets.json`；搜索替换当前使用独立目录选择，工作集入口待产品交互明确后再评估。工程环境 Block 直接维护操作系统用户环境变量，不使用 VS Code Settings 伪装系统值；其他插件配置仍使用 VS Code Settings。写盘前会检查冲突和文件快照，结果统一显示在单 Block 中；Codegen Apply 会自动预检、重验源码指纹并保持 UTF-8/BOM/GBK 原编码，批量写入失败时尝试回滚。
 
 ## Code 与 CAD 功能关系
 
@@ -85,16 +85,20 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 ## 仓库结构
 
 ```text
-package.json          # 私有编排包、开发/验证/发布入口
-src/                  # Auto 专属 Host-neutral 模型、工作流和算法（无 vscode 依赖）
-extension/            # 当前有效的 KT Auto Code VS Code 扩展包根
+package.json          # 扩展 manifest、版本与开发/验证/发布入口
+src/                  # Extension Host、Webview 与工具适配
+src/core/             # Auto 专属 Host-neutral 模型、工作流和算法（无 vscode 依赖）
+media/                # Marketplace、Activity Bar 与工具图标
+resources/            # 随 VSIX 发布的只读 runner
 scripts/              # CLI + 开发、构建、测试、打包与发布门禁
 tests/fixtures/       # 核心、CLI 与 Extension Host 代表夹具
+tests/webview/        # 浏览器/Webview 结构夹具
 doc/                  # 当前中文文档、专项计划与历史归档
+dist/                 # 扩展运行 bundle（Git ignored）
 dist/vsix/            # Git ignored 的 VSIX 与 SHA-256
 ```
 
-`extension/` 当前不是遗留目录：Marketplace manifest、Extension Host 源码、Webview、资源和运行 bundle 都仍在其中。CAD 拆仓后，Auto Code 根目录扁平化已列为独立迁移目标；现状、目标结构和验收门禁见[仓库结构与扁平化迁移计划](doc/仓库结构与扁平化迁移计划.md)。
+仓库根现在就是唯一的 VS Code 扩展包根，不再保留只有一个成员的 `extension/` workspace。原 Host-neutral 逻辑集中在 `src/core/`，继续由架构门禁限制其不得依赖 `vscode`；实施记录见[仓库结构与扁平化迁移计划](doc/仓库结构与扁平化迁移计划.md)。KT Auto CAD 已是同样的根包结构，但因规模较小无需照搬 Auto 的全部内部分层。
 
 ## 版权、技术来源与许可证
 

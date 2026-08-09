@@ -370,12 +370,12 @@ phoenix-wing/packages/git-node/
   src/squash-transaction.ts# temp ref/worktree / cherry-pick / update-ref / backup
   src/*.test.ts
 
-kt-auto-code/extension/src/tools/git/
+kt-auto-code/src/tools/git/
   index.ts                 # KtTool、命令与 Extension Host 编排
   gitPrimaryPanel.ts       # Primary Web Component
   *.test.ts
 
-kt-auto-code/extension/media/tools/git.svg
+kt-auto-code/media/tools/git.svg
 ```
 
 `git-core` 禁止 Node、VS Code、Vue 和 DOM 依赖；`git-node` 依赖 `git-core` 并拥有 Git 进程与临时资源生命周期；Auto Code 只依赖公开 Wing API并持有 UI/确认/仓库互斥锁。两个 Wing 包必须有真实消费者、稳定 JS/`.d.ts`、架构门禁和 tarball smoke，不建立空包。

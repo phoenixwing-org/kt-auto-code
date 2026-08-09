@@ -5,7 +5,6 @@
       "label": "build extension",
       "type": "npm",
       "script": "build",
-      "path": "extension",
       "group": {
         "kind": "build",
         "isDefault": true
@@ -16,7 +15,6 @@
       "label": "watch extension",
       "type": "npm",
       "script": "watch",
-      "path": "extension",
       "isBackground": true,
       "problemMatcher": {
         "owner": "esbuild",

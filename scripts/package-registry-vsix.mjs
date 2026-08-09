@@ -6,11 +6,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const extensionRoot = path.join(repoRoot, "extension");
+const extensionRoot = repoRoot;
 const manifest = JSON.parse(readFileSync(path.join(extensionRoot, "package.json"), "utf8"));
 const outputRoot = path.join(repoRoot, "dist", "vsix");
 const output = path.join(outputRoot, `kt-auto-code-${manifest.version}.vsix`);
-const vsceCli = path.join(extensionRoot, "node_modules", "@vscode", "vsce", "vsce");
+const vsceCli = path.join(repoRoot, "node_modules", "@vscode", "vsce", "vsce");
 const leakedWingVariables = ["PHOENIX_WING_ROOT", "PHOENIX_WING_DEV_MODE"]
   .filter((name) => process.env[name] !== undefined);
 
@@ -27,9 +27,9 @@ const result = spawnSync(process.execPath, [
   "package",
   "--no-dependencies",
   "--baseContentUrl",
-  "https://gitee.com/phoenixwing/kt-auto-code/blob/master/extension",
+  "https://gitee.com/phoenixwing/kt-auto-code/blob/develop",
   "--baseImagesUrl",
-  "https://gitee.com/phoenixwing/kt-auto-code/raw/master/extension",
+  "https://gitee.com/phoenixwing/kt-auto-code/raw/develop",
   "--out",
   output,
 ], {

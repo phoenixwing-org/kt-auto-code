@@ -12,7 +12,7 @@ Owner：KT Auto Code maintainers
 
 本切口是大型 UI/Host 分层的第二波小步：把 `Codegen/index.ts` 中“单份 JSON 如何成为 Host session”的纯状态机提炼为 `documentSessionController.ts`。它不改变 Webview 消息、JSON schema、Wing Registry 依赖、Primary/JSON View 行为，也不修改 marker、Preflight、Apply 或 `controlCatalog`。
 
-基线为提交 `6eba19f`：`extension/src/tools/codegen/index.ts` 1,491 行，既负责 VS Code 装配，又直接持有 session `Map`、`activeUri`、Wing Controller 解析和 Document Model 建立。本切口后总 Controller 仍是 Host adapter；新增纯 Controller 负责 registry、活动态和打开状态机。显式 port 装配会增加少量组合代码，因此不把单文件行数下降伪装成验收目标。
+基线为提交 `6eba19f`：`src/tools/codegen/index.ts` 1,491 行，既负责 VS Code 装配，又直接持有 session `Map`、`activeUri`、Wing Controller 解析和 Document Model 建立。本切口后总 Controller 仍是 Host adapter；新增纯 Controller 负责 registry、活动态和打开状态机。显式 port 装配会增加少量组合代码，因此不把单文件行数下降伪装成验收目标。
 
 ## 责任图
 

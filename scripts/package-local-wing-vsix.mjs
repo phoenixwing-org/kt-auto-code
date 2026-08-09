@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const extensionRoot = path.join(repoRoot, "extension");
+const extensionRoot = repoRoot;
 const wingRoot = path.resolve(repoRoot, "../phoenix-wing");
 const manifest = JSON.parse(readFileSync(path.join(extensionRoot, "package.json"), "utf8"));
 const bundlePath = path.join(extensionRoot, "dist", "extension.js");
@@ -31,14 +31,14 @@ const receiptPath = path.join(outputRoot, `kt-auto-code-${manifest.version}.loca
 mkdirSync(outputRoot, { recursive: true });
 if (existsSync(receiptPath)) unlinkSync(receiptPath);
 const require = createRequire(import.meta.url);
-const { pack } = require("../extension/node_modules/@vscode/vsce/out/package.js");
+const { pack } = require("../node_modules/@vscode/vsce/out/package.js");
 const result = await pack({
   cwd: extensionRoot,
   packagePath: output,
   dependencies: false,
   useYarn: false,
-  baseContentUrl: "https://gitee.com/phoenixwing/kt-auto-code/blob/master/extension",
-  baseImagesUrl: "https://gitee.com/phoenixwing/kt-auto-code/raw/master/extension",
+  baseContentUrl: "https://gitee.com/phoenixwing/kt-auto-code/blob/develop",
+  baseImagesUrl: "https://gitee.com/phoenixwing/kt-auto-code/raw/develop",
 });
 
 const archive = readFileSync(output);

@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const manifestFiles = [
   "package.json",
-  "extension/package.json",
 ];
 const dependencySections = [
   "dependencies",

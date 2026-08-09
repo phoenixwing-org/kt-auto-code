@@ -17,13 +17,13 @@
     },
     {
       "id": "document-model",
-      "files": ["extension/src/tools/codegen/documentModel.ts"],
+      "files": ["src/tools/codegen/documentModel.ts"],
       "mayDependOn": ["wing-domain", "host-contract-types"],
       "mustNotDependOn": ["vscode", "dom", "filesystem"]
     },
     {
       "id": "document-session-controller",
-      "files": ["extension/src/tools/codegen/documentSessionController.ts"],
+      "files": ["src/tools/codegen/documentSessionController.ts"],
       "mayDependOn": ["wing-domain", "document-model", "host-contract-types", "pure-diagnostic-projection"],
       "mustNotDependOn": ["vscode", "dom", "node-filesystem", "product-ui"],
       "responsibility": "session registry, active document state and snapshot-to-model opening state machine"
@@ -31,22 +31,22 @@
     {
       "id": "host-services",
       "files": [
-        "extension/src/tools/codegen/documentService.ts",
-        "extension/src/tools/codegen/sourceCodec.ts",
-        "extension/src/tools/codegen/workspaceDiscovery.ts",
-        "extension/src/tools/codegen/workspaceDiscoveryPolicy.ts",
-        "extension/src/tools/codegen/workspaceWatchService.ts",
-        "extension/src/tools/codegen/workspaceOperationCoordinator.ts",
-        "extension/src/tools/codegen/preflightCache.ts",
-        "extension/src/tools/codegen/sourceApply.ts",
-        "extension/src/tools/codegen/sourceApplyTransaction.ts",
-        "extension/src/tools/codegen/applyLog.ts",
-        "extension/src/tools/codegen/applyReceipt.ts",
-        "extension/src/tools/codegen/applyReceiptStore.ts",
-        "extension/src/tools/codegen/sourceScanPolicy.ts",
-        "extension/src/tools/codegen/workspaceRootResolver.ts",
-        "extension/src/tools/codegen/workspaceSessionPolicy.ts",
-        "extension/src/tools/codegen/preflight.ts"
+        "src/tools/codegen/documentService.ts",
+        "src/tools/codegen/sourceCodec.ts",
+        "src/tools/codegen/workspaceDiscovery.ts",
+        "src/tools/codegen/workspaceDiscoveryPolicy.ts",
+        "src/tools/codegen/workspaceWatchService.ts",
+        "src/tools/codegen/workspaceOperationCoordinator.ts",
+        "src/tools/codegen/preflightCache.ts",
+        "src/tools/codegen/sourceApply.ts",
+        "src/tools/codegen/sourceApplyTransaction.ts",
+        "src/tools/codegen/applyLog.ts",
+        "src/tools/codegen/applyReceipt.ts",
+        "src/tools/codegen/applyReceiptStore.ts",
+        "src/tools/codegen/sourceScanPolicy.ts",
+        "src/tools/codegen/workspaceRootResolver.ts",
+        "src/tools/codegen/workspaceSessionPolicy.ts",
+        "src/tools/codegen/preflight.ts"
       ],
       "mayDependOn": ["wing-domain", "vscode-filesystem-port", "workspace-scope"],
       "mustNotDependOn": ["webview-html", "sidebar-dom", "editor-panel-state"]
@@ -54,7 +54,7 @@
     {
       "id": "view",
       "files": [
-        "extension/src/tools/codegen/editorHtml.ts",
+        "src/tools/codegen/editorHtml.ts",
         "@phoenix-wing/kt-codegen/table:KtCodegenTable"
       ],
       "mayDependOn": ["view-model-contracts", "wing-browser-component"],
@@ -63,14 +63,14 @@
     {
       "id": "view-controller",
       "files": [
-        "extension/src/tools/codegen/editorViewController.ts"
+        "src/tools/codegen/editorViewController.ts"
       ],
       "mayDependOn": ["vscode-webview-panel", "view"],
       "mustNotDependOn": ["KtCodegenParam-mutation", "csv-conversion", "source-analysis"]
     },
     {
       "id": "workspace-controller",
-      "files": ["extension/src/tools/codegen/index.ts"],
+      "files": ["src/tools/codegen/index.ts"],
       "mayDependOn": ["document-session-controller", "host-services", "view-controller"],
       "responsibility": "VS Code composition, URI/dialog adaptation, command orchestration and view-model projection"
     }

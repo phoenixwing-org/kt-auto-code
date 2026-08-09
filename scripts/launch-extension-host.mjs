@@ -23,12 +23,17 @@ import {
 import { resolveCadSiblingRoot } from "./cad-sibling-resolution.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const codeExtensionPath = resolve(repoRoot, "extension");
+const codeExtensionPath = repoRoot;
 const codeExtensionVersion = String(JSON.parse(
   readFileSync(resolve(codeExtensionPath, "package.json"), "utf8"),
 ).version ?? "unknown");
 const codeOnly = process.argv.includes("--code-only");
-const cadExtensionPath = codeOnly ? undefined : resolveCadSiblingRoot({ repoRoot });
+const cadRootArgument = process.argv
+  .find((argument) => argument.startsWith("--cad-root="))
+  ?.slice("--cad-root=".length);
+const cadExtensionPath = codeOnly
+  ? undefined
+  : resolveCadSiblingRoot({ repoRoot, cadRoot: cadRootArgument });
 const dryRun = process.argv.includes("--dry-run");
 const codegenFixture = process.argv.includes("--codegen-fixture");
 const prepareOnly = process.argv.includes("--prepare-only");

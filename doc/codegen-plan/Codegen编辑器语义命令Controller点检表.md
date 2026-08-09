@@ -10,7 +10,7 @@ Owner：KT Auto Code maintainers
 
 ## 目标
 
-迁移前 `extension/src/tools/codegen/index.ts` 为 1,500 行，其中 `handleEditorMessage()` 和 `acceptActionTable()` 同时承担九类 Editor 语义命令分派、整表接收、stale 阻断，以及 Save/Preflight/Apply 的调用顺序。当前已先用 source characterization 冻结行为，再把这段编排提炼到 UI-neutral `editorCommandController.ts`；总 Controller 收敛为 1,447 行，并只装配 Host 动作端口。
+迁移前 `src/tools/codegen/index.ts` 为 1,500 行，其中 `handleEditorMessage()` 和 `acceptActionTable()` 同时承担九类 Editor 语义命令分派、整表接收、stale 阻断，以及 Save/Preflight/Apply 的调用顺序。当前已先用 source characterization 冻结行为，再把这段编排提炼到 UI-neutral `editorCommandController.ts`；总 Controller 收敛为 1,447 行，并只装配 Host 动作端口。
 
 本切口不改变 Webview transport、JSON schema、Marker、Preflight、Apply、Save/Revert 或控制符行为；不把 VS Code、文件系统、Presenter、Output Channel 或写盘实现移入新 Controller。
 

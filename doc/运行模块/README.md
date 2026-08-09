@@ -23,7 +23,7 @@ Owner：KT Auto Code maintainers
 - CAA `MK` 独立维护“关联工程/Preq 目录”，对应参考脚本的 `-Workspace` 与 `mkGetPreq -p`。它不等于当前 cwd；可从已发现项目勾选或显式选择目录，内置 runner 支持多项并做去重与越界确认。关联目录只影响点击后的执行 provider，不改写列表来源：原生 `mk.ps1` 仍在 Tasks，bundled `MK` 仍在内置组，避免出现重复内置项。
 - 工程级 Run 配置采用 `ktAutoCode.run.caaRelatedProjects`；多 CAA 子工程使用 `ktAutoCode.run.caaProjects` 映射，关联路径优先按各自工程保存为相对路径。`ktAutoCode.run.caaVersion` 只表示本机插件默认版本，不是固定工程版本。
 - 默认开启“只看当前系统”。macOS 只显示当前可运行目标；关闭后仍可查看 Windows/Linux 候选，但这些候选置灰，仅用于 UI、路径与配置调试，不能伪装执行。
-- 参考脚本不会原样写入用户工作区。提炼后的内置 runner 默认随 VSIX 放在只读 `extension/resources/run/`，通过 `ExtensionContext.extensionUri` 定位；没有 task/项目脚本也能直接运行。为调试和定制，可由用户显式把自包含 runner 与 manifest 生成到 `.phoenix/run/<project>/`；扫描/打开 Block 不自动写文件，也不覆盖用户改过的副本。
+- 参考脚本不会原样写入用户工作区。提炼后的内置 runner 默认随 VSIX 放在只读 `resources/run/`，通过 `ExtensionContext.extensionUri` 定位；没有 task/项目脚本也能直接运行。为调试和定制，可由用户显式把自包含 runner 与 manifest 生成到 `.phoenix/run/<project>/`；扫描/打开 Block 不自动写文件，也不覆盖用户改过的副本。
 - CAA 内置 runner 计划摆脱 PowerShell 硬依赖，但不能摆脱 Windows 厂商 `.bat`。它必须在一个 `cmd.exe` 会话中依次 `call` 环境与构建/运行脚本，保留批处理设置的环境，并把真实退出码传给 VS Code Task。
 - 项目根命中 `.clang-format` 时，`内置`组增加一个跨平台 `Clang Format`；没有 marker 时不生成。它通过随 VSIX 安装的 Node runner 递归格式化 C/C++ 文件，跳过构建、生成、依赖与工具目录，不依赖项目中的 `clangfile.ps1`；项目脚本若存在仍在“自定义”组并列显示。
 - Wing 建议建立有真实消费者的 `run-core`；`run-node` 只在本地发现、runner 资产和 Node launch plan 开始被 Auto Code 消费时建立，禁止预建空包。VS Code Task、Terminal、确认框和 Primary 状态始终留在 Auto Code adapter。

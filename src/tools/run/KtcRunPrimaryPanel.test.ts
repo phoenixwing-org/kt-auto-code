@@ -1,0 +1,55 @@
+import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+
+describe("Run Primary panel", () => {
+  it("保持功能目录、连续名称路径布局并提供执行/停止/版本动作", () => {
+    const source = readFileSync(new URL("./KtcRunPrimaryPanel.ts", import.meta.url), "utf8");
+    const controllerSource = readFileSync(new URL("./KtcRunController.ts", import.meta.url), "utf8");
+    const modelSource = readFileSync(new URL("../../core/run/KtcRunModel.ts", import.meta.url), "utf8");
+    const manifest = JSON.parse(readFileSync(new URL("../../../package.json", import.meta.url), "utf8")) as {
+      contributes: { configuration: { properties: Record<string, unknown> } };
+    };
+    expect(source).toContain('KtcRunPrimaryPanelTag = "ktc-run-primary-panel"');
+    expect(modelSource).toContain('title: "CMake"');
+    expect(modelSource).toContain('title: "Tasks"');
+    expect(modelSource).toContain('title: "自定义"');
+    expect(modelSource).toContain('title: "内置"');
+    expect(source).toContain('className = "target-label ktc-compact-label"');
+    expect(source).toContain("KtcCompactManagerLabelStyle + KtcRunPrimaryPanelStyle");
+    expect(source).not.toContain(".target-name { flex:");
+    expect(source).toContain('targetPath.textContent = ` · ${target.relativePath}`');
+    expect(source).toContain('className = "badge-tail"');
+    expect(source).toContain('"ktc-run-primary-action"');
+    expect(source).toContain('action: "runTarget"');
+    expect(source).toContain('action: "dryRunTarget"');
+    expect(source).toContain('action: "stopRun"');
+    expect(source).toContain('action: "setCaaVersion"');
+    expect(source).toContain('action: "selectCaaRelated"');
+    expect(source).toContain('action: "addCaaRelatedFolder"');
+    expect(source).toContain("box-shadow: inset 0 0 0 1px var(--ktc-ui-active-border");
+    expect(source).toContain('target.availability === "other-platform"');
+    expect(source).toContain('? "试运行"');
+    expect(source).toContain('.target-row:hover .target-action');
+    expect(source).toContain('.target-row:focus-within .source-button');
+    expect(source).toContain('details.open = project.groups.some((group) => group.targets.length > 0)');
+    expect(source).toContain('details.open = visible.length > 0');
+    expect(source).toContain('if (visible.length === 0) return undefined');
+    expect(controllerSource).toContain('[Run][trial] execute=false');
+    expect(controllerSource).toContain('[Run][trial] command=');
+    expect(controllerSource).toContain('plannedPlatform=${plannedPlatform}');
+    expect(controllerSource).toContain('function KtcRunLogArgument');
+    expect(controllerSource).toContain('function KtcRunLogIdentity');
+    expect(controllerSource).toContain('createBundledClangFormatLaunchPlan');
+    expect(controllerSource).toContain("KtcCaaVersionSelectionStateKey");
+    expect(controllerSource).toContain("workspaceState.update(KtcCaaVersionSelectionStateKey, values)");
+    expect(controllerSource).toContain('update("caaRelatedProjects", values, vscode.ConfigurationTarget.WorkspaceFolder)');
+    expect(controllerSource).toContain('update("caaProjects", projects, vscode.ConfigurationTarget.WorkspaceFolder)');
+    expect(controllerSource).toContain("KtcSerializeCaaRelatedProjects");
+    expect(controllerSource).toContain("KtcResolveCaaRelatedProjects");
+    expect(manifest.contributes.configuration.properties).toHaveProperty("ktAutoCode.run.caaVersion");
+    expect(manifest.contributes.configuration.properties).toHaveProperty("ktAutoCode.run.caaRelatedProjects");
+    expect(manifest.contributes.configuration.properties).toHaveProperty("ktAutoCode.run.caaProjects");
+    expect(manifest.contributes.configuration.properties["ktAutoCode.run.caaVersion"]).toMatchObject({ scope: "machine" });
+    expect(source).not.toContain("acquireVsCodeApi");
+  });
+});

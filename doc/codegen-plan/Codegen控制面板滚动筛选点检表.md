@@ -98,7 +98,7 @@ Owner：KT Auto Code maintainers
 
 ### Browser 历史记录（2026-07-18，已由新布局契约替代）
 
-夹具：`extension/test-fixtures/codegen-control-panel-layout.html`（已由 `.vscodeignore` 排除，不进入 VSIX）。Browser 插件打开 localhost，并读取真实构建后的 `dist/codegen-control-catalog.js`。
+夹具：`tests/webview/codegen-control-panel-layout.html`（已由 `.vscodeignore` 排除，不进入 VSIX）。Browser 插件打开 localhost，并读取真实构建后的 `dist/codegen-control-catalog.js`。
 
 | 视口 | 页面 client/scroll | 面板/布局 | 左目录 client/scroll | 右结果 client/scroll |
 |---|---:|---|---:|---:|

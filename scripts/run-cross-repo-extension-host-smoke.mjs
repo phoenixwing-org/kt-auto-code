@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { resolveCadSiblingRoot } from "./cad-sibling-resolution.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const codeExtensionPath = join(repoRoot, "extension");
+const codeExtensionPath = repoRoot;
 const cadExtensionPath = resolveCadSiblingRoot({ repoRoot });
 const testPath = join(codeExtensionPath, "dist", "test", "extension-host-smoke.js");
 const fixturePath = join(repoRoot, "tests", "fixtures", "codegen-manual-workspace");

@@ -20,7 +20,7 @@ Owner：KT Auto Code maintainers
 - Primary 与 Control 的业务 DOM、主题 token、ViewModel 和语义事件现由 Wing `@phoenix-wing/kt-codegen/ui` 提供；Auto 的 `primaryPanelEntry.ts` / `controlCatalogEntry.ts` 只注册兼容 tag，`sidebar/panelHtml.ts` / `editorHtml.ts` 只做 VS Code 消息映射。
 - Auto 继续独占文档 session、`workspaceState`、Commands、Problems、Output、clipboard、文件事务、报告和 Webview 生命周期。这些是 Host adapter，不迁入 Wing。
 - 已删除 Auto 私有 `primaryPanel.ts`、`controlPanel.ts`、`controlCatalog.ts`、`controlCatalogState.ts` 及对应 DOM characterization tests；共享组件行为由 Wing 测试负责，Auto 测试只冻结 import 边界、ViewModel 投影和 Host 事件映射。
-- 下方第一、二、六切口记录的是迁移前的历史演进。凡与本节冲突，以本节、[产品功能归属矩阵](产品功能归属矩阵.md)和 Wing [共享能力目录](../../phoenix-wing/doc/共享能力目录.md)为准。
+- 下方第一、二、六切口记录的是迁移前的历史演进。凡与本节冲突，以本节、[产品功能归属矩阵](产品功能归属矩阵.md)和 Wing [共享能力目录](https://gitee.com/phoenixwing/phoenix-wing/blob/develop/doc/共享能力目录.md)为准。
 
 ## 当前优先级
 
