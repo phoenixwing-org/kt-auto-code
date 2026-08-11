@@ -266,7 +266,7 @@ export class KtcGitWingAdapter {
   }
 }
 
-// TODO: Wing 0.6.3 发布并完成 Registry 消费验证后删除；见 doc/git/README.md。
+// TODO: Wing 0.6.3 发布并完成 Registry 消费验证后删除；见 docs/git/README.md。
 function KtcIncludeCommitBody<T extends { readonly text: string }>(summary: T, rawBody: string): T {
   const body = rawBody.replace(/\r\n?/gu, "\n").trim();
   if (!body || summary.text.endsWith(`\n\n${body}`)) return summary;

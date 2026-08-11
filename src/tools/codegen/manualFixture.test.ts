@@ -90,7 +90,7 @@ describe("Codegen manual QA fixture", () => {
 
   it("当前评分反映真实 Apply，旧轮次评分明确标成历史快照", () => {
     const current = readFileSync(
-      new URL("../../../doc/codegen-plan/Codegen第四轮可验收性评分.md", import.meta.url),
+      new URL("../../../docs/codegen-plan/Codegen第四轮可验收性评分.md", import.meta.url),
       "utf8",
     );
     expect(current).toContain("当前权威评分");
@@ -104,7 +104,7 @@ describe("Codegen manual QA fixture", () => {
       "Codegen第三轮可靠性评分.md",
     ]) {
       const historical = readFileSync(
-        new URL(`../../../doc/codegen-plan/${name}`, import.meta.url),
+        new URL(`../../../docs/codegen-plan/${name}`, import.meta.url),
         "utf8",
       );
       expect(historical).toContain("历史阶段快照");

@@ -283,7 +283,7 @@ kt-auto-code/
 │       ├── launch.json
 │       └── tasks.json
 ├── tests/fixtures/multiChar/
-├── doc/
+├── docs/
 │   ├── 源文件编码扫描.md
 │   ├── vscode插件规划.md   # 本文
 │   ├── 编码修正.md
@@ -331,7 +331,7 @@ kt-auto-code/
 1. `import { ... } from "phoenix-wing"` 会加载根入口中导出的 Vue composable；当前未安装 `vue`，运行时会报 `Cannot find module 'vue'`。
 2. `phoenix-wing/utils/pnwScheduleDebounced` 会被 exports 映射到一个不存在的无扩展名文件。
 3. `phoenix-wing/utils/pnwScheduleDebounced.ts` 在当前 `tsx` 环境可用，但直接依赖包内 `.ts` 源文件不是理想的长期发布契约。
-4. `phoenix-wing` README 引用的 `doc/` 没有包含在 npm 包的 `files` 中，消费项目只能看到 README 与源码。
+4. `phoenix-wing` README 引用的 `docs/` 没有包含在 npm 包的 `files` 中，消费项目只能看到 README 与源码。
 5. 源码仓库的 `tsconfig.json` 配置了 `dist` 和声明文件，但实际设置为 `noEmit: true`，`package.json` 也没有 build 脚本；当前发布方式是直接发布 `src/`，并非编译后的 JS + `.d.ts`。
 6. 两个现有消费项目本身已经安装 Vue，因此根入口可工作；服务端数据库代码则采用 `phoenix-wing/db/pnwDbAdapter` 子路径。这些用例不能消除本项目缺少 Vue 时的根入口问题。
 
@@ -349,7 +349,7 @@ extension/src/shared/phoenixWing.ts
 - 优先推动 `phoenix-wing` 发布编译后的 JS 和 `.d.ts`，提供不触发 Vue 加载的 `phoenix-wing/core` 或稳定 `utils/*` exports；Vue 壳层继续从独立入口导出。
 - 为纯工具子路径增加消费端导入测试，防止 exports 再次指向不存在的文件。
 
-同级仓库适合做开发期联调。可按 `../phoenix-wing/doc/本地验证方法.md` 的既有约定，通过 `pnpm-workspace.yaml` 临时纳入 `../phoenix-wing`；联调完成后仍应切回 npm 版本，验证发布包而非只验证源码软链接。这里的 pnpm workspace 只解决**开发依赖链接**，与插件运行时操作哪个 VS Code 工作目录无关。
+同级仓库适合做开发期联调。可按 `../phoenix-wing/docs/本地验证方法.md` 的既有约定，通过 `pnpm-workspace.yaml` 临时纳入 `../phoenix-wing`；联调完成后仍应切回 npm 版本，验证发布包而非只验证源码软链接。这里的 pnpm workspace 只解决**开发依赖链接**，与插件运行时操作哪个 VS Code 工作目录无关。
 
 建议在 `phoenix-wing` 上游先完成以下最小封装，再由本项目稳定消费：
 

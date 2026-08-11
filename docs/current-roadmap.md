@@ -20,7 +20,7 @@ Owner：KT Auto Code maintainers
 - Primary 与 Control 的业务 DOM、主题 token、ViewModel 和语义事件现由 Wing `@phoenix-wing/kt-codegen/ui` 提供；Auto 的 `primaryPanelEntry.ts` / `controlCatalogEntry.ts` 只注册兼容 tag，`sidebar/panelHtml.ts` / `editorHtml.ts` 只做 VS Code 消息映射。
 - Auto 继续独占文档 session、`workspaceState`、Commands、Problems、Output、clipboard、文件事务、报告和 Webview 生命周期。这些是 Host adapter，不迁入 Wing。
 - 已删除 Auto 私有 `primaryPanel.ts`、`controlPanel.ts`、`controlCatalog.ts`、`controlCatalogState.ts` 及对应 DOM characterization tests；共享组件行为由 Wing 测试负责，Auto 测试只冻结 import 边界、ViewModel 投影和 Host 事件映射。
-- 下方第一、二、六切口记录的是迁移前的历史演进。凡与本节冲突，以本节、[产品功能归属矩阵](产品功能归属矩阵.md)和 Wing [共享能力目录](https://gitee.com/phoenixwing/phoenix-wing/blob/develop/doc/共享能力目录.md)为准。
+- 下方第一、二、六切口记录的是迁移前的历史演进。凡与本节冲突，以本节、[产品功能归属矩阵](产品功能归属矩阵.md)和 Wing [共享能力目录](https://gitee.com/phoenixwing/phoenix-wing/blob/develop/docs/共享能力目录.md)为准。
 
 ## 当前优先级
 
@@ -207,7 +207,7 @@ Owner：KT Auto Code maintainers
 
 1. **关联规则真实 Browser 回执**：通过 localhost fixture 或真实 VS Code Webview 验证 430/320/280px、Tab 焦点圈、关闭后的焦点恢复、Escape、backdrop 和长候选内部滚动。本次 Browser 自动化因 `file://` URL 策略拒绝而停止；自动测试、bundle 与 VSIX 已通过，这一项是人工/真实浏览器证据缺口，不是已知产品失败。
 2. **Auto Code 后续大壳**：搜索替换完整 Page shell、`Codegen/index.ts` 剩余 Host adapter，以及“全部应用 2.0 / 批量报告”继续分别立 characterization 和独立小提交；V1 已完成的逐 View 串行流程可演进但不冒充 2.0。2.0 的错误必须同时进入 Host 持有的批次报告与独立 `kt-codegen-batch` Problems，不能复用会被活动 JSON View 清空的单页集合。
-3. **Desk Tools 后续大页**：Unit Tests 的 Result pane 与“全部复测”语义、FCStd Map 扫描 Controller、Assembly RowGroup/样式收口、CAA Editor 剩余 session/writeback Host 边界继续留在 Desk `doc/TODO.md`；已有 RunScope/Watchlist、FCStd panes、Assembly row、CAA Controller 不返工。
+3. **Desk Tools 后续大页**：Unit Tests 的 Result pane 与“全部复测”语义、FCStd Map 扫描 Controller、Assembly RowGroup/样式收口、CAA Editor 剩余 session/writeback Host 边界继续留在 Desk `docs/TODO.md`；已有 RunScope/Watchlist、FCStd panes、Assembly row、CAA Controller 不返工。
 4. **Wing 后续条件项**：`KtCodegenTable` 已到首轮合理停止线；页面布局能力完成发布和 Registry 消费验证前，不为降行数继续拆。只有出现第二产品消费者或真实复用需求时，才评估公开更多 visual primitive。
 5. **跨仓人工证据**：Windows NSIS 真实回执，以及 VS Code/Desk 的浅色、深色、高对比视觉矩阵继续由用户手工并行；不阻塞当前代码归档，也不追溯提高联合评分。
 6. **Codegen 显式修复提醒**：控制符单入口已完成，Primary 负责目录/筛选/选择/输出，JSON View 只保留预检结果、Artifact 与问题定位；预检结果自己的列表/详情 separator 不代表控制符目录回归。剩余 TODO 是“问题 N”控制符筛选与显式修复提醒：必须先由 Wing 诊断提供结构化 `blockKey/classId/boundary`，不得从英文 message 猜 block。`marker.missing-end` 只允许用户在问题详情中显式选择“插入编译期修复提醒”，经确认后在下一条 marker 前写入可识别的 `#error`；不得预检时自动写入，也不得自动猜测补 End，且入口不能只依赖不可发现的右键菜单。

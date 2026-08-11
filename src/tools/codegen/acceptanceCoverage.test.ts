@@ -26,7 +26,7 @@ describe("Codegen objective acceptance coverage", () => {
       manual: { status: string; requiredCheckpoints: string[]; reportTemplate: string };
       applyBoundary: string;
     };
-  }>("doc/codegen-plan/CodegenAcceptanceCoverage.json");
+  }>("docs/codegen-plan/CodegenAcceptanceCoverage.json");
 
   it("覆盖目标的全部稳定 requirement id，且每项证据文件存在", () => {
     const expected = [

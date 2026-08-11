@@ -1,6 +1,6 @@
 # C++ 成员排序跨产品整合记录（已归档）
 
-> 2026-07：POC 已完成并进入可用实现。算法唯一规范：[phoenix-wing · C++成员排序算法规范](../../phoenix-wing/doc/C++成员排序算法规范.md)，项目格式基线解读见 [phoenix-wing · C++ clang-format 规则说明](../../phoenix-wing/doc/C++%20clang-format规则说明.md)。本文件只保留 KT Auto Code 的接入结论。
+> 2026-07：POC 已完成并进入可用实现。算法唯一规范：[phoenix-wing · C++成员排序算法规范](../../phoenix-wing/docs/C++成员排序算法规范.md)，项目格式基线解读见 [phoenix-wing · C++ clang-format 规则说明](../../phoenix-wing/docs/C++%20clang-format规则说明.md)。本文件只保留 KT Auto Code 的接入结论。
 
 ## 当前接入
 
@@ -15,9 +15,9 @@
 
 | 内容 | 位置 |
 | --- | --- |
-| 排序语义、锁定规则、回归契约 | `phoenix-wing/doc/C++成员排序算法规范.md` |
-| KtAlarmClock clang-format 基线与排序相关规则 | `phoenix-wing/doc/C++ clang-format规则说明.md` |
-| Web/CLI、工作集、历史 Python 入口 | `phoenix-desk-tools/doc/code/成员函数排序-reorder_members.md` |
-| VS Code 操作和插件发布验收 | 本仓库根 manifest、`src/` 与 `doc/` |
+| 排序语义、锁定规则、回归契约 | `phoenix-wing/docs/C++成员排序算法规范.md` |
+| KtAlarmClock clang-format 基线与排序相关规则 | `phoenix-wing/docs/C++ clang-format规则说明.md` |
+| Web/CLI、工作集、历史 Python 入口 | `phoenix-desk-tools/docs/code/成员函数排序-reorder_members.md` |
+| VS Code 操作和插件发布验收 | 本仓库根 manifest、`src/` 与 `docs/` |
 
 新规则必须先改 Wing core、fixture 与规范；产品库只补适配/界面说明，避免三处维护同一算法。

@@ -496,9 +496,9 @@ Phase 0 建立小型、常规和压力 fixture；以下为进入长任务时的�
 
 ## 14. 数据模型点检文件
 
-- `doc/codegen-plan/KtCodegenTableData.example.json`
-- `doc/codegen-plan/KtCodegenMarkerIndex.example.json`
-- `doc/codegen-plan/KtCodegenPreflightCache.example.json`
-- `doc/codegen-plan/KtCodegenControlViewModel.example.json`
+- `docs/codegen-plan/KtCodegenTableData.example.json`
+- `docs/codegen-plan/KtCodegenMarkerIndex.example.json`
+- `docs/codegen-plan/KtCodegenPreflightCache.example.json`
+- `docs/codegen-plan/KtCodegenControlViewModel.example.json`
 
 这些文件是设计样例，不参与当前运行时。实施 Phase 0 时再把它们转成正式 TypeScript 类型、schema 和测试 fixture。

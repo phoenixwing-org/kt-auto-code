@@ -13,7 +13,7 @@
 - A local build is accepted only after the esbuild metafile gate proves all expected Wing inputs came from the sibling repository and none came from the consumer's `node_modules`.
 - Do not describe a local integration check as passed until `pnpm ext:dev:prepare` has completed successfully.
 
-See [doc/本地Wing并列开发.md](doc/本地Wing并列开发.md) for commands and the manual checklist.
+See [docs/本地Wing并列开发.md](docs/本地Wing并列开发.md) for commands and the manual checklist.
 
 ## Locked three-block shell
 
@@ -23,7 +23,7 @@ See [doc/本地Wing并列开发.md](doc/本地Wing并列开发.md) for commands 
 - Titles, icons, spacing, responsive styling, accessibility, and all content inside an individual Block may be improved as long as the locked outer-shell contract remains intact.
 - Before implementing a request that would change the locked contract, explicitly tell the user which rule would be broken, why the change is necessary, and what migration or regression risk it creates. Wait for explicit user confirmation before changing code or this rule.
 
-See [doc/前端开发规则.md](doc/前端开发规则.md) for the authoritative UI contract and acceptance checklist.
+See [docs/前端开发规则.md](docs/前端开发规则.md) for the authoritative UI contract and acceptance checklist.
 
 ## Compact manager lists
 
@@ -36,7 +36,7 @@ See [doc/前端开发规则.md](doc/前端开发规则.md) for the authoritative
 - Preserve the approved three first-level Blocks in this exact order: Toolbar, Working Directory & Ignore, Current Tool. All three are independently collapsible; only Current Tool has the separate close action.
 - Preserve the VS Code section-header visual baseline: full-width adjoining rows, native 16px chevron alignment, shared top/bottom separators, compact height, title on the left, contextual actions on the right, and no card gap or draggable separator.
 - Toolbar header keeps the density action and one overflow action. Current Tool keeps collapse and close as independent actions. Internal features may evolve, but changing this outer structure or visual baseline requires warning the user and receiving explicit confirmation first.
-- A future shared ShellBlock component must be a behavior- and appearance-preserving extraction. Follow [doc/ShellBlock控件提炼TODO.md](doc/ShellBlock控件提炼TODO.md); do not combine the extraction with feature work.
+- A future shared ShellBlock component must be a behavior- and appearance-preserving extraction. Follow [docs/ShellBlock控件提炼TODO.md](docs/ShellBlock控件提炼TODO.md); do not combine the extraction with feature work.
 
 ## Plugin configuration storage
 

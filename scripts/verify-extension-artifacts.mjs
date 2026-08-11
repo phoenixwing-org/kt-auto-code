@@ -21,7 +21,7 @@ for (const artifact of artifacts) {
   const zip = readZip(artifact.file);
   const names = [...zip.keys()].sort();
   for (const name of names) {
-    if (/(?:^|\/)(?:node_modules|src|target)(?:\/|$)/u.test(name)
+    if (/(?:^|\/)(?:\.obsidian|node_modules|src|target)(?:\/|$)/u.test(name)
         || /(?:^|\/)dist\/test(?:\/|$)/u.test(name)
         || /(?:^|\/)[^/]+\.local-wing\.json$/u.test(name)
         || /\.(?:map|rs|exe|dll|dylib|so|sqlite)$/iu.test(name)

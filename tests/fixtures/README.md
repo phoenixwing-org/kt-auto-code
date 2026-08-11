@@ -8,7 +8,7 @@
 | --- | --- |
 | `multiChar/MultiCharSample.h` | 第 18 行 Windows-1252 弯引号（`0x94`），触发 MSVC「代码页 936 无法表示」告警 |
 
-用法与 CLI 说明见 [`doc/源文件编码扫描.md`](../../doc/源文件编码扫描.md)。
+用法与 CLI 说明见 [`docs/源文件编码扫描.md`](../../docs/源文件编码扫描.md)。
 
 ```bash
 # 在仓库根目录

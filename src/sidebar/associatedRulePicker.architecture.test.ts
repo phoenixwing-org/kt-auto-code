@@ -45,5 +45,7 @@ describe("associated rule picker architecture", () => {
     expect(verify).toContain('associatedRulePickerBundle.includes("workspace.fs")');
     expect(fixture).toContain('../dist/associated-rule-picker.js');
     expect(vscodeIgnore).toContain("tests/**");
+    expect(vscodeIgnore).toContain(".obsidian/**");
+    expect(verify).toContain("\\.obsidian|node_modules|src|target");
   });
 });

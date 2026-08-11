@@ -26,7 +26,7 @@ interface MigrationMatrix {
 
 function matrix(): MigrationMatrix {
   return JSON.parse(readFileSync(
-    new URL("../../../doc/codegen-plan/CodegenQtVbMigrationMatrix.json", import.meta.url),
+    new URL("../../../docs/codegen-plan/CodegenQtVbMigrationMatrix.json", import.meta.url),
     "utf8",
   )) as MigrationMatrix;
 }
@@ -71,6 +71,6 @@ describe("Codegen Qt/VB migration matrix", () => {
       "真实源码替换",
       "深色/浅色主题与窄窗口",
     ]) expect(mapped).toContain(feature);
-    expect(value.acceptance.coverageFile).toBe("doc/codegen-plan/CodegenAcceptanceCoverage.json");
+    expect(value.acceptance.coverageFile).toBe("docs/codegen-plan/CodegenAcceptanceCoverage.json");
   });
 });

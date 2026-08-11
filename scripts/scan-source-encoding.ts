@@ -2,7 +2,7 @@
 /**
  * 扫描源文件在 GBK（CP936）/ UTF-8 下的非法字节，并可就地修复 Windows-1252 弯引号等。
  *
- * 用法见 doc/源文件编码扫描.md
+ * 用法见 docs/源文件编码扫描.md
  */
 import { resolve } from "node:path";
 import {

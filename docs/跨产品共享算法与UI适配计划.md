@@ -1,6 +1,6 @@
 # phoenix-desk-tools 与 KT Auto Code 共享算法、双端 UI 适配计划
 
-> 状态：历史路线记录；成员排序已迁入 `phoenix-wing/code-core`。算法语义、锁定规则与回归契约以 [phoenix-wing · C++成员排序算法规范](../../phoenix-wing/doc/C++成员排序算法规范.md) 为准，本文件不再维护规则副本。<br>
+> 状态：历史路线记录；成员排序已迁入 `phoenix-wing/code-core`。算法语义、锁定规则与回归契约以 [phoenix-wing · C++成员排序算法规范](../../phoenix-wing/docs/C++成员排序算法规范.md) 为准，本文件不再维护规则副本。<br>
 > 目标：函数排序、CAA 对话框等能力由一套无 UI 的核心代码提供给 `phoenix-desk-tools` 与 VS Code 插件；两端只保留宿主适配和界面代码。
 
 ## 0.1 当前迁移盘点（2026-07）
@@ -37,9 +37,9 @@
 仓库内可使用这些相对链接跳转到关联资料：
 
 - [phoenix-desk-tools：函数排序实现](../../phoenix-desk-tools/phoenix/code/reorder_members.py)
-- [phoenix-desk-tools：函数排序规则](../../phoenix-desk-tools/doc/code/成员函数排序-reorder_members.md)
+- [phoenix-desk-tools：函数排序规则](../../phoenix-desk-tools/docs/code/成员函数排序-reorder_members.md)
 - [phoenix-desk-tools：CAA 核心包](../../phoenix-desk-tools/packages/catdlg-core)
-- [phoenix-desk-tools：CAA 后期抽包规划](../../phoenix-desk-tools/doc/TODO-CAA.md#c5-后期封装)
+- [phoenix-desk-tools：CAA 后期抽包规划](../../phoenix-desk-tools/docs/TODO-CAA.md#c5-后期封装)
 - [phoenix-wing：共享仓库](../../phoenix-wing)
 
 实际部署时只需将 `<phoenix-parent>` 替换为本机的 Phoenix 工作区根目录；不要把 `phoenix-desk-tools` 或 `phoenix-wing` 嵌套复制到 `kt-auto-code` 内。
@@ -55,7 +55,7 @@
 - Python 遗留实现：`phoenix-desk-tools/phoenix/code/reorder_members.py`（仅用于历史参考/兼容，不再作为规范实现）
 - Web 页面：`phoenix-desk-tools/web-ui/src/pages/ReorderMembersPage.vue`
 - 页面状态与属性面板：`web-ui/src/stores/reorderMembersPage.ts`、`web-ui/src/composables/useReorderMembersPropertySheet.ts`
-- 规则与回归资料：`phoenix-desk-tools/doc/code/成员函数排序-reorder_members.md`、`成员排序-锁定段与回归用例.md`
+- 规则与回归资料：`phoenix-desk-tools/docs/code/成员函数排序-reorder_members.md`、`成员排序-锁定段与回归用例.md`
 
 算法不是简单的字母排序，至少包含：
 

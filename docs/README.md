@@ -54,7 +54,7 @@ Owner：KT Auto Code maintainers
 
 ## 可选 CAD 集成、开发与发布
 
-- [KT Auto CAD 文档](https://gitee.com/PhoenixWing321/kt-auto-cad/tree/master/doc)（CAD 功能、研究、历史与发布均由 CAD 仓维护）
+- [KT Auto CAD 文档](https://gitee.com/PhoenixWing321/kt-auto-cad/tree/master/docs)（CAD 功能、研究、历史与发布均由 CAD 仓维护）
 - [CAA UI 交接契约](CAA对话框-DeskTools交接契约.md)与[人工验收清单](CAA-UI-DeskTools人工验收清单.md)
 - [本地 Wing 并列开发](本地Wing并列开发.md)
 - [开发与测试](开发与测试.md)
@@ -63,6 +63,6 @@ Owner：KT Auto Code maintainers
 
 ## 历史与草案
 
-0.1/0.3 发布记录、六轮 Codegen 评分、已完成的 0.4 Block 改造以及共享提取执行记录标为 `archived` 或 `superseded`；早期 VS Code/侧栏规划和三份已被 roadmap 取代的实施计划已移入 `doc/历史/`。尚未批准的文件改名与共享 UI 方案标为 `draft`。CAD 专属研究和迁移历史已移入 CAD 仓，不在本仓复制。
+0.1/0.3 发布记录、六轮 Codegen 评分、已完成的 0.4 Block 改造以及共享提取执行记录标为 `archived` 或 `superseded`；早期 VS Code/侧栏规划和三份已被 roadmap 取代的实施计划已移入 `docs/历史/`。尚未批准的文件改名与共享 UI 方案标为 `draft`。CAD 专属研究和迁移历史已移入 CAD 仓，不在本仓复制。
 
 仓库入口见根目录 [README](../README.md)。

@@ -8,7 +8,7 @@ Owner：KT Auto Code maintainers
 
 最后核验：2026-07-22
 
-> 2026-07-22：本表记录 Auto 私有控制符 Tree 的历史行为，已被 Wing `@phoenix-wing/kt-codegen/ui` 的 Primary/Control 组件替代。文中 `primaryPanel.ts`、`controlPanel.ts`、`controlCatalog.ts`、`controlCatalogState.ts` 及其测试已删除，不得作为当前实现入口。当前责任和消费者路径见[产品功能归属矩阵](../产品功能归属矩阵.md)与 Wing [共享能力目录](https://gitee.com/phoenixwing/phoenix-wing/blob/develop/doc/共享能力目录.md)。若未来确需恢复分组/范围交互，应先作为 Wing 的双端需求设计并补共享组件测试，不得在 Auto 重建私有 DOM。
+> 2026-07-22：本表记录 Auto 私有控制符 Tree 的历史行为，已被 Wing `@phoenix-wing/kt-codegen/ui` 的 Primary/Control 组件替代。文中 `primaryPanel.ts`、`controlPanel.ts`、`controlCatalog.ts`、`controlCatalogState.ts` 及其测试已删除，不得作为当前实现入口。当前责任和消费者路径见[产品功能归属矩阵](../产品功能归属矩阵.md)与 Wing [共享能力目录](https://gitee.com/phoenixwing/phoenix-wing/blob/develop/docs/共享能力目录.md)。若未来确需恢复分组/范围交互，应先作为 Wing 的双端需求设计并补共享组件测试，不得在 Auto 重建私有 DOM。
 
 ## 本轮确认范围
 

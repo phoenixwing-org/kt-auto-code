@@ -9,7 +9,7 @@
 - Marketplace 发布者 ID：`kuntai`
 - Marketplace 发布者名称：`Shanghai Kuntai`
 - 当前版本：以 [`package.json`](../package.json) 的 `version` 为准
-- Marketplace 当前公开版本为 KT Auto Code `0.6.1`，由 `kuntai` 发布并已通过人工审查。CAD 当前版本由 [KT Auto CAD 发布说明](https://gitee.com/PhoenixWing321/kt-auto-cad/blob/master/doc/发布.md)维护。
+- Marketplace 当前公开版本为 KT Auto Code `0.6.1`，由 `kuntai` 发布并已通过人工审查。CAD 当前版本由 [KT Auto CAD 发布说明](https://gitee.com/PhoenixWing321/kt-auto-cad/blob/master/docs/发布.md)维护。
 - 开源许可：[Apache License 2.0](../LICENSE)
 
 当前扩展标识由下列清单字段组成：
@@ -168,7 +168,7 @@ env -u PHOENIX_WING_ROOT -u PHOENIX_WING_DEV_MODE pnpm release:check
 
 制品位于仓库根 `dist/vsix/kt-auto-code-<version>.vsix`，相邻 `.vsix.sha256` 由打包入口生成并由制品门禁复核。根 `dist/` 已被 Git 忽略；`dist/*.js` 保存扩展运行 bundle，`dist/vsix/` 保存发布制品。`pnpm package` 等价于 Auto 内部的 `pnpm ext:package`。发布 worktree 可以重复使用；若需要长期保留某次发布现场，再另外建立带版本号的只读 worktree。
 
-KT Auto CAD 的 worktree、`release:check` 和制品规则由 [CAD 仓发布说明](https://gitee.com/PhoenixWing321/kt-auto-cad/blob/master/doc/发布.md)独立维护，本文不再复制。
+KT Auto CAD 的 worktree、`release:check` 和制品规则由 [CAD 仓发布说明](https://gitee.com/PhoenixWing321/kt-auto-cad/blob/master/docs/发布.md)独立维护，本文不再复制。
 
 ### TODO：发布入口收敛
 

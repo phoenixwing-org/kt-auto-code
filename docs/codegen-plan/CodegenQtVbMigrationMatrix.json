@@ -14,7 +14,7 @@
     "incomplete": ["partial", "deferred"]
   },
   "acceptance": {
-    "coverageFile": "doc/codegen-plan/CodegenAcceptanceCoverage.json",
+    "coverageFile": "docs/codegen-plan/CodegenAcceptanceCoverage.json",
     "manualStatus": "pending",
     "requiredCheckpoints": ["A", "B", "C", "D", "E", "F"],
     "checkpointFeatures": {

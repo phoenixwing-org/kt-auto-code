@@ -28,7 +28,7 @@
       "evidence": [
         "src/tools/codegen/diagnostics.ts",
         "src/tools/codegen/diagnostics.test.ts",
-        "doc/codegen-plan/KtCodegenRuntimeDiagnostics.example.json"
+        "docs/codegen-plan/KtCodegenRuntimeDiagnostics.example.json"
       ],
       "manualCheckpoint": "A",
       "manualStatus": "user-confirmed"
@@ -38,9 +38,9 @@
       "requirement": "分阶段 checkpoint 与问题回报入口",
       "automatedStatus": "proved",
       "evidence": [
-        "doc/codegen-plan/Codegen手工验收.md",
-        "doc/codegen-plan/CodegenManualQaReport.example.json",
-        "doc/codegen-plan/CodegenQtVbMigrationMatrix.json",
+        "docs/codegen-plan/Codegen手工验收.md",
+        "docs/codegen-plan/CodegenManualQaReport.example.json",
+        "docs/codegen-plan/CodegenQtVbMigrationMatrix.json",
         "src/tools/codegen/qtVbMigrationMatrix.test.ts"
       ],
       "manualCheckpoint": "A-F",
@@ -134,7 +134,7 @@
         "src/tools/codegen/editorHtml.test.ts",
         "src/tools/codegen/controlNavigation.test.ts",
         "src/tools/codegen/problemReporter.test.ts",
-        "doc/codegen-plan/KtCodegenControlViewModel.example.json"
+        "docs/codegen-plan/KtCodegenControlViewModel.example.json"
       ],
       "manualCheckpoint": "E",
       "manualStatus": "pending"
@@ -176,8 +176,8 @@
       "requirement": "100 分评分，自动验证至少 90 分，核心手测后才能结束",
       "automatedStatus": "proved",
       "evidence": [
-        "doc/codegen-plan/Codegen第四轮可验收性评分.md",
-        "doc/codegen-plan/Codegen手工验收.md",
+        "docs/codegen-plan/Codegen第四轮可验收性评分.md",
+        "docs/codegen-plan/Codegen手工验收.md",
         "src/tools/codegen/qtVbMigrationMatrix.test.ts"
       ],
       "manualCheckpoint": "A-F",
@@ -196,7 +196,7 @@
       "userConfirmedCheckpoints": ["A", "B", "C", "D"],
       "todoCheckpoints": ["E", "F"],
       "reportedAt": "2026-07-17",
-      "reportTemplate": "doc/codegen-plan/CodegenManualQaReport.example.json"
+      "reportTemplate": "docs/codegen-plan/CodegenManualQaReport.example.json"
     },
     "applyBoundary": "fingerprint-checked-write-with-verifiable-receipt"
   }

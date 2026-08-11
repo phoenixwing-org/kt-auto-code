@@ -16,7 +16,7 @@ pnpm ext:launch:codegen
 
 如果只想准备一份临时数据、不启动新窗口，可以执行 `pnpm ext:prepare:codegen`；终端会输出 `CODEGEN_FIXTURE_PATH=...`。
 
-准备时会在临时目录的 `.phoenix/codegen-qa-baseline.json` 保存源码总数与两份控制符源码的字节指纹，并生成可续填的 `.phoenix/codegen-qa-report.json`。它们被 Codegen 扫描排除，只用于验收；结构参考 `doc/codegen-plan/KtCodegenQaBaseline.example.json` 和 `CodegenManualQaReport.example.json`。终端同时打印验证命令与报告路径。
+准备时会在临时目录的 `.phoenix/codegen-qa-baseline.json` 保存源码总数与两份控制符源码的字节指纹，并生成可续填的 `.phoenix/codegen-qa-report.json`。它们被 Codegen 扫描排除，只用于验收；结构参考 `docs/codegen-plan/KtCodegenQaBaseline.example.json` 和 `CodegenManualQaReport.example.json`。终端同时打印验证命令与报告路径。
 
 启动器还会在临时目录生成 1200 个无控制标记的小 `.cpp` 文件，用于观察首次候选扫描进度和点击取消；它们不属于仓库 fixture。
 
@@ -61,7 +61,7 @@ A–F 的人工状态和 A/C/E verifier 必须同时通过，报告整体状态�
 - 状态文字包含“本会话自动转换 1；当前保留冲突/失败 CSV 1”；后续 watcher 刷新不会丢掉本会话转换计数。
 
 工具界面右上角 `…` 应按工具条顺序显示“打开 JSON / 导入 CSV / 全部应用 / 刷新列表 / 扫描候选源码 / 复制运行诊断”，并带有对应的 VS Code Product Icon。点击最后一项后，粘贴内容应以 `kt.codegen.runtime-diagnostics` 开头并显示 5 份文档；诊断不包含表格单元格和源码内容，Primary 工具条也不再显示重复的诊断图标。
-字段结构参考 `doc/codegen-plan/KtCodegenRuntimeDiagnostics.example.json`。
+字段结构参考 `docs/codegen-plan/KtCodegenRuntimeDiagnostics.example.json`。
 
 完成本 checkpoint 后执行：
 

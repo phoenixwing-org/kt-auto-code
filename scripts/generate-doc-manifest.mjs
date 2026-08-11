@@ -4,8 +4,8 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const policyPath = path.join(root, "doc/document-policy.json");
-const outputPath = path.join(root, "doc/document-manifest.json");
+const policyPath = path.join(root, "docs/document-policy.json");
+const outputPath = path.join(root, "docs/document-manifest.json");
 const policy = JSON.parse(fs.readFileSync(policyPath, "utf8"));
 const files = execFileSync(
   "git",
@@ -67,12 +67,12 @@ function verifyCurrentLinks() {
 
 if (process.argv.includes("--check")) {
   if (!fs.existsSync(outputPath) || fs.readFileSync(outputPath, "utf8") !== serialized) {
-    throw new Error("doc/document-manifest.json is stale; run pnpm docs:manifest");
+    throw new Error("docs/document-manifest.json is stale; run pnpm docs:manifest");
   }
   verifyCurrentLinks();
   process.stdout.write(`[docs] ${entries.length} Markdown documents classified; current links are valid\n`);
 } else {
   fs.writeFileSync(outputPath, serialized);
   verifyCurrentLinks();
-  process.stdout.write(`[docs] wrote ${entries.length} entries to doc/document-manifest.json\n`);
+  process.stdout.write(`[docs] wrote ${entries.length} entries to docs/document-manifest.json\n`);
 }
