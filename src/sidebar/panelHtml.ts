@@ -6,7 +6,7 @@ import type {
   WebviewOutboundMessage,
 } from "../tools/types.js";
 import type { KtcReplacementRuleDraft } from "../core/associatedReplacementRules.js";
-import type { KtcGitViewModel } from "../core/git/KtcGitModel.js";
+import { ktcGitRepositoryOptionLabels, type KtcGitViewModel } from "../core/git/KtcGitModel.js";
 import { ktcCreateWebviewSecurity } from "../webviewSupport.js";
 import { KtcCompactManagerLabelStyle } from "../ui/KtcCompactManagerLabel.js";
 
@@ -156,11 +156,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     #ribbon-body .tabs { margin: 0; border-bottom: 0; padding-bottom: 0; }
     #primary-shell { display: flex; min-height: 24px; flex: 1 1 auto; flex-direction: column; overflow: hidden; }
     #primary-shell.collapsed { flex: 0 0 auto; }
-    #primary-body { min-height: 0; flex: 1 1 auto; overflow-x: hidden; overflow-y: auto; }
+    /* 当前工具统一采用满宽紧凑内容边界；每个功能在自身行内保留必要内边距。 */
+    #primary-body { min-height: 0; flex: 1 1 auto; padding-inline: 0; overflow-x: hidden; overflow-y: auto; }
     .primary-block-header-title { min-width: 0; flex: 1 1 auto; overflow: hidden; font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-    body.codegen-tool #primary-body,
-    body.run-tool #primary-body,
-    body.git-tool #primary-body { padding-inline: 0; }
     ktc-codegen-primary-panel,
     ktc-git-primary-panel,
     ktc-run-primary-panel { display: block; width: 100%; min-width: 0; max-width: 100%; overflow-x: hidden; }
@@ -177,16 +175,29 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       border-bottom: 1px solid var(--vscode-panel-border);
       padding-bottom: 8px;
     }
-    .working-context { margin: 0; padding: 0; }
-    .working-context-main { display: grid; grid-template-columns: minmax(0, 1fr) 30px; gap: 5px; }
+    /* 固定的一行目录上下文：不再承载低频 Ignore 表单。 */
+    #working-context-shell .shell-block-header { min-height: 34px; padding: 2px 4px; gap: 2px; }
+    .working-context-context-icon { width: 16px; height: 16px; flex: 0 0 16px; color: var(--vscode-descriptionForeground); fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.5; }
+    .working-context-label { flex: 0 0 auto; font-size: var(--vscode-font-size); font-weight: 600; }
+    .working-context { min-width: 0; flex: 1 1 auto; margin: 0; padding: 0; }
+    .working-context-main { display: grid; grid-template-columns: minmax(0, 1fr) 30px 30px; gap: 5px; }
     .working-context select { min-width: 0; height: 30px; padding: 3px 7px; border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border)); border-radius: 2px; color: var(--vscode-dropdown-foreground); background: var(--vscode-dropdown-background); }
-    .ignore-manager { width: 100%; margin-top: 6px; border-top: 1px solid var(--vscode-panel-border); }
-    .ignore-manager > summary { display: flex; width: 100%; min-height: 24px; align-items: center; gap: 2px; color: var(--vscode-foreground); cursor: pointer; font-size: var(--vscode-font-size); font-weight: 600; list-style: none; }
+    .working-context-settings { font-size: 17px; line-height: 1; }
+    .settings-block { margin: 0; }
+    .settings-section { width: 100%; margin: 0; border-block-end: 1px solid var(--vscode-panel-border); }
+    .settings-section > summary { display: flex; width: 100%; min-height: 28px; align-items: center; gap: 2px; padding: 0 5px; color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground)); background: var(--vscode-sideBarSectionHeader-background, transparent); cursor: pointer; font-size: var(--vscode-font-size); font-weight: 600; list-style: none; }
+    .settings-section > summary::-webkit-details-marker { display: none; }
+    .settings-section-chevron { width: 16px; height: 16px; flex: 0 0 16px; color: currentColor; transform: rotate(-90deg); transform-origin: center; transition: transform .1s ease; }
+    .settings-section-chevron path { fill: currentColor; }
+    .settings-section[open] .settings-section-chevron { transform: rotate(0deg); }
+    .settings-section-body { padding: 5px 8px 8px; }
+    .ignore-manager { width: 100%; margin: 0; }
+    .ignore-manager > summary { display: flex; width: 100%; min-height: 28px; align-items: center; gap: 2px; padding: 0 5px; color: var(--vscode-foreground); cursor: pointer; font-size: var(--vscode-font-size); font-weight: 600; list-style: none; }
     .ignore-manager > summary::-webkit-details-marker { display: none; }
     .ignore-manager-chevron { width: 16px; height: 16px; flex: 0 0 16px; transform: rotate(-90deg); transform-origin: center; transition: transform .1s ease; }
     .ignore-manager-chevron path { fill: currentColor; }
     .ignore-manager[open] .ignore-manager-chevron { transform: rotate(0deg); }
-    .ignore-manager-body { padding: 5px 0 0 18px; }
+    .ignore-manager-body { padding: 5px 8px 8px; }
     .ignore-manager-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 7px; color: var(--vscode-descriptionForeground); font-size: 11px; }
     .ignore-manager-status label { display: inline-flex; align-items: center; gap: 4px; margin: 0; cursor: pointer; }
     .ignore-manager-status input { margin: 0; }
@@ -437,7 +448,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .compact-subtext { padding: 1px 4px 5px 49px; color: var(--vscode-descriptionForeground); font-size: 10px; line-height: 1.35; }
     .compact-rules { margin: 0; padding: 0 4px 6px 49px; color: var(--vscode-descriptionForeground); font-size: 10px; line-height: 1.45; }
     mark.result-hit { padding: 0 1px; color: inherit; background: var(--vscode-editor-findMatchBackground, rgba(234, 201, 58, .5)); outline: 1px solid var(--vscode-editor-findMatchBorder, transparent); border-radius: 1px; }
-    .environment-block { margin: 10px 0 12px; }
+    .environment-block { margin: 0; }
     .environment-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; margin-bottom: 9px; }
     .environment-values { border-top: 1px solid var(--vscode-panel-border); }
     .environment-row { padding: 8px 2px; border-bottom: 1px solid var(--vscode-panel-border); }
@@ -611,6 +622,47 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       gap: 6px;
       margin-bottom: 12px;
     }
+    /* 只抵消第三 Block 顶部的通用留白；底部不得负边距，避免当前功能操作区与 Tree 最后一行重叠。 */
+    .code-assistant-block { margin: -8px 0 0; }
+    .code-assistant-tree-section { margin: 0 0 4px; padding: 0; border: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
+    .code-assistant-tree-section > summary { display: flex; min-height: 23px; align-items: center; gap: 2px; padding: 0 3px; color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground)); background: var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background)); cursor: pointer; font-size: var(--vscode-font-size); font-weight: 600; list-style: none; }
+    .code-assistant-tree-section > summary::-webkit-details-marker { display: none; }
+    .code-assistant-tree-section > summary:hover { background: var(--vscode-list-hoverBackground); }
+    .code-assistant-tree-section[open] > summary { border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
+    .code-assistant-tree-section-count { margin-left: auto; padding-right: 3px; color: var(--vscode-descriptionForeground); font-size: 11px; font-variant-numeric: tabular-nums; }
+    .code-assistant-tree { margin: 0; padding: 0; }
+    .code-assistant-tree-group { margin: 0; }
+    .code-assistant-tree-group > summary { display: flex; min-height: 21px; align-items: center; gap: 2px; padding: 0 2px; color: var(--vscode-foreground); cursor: pointer; font-size: var(--vscode-font-size); font-weight: 400; list-style: none; }
+    .code-assistant-tree-group > summary::-webkit-details-marker { display: none; }
+    .code-assistant-tree-chevron { width: 16px; height: 16px; flex: 0 0 16px; color: currentColor; transform: rotate(-90deg); transform-origin: center; transition: transform .1s ease; }
+    .code-assistant-tree-chevron path { fill: currentColor; }
+    .code-assistant-tree-group[open] > summary .code-assistant-tree-chevron { transform: rotate(0deg); }
+    .code-assistant-tree-group > summary:hover { background: var(--vscode-list-hoverBackground); }
+    .code-assistant-tree-count { margin-left: auto; padding-right: 3px; color: var(--vscode-descriptionForeground); font-size: 11px; font-variant-numeric: tabular-nums; }
+    .code-assistant-tree-icon { width: 16px; height: 16px; flex: 0 0 16px; color: var(--vscode-descriptionForeground); }
+    .code-assistant-tree-icon path { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.2; }
+    .code-assistant-tree-children { margin: 0; padding: 0; }
+    .code-assistant-tree button { display: flex; width: 100%; min-height: 21px; align-items: center; gap: 2px; padding: 0 2px 0 7px; border: 0; color: var(--vscode-foreground); background: transparent; cursor: pointer; font: inherit; font-size: var(--vscode-font-size); text-align: left; }
+    .code-assistant-tree button:hover { background: var(--vscode-list-hoverBackground); }
+    .code-assistant-tree button.selected { color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground)); background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground)); box-shadow: inset 2px 0 0 var(--vscode-focusBorder); }
+    .code-assistant-tree button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground)); color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground)); }
+    .code-assistant-tree-copy { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .code-assistant-tree-copy strong { font-weight: 400; }
+    .code-assistant-tree-copy span { display: none; }
+    .code-assistant-feature { margin-top: 4px; border-top: 1px solid var(--vscode-panel-border); }
+    .code-assistant-feature > summary { display: flex; min-height: 23px; align-items: center; gap: 2px; padding: 0 2px; cursor: pointer; color: var(--vscode-foreground); font-size: 12px; font-weight: 600; list-style: none; }
+    .code-assistant-feature > summary::-webkit-details-marker { display: none; }
+    .code-assistant-feature > summary::before { content: "›"; margin-right: 3px; font-size: 17px; }
+    .code-assistant-feature[open] > summary::before { transform: rotate(90deg); }
+    .code-assistant-feature-close { width: 22px; height: 22px; margin-left: auto; padding: 0; border: 1px solid transparent; border-radius: 3px; color: var(--vscode-foreground); background: transparent; cursor: pointer; font: inherit; font-size: 18px; line-height: 1; }
+    .code-assistant-feature-close:hover { border-color: var(--ktc-ui-active-border, var(--vscode-focusBorder)); background: var(--vscode-toolbar-hoverBackground); }
+    .code-assistant-feature-actions { display: flex; align-items: center; gap: 6px; padding: 1px 0 5px; }
+    .code-assistant-feature-actions .action { margin: 0; }
+    .code-assistant-feature-status { min-width: 0; margin: 0 0 5px; color: var(--vscode-descriptionForeground); font-size: 11px; line-height: 1.4; }
+    .code-assistant-feature-result-count { margin-left: auto; color: var(--vscode-descriptionForeground); font-size: 11px; font-weight: 400; }
+    .code-assistant-feature-results { padding: 0 0 4px; }
+    .code-assistant-feature-results ktc-reorder-members-panel { display: block; width: 100%; min-width: 0; }
+    .code-assistant-empty { margin: 5px 0 0; color: var(--vscode-descriptionForeground); font-size: 11px; }
     #general-actions button { flex: 1 1 0; }
     button.action {
       min-height: 28px;
@@ -758,43 +810,19 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       <div class="shell-block-body" id="ribbon-body"><div class="tabs" id="tabs"></div></div>
     </section>
     <section class="shell-block" id="working-context-shell">
-      <header class="shell-block-header">
-        <button class="shell-block-toggle" id="btn-toggle-working-context" type="button" aria-expanded="true" aria-controls="working-context-body"><svg class="shell-block-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg><span>工作目录与 Ignore</span></button>
-      </header>
-      <div class="shell-block-body" id="working-context-body">
-        <section class="working-context" id="working-context" aria-label="工作目录与 Ignore">
-      <div class="working-context-main">
-        <select id="replace-scope" aria-label="工作目录" title="头文件、编码、搜索替换等文件工具都以此目录为准"></select>
+      <header class="shell-block-header" aria-label="目录">
+        <svg class="working-context-context-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.82 1.2A2 2 0 0 0 12.1 6H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z"/><path d="M2 10h20"/></svg>
+        <span class="working-context-label">目录</span>
+        <section class="working-context" id="working-context" aria-label="目录">
+          <div class="working-context-main">
+        <select id="replace-scope" aria-label="目录" title="头文件、编码、搜索替换等文件工具都以此目录为准"></select>
         <button class="folder-button" id="btn-pick-working-directory" type="button" title="选择工作目录" aria-label="选择工作目录">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.82 1.2A2 2 0 0 0 12.1 6H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z"/><path d="M2 10h20"/></svg>
         </button>
-      </div>
-      <details class="ignore-manager" id="ignore-manager">
-        <summary><svg class="ignore-manager-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg><span>Ignore 管理</span></summary>
-        <div class="ignore-manager-body scope-block" id="ignore-block">
-          <div class="ignore-manager-status">
-            <span id="git-ignore-status">Git Ignore · 自动</span>
-            <label title="叠加当前目录的 .phoenix/.ignore"><input id="plugin-ignore-enabled" type="checkbox" />插件 Ignore</label>
+        <button class="folder-button working-context-settings" id="btn-open-settings" type="button" title="打开设置" aria-label="打开设置">⚙</button>
           </div>
-            <div class="actions ignore-primary">
-              <button class="action secondary" id="btn-analyze-ignore" type="button">分析当前目录</button>
-              <button class="action" id="btn-apply-ignore-recommendations" type="button" hidden>追加所选推荐</button>
-            </div>
-            <p class="scope-hint" id="ignore-status">—</p>
-            <div class="preset-row">
-              <select id="ignore-preset" aria-label="Ignore 预设"><option value="caa">CAA</option><option value="cpp">C++</option><option value="web">Web</option></select>
-              <button class="action" id="btn-append-preset" type="button">追加</button>
-              <button class="action secondary" id="btn-remove-preset" type="button">去除</button>
-            </div>
-            <div class="actions">
-              <button class="action secondary" id="btn-open-ignore" type="button">编辑规则</button>
-              <button class="action" id="btn-sync-ignore" type="button">从 .gitignore 追加</button>
-            </div>
-            <div class="ignore-recommendations" id="ignore-recommendations"></div>
-        </div>
-      </details>
         </section>
-      </div>
+      </header>
     </section>
     <section class="shell-block" id="primary-shell">
       <header class="shell-block-header">
@@ -832,6 +860,79 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       <button class="action secondary" id="btn-scan">预检</button>
       <button class="action" id="btn-fix">修复</button>
     </div>
+    <section class="code-assistant-block" id="code-assistant-block" hidden aria-label="代码辅助功能">
+      <details class="code-assistant-tree-section" id="code-assistant-tree-section" open>
+        <summary><svg class="code-assistant-tree-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg><span>功能目录</span><span class="code-assistant-tree-section-count">（6）</span></summary>
+      <div class="code-assistant-tree" aria-label="代码辅助功能树">
+        <details class="code-assistant-tree-group" id="code-assistant-cpp-group" open>
+          <summary>
+            <svg class="code-assistant-tree-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg>
+            <svg class="code-assistant-tree-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3h8M4 6h8M4 9h8M4 12h8M3 3h.1M3 6h.1M3 9h.1M3 12h.1"/></svg>
+            <span>C++ 整理</span><span class="code-assistant-tree-count">（3）</span>
+          </summary>
+          <div class="code-assistant-tree-children">
+            <button id="btn-code-assistant-package-includes" data-code-assistant-feature="packageIncludes" type="button" aria-label="打开 Package 头文件修正">
+              <svg class="code-assistant-tree-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h6l3 3v6H3zM9 3.5v3h3M5 9h5M5 11h4"/></svg>
+              <span class="code-assistant-tree-copy"><strong>头文件引用修正</strong><span>平铺 include → &lt;KtCore/...&gt;</span></span>
+            </button>
+            <button id="btn-code-assistant-reorder-members" data-code-assistant-feature="reorderMembers" type="button" aria-label="打开 C++ 成员排序">
+              <svg class="code-assistant-tree-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4h7M3 8h10M3 12h5M11 2v10M9 4l2-2 2 2M13 10l-2 2-2-2"/></svg>
+              <span class="code-assistant-tree-copy"><strong>C++ 成员排序</strong><span>扫描、预览并确认写回</span></span>
+            </button>
+            <button id="btn-code-assistant-header-ascii" data-code-assistant-feature="headerAscii" type="button" aria-label="打开头文件 ASCII 修正">
+              <svg class="code-assistant-tree-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h6l3 3v6H3zM9 3.5v3h3M5 9h5M5 11h4"/></svg>
+              <span class="code-assistant-tree-copy"><strong>头文件 ASCII 修正</strong><span>预检并修正头文件问题字节</span></span>
+            </button>
+          </div>
+        </details>
+        <details class="code-assistant-tree-group" id="code-assistant-file-tools-group" open>
+          <summary>
+            <svg class="code-assistant-tree-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg>
+            <svg class="code-assistant-tree-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h6l3 3v6H3zM9 3.5v3h3M5 9h5M5 11h4"/></svg>
+            <span>文件工具</span><span class="code-assistant-tree-count">（2）</span>
+          </summary>
+          <div class="code-assistant-tree-children">
+            <button id="btn-code-assistant-encoding-fix" data-code-assistant-feature="encodingFix" type="button" aria-label="打开编码修正">
+              <svg class="code-assistant-tree-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h6l3 3v6H3zM9 3.5v3h3M5 9h5M5 11h4"/></svg>
+              <span class="code-assistant-tree-copy"><strong>编码修正</strong><span>检查并无损转换项目编码</span></span>
+            </button>
+            <button id="btn-code-assistant-uuid-replace" data-code-assistant-feature="uuidReplace" type="button" aria-label="打开 UUID 替换">
+              <svg class="code-assistant-tree-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 5l2-2 2 2-2 2zM9 3l2-2 2 2-2 2zM9 11l2-2 2 2-2 2zM3 11l2-2 2 2-2 2z"/></svg>
+              <span class="code-assistant-tree-copy"><strong>UUID 替换</strong><span>扫描映射并确认写入</span></span>
+            </button>
+          </div>
+        </details>
+        <details class="code-assistant-tree-group" id="code-assistant-caa-group" open>
+          <summary>
+            <svg class="code-assistant-tree-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg>
+            <svg class="code-assistant-tree-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3h8M4 6h8M4 9h8M4 12h8M3 3h.1M3 6h.1M3 9h.1M3 12h.1"/></svg>
+            <span>CAA</span><span class="code-assistant-tree-count">（1）</span>
+          </summary>
+          <div class="code-assistant-tree-children">
+            <button id="btn-code-assistant-caa-dialog" data-code-assistant-feature="caaDialog" type="button" aria-label="打开 CAA UI">
+              <svg class="code-assistant-tree-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h6l3 3v6H3zM9 3.5v3h3M5 9h5M5 11h4"/></svg>
+              <span class="code-assistant-tree-copy"><strong>CAA UI</strong><span>扫描 CATDlg 并连接 Desk Tools</span></span>
+            </button>
+          </div>
+        </details>
+      </div>
+      </details>
+      <p class="code-assistant-empty" id="code-assistant-empty">从上方功能 Tree 选择一项开始。</p>
+      <details class="code-assistant-feature" id="code-assistant-reorder-actions" open hidden>
+        <summary><span>排序操作</span><button class="code-assistant-feature-close" id="btn-code-assistant-reorder-close" type="button" title="关闭成员排序，返回功能列表" aria-label="关闭成员排序">×</button></summary>
+        <div class="code-assistant-feature-actions">
+          <button class="action secondary" id="btn-code-assistant-reorder-scan" type="button">扫描排序</button>
+          <button class="action" id="btn-code-assistant-reorder-apply" type="button" disabled>应用所选</button>
+        </div>
+        <p class="code-assistant-feature-status" id="code-assistant-reorder-status"></p>
+      </details>
+      <details class="code-assistant-feature" id="code-assistant-reorder-results" open hidden>
+        <summary>预览结果 <span class="code-assistant-feature-result-count" id="code-assistant-reorder-result-count"></span></summary>
+        <div class="code-assistant-feature-results">
+          <ktc-reorder-members-panel id="reorder-members-panel"></ktc-reorder-members-panel>
+        </div>
+      </details>
+    </section>
     <ktc-codegen-primary-panel id="codegen-panel" hidden></ktc-codegen-primary-panel>
     <ktc-run-primary-panel id="run-panel" hidden></ktc-run-primary-panel>
     <ktc-git-primary-panel id="git-panel" hidden></ktc-git-primary-panel>
@@ -846,16 +947,46 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     <div class="compact-tools" id="compact-tools" hidden>
       <button class="text-button" id="btn-caa-check-connection" type="button" hidden>连接 Desk Tools</button>
     </div>
-    <section class="environment-block" id="environment-block" hidden>
-      <div class="environment-actions">
-        <button class="action" id="btn-environment-refresh" type="button">刷新系统值</button>
-        <button class="action secondary" id="btn-environment-system" type="button">系统环境变量</button>
-      </div>
-      <div class="environment-values" id="environment-values"></div>
-      <div class="environment-footer">
-        <span>修改当前用户环境；不会改机器级变量。其他应用需重启后继承新值。</span>
-        <button class="text-button" id="btn-environment-plugin-settings" type="button">插件设置</button>
-      </div>
+    <section class="settings-block" id="environment-block" hidden aria-label="设置">
+      <details class="settings-section ignore-manager" id="ignore-manager" open>
+        <summary><svg class="ignore-manager-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg><span>Ignore 管理</span></summary>
+        <div class="ignore-manager-body scope-block" id="ignore-block">
+          <div class="ignore-manager-status">
+            <span id="git-ignore-status">Git Ignore · 自动</span>
+            <label title="叠加当前目录的 .phoenix/.ignore"><input id="plugin-ignore-enabled" type="checkbox" />插件 Ignore</label>
+          </div>
+          <div class="actions ignore-primary">
+            <button class="action secondary" id="btn-analyze-ignore" type="button">分析当前目录</button>
+            <button class="action" id="btn-apply-ignore-recommendations" type="button" hidden>追加所选推荐</button>
+          </div>
+          <p class="scope-hint" id="ignore-status">—</p>
+          <div class="preset-row">
+            <select id="ignore-preset" aria-label="Ignore 预设"><option value="caa">CAA</option><option value="cpp">C++</option><option value="web">Web</option></select>
+            <button class="action" id="btn-append-preset" type="button">追加</button>
+            <button class="action secondary" id="btn-remove-preset" type="button">去除</button>
+          </div>
+          <div class="actions">
+            <button class="action secondary" id="btn-open-ignore" type="button">编辑规则</button>
+            <button class="action" id="btn-sync-ignore" type="button">从 .gitignore 追加</button>
+          </div>
+          <div class="ignore-recommendations" id="ignore-recommendations"></div>
+        </div>
+      </details>
+      <details class="settings-section" open>
+        <summary><svg class="settings-section-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg><span>工程环境</span></summary>
+        <div class="settings-section-body">
+          <div class="environment-actions">
+            <button class="action" id="btn-environment-refresh" type="button">刷新系统值</button>
+            <button class="action secondary" id="btn-environment-system" type="button">系统环境变量</button>
+          </div>
+          <div class="environment-values" id="environment-values"></div>
+          <div class="environment-footer"><span>修改当前用户环境；不会改机器级变量。其他应用需重启后继承新值。</span></div>
+        </div>
+      </details>
+      <details class="settings-section">
+        <summary><svg class="settings-section-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg><span>插件设置</span></summary>
+        <div class="settings-section-body"><button class="text-button" id="btn-environment-plugin-settings" type="button">打开 VS Code 插件设置</button></div>
+      </details>
     </section>
     <section class="replace-block" id="replace-block" hidden>
       <div class="replace-query-shell">
@@ -919,7 +1050,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       </p>
       </div>
     </section>
-    <ktc-reorder-members-panel id="reorder-members-panel" hidden></ktc-reorder-members-panel>
     <ktc-uuid-results-panel id="uuid-results-panel" hidden></ktc-uuid-results-panel>
     <ktc-rename-results-panel id="rename-results-panel" hidden></ktc-rename-results-panel>
     <div class="scope-block" id="scope-block">
@@ -1004,7 +1134,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       showDetails: !!saved.showDetails,
       showEncDetails: !!saved.showEncDetails,
       ribbonBlockCollapsed: !!saved.ribbonBlockCollapsed,
-      workingContextCollapsed: !!saved.workingContextCollapsed,
       primaryBlockCollapsed: !!saved.primaryBlockCollapsed,
       sidebarStyle: "ribbon",
       presentation: "ribbon",
@@ -1013,6 +1142,15 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       searchReplaceProfileError: "",
       moduleState: { installed: ["code"], enabled: ["code"], visible: ["code"], known: ["code"], active: "code" },
       moduleBlock: null,
+      codeAssistantFeature: "",
+      codeAssistantTreeUiState: {
+        treeExpanded: true,
+        cppOrganizeExpanded: true,
+        fileToolsExpanded: true,
+        caaExpanded: true,
+        reorderActionsExpanded: true,
+        reorderResultsExpanded: true,
+      },
       extensionInstallations: [],
       ribbonLayout: { pinnedToolIds: [], toolOrder: [] },
       workingContext: { selectedDirectory: "", label: "未打开目录", pluginIgnoreEnabled: true, gitIgnoreExists: false },
@@ -1029,6 +1167,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     let focusRibbonMenuRequested = false;
     let initialized = false;
     const gitPanelModel = ${ktcGitPanelModel.toString()};
+    const gitRepositoryOptionLabels = ${ktcGitRepositoryOptionLabels.toString()};
     let gitRefreshRequested = false;
 
     function persistUiState() {
@@ -1037,7 +1176,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         showEncDetails: state.showEncDetails,
         uuidStrategy: state.uuidStrategy,
         ribbonBlockCollapsed: state.ribbonBlockCollapsed,
-        workingContextCollapsed: state.workingContextCollapsed,
         primaryBlockCollapsed: state.primaryBlockCollapsed,
         replace: state.replace,
       });
@@ -1105,10 +1243,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
 
     const els = {
       ribbonShell: document.getElementById("ribbon-shell"),
-      workingContextShell: document.getElementById("working-context-shell"),
       primaryShell: document.getElementById("primary-shell"),
       btnToggleRibbonBlock: document.getElementById("btn-toggle-ribbon-block"),
-      btnToggleWorkingContext: document.getElementById("btn-toggle-working-context"),
       btnTogglePrimaryBlock: document.getElementById("btn-toggle-primary-block"),
       btnRibbonDensity: document.getElementById("btn-ribbon-density"),
       btnRibbonCustomize: document.getElementById("btn-ribbon-customize"),
@@ -1121,6 +1257,25 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       title: document.getElementById("tool-title"),
       desc: document.getElementById("tool-desc"),
       replaceBlock: document.getElementById("replace-block"),
+      codeAssistantBlock: document.getElementById("code-assistant-block"),
+      codeAssistantTreeSection: document.getElementById("code-assistant-tree-section"),
+      codeAssistantCppGroup: document.getElementById("code-assistant-cpp-group"),
+      codeAssistantFileToolsGroup: document.getElementById("code-assistant-file-tools-group"),
+      codeAssistantCaaGroup: document.getElementById("code-assistant-caa-group"),
+      btnCodeAssistantPackageIncludes: document.getElementById("btn-code-assistant-package-includes"),
+      btnCodeAssistantReorderMembers: document.getElementById("btn-code-assistant-reorder-members"),
+      btnCodeAssistantHeaderAscii: document.getElementById("btn-code-assistant-header-ascii"),
+      btnCodeAssistantEncodingFix: document.getElementById("btn-code-assistant-encoding-fix"),
+      btnCodeAssistantUuidReplace: document.getElementById("btn-code-assistant-uuid-replace"),
+      btnCodeAssistantCaaDialog: document.getElementById("btn-code-assistant-caa-dialog"),
+      codeAssistantEmpty: document.getElementById("code-assistant-empty"),
+      codeAssistantReorderActions: document.getElementById("code-assistant-reorder-actions"),
+      codeAssistantReorderResults: document.getElementById("code-assistant-reorder-results"),
+      btnCodeAssistantReorderScan: document.getElementById("btn-code-assistant-reorder-scan"),
+      btnCodeAssistantReorderApply: document.getElementById("btn-code-assistant-reorder-apply"),
+      btnCodeAssistantReorderClose: document.getElementById("btn-code-assistant-reorder-close"),
+      codeAssistantReorderStatus: document.getElementById("code-assistant-reorder-status"),
+      codeAssistantReorderResultCount: document.getElementById("code-assistant-reorder-result-count"),
       replaceToggle: document.getElementById("btn-replace-toggle"),
       reorderMembersPanel: document.getElementById("reorder-members-panel"),
       uuidResultsPanel: document.getElementById("uuid-results-panel"),
@@ -1136,6 +1291,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       pluginIgnoreEnabled: document.getElementById("plugin-ignore-enabled"),
       ignoreRecommendations: document.getElementById("ignore-recommendations"),
       btnPickWorkingDirectory: document.getElementById("btn-pick-working-directory"),
+      btnOpenSettings: document.getElementById("btn-open-settings"),
       btnExpandRules: document.getElementById("btn-expand-rules"),
       multiRules: document.getElementById("multi-rules"),
       replaceProfile: document.getElementById("replace-profile"),
@@ -1213,19 +1369,29 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     };
 
     function toolOptions() {
-      return state.toolOptions[state.activeToolId] || {};
+      return state.toolOptions[currentContentToolId()] || {};
+    }
+
+    function currentContentToolId() {
+      return isCodeAssistantTool() && state.codeAssistantFeature
+        ? state.codeAssistantFeature
+        : state.activeToolId;
     }
 
     function isEncodingTool() {
-      return state.activeToolId === "encodingFix";
+      return currentContentToolId() === "encodingFix";
     }
 
     function isHeaderAsciiTool() {
-      return state.activeToolId === "headerAscii";
+      return currentContentToolId() === "headerAscii";
     }
 
     function isCodeRenameTool() {
       return state.activeToolId === "codeRename";
+    }
+
+    function isCodeAssistantTool() {
+      return state.activeToolId === "codeAssistant";
     }
 
     function isCodegenTool() {
@@ -1240,8 +1406,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       return state.activeToolId === "git";
     }
 
-    function isReorderMembersTool() {
-      return state.activeToolId === "reorderMembers";
+    function isCodeAssistantReorderFeature() {
+      return isCodeAssistantTool() && state.codeAssistantFeature === "reorderMembers";
     }
 
     function isIgnoreTool() {
@@ -1249,11 +1415,11 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     }
 
     function isUuidTool() {
-      return state.activeToolId === "uuidReplace";
+      return currentContentToolId() === "uuidReplace";
     }
 
     function isCaaDialogTool() {
-      return state.activeToolId === "caaDialog";
+      return currentContentToolId() === "caaDialog";
     }
 
     function isEnvironmentTool() {
@@ -1450,7 +1616,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       }
       els.empty.style.display = "none";
       for (const item of items) {
-        const open = () => vscode.postMessage({ type: "openIssue", toolId: state.activeToolId, file: item.fullPath, line: item.topLine });
+        const open = () => vscode.postMessage({ type: "openIssue", toolId: currentContentToolId(), file: item.fullPath, line: item.topLine });
         const row = createCompactRow({
           path: item.relativePath || item.file,
           highlightNonAscii: true,
@@ -1475,7 +1641,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
               e.stopPropagation();
               vscode.postMessage({
                 type: "openIssue",
-                toolId: state.activeToolId,
+                toolId: currentContentToolId(),
                 file: item.fullPath,
                 line: iss.line,
               });
@@ -1499,7 +1665,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       }
       els.empty.style.display = "none";
       const rows = items.map((item) => {
-        const open = () => vscode.postMessage({ type: "openEncodingFile", toolId: state.activeToolId, file: item.fullPath });
+        const open = () => vscode.postMessage({ type: "openEncodingFile", toolId: currentContentToolId(), file: item.fullPath });
         const row = createCompactRow({
           path: item.relativePath,
           status: item.suggestedAction === "—" ? "✓" : item.suggestedAction,
@@ -1694,7 +1860,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     }
 
     function activeTool() {
-      return state.tools.find((t) => t.id === state.activeToolId);
+      if (isCodeAssistantTool() && state.codeAssistantFeature === "packageIncludes") {
+        return { title: "Package 头文件修正", description: "在右侧 View 预览并写入 CMake Package include 修正。" };
+      }
+      return state.tools.find((t) => t.id === currentContentToolId());
     }
 
     function renderModuleBlock() {
@@ -1750,7 +1919,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     }
 
     function toolState() {
-      return state.toolStates[state.activeToolId] || { status: "idle" };
+      return state.toolStates[currentContentToolId()] || { status: "idle" };
     }
 
     const searchReplaceButtonState = ${ktcSearchReplaceButtonState.toString()};
@@ -1932,6 +2101,11 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       }
       const model = ts.git;
       const projects = model?.projects || [];
+      const repositoryLabels = gitRepositoryOptionLabels(projects.map((project) => project.repository));
+      const labelsByRepositoryId = new Map(projects.map((project, index) => [
+        project.repository.id,
+        repositoryLabels[index] || project.repository.name,
+      ]));
       els.gitRepositorySelect.innerHTML = "";
       if (!projects.length) {
         const empty = document.createElement("option");
@@ -1952,7 +2126,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
           }
           const option = document.createElement("option");
           option.value = repository.id;
-          option.textContent = repository.name + " · " + repository.relativePath;
+          option.textContent = labelsByRepositoryId.get(repository.id) || repository.name;
           option.title = repository.name + " · " + repository.id;
           group.appendChild(option);
         }
@@ -2020,15 +2194,55 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.btnRibbonDensity.setAttribute("aria-label", els.btnRibbonDensity.title);
     }
 
+    function renderCodeAssistantReorder(reorderState, running) {
+      const treeUi = state.codeAssistantTreeUiState;
+      els.codeAssistantTreeSection.open = !!treeUi.treeExpanded;
+      els.codeAssistantCppGroup.open = !!treeUi.cppOrganizeExpanded;
+      els.codeAssistantFileToolsGroup.open = !!treeUi.fileToolsExpanded;
+      els.codeAssistantCaaGroup.open = !!treeUi.caaExpanded;
+      els.codeAssistantReorderActions.open = !!treeUi.reorderActionsExpanded;
+      els.codeAssistantReorderResults.open = !!treeUi.reorderResultsExpanded;
+      const active = isCodeAssistantReorderFeature();
+      for (const button of els.codeAssistantBlock.querySelectorAll("[data-code-assistant-feature]")) {
+        button.classList.toggle("selected", button.dataset.codeAssistantFeature === state.codeAssistantFeature);
+      }
+      const genericFeature = ["headerAscii", "encodingFix", "uuidReplace", "caaDialog"].includes(state.codeAssistantFeature);
+      els.codeAssistantEmpty.hidden = active || genericFeature;
+      els.codeAssistantReorderActions.hidden = !active;
+      els.codeAssistantReorderResults.hidden = !active;
+      if (!active) return;
+      const rows = reorderState.reorderResults || [];
+      const pending = rows.filter((row) => row.state === "pending");
+      const selected = new Set(reorderState.reorderSelectedUris || pending.map((row) => row.uri));
+      const selectedPending = pending.filter((row) => selected.has(row.uri));
+      els.btnCodeAssistantReorderScan.disabled = running;
+      els.btnCodeAssistantReorderApply.disabled = running || selectedPending.length === 0;
+      els.btnCodeAssistantReorderApply.textContent = selectedPending.length
+        ? "应用所选（" + selectedPending.length + "）"
+        : "应用所选";
+      els.codeAssistantReorderStatus.textContent = reorderState.message
+        || "扫描当前工作目录中的 C++ 头文件和源文件；写入前会再次确认文件没有变化。";
+      els.codeAssistantReorderResultCount.textContent = rows.length
+        ? "扫描 " + (reorderState.scanned || rows.length) + " · 可排序 " + pending.length
+        : "尚未扫描";
+      els.reorderMembersPanel.model = {
+        presentation: "results",
+        status: reorderState.status,
+        message: reorderState.message,
+        scanned: reorderState.scanned,
+        reorderResults: reorderState.reorderResults,
+        reorderRevision: reorderState.reorderRevision,
+        reorderSelectedUris: reorderState.reorderSelectedUris,
+      };
+    }
+
     function render() {
       document.body.classList.toggle("ribbon-only", state.presentation === "ribbon");
       document.body.classList.toggle("detail-block", state.presentation === "detailBlock");
       const welcomeMode = state.presentation === "detailBlock" && (state.openToolIds || []).length === 0;
       els.ribbonShell.classList.toggle("collapsed", !!state.ribbonBlockCollapsed);
-      els.workingContextShell.classList.toggle("collapsed", !!state.workingContextCollapsed);
       els.primaryShell.classList.toggle("collapsed", !!state.primaryBlockCollapsed);
       els.btnToggleRibbonBlock.setAttribute("aria-expanded", state.ribbonBlockCollapsed ? "false" : "true");
-      els.btnToggleWorkingContext.setAttribute("aria-expanded", state.workingContextCollapsed ? "false" : "true");
       els.btnTogglePrimaryBlock.setAttribute("aria-expanded", state.primaryBlockCollapsed ? "false" : "true");
       renderRibbonHeaderControls();
       els.btnCloseTool.hidden = welcomeMode;
@@ -2039,7 +2253,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         els.title.textContent = "插件概览";
         els.desc.textContent = "";
       } else if (tool) {
-        els.title.textContent = tool.title;
+        els.title.textContent = isCodeAssistantTool() && state.codeAssistantFeature
+          ? "代码辅助 / " + tool.title
+          : tool.title;
         els.desc.textContent = tool.description;
       } else {
         els.title.textContent = "插件概览";
@@ -2053,9 +2269,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         : "没有打开的工具 Block";
       const visibleModules = state.moduleState.visible || ["code"];
       const pinned = new Set(state.ribbonLayout.pinnedToolIds || []);
-      const shortTitles = { headerAscii: "头文件", encodingFix: "编码", ignoreSettings: "忽略", codeRename: "替换", codegen: "自动代码", reorderMembers: "排序", uuidReplace: "UUID", caaDialog: "CAA UI", git: "Git", run: "Run", environmentSettings: "环境" };
+      const shortTitles = { headerAscii: "头文件", encodingFix: "编码", ignoreSettings: "忽略", codeRename: "替换", codegen: "自动代码", reorderMembers: "排序", codeAssistant: "代码辅助", uuidReplace: "UUID", caaDialog: "CAA UI", git: "Git", run: "Run", environmentSettings: "设置" };
       const customizationTools = orderedTools(state.tools.filter((item) => (
         (state.moduleState.installed || ["code"]).includes(item.moduleId || "code")
+        && item.ribbonVisible !== false
         && item.id !== "environmentSettings"
         && item.id !== "ignoreSettings"
       )));
@@ -2069,7 +2286,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       };
       for (const moduleId of visibleModules) {
         const moduleTools = orderedTools(state.tools.filter((item) => (
-          (item.moduleId || "code") === moduleId && item.id !== "environmentSettings" && item.id !== "ignoreSettings"
+          (item.moduleId || "code") === moduleId
+          && item.ribbonVisible !== false
+          && item.id !== "environmentSettings"
+          && item.id !== "ignoreSettings"
         )));
         if (!moduleTools.length) continue;
         const visibleTools = moduleTools.filter((tool) => pinned.has(tool.id) || tool.id === state.activeToolId);
@@ -2184,6 +2404,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
             toggleToolPin(detail.toolId);
           } else if (detail.kind === "toggleModule") {
             vscode.postMessage({ type: "toggleRibbonModule", moduleId: detail.moduleId });
+          } else if (detail.kind === "resetCodeLayout") {
+            vscode.postMessage({ type: "resetCodeRibbonLayout" });
           } else if (detail.kind === "move") {
             movePinnedTool(detail.sourceId, detail.targetId, detail.placement === "after");
           }
@@ -2216,7 +2438,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         return;
       }
       const ts = toolState();
-      const running = ts.status === "running";
+      const codeAssistant = isCodeAssistantTool();
+      const reorderState = state.toolStates.reorderMembers || { status: "idle" };
+      const reorderFeature = isCodeAssistantReorderFeature();
+      const running = (reorderFeature ? reorderState : ts).status === "running";
       document.body.classList.toggle("task-running", running);
       const enc = isEncodingTool();
       const header = isHeaderAsciiTool();
@@ -2224,25 +2449,28 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       const codegen = isCodegenTool();
       const run = isRunTool();
       const git = isGitTool();
-      const reorder = isReorderMembersTool();
       const ignore = isIgnoreTool();
       const uuid = isUuidTool();
       const caaDialog = isCaaDialogTool();
       const environment = isEnvironmentTool();
+      const codeAssistantGenericFeature = codeAssistant && (enc || header || uuid || caaDialog);
+      const codeAssistantTreeOnly = codeAssistant && !codeAssistantGenericFeature;
       renderGitRepositoryContext(ts, running, git);
       document.body.classList.toggle("codegen-tool", codegen);
       document.body.classList.toggle("run-tool", run);
       document.body.classList.toggle("git-tool", git);
-      els.desc.hidden = ignore;
+      // 代码辅助目录是当前工具 Block 的第一项，不能夹在说明或通用按钮之后。
+      els.desc.hidden = ignore || codeAssistant;
       els.replaceBlock.hidden = !rename;
+      els.codeAssistantBlock.hidden = !codeAssistant;
+      if (codeAssistant) els.primaryBody.insertBefore(els.codeAssistantBlock, els.primaryBody.firstElementChild);
       els.codegenPanel.hidden = !codegen;
       els.runPanel.hidden = !run;
       els.gitPanel.hidden = !git;
-      els.reorderMembersPanel.hidden = !reorder;
       els.uuidResultsPanel.hidden = !uuid;
       els.renameResultsPanel.hidden = !rename;
       els.environmentBlock.hidden = !environment;
-      els.generalActions.hidden = rename || codegen || run || git || ignore || reorder || environment;
+      els.generalActions.hidden = rename || codeAssistantTreeOnly || codegen || run || git || ignore || environment;
       els.uuidOptions.hidden = !uuid;
       els.uuidStrategy.value = state.uuidStrategy;
       els.uuidStrategy.disabled = running;
@@ -2262,23 +2490,13 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
 
       els.targetHint.hidden = !enc;
       if (enc) renderEncodingTargetSettings(running);
-      els.scopeBlock.hidden = rename || codegen || run || git || ignore || reorder || uuid || caaDialog || environment;
+      els.scopeBlock.hidden = rename || codeAssistantTreeOnly || codegen || run || git || ignore || uuid || caaDialog || environment;
 
       if (codegen) renderCodegen(ts, running);
       if (run) renderRun(ts, running);
       if (git) renderGit(ts, running);
 
-      if (reorder) {
-        els.reorderMembersPanel.model = {
-          presentation: state.presentation,
-          status: ts.status,
-          message: ts.message,
-          scanned: ts.scanned,
-          reorderResults: ts.reorderResults,
-          reorderRevision: ts.reorderRevision,
-          reorderSelectedUris: ts.reorderSelectedUris,
-        };
-      }
+      if (codeAssistant) renderCodeAssistantReorder(reorderState, running);
       if (uuid) syncUuidResultsPanel(ts);
       if (rename) syncRenameResultsPanel(ts);
 
@@ -2316,7 +2534,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       renderWorkingContext();
       renderIgnoreResults(state.toolStates.ignoreSettings || { status: "idle" });
 
-      els.optionsPanel.hidden = rename || codegen || run || git || ignore || reorder || uuid || caaDialog || environment;
+      els.optionsPanel.hidden = rename || codeAssistantTreeOnly || codegen || run || git || ignore || uuid || caaDialog || environment;
       els.headerOptions.hidden = enc;
       els.encodingOptions.hidden = !enc;
       els.showDetailsWrap.hidden = !header;
@@ -2332,9 +2550,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
 
       els.status.textContent = ts.message || "";
       els.status.className = "status" + (ts.status === "error" ? " error" : "");
-      els.status.hidden = reorder || codegen || run || git;
-      els.resultsTitle.hidden = reorder || codegen || run || git || rename || uuid || environment;
-      els.results.hidden = reorder || codegen || run || git || rename || uuid || environment;
+      els.status.hidden = codeAssistantTreeOnly || codegen || run || git;
+      els.resultsTitle.hidden = codeAssistantTreeOnly || codegen || run || git || rename || uuid || environment;
+      els.results.hidden = codeAssistantTreeOnly || codegen || run || git || rename || uuid || environment;
       els.results.innerHTML = "";
       els.resultsTitle.textContent = header ? "问题文件" : (enc ? "编码结果" : (rename ? "替换结果" : (ignore ? "推荐规则" : (uuid ? "UUID 结果" : (caaDialog ? "CATDlg 文件" : "结果")))));
 
@@ -2343,11 +2561,11 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         els.empty.style.display = "none";
       } else if (codegen) {
         els.empty.style.display = "none";
+      } else if (codeAssistantTreeOnly) {
+        els.empty.style.display = "none";
       } else if (run) {
         els.empty.style.display = "none";
       } else if (git) {
-        els.empty.style.display = "none";
-      } else if (reorder) {
         els.empty.style.display = "none";
       } else if (header) {
         renderHeaderResults(ts, !!state.showDetails);
@@ -2378,6 +2596,59 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         action: isCodeRenameTool() ? "open" : "scan",
         uuidStrategy: isUuidTool() ? state.uuidStrategy : undefined,
       });
+    };
+    els.btnCodeAssistantPackageIncludes.onclick = () => vscode.postMessage({ type: "openCodeAssistantFeature", feature: "packageIncludes" });
+    els.btnCodeAssistantReorderMembers.onclick = () => {
+      vscode.postMessage({ type: "selectTool", toolId: "reorderMembers" });
+    };
+    els.btnCodeAssistantHeaderAscii.onclick = () => vscode.postMessage({ type: "selectTool", toolId: "headerAscii" });
+    els.btnCodeAssistantEncodingFix.onclick = () => vscode.postMessage({ type: "selectTool", toolId: "encodingFix" });
+    els.btnCodeAssistantUuidReplace.onclick = () => vscode.postMessage({ type: "selectTool", toolId: "uuidReplace" });
+    els.btnCodeAssistantCaaDialog.onclick = () => vscode.postMessage({ type: "selectTool", toolId: "caaDialog" });
+    els.btnCodeAssistantReorderClose.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      vscode.postMessage({ type: "clearReorderMembersSession", toolId: "reorderMembers" });
+    };
+    function persistCodeAssistantTreeUiState() {
+      if (!initialized) return;
+      vscode.postMessage({ type: "setCodeAssistantTreeUiState", state: state.codeAssistantTreeUiState });
+    }
+    els.codeAssistantTreeSection.ontoggle = () => {
+      state.codeAssistantTreeUiState.treeExpanded = els.codeAssistantTreeSection.open;
+      persistCodeAssistantTreeUiState();
+    };
+    els.codeAssistantCppGroup.ontoggle = () => {
+      state.codeAssistantTreeUiState.cppOrganizeExpanded = els.codeAssistantCppGroup.open;
+      persistCodeAssistantTreeUiState();
+    };
+    els.codeAssistantFileToolsGroup.ontoggle = () => {
+      state.codeAssistantTreeUiState.fileToolsExpanded = els.codeAssistantFileToolsGroup.open;
+      persistCodeAssistantTreeUiState();
+    };
+    els.codeAssistantCaaGroup.ontoggle = () => {
+      state.codeAssistantTreeUiState.caaExpanded = els.codeAssistantCaaGroup.open;
+      persistCodeAssistantTreeUiState();
+    };
+    els.codeAssistantReorderActions.ontoggle = () => {
+      state.codeAssistantTreeUiState.reorderActionsExpanded = els.codeAssistantReorderActions.open;
+      persistCodeAssistantTreeUiState();
+    };
+    els.codeAssistantReorderResults.ontoggle = () => {
+      state.codeAssistantTreeUiState.reorderResultsExpanded = els.codeAssistantReorderResults.open;
+      persistCodeAssistantTreeUiState();
+    };
+    els.btnCodeAssistantReorderScan.onclick = () => vscode.postMessage({
+      type: "run",
+      toolId: "reorderMembers",
+      action: "scan",
+    });
+    els.btnCodeAssistantReorderApply.onclick = () => {
+      const reorderState = state.toolStates.reorderMembers || {};
+      const pending = (reorderState.reorderResults || []).filter((row) => row.state === "pending");
+      const selected = new Set(reorderState.reorderSelectedUris || pending.map((row) => row.uri));
+      const uris = pending.filter((row) => selected.has(row.uri)).map((row) => row.uri);
+      if (uris.length) vscode.postMessage({ type: "reorderAction", toolId: "reorderMembers", action: "apply", uris });
     };
     els.codegenPanel.addEventListener("kt-codegen-primary-action", (event) => {
       const detail = event.detail || {};
@@ -2572,6 +2843,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     }
     els.btnAddRule.onclick = () => requestAssociatedRulePicker("custom");
     els.btnPickWorkingDirectory.onclick = () => vscode.postMessage({ type: "pickWorkingDirectory" });
+    els.btnOpenSettings.onclick = () => vscode.postMessage({ type: "selectTool", toolId: "environmentSettings" });
     els.replaceProfile.onchange = () => {
       if (!els.replaceProfile.value) return;
       vscode.postMessage({
@@ -2693,11 +2965,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       persistUiState();
       render();
     };
-    els.btnToggleWorkingContext.onclick = () => {
-      state.workingContextCollapsed = !state.workingContextCollapsed;
-      persistUiState();
-      render();
-    };
     els.btnTogglePrimaryBlock.onclick = () => {
       state.primaryBlockCollapsed = !state.primaryBlockCollapsed;
       persistUiState();
@@ -2753,6 +3020,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         if (initialized && activeToolChanged) state.primaryBlockCollapsed = false;
         state.tools = msg.tools;
         state.openToolIds = msg.openToolIds || [];
+        state.codeAssistantFeature = msg.codeAssistantFeature || "";
+        state.codeAssistantTreeUiState = msg.codeAssistantTreeUiState || state.codeAssistantTreeUiState;
         state.toolOptions = msg.toolOptions || {};
         state.scope = msg.scope || state.scope;
         state.ignoreConfig = msg.ignoreConfig || null;
@@ -2799,6 +3068,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         const activeToolChanged = switchActiveTool(msg.activeToolId);
         if (activeToolChanged) state.primaryBlockCollapsed = false;
         state.openToolIds = msg.openToolIds || [];
+        state.codeAssistantFeature = msg.codeAssistantFeature || "";
         render();
         restoreActiveToolScroll(activeToolChanged);
       } else if (msg.type === "modules") {

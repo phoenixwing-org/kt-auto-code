@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "owner": "KT Auto Code maintainers",
-  "lastVerified": "2026-08-08",
-  "appliesTo": "0.6.x",
+  "lastVerified": "2026-08-21",
+  "appliesTo": "0.7.x",
   "rules": [
     {
       "match": "^docs/历史/(下一阶段实施计划|Codegen下一阶段实施计划|0\\.4\\.0-Block工作流改造计划)\\.md$",
@@ -33,6 +33,11 @@
       "status": "draft",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "尚未晋升为当前承诺的方案"
+    },
+    {
+      "match": "^docs/代码辅助入口整合TODO\\.md$",
+      "status": "current",
+      "reason": "代码辅助入口、首项 Package 头文件修正与 C++ 成员排序用户参与迁移边界"
     },
     {
       "match": "^docs/Ribbon与基础上下文Block改进计划\\.md$",

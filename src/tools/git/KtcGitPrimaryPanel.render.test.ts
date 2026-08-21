@@ -15,6 +15,7 @@ class FakeNode {
   open = false;
   onclick?: () => void;
   ontoggle?: () => void;
+  addEventListener(_name: string, _listener: (event: Event) => void): void {}
 
   constructor(readonly tagName = "") {}
 
@@ -101,7 +102,7 @@ describe("Git Primary panel rendering", () => {
     expect(rendered).not.toContain("Git Primary 正在读取仓库");
   });
 
-  it("loads exactly the next commit when history is first expanded", async () => {
+  it("loads the next five commits when history is first expanded", async () => {
     const registry = new Map<string, CustomElementConstructor>();
     const events: Array<{ detail?: unknown }> = [];
     vi.stubGlobal("HTMLElement", class extends FakeElement {
@@ -172,7 +173,7 @@ describe("Git Primary panel rendering", () => {
       action: "loadOlderCommits",
       repositoryId: "/repo",
       expectedHeadOid: "1234567890abcdef",
-      count: 1,
+      count: 5,
     }]);
     history!.ontoggle?.();
     expect(events).toHaveLength(1);

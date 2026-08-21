@@ -12,7 +12,7 @@ Owner：KT Auto Code maintainers
 
 ## 当前推荐结论
 
-- Run 是 Code Ribbon 的独立工具，与 Git 并列；目标顺序为 `… → CAA UI → Git → Run`。它只打开共享 Primary 中的 Run Block，不新增顶层模块、原生 TreeView、编辑器页或第二套结果 View。任务树和可选的“目标 / 运行中 / 诊断”Tab 都只是这个 Block 内部的自定义 UI。
+- Run 是 Code Ribbon 的独立工具，与 Git 并列；目标顺序为 `… → CAA UI → Git → Run`。它只打开共享 Primary 中的 Run Block，不新增顶层模块、原生 TreeView、编辑器页或第二套结果 View。项目/分组/目标树由 Wing 的通用 Navigation Tree 提供；运行历史和诊断仍在同一个 Block 内。
 - 默认树只保留四组高价值入口：CMake 主要动作、`tasks.json` 任务、自定义目标和少量固化目标。一旦可靠识别为 CAA 工程，`内置`组无条件同时提供 `MK`（mk/mkmk）与 `Run`（run/CNext）；即使 Tasks 已有同动作，两个内置 runner 行仍保留，方便明确选择来源与跨平台试运行。
 - 同时扫描所有 Workspace Folder 及其子目录中的 `ps1`、`bat`、`cmd`、`sh`、Windows 可执行文件和当前平台可执行文件；扫描只发现，不自动运行。
 - 同时发现工作区级与嵌套目录中的 `tasks.json`。VS Code 已原生解析的任务直接执行原 `Task` 对象；嵌套配置采用受限导入，并明确显示 matcher、compound、变量或自定义 task type 是否能完整保留。
@@ -26,7 +26,7 @@ Owner：KT Auto Code maintainers
 - 参考脚本不会原样写入用户工作区。提炼后的内置 runner 默认随 VSIX 放在只读 `resources/run/`，通过 `ExtensionContext.extensionUri` 定位；没有 task/项目脚本也能直接运行。为调试和定制，可由用户显式把自包含 runner 与 manifest 生成到 `.phoenix/run/<project>/`；扫描/打开 Block 不自动写文件，也不覆盖用户改过的副本。
 - CAA 内置 runner 计划摆脱 PowerShell 硬依赖，但不能摆脱 Windows 厂商 `.bat`。它必须在一个 `cmd.exe` 会话中依次 `call` 环境与构建/运行脚本，保留批处理设置的环境，并把真实退出码传给 VS Code Task。
 - 项目根命中 `.clang-format` 时，`内置`组增加一个跨平台 `Clang Format`；没有 marker 时不生成。它通过随 VSIX 安装的 Node runner 递归格式化 C/C++ 文件，跳过构建、生成、依赖与工具目录，不依赖项目中的 `clangfile.ps1`；项目脚本若存在仍在“自定义”组并列显示。
-- Wing 建议建立有真实消费者的 `run-core`；`run-node` 只在本地发现、runner 资产和 Node launch plan 开始被 Auto Code 消费时建立，禁止预建空包。VS Code Task、Terminal、确认框和 Primary 状态始终留在 Auto Code adapter。
+- Wing 建议建立有真实消费者的 `run-core`；`run-node` 只在本地发现、runner 资产和 Node launch plan 开始被 Auto Code 消费时建立，禁止预建空包。VS Code Task、Terminal 和 Primary 状态始终留在 Auto Code adapter；Run 叶子命令单击直接执行，前置的 Workspace Trust、平台、并发和 CAA 预检仍不可绕过。
 
 详细方案见 [Run Primary Block 可行性与实施计划](Run-Primary-Block可行性与实施计划.md)。
 
@@ -34,11 +34,11 @@ Owner：KT Auto Code maintainers
 
 ## 参考基线
 
-- CMake C++：`/Users/kathy/phoenix/PNXCaaStudy/KtCore`
-- CAA 子项目：`/Users/kathy/phoenix/PNXCaaStudy/PNXBomAnalysisWsp`
-- 共享脚本：`/Users/kathy/phoenix/PNXCaaStudy/tools`
+- CMake C++：`<CMAKE_PROJECT_ROOT>/KtCore`
+- CAA 子项目：`<CAA_PROJECT_ROOT>/PNXBomAnalysisWsp`
+- 共享脚本：`<WORKSPACE_ROOT>/tools`
 
-这些路径只用于本次只读审计和后续提炼脱敏 fixtures。自动测试必须使用仓库内最小 fixture，不能依赖开发机上长期存在上述绝对路径，也不能在测试中启动真实 CAA/CNext。
+这些示例只用于说明工程类别和后续提炼脱敏 fixture。自动测试必须使用仓库内最小 fixture，不能依赖开发机上长期存在的绝对路径，也不能在测试中启动真实 CAA/CNext。
 
 ## 后续增强前必须重新冻结
 

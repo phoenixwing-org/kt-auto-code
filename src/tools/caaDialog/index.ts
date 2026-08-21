@@ -35,7 +35,8 @@ export const caaDialogTool: KtTool = {
   title: "CAA UI",
   description: "扫描 .CATDlg，并连接 Desk Tools 图形编辑器。",
   icon: "media/tools/code-rename.svg",
-  getPanelModel(): ToolPanelModel { return { summary: { id: this.id, title: this.title, description: this.description, icon: this.icon } }; },
+  ribbonVisible: false,
+  getPanelModel(): ToolPanelModel { return { summary: { id: this.id, title: this.title, description: this.description, icon: this.icon, ribbonVisible: this.ribbonVisible } }; },
   registerCommands(context): void {
     const invoke = (action: "scan" | "settings") => async () => {
       await vscode.commands.executeCommand("ktAutoCode.tool.show", this.id);

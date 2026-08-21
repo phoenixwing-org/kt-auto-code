@@ -15,7 +15,7 @@ Owner：KT Auto Code maintainers
 ```text
 KT AUTO CODE（一个 Webview View）
 ├─ 工具栏 Block（可折叠；按内容自动换行和增高；Header 只保留一个 `…`）
-├─ 工作目录与 Ignore Block（可折叠；共享文件工具上下文）
+├─ 目录 Block（固定一行；共享目录选择与设置入口）
 └─ 当前工具 Block（可折叠；标题与明确的 `×`；内容区独立纵向滚动）
 ```
 
@@ -29,7 +29,7 @@ VS Code 的公开 `WebviewView` / `WebviewViewProvider` API 支持解析、显�
 
 - 只贡献一个 Webview View；Ribbon、基础上下文和当前工具均在其内部渲染。
 - 三个区域使用 VS Code Source Control “存储库 / 更改”式全宽分区 Header，不用卡片外边距表达 Block。
-- 三个 Block 可独立折叠，折叠状态只属于 Webview UI 会话；折叠任一区域不得影响另外两区域。
+- 工具栏与当前工具可独立折叠，折叠状态只属于 Webview UI 会话；目录 Block 固定为一行，不提供空的展开区。
 - 不用脚本测量高度，不模拟拖动条，不循环修改 `initialSize`。
 - 页面本身不承担日常纵向滚动；前两个 Block 自然占高，当前工具 Block 填充剩余高度并在内容区内部滚动。
 - 保留 VS Code 对整个 View Container 的移动、调整宽度和折叠能力。
@@ -88,7 +88,7 @@ VS Code 的公开 `WebviewView` / `WebviewViewProvider` API 支持解析、显�
 | `图标与文字 / 仅图标` | VS Code User Setting | 明确的机器级插件偏好，已有设置可兼容 |
 | 置顶工具 ID 与排序 | Extension Host `globalState` | 本机 UI 偏好，不属于任何工程；Webview 重建后仍稳定 |
 | 当前打开工具与 MRU | Host 会话状态 | 运行时导航，不改变置顶顺序 |
-| 三个 Shell Block 的折叠状态 | Webview state | 纯界面状态；各自独立，不进入工程配置 |
+| 工具栏与当前工具的折叠状态 | Webview state | 纯界面状态；各自独立，不进入工程配置。目录固定单行，不保存折叠状态。 |
 | 当前工作目录、插件 Ignore 开关 | `workspaceState` | 每个工作区的临时操作上下文 |
 | 最近外部目录 | `globalState` | 本机历史，绝不写入项目 `.vscode/settings.json` |
 
@@ -104,6 +104,8 @@ interface KtcRibbonLayoutV1 {
 Webview 只能发出 `toggleToolPin`、`movePinnedTool` 等语义消息；Extension Host 校验工具 ID、模块边界并持久化，再广播规范化快照。不得只依赖 DOM 顺序或把布局写入工程设置。
 
 ## 5. 工作目录与忽略 Block
+
+> 2026-08-21 起，Ignore 的常驻内容迁入统一设置工具 View；第二 Block 收敛为无箭头的一行“目录”，只保留目录下拉、文件夹和一个设置齿轮。后续实现和验收以[工作目录与统一设置 View 改造计划](./工作目录与统一设置View改造计划.md)为准。本节保留原始设计依据。
 
 Ribbon 下方增加 Shell 级“工作目录与忽略”Block，供头文件、编码、搜索替换、UUID、成员排序和 CAA UI 等文件工具复用。目录是扫描候选集，Ignore 是候选集上的过滤器，两者必须在同一处表达：
 
@@ -158,7 +160,7 @@ Git Ignore：自动生效    [x] 插件 Ignore    [管理规则]
 
 1. **单 View Shell**：manifest 只贡献一个 Webview View；清理双 View 广播、动态标题和旧诊断字段，Ribbon 与欢迎页/工具 Block 在同一 DOM 中。
 2. **布局状态模型**：在 Host 增加 `KtcRibbonLayoutV1` 的规范化、持久化和消息守卫；为纯函数补单元测试。
-3. **三 Block Shell 与定制菜单**：实现三个独立折叠 Header、工具 Block `×`、唯一 `…`、固定/取消固定、拖动、键盘上移/下移和模块连续换行；补 DOM/浏览器测试。
+3. **三 Block Shell 与定制菜单**：实现工具栏/当前工具折叠 Header、固定单行目录、工具 Block `×`、唯一 `…`、固定/取消固定、拖动、键盘上移/下移和模块连续换行；补 DOM/浏览器测试。
 4. **显示密度**：沿用原设置并修正文案；验证两档布局、tooltip 和高对比度边框。
 5. **工作目录与忽略 Block**：抽取共享目录/Ignore ViewModel 与 Host resolver；接入文件扫描类工具，默认执行最近仓库根 Git Ignore，可选叠加插件 Ignore，并删除重复 UI。
 6. **工作集退场第一阶段**：隐藏日常入口并禁用写入，冻结 schema 和新消费；保留已有文件与兼容代码，不增加多目录 UI。
@@ -173,7 +175,7 @@ Git Ignore：自动生效    [x] 插件 Ignore    [管理规则]
 - 未置顶当前工具临时显示，但不写入置顶集合。
 - `…` 中可以打开、置顶、取消置顶、上移和下移；所有动作有 `aria-label` 与键盘焦点。
 - 整个 Shell 只有一个定制 `…`；窄宽下不裁切，置顶或排序后菜单保持打开。
-- 三个 Block 可分别折叠且互不影响；工具 Block 的折叠按钮只收起内容，`×` 只关闭当前逻辑 Block。
+- 工具栏和当前工具可分别折叠且互不影响；目录固定显示；工具 Block 的折叠按钮只收起内容，`×` 只关闭当前逻辑 Block。
 - 长工具内容只在第三个 Block 内滚动；切换工具时分别恢复内部滚动位置，页面本身无日常纵向滚动。
 - 图标与文字、仅图标在 300px、500px 侧栏宽度下无横向滚动。
 - 深色、浅色、高对比度模式均有边框、hover、活动态和拖动目标反馈。
@@ -184,7 +186,7 @@ Git Ignore：自动生效    [x] 插件 Ignore    [管理规则]
 
 ## 8. 人工点检
 
-1. 页面显示“工具栏 / 工作目录与 Ignore / 当前工具”三个 VS Code 式全宽 Block；三个均可独立折叠，不存在可拖动的内部高度分隔条。
+1. 页面显示“工具栏 / 目录 / 当前工具”三个 VS Code 式全宽 Block；工具栏和当前工具可独立折叠，目录固定单行，不存在可拖动的内部高度分隔条。
 2. 切换两档密度，功能和顺序不变。
 3. “工具栏” Header 右侧只有一个 `…`；取消固定一个工具后，可从其 Code/CAD 分组重新打开，当前入口临时可见。
 4. 连续点击或双击当前入口，Block 不关闭、表单与结果不清空；只有明确点击右上角 `×` 才关闭。
@@ -201,7 +203,7 @@ Git Ignore：自动生效    [x] 插件 Ignore    [管理规则]
 以下外层 UI 契约已由用户在固定测试 worktree 中点检通过，并同步固化到[前端开发规则](./前端开发规则.md#11-锁定的三-block-外层契约)：
 
 - 三个主 Block 的数量、顺序和职责固定。
-- 三个 Block 都可独立折叠。
+- 工具栏和当前工具均可独立折叠；目录固定单行。
 - 第三个 Block 内部纵向滚动，Primary 页面不整体滚动。
 - 第三个 Block 的折叠与 `×` 是两个独立操作。
 - 标题、图标、样式及各 Block 内部功能允许继续改进。

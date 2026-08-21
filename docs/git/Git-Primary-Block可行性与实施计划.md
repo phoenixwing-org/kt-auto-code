@@ -4,9 +4,9 @@
 
 Owner：KT Auto Code maintainers
 
-适用版本：KT Auto Code 0.6.0
+适用版本：KT Auto Code 0.7.0 发布准备中
 
-最后核验：2026-07-23
+最后核验：2026-08-21
 
 ## 1. 目标
 
@@ -15,11 +15,11 @@ Owner：KT Auto Code maintainers
 1. 从 commit 节点直接生成只含群消息简报的可编辑结果；
 2. 多个连续 commit 合并为一个新 commit，并允许修改 message、人员和时间。
 
-本计划同时作为 0.6.0 实现与验收基线；实现已落入 Wing Git core/node 与 Auto Code Primary，未授权的正式发布不在本计划执行范围内。
+本计划同时作为 Git 功能的实现与验收基线；实现已落入 Wing Git core/node 与 Auto Code Primary，未授权的正式发布不在本计划执行范围内。
 
 ## 2. 明确不做
 
-- 不创建 Git View、TreeView、WebviewPanel、编辑器 Tab 或 Diff 页面。
+- 不创建独立 Git 顶层模块、Git TreeView、Diff 页面、stage/changes 页面或多个并列合并 Tab。低频合并允许一个复用的编辑器侧 WebviewPanel，详情见 7.0。
 - 不复制 Desk Tools 的 Git Page、暂存/恢复、文件列表、提交侧栏或 `/api/git/*`。
 - 不做 stage、unstage、restore、branch 管理、fetch、pull、push 或 force push。
 - 不初始化仓库，不自动设置 `user.name` / `user.email`。
@@ -112,7 +112,7 @@ Git 不是“配置”，将它放入配置模块会掩盖历史改写风险，�
 └────────────────────────────────────────────────────┘
 ```
 
-列表必须有固定最大高度并独立滚动，Primary 页面不能因为 commit 数量无限增长。默认只读最新 1 条，展开后按需“下一条 / 下 5 条”，最多保留 100 条。
+列表必须有固定最大高度并独立滚动，Primary 页面不能因为 commit 数量无限增长。默认只读最新 1 条；“更多 commit”首次展开自动增量读取最近 **5** 条，之后按需“下一条 / 下 5 条”，最多保留 100 条。
 
 ### 5.1 多仓库发现与选择
 
@@ -227,6 +227,23 @@ PNXCaaStudy origin/sort **Commit:** 4b4622 ++ · 2026-07-18 14:55
 结论：高。它只调用只读 Git 命令和剪贴板 API，不改变仓库状态。建议作为第一阶段单独交付。
 
 ## 7. 功能二：合并多个 commit
+
+### 7.0 当前轻量交互与提交图（2026-08-21）
+
+- 选中仓库的首条 commit 到位后，自动选中该节点并请求生成、复制群消息简报；同一仓库同一 HEAD 只触发一次，用户可直接粘贴。
+- Primary 的 `Git 操作` Tree 提供“合并本地未发布 commit”入口。简报仍留在 Primary；入口打开编辑器右侧的**单例**提交图 View，而非在 Primary 中塞入身份表单或长列表。
+- 提交图首屏最多读取 5 条，`下一条 / 下 5 条`通过 Wing 返回的不透明 cursor 按拓扑顺序追加；所有请求携带初始 `expectedHeadOid`。Auto 不得解析 cursor、根据最后 OID 自造 cursor，或为图读取完整快照。
+- 提交图可以显示本地分支、可选标签 decoration、merge lane/parent edge；它只浏览和选择，从不 checkout、切换当前分支、移动 ref 或写工作树。
+- 提交图的选择允许跨多条已加载的拓扑行，但真正合并仍只接受当前分支的连续普通提交区间。用户点“安全预检”后才调用完整 `analyzeSquash`，由 Wing 做区间、工作区、签名、引用占用和 replay 判定。
+- 分页/预检检测到 HEAD 或仓库根改变时必须拒绝旧会话并刷新；关闭 View、切换仓库、切换范围或写入成功都释放图/草稿内存。只有同一仓库和同一 HEAD 才复用一次自动简报复制。
+
+### 当前点检清单
+
+1. 进入 Git Block，首条 commit 到位后确认简报自动生成并复制一次；同一 HEAD 的状态刷新不得再次覆盖用户编辑的简报文本。
+2. 从 Git 操作 Tree 打开合并 View，确认首屏只读取 5 条、第二次打开复用同一 View。
+3. 分别点击“下一条”和“下 5 条”，确认只追加对应数量；修改 HEAD 后确认分页被拒绝并刷新，不使用过期 cursor。
+4. 在含 merge/标签的本地测试仓库确认 graph lane 和 decoration；切换标签范围不触发 checkout。
+5. 选择连续 commit 并进入预检，确认仍只操作当前分支；不连续、merge 或不安全引用范围必须阻断且不写入。
 
 ### 7.0 TortoiseGit 交互参考
 
@@ -460,7 +477,7 @@ kt-auto-code/media/tools/git.svg
 
 ## 12. 实施前决策清单
 
-- [x] UI 仅 Primary，无 View。
+- [x] 高频简报留在 Primary；低频合并使用一个编辑器右侧单例提交图 View。
 - [x] Git 放在 Code 模块最后。
 - [x] 暂不新建配置模块或独立 Git 模块。
 - [x] 不复制 Desk Tools 完整 Git 工作区。
@@ -476,4 +493,5 @@ kt-auto-code/media/tools/git.svg
 - [x] 多仓库交互采用现有工作区信息行中的仓库下拉；至少包含活动仓库，下方一次只显示所选仓库，不为每个仓库堆叠完整 Block。
 - [x] 已实现 VS Code Git API + Workspace Folder + 活动编辑器的仓库发现与真实根去重，并补齐 submodule/嵌套仓库、多根工作区及切换安全测试。
 - [x] 已接入 Registry Wing 0.6.0 的轻量 summary/OID 分页/取消 API；完整快照仅用于合并预检。
+- [x] Wing `git-core` / `git-node` 0.6.4 已发布，Auto manifest/lockfile 已精确升级，本地候选类型声明已删除；Registry VSIX 门禁作为 0.7.0 发布条件继续执行。
 - [x] 无 Git 工作区提供新建或显式递归搜索；搜索结果逐个显示，并可由用户停止。

@@ -21,12 +21,22 @@
 }
 ```
 
+## 0.7.0 发布准备（2026-08-21）
+
+本轮 Auto 目标版本为 `kuntai.kt-auto-code@0.7.0`。Phoenix Wing 根聚合包 `phoenix-wing@0.7.1` 已发布；Auto 不直接依赖该根包，精确消费已发布的 `@phoenix-wing/code-core`、`git-core`、`git-node`、`kt-codegen` `0.6.4`，以及当前最新 `run-core`、`run-node` `0.6.3`。
+
+- manifest 与 lockfile 已按实际 Registry 版本更新；`verify:wing-dependencies` 用逐包版本映射校验，禁止 `link:`、`file:`、workspace override 或本地 Wing 路径。
+- 本地候选 `wingGitGraph`、`wingNavigationTree` 类型声明已删除；Git 简报直接消费正式 formatter，不再由 Auto 追加正文。
+- 随后必须用 Node 22 重新执行 `pnpm dev:registry`、`pnpm test`、`pnpm typecheck`、`pnpm verify:architecture`、`pnpm docs:check`、`pnpm package`、`pnpm ext:verify-artifact` 与 `pnpm release:check`；只归档通过 Registry 构建的 `dist/vsix/kt-auto-code-0.7.0.vsix` 及相邻 SHA-256。
+- 本轮用户已完成 Primary 三段式 Shell、目录/设置、Git 下拉与合并 View、代码辅助 Tree、Run Tree、紧凑搜索替换的人工功能点检；正式发布前仍需在 Registry 依赖下复核这些代表路径。
+- AI 只完成本地归档、制品和验证；不执行 Git push、tag、Marketplace 上传或 `vsce publish`。
+
 ## 0.6.3 发布候选（2026-08-09）
 
 0.6.3 完成扩展根目录扁平化，并将侧栏收敛为单 Webview 三段式工作台。本轮只发布 `kuntai.kt-auto-code@0.6.3`；KT Auto CAD 继续由独立仓库维护，版本保持 0.1.0。正式包精确消费 Registry 中的 Phoenix Wing 0.6.2，不携带本地 Wing 路径或开发变量。
 
 - 仓库根 `package.json` 成为唯一扩展 manifest；源码、资源、构建脚本和 VSIX 入口同步上移，删除单成员 workspace 与重复配置。
-- 三个一级 Block 固定为“工具栏”“工作目录与 Ignore”“当前工具”，均可独立折叠；当前工具保留独立关闭与内部滚动，Primary 页面不整体滚动。
+- 三个一级 Block 固定为“工具栏”“目录”“当前工具”；工具栏与当前工具可独立折叠，目录固定单行；当前工具保留独立关闭与内部滚动，Primary 页面不整体滚动。
 - Ribbon 支持 Code/CAD 筛选、显示密度、固定、整行拖动和上下排序；菜单在极窄侧栏内可滚动、可键盘操作并持久化，不再把模块和布局入口放入 View Header。
 - 搜索替换采用紧凑双行界面，搜索可独立执行，替换内容为空时禁止写盘；共享工作目录覆盖当前目录、一级子目录、多根工作区和外部目录。
 - Git 简报保留完整 commit 正文与空行；更多 commit 默认懒加载，每次展开追加一条并保留显式分页。

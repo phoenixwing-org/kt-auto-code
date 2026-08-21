@@ -1,5 +1,12 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { execFile as execFileCallback } from "node:child_process";
+import { promisify } from "node:util";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
 import { KtcGitWingAdapter, type KtcPnwGitCommitSummary } from "./KtcGitWingAdapter.js";
+
+const execFile = promisify(execFileCallback);
 
 const commit: KtcPnwGitCommitSummary = {
   oid: "b245527fa4941655222c420df565cb59d70c5d83",
@@ -29,7 +36,7 @@ const expectedMessage = [
 ].join("\n");
 
 describe("KtcGitWingAdapter commit 简报", () => {
-  it("兼容已发布 Wing 并保留 subject 与 body 之间的空行和全部正文", () => {
+  it("直接消费已发布 Wing formatter，并保留 subject 与 body 之间的空行和全部正文", () => {
     const result = new KtcGitWingAdapter().formatGroupSummaries({
       repositoryName: "phoenix-open-issue",
       upstream: "origin/develop",
@@ -59,4 +66,65 @@ describe("KtcGitWingAdapter commit 简报", () => {
     ].join("\n"));
     expect(result.text.match(/统一根工作区/gu)).toHaveLength(1);
   });
+});
+
+describe("KtcGitWingAdapter 本地 Wing 提交图联调", () => {
+  it.skipIf(process.env.PHOENIX_WING_DEV_MODE !== "1")(
+    "以不透明 cursor 分页，显示 merge/tag，并拒绝已变化的 HEAD",
+    async () => {
+      const root = await mkdtemp(join(tmpdir(), "ktc-git-graph-"));
+      const git = async (...args: readonly string[]) => execFile("git", args, { cwd: root });
+      try {
+        await git("init", "-b", "main");
+        await git("config", "user.name", "KT Auto Test");
+        await git("config", "user.email", "auto-test@example.invalid");
+        await writeFile(join(root, "base.txt"), "base\n");
+        await git("add", ".");
+        await git("commit", "-m", "base");
+        await git("checkout", "-b", "topic");
+        await writeFile(join(root, "topic.txt"), "topic\n");
+        await git("add", ".");
+        await git("commit", "-m", "topic commit");
+        await git("checkout", "main");
+        await writeFile(join(root, "main.txt"), "main\n");
+        await git("add", ".");
+        await git("commit", "-m", "main commit");
+        await git("merge", "--no-ff", "topic", "-m", "merge topic");
+        await git("tag", "v0.1.0");
+
+        const adapter = new KtcGitWingAdapter();
+        const first = await adapter.readCommitGraphPage(root, {
+          limit: 2,
+          refsScope: "local-branches-and-tags",
+        });
+
+        expect(first.commits).toHaveLength(2);
+        expect(first.graphRows).toHaveLength(2);
+        expect(first.commits[0]?.parentOids).toHaveLength(2);
+        expect(first.commits[0]?.decorations.some((item) => item.kind === "tag")).toBe(true);
+        expect(first.nextBeforeCursor).toEqual(expect.any(String));
+
+        const next = await adapter.readCommitGraphPage(root, {
+          expectedHeadOid: first.headOid,
+          beforeCursor: first.nextBeforeCursor,
+          limit: 1,
+          refsScope: "local-branches-and-tags",
+        });
+        expect(next.commits).toHaveLength(1);
+        expect(next.commits[0]?.oid).not.toBe(first.commits[0]?.oid);
+
+        await writeFile(join(root, "head-changed.txt"), "new head\n");
+        await git("add", ".");
+        await git("commit", "-m", "change head");
+        await expect(adapter.readCommitGraphPage(root, {
+          expectedHeadOid: first.headOid,
+          beforeCursor: first.nextBeforeCursor,
+          limit: 1,
+          refsScope: "local-branches-and-tags",
+        })).rejects.toThrow();
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
 });

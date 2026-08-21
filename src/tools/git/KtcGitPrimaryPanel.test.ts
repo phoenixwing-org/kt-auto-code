@@ -2,8 +2,9 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("Git Primary panel", () => {
-  it("提供简报编辑复制、安全合并编辑和撤销入口", () => {
+  it("提供简报编辑复制、提交图合并入口和撤销入口", () => {
     const source = readFileSync(new URL("./KtcGitPrimaryPanel.ts", import.meta.url), "utf8");
+    const entrySource = readFileSync(new URL("./KtcGitPrimaryPanelEntry.ts", import.meta.url), "utf8");
     expect(source).toContain('KtcGitPrimaryPanelTag = "ktc-git-primary-panel"');
     expect(source).toContain('Object.prototype.hasOwnProperty.call(this, "model")');
     expect(source).toContain("delete holder.model");
@@ -38,7 +39,7 @@ describe("Git Primary panel", () => {
     expect(source).toContain('reviewer.onCommit(regenerate)');
     expect(source).not.toContain('document.createElement("datalist")');
     expect(source).toContain('action: "updateSummaryOptions"');
-    expect(source).toContain('execute.textContent = "确认并执行"');
+    expect(source).not.toContain("KtcSquashEditor");
     expect(source).toContain('undo.textContent = "撤销"');
     expect(source).toContain('historyTitle.textContent = `更多 commit（已加载 ${Math.max(0, project.commits.length - 1)}）`');
     expect(source).toContain("private readonly KtcHistoryAutoLoadHeads");
@@ -47,16 +48,19 @@ describe("Git Primary panel", () => {
     expect(source).toContain("count: 1");
     expect(source).toContain('action: "loadOlderCommits"');
     expect(source).toContain('[["下一条", 1], ["下 5 条", 5]]');
-    expect(source).toContain('squashTitle.textContent = "合并本地 commit（高级）"');
+    expect(source).toContain('document.createElement("pnw-navigation-tree")');
+    expect(entrySource).toContain('import { pnwCodeDefineNavigationTree } from "@phoenix-wing/code-core/ui"');
+    expect(entrySource).toContain("pnwCodeDefineNavigationTree()");
+    expect(source).toContain('ariaLabel: "Git 工具操作"');
+    expect(source).toContain('label: "Git 操作"');
+    expect(source).toContain('label: "打开源代码管理"');
+    expect(source).toContain('label: "查看 Git 日志"');
+    expect(source).toContain('tree.model = { ...tree.model!, expandedNodeIds: [...this.KtcExpandedGitActionNodes] };');
+    expect(source).toContain('this.KtcEmit({ action: "openAction", actionId, repositoryId: project.repository.id })');
     expect(source).toContain('this.KtcToolbarButton("＋", "添加 Git 仓库", "addRepository")');
     expect(source).toContain("project.repository.id === model.selectedRepositoryId");
     expect(source).toContain("if (selectedProject) projects.append(this.KtcProject(selectedProject))");
     expect(source).not.toContain("for (const project of model.projects) projects.append(this.KtcProject(project))");
-    expect(source).toContain('`Base parent: ${draft.baseParentOid}`');
-    expect(source).toContain('`最终保留 tree: ${draft.finalTreeOid}`');
-    expect(source).toContain('后续重放（old SHA → 执行时生成 new SHA）');
-    expect(source).toContain("默认取所选最新提交");
-    expect(source).toContain("按本机时区保存");
     expect(source).toContain("border-color: var(--ktc-ui-active-border");
     expect(source).toContain("box-shadow: inset 0 0 0 1px var(--ktc-ui-active-border");
     expect(source).toContain("overflow-x: hidden");
@@ -113,6 +117,20 @@ describe("Git Primary panel", () => {
     expect(controller).toContain("selectedRepositoryId: this.KtcSelectedRepositoryId");
     expect(controller).toContain("this.KtcAdapter.readRepositorySummary(directory.root, 1, true, cancellation.signal)");
     expect(controller).toContain("this.KtcAdapter.readCommitPage(");
+    expect(controller).toContain("this.KtcAdapter.readCommitGraphPage(");
+    expect(controller).toContain('limit: 5');
+    expect(controller).toContain('refsScope: KtcPnwGitCommitGraphRefsScope = "local-branches"');
+    expect(controller).toContain("refsScope,");
+    expect(controller).toContain("beforeCursor: graph.nextBeforeCursor");
+    expect(controller).toContain("KtcGraphSelectedOids(graph, message.selectedOids)");
+    expect(controller).toContain("KtcReloadSquashViewAfterStale(repositoryId, graph.refsScope, ctx)");
+    expect(controller).toContain("旧 cursor 或预检快照失效时，丢弃选择并重新读取轻量首屏");
+    expect(controller).toContain("this.KtcSquashView?.show({");
+    expect(controller).not.toContain("showQuickPick(picks");
+    expect(controller).toContain('this.KtcShowTransientSummaryStatus("Git commit 简报已生成并复制。")');
+    expect(controller).toContain('this.KtcShowTransientSummaryStatus("Git commit 群消息简报已复制。")');
+    expect(controller).toContain("vscode.window.setStatusBarMessage(message, 4_000)");
+    expect(controller).not.toContain('showInformationMessage("Git commit 简报已生成并复制。")');
     expect(controller).toContain("KtcSearchWorkspaceGitRepositories(");
     expect(controller).toContain("await api.init(folder.uri)");
     expect(controller).toContain("private KtcLastRunContext: ToolRunContext | undefined");

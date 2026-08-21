@@ -25,15 +25,19 @@ export interface KtcRibbonLayoutMutationResult {
 }
 
 export const KTC_DEFAULT_CODE_RIBBON_TOOL_IDS = Object.freeze([
+  "codeAssistant",
+  "git",
+  "run",
   "codeRename",
   "codegen",
-  "reorderMembers",
-  "run",
-  "git",
-  "uuidReplace",
-  "headerAscii",
-  "encodingFix",
 ] as const);
+
+/**
+ * These tools were introduced after the first Ribbon release but are part of
+ * the approved default workflow.  They are inserted once for older saved
+ * layouts; after that, the user's pin choice remains authoritative.
+ */
+const KTC_CODE_RIBBON_UPGRADE_PINNED_TOOL_IDS = new Set<string>(["codeAssistant"]);
 
 interface NormalizedTool {
   readonly id: string;
@@ -47,6 +51,8 @@ interface NormalizedTool {
  * intentional (the user may have unpinned everything), so it is not treated as
  * first run. Optional modules are pinned when their first tool IDs appear; a new
  * tool added later to an already-known module is only appended to the order.
+ * A small explicit migration list covers approved default workflow entries
+ * introduced after the Ribbon was already persisted.
  */
 export function ktcNormalizeRibbonLayout(
   toolsInput: readonly KtcRibbonLayoutTool[],
@@ -69,9 +75,19 @@ export function ktcNormalizeRibbonLayout(
     ...KTC_DEFAULT_CODE_RIBBON_TOOL_IDS.filter((id) => available.has(id)),
     ...catalogOrder.filter((id) => !defaultCodeTools.has(id)),
   ];
-  const toolOrder = value
+  const introducedUpgradePinnedToolIds = new Set(
+    value
+      ? [...KTC_CODE_RIBBON_UPGRADE_PINNED_TOOL_IDS].filter(
+        (id) => available.has(id) && !knownToolIds.has(id),
+      )
+      : [],
+  );
+  let toolOrder = value
     ? [...persistedOrder, ...catalogOrder.filter((id) => !knownToolIds.has(id))]
     : defaultOrder;
+  if (introducedUpgradePinnedToolIds.has("codeAssistant")) {
+    toolOrder = insertCodeAssistantAtDefaultPosition(toolOrder);
+  }
 
   const pinned = new Set(persistedPinned);
   if (!value) {
@@ -82,12 +98,21 @@ export function ktcNormalizeRibbonLayout(
     for (const tool of tools) {
       if (tool.moduleId !== "code" && !knownOptionalModules.has(tool.moduleId)) pinned.add(tool.id);
     }
+    for (const toolId of introducedUpgradePinnedToolIds) pinned.add(toolId);
   }
 
   return {
     pinnedToolIds: toolOrder.filter((id) => pinned.has(id)),
     toolOrder,
   };
+}
+
+function insertCodeAssistantAtDefaultPosition(toolOrder: readonly string[]): string[] {
+  const next = toolOrder.filter((id) => id !== "codeAssistant");
+  const runIndex = next.indexOf("run");
+  const insertionIndex = runIndex >= 0 ? runIndex : next.length;
+  next.splice(insertionIndex, 0, "codeAssistant");
+  return next;
 }
 
 export function ktcToggleRibbonToolPin(
@@ -109,6 +134,32 @@ export function ktcToggleRibbonToolPin(
       toolOrder: [...layout.toolOrder],
     },
     changed: true,
+  };
+}
+
+/** Resets only Code's ribbon order and pinned tools, leaving other modules untouched. */
+export function ktcResetCodeRibbonLayout(
+  layoutInput: KtcRibbonLayoutV1,
+  toolsInput: readonly KtcRibbonLayoutTool[],
+): KtcRibbonLayoutV1 {
+  const tools = normalizeTools(toolsInput);
+  const layout = ktcNormalizeRibbonLayout(tools, layoutInput);
+  const codeTools = tools.filter((tool) => tool.moduleId === "code");
+  const codeIds = new Set(codeTools.map((tool) => tool.id));
+  const codeDefaultIds = KTC_DEFAULT_CODE_RIBBON_TOOL_IDS.filter((id) => codeIds.has(id));
+  const codeDefaultIdSet = new Set<string>(codeDefaultIds);
+  const resetCodeOrder = [
+    ...codeDefaultIds,
+    ...codeTools.map((tool) => tool.id).filter((id) => !codeDefaultIdSet.has(id)),
+  ];
+  const retainedOrder = layout.toolOrder.filter((id) => !codeIds.has(id));
+  const retainedPinned = new Set(layout.pinnedToolIds.filter((id) => !codeIds.has(id)));
+  return {
+    toolOrder: [...resetCodeOrder, ...retainedOrder],
+    pinnedToolIds: [
+      ...resetCodeOrder.filter((id) => codeDefaultIdSet.has(id)),
+      ...retainedOrder.filter((id) => retainedPinned.has(id)),
+    ],
   };
 }
 

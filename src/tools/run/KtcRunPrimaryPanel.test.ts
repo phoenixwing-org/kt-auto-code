@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
 describe("Run Primary panel", () => {
-  it("保持功能目录、连续名称路径布局并提供执行/停止/版本动作", () => {
+  it("以 VS Code 风格 Tree 呈现目标，保持连续名称路径与执行/停止/版本动作", () => {
     const source = readFileSync(new URL("./KtcRunPrimaryPanel.ts", import.meta.url), "utf8");
+    const entrySource = readFileSync(new URL("./KtcRunPrimaryPanelEntry.ts", import.meta.url), "utf8");
     const controllerSource = readFileSync(new URL("./KtcRunController.ts", import.meta.url), "utf8");
     const modelSource = readFileSync(new URL("../../core/run/KtcRunModel.ts", import.meta.url), "utf8");
     const manifest = JSON.parse(readFileSync(new URL("../../../package.json", import.meta.url), "utf8")) as {
@@ -14,11 +15,33 @@ describe("Run Primary panel", () => {
     expect(modelSource).toContain('title: "Tasks"');
     expect(modelSource).toContain('title: "自定义"');
     expect(modelSource).toContain('title: "内置"');
-    expect(source).toContain('className = "target-label ktc-compact-label"');
     expect(source).toContain("KtcCompactManagerLabelStyle + KtcRunPrimaryPanelStyle");
-    expect(source).not.toContain(".target-name { flex:");
-    expect(source).toContain('targetPath.textContent = ` · ${target.relativePath}`');
     expect(source).toContain('className = "badge-tail"');
+    expect(source).toContain('document.createElement("pnw-navigation-tree")');
+    expect(entrySource).toContain('import { pnwCodeDefineNavigationTree } from "@phoenix-wing/code-core/ui"');
+    expect(entrySource).toContain("pnwCodeDefineNavigationTree()");
+    expect(source).toContain('ariaLabel: "运行目标树"');
+    expect(source).toContain("private readonly expandedNodeIds");
+    expect(source).toContain("private readonly groupIdsByProjectNodeId");
+    expect(source).toContain('"pnw-navigation-tree-action"');
+    expect(source).toContain("this.handleTreeAction");
+    expect(source).toContain("this.expandProjectWithGroups(projectId)");
+    expect(source).toContain("select + 唯一 toggle");
+    expect(source).toContain("展开状态只由上面的标准 toggle 事件回写");
+    expect(source).not.toContain("expandableNodeIds");
+    expect(source).not.toContain("isDuplicateRowToggle");
+    expect(source).toContain("projectNode(project, index)");
+    expect(source).toContain("targetNode(project, target)");
+    expect(source).toContain("selectedNodeId: this.selectedNodeId");
+    expect(source).toContain("单击即直接调用 Host runner");
+    expect(source).toContain("this.runSelectedTarget();");
+    expect(source).not.toContain('className = "selection-action primary"');
+    expect(source).not.toContain("进入确认流程");
+    expect(source).toContain('label: "运行辅助"');
+    expect(source).toContain('"openTerminal"');
+    expect(source).toContain('"openProblems"');
+    expect(source).toContain('"openOutput"');
+    expect(source).not.toContain('document.createElement("details")');
     expect(source).toContain('"ktc-run-primary-action"');
     expect(source).toContain('action: "runTarget"');
     expect(source).toContain('action: "dryRunTarget"');
@@ -26,15 +49,12 @@ describe("Run Primary panel", () => {
     expect(source).toContain('action: "setCaaVersion"');
     expect(source).toContain('action: "selectCaaRelated"');
     expect(source).toContain('action: "addCaaRelatedFolder"');
-    expect(source).toContain("box-shadow: inset 0 0 0 1px var(--ktc-ui-active-border");
     expect(source).toContain('target.availability === "other-platform"');
-    expect(source).toContain('? "试运行"');
-    expect(source).toContain('.target-row:hover .target-action');
-    expect(source).toContain('.target-row:focus-within .source-button');
-    expect(source).toContain('details.open = project.groups.some((group) => group.targets.length > 0)');
-    expect(source).toContain('details.open = visible.length > 0');
-    expect(source).toContain('if (visible.length === 0) return undefined');
+    expect(source).toContain('else if (target.availability === "other-platform")');
     expect(controllerSource).toContain('[Run][trial] execute=false');
+    expect(controllerSource).toContain('[Run][execute] target=${record.id} confirmation=skipped');
+    expect(controllerSource).not.toContain('运行“${record.target.label}”？');
+    expect(controllerSource).not.toContain('"确认运行"');
     expect(controllerSource).toContain('[Run][trial] command=');
     expect(controllerSource).toContain('plannedPlatform=${plannedPlatform}');
     expect(controllerSource).toContain('function KtcRunLogArgument');

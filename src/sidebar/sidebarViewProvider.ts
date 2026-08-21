@@ -10,6 +10,8 @@ import type {
   ToolRunContext,
   ToolSummary,
   ToolUiState,
+  KtcCodeAssistantFeatureId,
+  KtcCodeAssistantTreeUiState,
   WebviewInboundMessage,
 } from "../tools/types.js";
 import { setHeaderAsciiRunContextFactory } from "../tools/headerAscii/index.js";
@@ -45,6 +47,7 @@ import { ktcActivateToolBlock, ktcCloseToolBlock } from "./toolBlockHistory.js";
 import {
   ktcMoveRibbonTool,
   ktcNormalizeRibbonLayout,
+  ktcResetCodeRibbonLayout,
   ktcToggleRibbonToolPin,
   type KtcRibbonLayoutV1,
   type KtcRibbonLayoutTool,
@@ -72,8 +75,17 @@ import type {
 
 const MODULE_STATE_KEY = "ktAutoCode.modules.v1";
 const RIBBON_LAYOUT_STATE_KEY = "ktAutoCode.ribbonLayout.v1";
+const CODE_ASSISTANT_TREE_UI_STATE_KEY = "ktAutoCode.codeAssistant.treeUi.v1";
 const WORKING_DIRECTORY_STATE_KEY = "ktAutoCode.workingContext.directory.v1";
 const PLUGIN_IGNORE_STATE_KEY = "ktAutoCode.workingContext.pluginIgnoreEnabled.v1";
+const DEFAULT_CODE_ASSISTANT_TREE_UI_STATE: KtcCodeAssistantTreeUiState = Object.freeze({
+  treeExpanded: true,
+  cppOrganizeExpanded: true,
+  fileToolsExpanded: true,
+  caaExpanded: true,
+  reorderActionsExpanded: true,
+  reorderResultsExpanded: true,
+});
 const REPOSITORY_URL = "https://gitee.com/phoenixwing/kt-auto-code";
 const QUICK_START_URL = `${REPOSITORY_URL}/blob/develop/README.md#%E4%BD%BF%E7%94%A8`;
 
@@ -115,11 +127,35 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#39;");
 }
 
+function normalizeCodeAssistantTreeUiState(value: unknown): KtcCodeAssistantTreeUiState {
+  if (!value || typeof value !== "object") return { ...DEFAULT_CODE_ASSISTANT_TREE_UI_STATE };
+  const candidate = value as Partial<KtcCodeAssistantTreeUiState>;
+  return {
+    treeExpanded: candidate.treeExpanded !== false,
+    cppOrganizeExpanded: candidate.cppOrganizeExpanded !== false,
+    fileToolsExpanded: candidate.fileToolsExpanded !== false,
+    caaExpanded: candidate.caaExpanded !== false,
+    reorderActionsExpanded: candidate.reorderActionsExpanded !== false,
+    reorderResultsExpanded: candidate.reorderResultsExpanded !== false,
+  };
+}
+
+function isCodeAssistantFeatureId(value: string): value is KtcCodeAssistantFeatureId {
+  return value === "packageIncludes"
+    || value === "reorderMembers"
+    || value === "headerAscii"
+    || value === "encodingFix"
+    || value === "uuidReplace"
+    || value === "caaDialog";
+}
+
 export class SidebarViewProvider implements vscode.WebviewViewProvider {
   public static readonly moduleViewType = "ktAutoCode.modulePanel";
 
   private moduleView?: vscode.WebviewView;
   private activeToolId = "headerAscii";
+  private codeAssistantFeatureId: KtcCodeAssistantFeatureId | undefined;
+  private codeAssistantTreeUiState: KtcCodeAssistantTreeUiState;
   private openToolIds: string[] = [];
   private toolStates = new Map<string, ToolUiState>();
   private readonly searchReplaceProfiles = new KtcSearchReplaceProfileController();
@@ -140,6 +176,9 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     this.moduleState = ktcCreateModuleState(
       installed,
       globalState.get<KtcPersistedModuleState>(MODULE_STATE_KEY),
+    );
+    this.codeAssistantTreeUiState = normalizeCodeAssistantTreeUiState(
+      globalState.get<unknown>(CODE_ASSISTANT_TREE_UI_STATE_KEY),
     );
     this.recentExternalDirectories = new KtcRecentWorkingDirectoryStore(globalState);
     this.recentWorkspaceDirectories = new KtcRecentWorkspaceDirectoryStore(workspaceState);
@@ -248,14 +287,28 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
   /** Opens the tool interface block; results are rendered in the same block. */
   async showTool(toolId: string): Promise<void> {
-    const tool = getTool(toolId);
+    // Ignore 管理已成为统一“设置”的首个内部区；保留旧命令/消息入口的兼容路由。
+    const requestedToolId = toolId === "ignoreSettings" ? "environmentSettings" : toolId;
+    const requestedTool = getTool(requestedToolId);
+    if (!requestedTool) return;
+    const codeAssistantFeatureId = isCodeAssistantFeatureId(requestedToolId) ? requestedToolId : undefined;
+    const visibleToolId = codeAssistantFeatureId ? "codeAssistant" : requestedToolId;
+    const tool = getTool(visibleToolId);
     if (!tool) return;
-    if (this.isToolBlockVisible(toolId)) return;
+    const codeAssistantFeatureChanged = this.codeAssistantFeatureId !== codeAssistantFeatureId;
+    this.codeAssistantFeatureId = codeAssistantFeatureId;
+    if (this.isToolBlockVisible(visibleToolId)) {
+      if (codeAssistantFeatureChanged && this.moduleView) await this.sendInit(this.moduleView);
+      if (requestedToolId === "environmentSettings") await requestedTool.runAction("refresh", this.createRunContext(requestedToolId));
+      if (requestedToolId === "caaDialog") await requestedTool.runAction("checkConnection", this.createRunContext(requestedToolId));
+      if (requestedTool.onDidShow) await requestedTool.onDidShow(this.createRunContext(requestedToolId));
+      return;
+    }
     await this.activateModule("code");
-    this.activeToolId = toolId;
-    this.openToolIds = ktcActivateToolBlock(this.openToolIds, toolId);
+    this.activeToolId = visibleToolId;
+    this.openToolIds = ktcActivateToolBlock(this.openToolIds, visibleToolId);
     ktcActivateResultAccordion(SidebarViewProvider.moduleViewType);
-    await this.setModulePanelContext(true, toolId);
+    await this.setModulePanelContext(true, visibleToolId);
     await vscode.commands.executeCommand("workbench.view.extension.kt-auto-code");
     if (this.moduleView) {
       this.moduleView.title = "工具栏";
@@ -264,10 +317,10 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     } else {
       try { await vscode.commands.executeCommand(`${SidebarViewProvider.moduleViewType}.focus`); } catch { /* view resolves lazily */ }
     }
-    if (toolId === "environmentSettings") await tool.runAction("refresh", this.createRunContext(toolId));
-    if (toolId === "caaDialog") await tool.runAction("checkConnection", this.createRunContext(toolId));
-    if (toolId === "codegen") await tool.runAction("activate", this.createRunContext(toolId));
-    if (tool.onDidShow) await tool.onDidShow(this.createRunContext(toolId));
+    if (requestedToolId === "environmentSettings") await requestedTool.runAction("refresh", this.createRunContext(requestedToolId));
+    if (requestedToolId === "caaDialog") await requestedTool.runAction("checkConnection", this.createRunContext(requestedToolId));
+    if (requestedToolId === "codegen") await requestedTool.runAction("activate", this.createRunContext(requestedToolId));
+    if (requestedTool.onDidShow) await requestedTool.onDidShow(this.createRunContext(requestedToolId));
   }
 
   /** Opens one optional-module tool in the shared Block history. */
@@ -308,6 +361,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   }
 
   async closeToolBlock(toolId = this.activeToolId): Promise<KtcToolBlockState> {
+    if (toolId === "codeAssistant") this.codeAssistantFeatureId = undefined;
     const closed = ktcCloseToolBlock(this.openToolIds, toolId);
     this.openToolIds = [...closed.openToolIds];
     if (closed.nextToolId) {
@@ -420,6 +474,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
         title: model.summary.title,
         description: model.summary.description,
         icon,
+        ribbonVisible: model.summary.ribbonVisible ?? t.ribbonVisible,
         moduleId: "code" as const,
         moduleTitle: "Code",
       };
@@ -442,7 +497,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     }
 
     const profileSnapshot = this.searchReplaceProfiles.snapshot(getWorkspaceRoot());
-    const ribbonLayout = await this.getRibbonLayout(tools);
+    const ribbonLayout = await this.getRibbonLayout(this.getRibbonLayoutTools());
     const workingContext = this.getWorkingContext();
     target.title = "工具栏";
     postToWebview(target, {
@@ -450,6 +505,8 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       tools,
       activeToolId: this.activeToolId,
       openToolIds: this.openToolIds,
+      codeAssistantFeature: this.codeAssistantFeatureId,
+      codeAssistantTreeUiState: this.codeAssistantTreeUiState,
       workspaceLabel: getWorkspaceLabel(),
       scope: getFileScope(),
       ignoreConfig: ktcIgnoreController.snapshot(workingContext.resolvedDirectory),
@@ -480,6 +537,20 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   private async onMessage(message: WebviewInboundMessage, source: vscode.WebviewView): Promise<void> {
     if (message.type === "ready") {
       source.title = "工具栏";
+      await this.sendInit(source);
+      return;
+    }
+
+    if (message.type === "setCodeAssistantTreeUiState") {
+      this.codeAssistantTreeUiState = normalizeCodeAssistantTreeUiState(message.state);
+      await this.globalState.update(CODE_ASSISTANT_TREE_UI_STATE_KEY, this.codeAssistantTreeUiState);
+      return;
+    }
+
+    if (message.type === "clearReorderMembersSession") {
+      const tool = getTool(message.toolId);
+      if (tool) await tool.handleMessage(message, this.createRunContext(message.toolId, source));
+      this.codeAssistantFeatureId = undefined;
       await this.sendInit(source);
       return;
     }
@@ -547,6 +618,15 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       const result = ktcToggleRibbonToolPin(current, tools, message.toolId);
       if (result.changed) await this.persistRibbonLayout(result.layout);
       this.postToViews({ type: "ribbonLayout", layout: result.layout });
+      return;
+    }
+
+    if (message.type === "resetCodeRibbonLayout") {
+      const tools = this.getRibbonLayoutTools();
+      const current = await this.getRibbonLayout(tools);
+      const reset = ktcResetCodeRibbonLayout(current, tools);
+      await this.persistRibbonLayout(reset);
+      this.postToViews({ type: "ribbonLayout", layout: reset });
       return;
     }
 
@@ -658,6 +738,13 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
     if (message.type === "selectTool") {
       await this.showTool(message.toolId);
+      return;
+    }
+
+    if (message.type === "openCodeAssistantFeature") {
+      this.codeAssistantFeatureId = message.feature;
+      await this.sendInit(source);
+      await vscode.commands.executeCommand("ktAutoCode.codeAssistant.packageIncludes");
       return;
     }
 
@@ -991,7 +1078,9 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
   private getRibbonLayoutTools(): KtcRibbonLayoutTool[] {
     return [
-      ...getTools().map((tool) => ({ id: tool.id, moduleId: "code" as const })),
+      ...getTools()
+        .filter((tool) => tool.ribbonVisible !== false)
+        .map((tool) => ({ id: tool.id, moduleId: "code" as const })),
       ...this.getInstalledModuleContributions().flatMap(({ contribution }) => (
         contribution.tools.map((tool) => ({ id: tool.id, moduleId: tool.moduleId }))
       )),

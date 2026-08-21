@@ -12,8 +12,8 @@ Owner：KT Auto Code maintainers
 
 ## 当前推荐结论
 
-- Git 先作为 **Code 模块的最后一个 Ribbon 工具**，排在 CAA UI 后面。
-- 点击 Git 只打开共享 Primary 中的一个 Git Block；不创建编辑器 View、TreeView、WebviewPanel 或第二套结果页。
+- Git 作为 Code 模块中的工具入口；Primary 保持轻量摘要和 Git 操作 Tree。
+- 高频“群消息简报”仍在共享 Primary 内完成；低频且有较大内容密度的“合并本地 commit”在编辑器区打开唯一的只读提交图/合并 View。
 - 暂不新增独立 Git 模块，也不新增“配置模块”。V1 的少量选项放在 Git Block 内，并让生成结果可编辑。
 - “不新增独立 Git 模块”只指 Auto Code 顶层 UI；共享算法与 Git CLI 从第一阶段就在 Phoenix Wing 建立 `git-core` / `git-node` 领域包，Auto Code 不保留第二套实现。
 - 不复制 Desk Tools 的 Git Page、暂存区、文件 Diff、侧栏提交框或 HTTP API。Auto Code 只处理本计划的两项能力。
@@ -48,7 +48,28 @@ Owner：KT Auto Code maintainers
 - 已存在于 remote 的提交允许经明确确认后仅改写当前本地分支；删除旧远端分支或后续 force push 由用户自行处理，插件不自动执行。
 - 是否需要支持带 GPG/SSH 签名或 merge parent 的提交；V1 推荐拒绝，避免静默丢失签名或改变拓扑语义。
 
-## 2026-07-29 性能改进
+## 2026-08-21：提交图与合并 View
+
+合并是低频、高风险操作，不能再把完整选择、预检和身份编辑器挤在 Primary。现在由 Primary 的 `Git 操作` Tree 负责入口，点击“合并本地未发布 commit”后只在编辑器右侧打开一个单例 View：再次点击复用同一个 View，不产生多个 Tab。
+
+- 首屏调用 Wing `pnwReadGitCommitGraphPage`，只读取所选本地分支图的最近 **5** 条；不读 status、remote、全部 refs 或完整历史。
+- “下一条”和“下 5 条”使用 Wing 返回的**不透明 cursor**继续分页，并携带首屏 `expectedHeadOid`；Auto 不解析、拼接或用 OID 重建 cursor。
+- 提交图按拓扑顺序绘制 Wing 提供的 lane/parent edge；本地分支和标签仅以 decoration 显示。切换“本地分支 / 本地分支和标签”会重新开始一份只读图，不会 checkout、移动 ref 或切换工作分支。
+- 用户至少选择 2 条后才执行一次完整 Wing squash 安全预检。预检继续负责连续区间、HEAD、工作区、受影响引用、签名和 replay 等硬安全判断；图仅用于浏览和选择。
+- HEAD/仓库根在分页或预检期间变化时，旧图会失效并刷新当前仓库；切换仓库、关闭提交图 View 或合并成功均释放已加载图和草稿，避免保留不再需要的内存。
+
+正式 `package.json` 与 lockfile 已精确升级到已发布的 `@phoenix-wing/git-core` / `git-node` `0.6.4`。并列 `../phoenix-wing` 只用于后续候选本地联调；Registry 构建不读取本地 Wing。
+
+### 提交图点检
+
+1. 打开 Git，确认首条简报仍自动生成并复制一次；同一 HEAD 不重复覆盖编辑中的简报。
+2. 点击 Git 操作 Tree 的“合并本地未发布 commit”，确认右侧只出现一个 View，首屏为 5 条或更少的本地分支提交图。
+3. 在含 merge 的测试仓库确认车道连线、分支 decoration；切换标签范围后确认 tag decoration 出现且未切换分支。
+4. 分别点击“下一条”“下 5 条”，确认只追加相应条数；新建 commit 后再次分页，确认旧图被拒绝并刷新，而不是使用旧 cursor 写入。
+5. 选择连续普通 commit 后预检，确认身份/时间/提交说明可编辑；选择不连续、merge 或受保护引用范围时确认只显示阻断，不写工作树。
+6. 关闭提交图 View、切换仓库或执行成功后重新打开，确认从最近 5 条重新读取，旧选择和草稿不保留；任何路径均不自动 push。
+
+## 2026-07-29 性能改进（历史：简报列表）
 
 实际使用频率已经确认：**获得当前仓库最新一个节点的群消息简报最高频，多节点合并较少使用**。当前打开 Git 时对全部候选仓库各预取 200 条 commit，再由界面只显示 20 条，加载成本与使用频率不匹配。
 
@@ -62,12 +83,11 @@ Auto 侧已按“最新简报 → 默认收缩的更多 commit → 点击后才�
 
 与“改名”功能可以选择其他目录相同，当前工作区不是 Git 功能的硬边界。用户显式选择并校验工作区外 Git 根后，可以在该仓库生成简报或合并提交；合并确认必须突出“工作区外仓库”、完整路径、分支与改写数量，执行期间不得随活动编辑器切换仓库。
 
-## TODO：Wing 完整正文修复发布后的简化
+## 2026-08-21：Wing Registry 消费收口
 
-已发布的 Wing 0.6.2 只格式化 commit `subject`，因此 Auto 暂时在 `KtcGitWingAdapter` 中补回 `body`，保留标题与正文之间的空行、正文内部列表和全部内容。Wing 源头修复及权威单测已进入 0.6.3 候选，但尚未发布。
+正式 Registry 的 Wing `git-core` / `git-node` `0.6.4` 已包含完整正文 formatter 与提交图分页 API。Auto 直接消费 formatter，保留标题与正文之间的空行、正文内部列表和全部内容，不再补写 `body`；Registry manifest/lockfile 不含本地路径、link、file 或 override。
 
-- [ ] Wing 下一 patch 公开发布后，精确升级 Auto 的 Wing manifest 与 lockfile。
-- [ ] 用 Open Issue 0.7.0 多行 commit 样例同时验证 Registry formatter、Auto 简报和剪贴板文本。
-- [ ] 确认正文只出现一次且空行保留后，删除 `KtcIncludeCommitBody` 兼容函数。
-- [ ] 接入 Wing 0.6.3 的懒历史公共状态机，保持“每次折叠后重新展开追加 1 条”，再删除 Panel 内的临时展开请求去重状态。
-- [ ] 保留 Auto 消费级单测，防止未来 Wing 或 Host adapter 再次只输出 subject。
+- [x] Wing 公开发布包含正文格式化和提交图 API 的版本后，按实际被消费的包精确升级 Auto manifest 与 lockfile。
+- [x] 用 Open Issue 0.7.0 多行 commit 样例验证 Registry formatter、Auto 简报与剪贴板文本；正文仅出现一次、空行完整保留，已删除 `KtcIncludeCommitBody` 兼容函数。
+- [x] 删除 `src/wingGitGraph.local.d.ts`，以正式 `@phoenix-wing/git-node` 类型替代候选声明；Registry VSIX 与 Extension Host 门禁继续作为 0.7.0 发布条件。
+- [ ] 保留 Auto 消费级简报和提交图测试，防止未来 Wing 或 Host adapter 再次只输出 subject、解析 cursor 或退化为整仓读取。

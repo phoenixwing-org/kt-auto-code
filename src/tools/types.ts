@@ -63,6 +63,8 @@ export type WebviewInboundMessage =
   | { type: "runModuleTool"; moduleId: KtcModuleId; command: string }
   | { type: "moduleBlockAction"; actionId: string }
   | { type: "selectTool"; toolId: string }
+  | { type: "openCodeAssistantFeature"; feature: "packageIncludes" }
+  | { type: "setCodeAssistantTreeUiState"; state: KtcCodeAssistantTreeUiState }
   | { type: "closeToolBlock" }
   | {
       type: "runAction";
@@ -104,6 +106,7 @@ export type WebviewInboundMessage =
   | { type: "toggleRibbonModule"; moduleId: KtcModuleId }
   | { type: "toggleRibbonDensity" }
   | { type: "toggleRibbonToolPin"; toolId: string }
+  | { type: "resetCodeRibbonLayout" }
   | { type: "moveRibbonTool"; toolId: string; targetToolId: string; placement: "before" | "after" }
   | { type: "selectWorkingDirectory"; directory: string }
   | { type: "pickWorkingDirectory" }
@@ -121,6 +124,7 @@ export type WebviewInboundMessage =
       uris: string[];
     }
   | { type: "reorderSelection"; toolId: "reorderMembers"; uris: string[] }
+  | { type: "clearReorderMembersSession"; toolId: "reorderMembers" }
   | { type: "openIssue"; toolId: string; file: string; line: number }
   | { type: "openEncodingFile"; toolId: string; file: string }
   | { type: "setEncodingDefaultTarget"; toolId: "encodingFix"; target: "utf8" | "gbk" }
@@ -181,6 +185,8 @@ export type WebviewOutboundMessage =
       tools: ToolSummary[];
       activeToolId: string;
       openToolIds: readonly string[];
+      codeAssistantFeature?: KtcCodeAssistantFeatureId;
+      codeAssistantTreeUiState: KtcCodeAssistantTreeUiState;
       workspaceLabel: string;
       scope: { includeHeaders: boolean; includeSource: boolean; includeMarkdown: boolean };
       ignoreConfig?: IgnoreConfigSummary;
@@ -206,7 +212,12 @@ export type WebviewOutboundMessage =
   | { type: "ribbonLayout"; layout: KtcRibbonLayoutV1 }
   | { type: "openRibbonCustomization" }
   | { type: "workingContext"; context: KtcWorkingContext; directories: KtcRecentWorkingDirectories }
-  | { type: "openTools"; activeToolId: string; openToolIds: readonly string[] }
+  | {
+      type: "openTools";
+      activeToolId: string;
+      openToolIds: readonly string[];
+      codeAssistantFeature?: KtcCodeAssistantFeatureId;
+    }
   | { type: "modules"; moduleState: KtcModuleState }
   | { type: "moduleBlock"; moduleId: KtcModuleId; content?: KtcModuleBlockContent }
   | {
@@ -224,6 +235,25 @@ export type WebviewOutboundMessage =
       error?: string;
     }
   | { type: "state"; toolId: string; state: ToolUiState };
+
+export type KtcCodeAssistantFeatureId =
+  | "packageIncludes"
+  | "reorderMembers"
+  | "headerAscii"
+  | "encodingFix"
+  | "uuidReplace"
+  | "caaDialog";
+
+/** 用户级 Tree 展开状态；不属于任何工作区的工程配置。 */
+export interface KtcCodeAssistantTreeUiState {
+  /** 整个功能目录的用户级展开状态；不影响已打开的功能会话。 */
+  treeExpanded: boolean;
+  cppOrganizeExpanded: boolean;
+  fileToolsExpanded: boolean;
+  caaExpanded: boolean;
+  reorderActionsExpanded: boolean;
+  reorderResultsExpanded: boolean;
+}
 
 export interface ToolOptionsState {
   preserveGbk?: boolean;
@@ -247,6 +277,8 @@ export interface ToolSummary {
   title: string;
   description: string;
   icon?: string;
+  /** False keeps a runnable tool out of the first-level Ribbon and its overflow menu. */
+  ribbonVisible?: boolean;
   moduleId?: KtcModuleId;
   moduleTitle?: string;
   command?: string;
@@ -403,6 +435,8 @@ export interface KtTool {
   readonly title: string;
   readonly description: string;
   readonly icon?: string;
+  /** Tool remains command-addressable but is surfaced from a parent feature tree. */
+  readonly ribbonVisible?: boolean;
   registerCommands(context: vscode.ExtensionContext): void;
   onDidShow?(ctx: ToolRunContext): Promise<void> | void;
   getPanelModel(): ToolPanelModel;

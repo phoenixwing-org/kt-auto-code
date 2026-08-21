@@ -114,7 +114,7 @@ Owner：KT Auto Code maintainers
 
 ### 4.1 `KtCore`：CMake C++
 
-参考根：`/Users/kathy/phoenix/PNXCaaStudy/KtCore`
+参考工程：`<CMAKE_PROJECT_ROOT>/KtCore`
 
 发现：
 
@@ -133,7 +133,7 @@ Owner：KT Auto Code maintainers
 
 ### 4.2 `PNXBomAnalysisWsp`：CAA
 
-参考根：`/Users/kathy/phoenix/PNXCaaStudy/PNXBomAnalysisWsp`
+参考工程：`<CAA_PROJECT_ROOT>/PNXBomAnalysisWsp`
 
 发现：
 
@@ -153,7 +153,7 @@ Owner：KT Auto Code maintainers
 
 ### 4.3 `PNXCaaStudy/tools`：共享 runner 脚本
 
-参考根：`/Users/kathy/phoenix/PNXCaaStudy/tools`
+参考目录：`<WORKSPACE_ROOT>/tools`
 
 发现：
 
@@ -335,7 +335,7 @@ node_modules/**
 4. CAA/CMake 内置模板的 project root；
 5. 普通脚本/可执行文件所在目录。
 
-确认框、详情和日志始终显示最终 cwd。路径包含空格、中文、正反斜杠时必须通过参数数组/强引用传递。参考工程中的 `../tools/...` 证明 cwd 不能被“统一改为最外层工作区”或“统一改为脚本目录”。
+预检错误和 `[Run][preflight]` 日志始终显示最终 cwd。路径包含空格、中文、正反斜杠时必须通过参数数组/强引用传递。参考工程中的 `../tools/...` 证明 cwd 不能被“统一改为最外层工作区”或“统一改为脚本目录”。
 
 ## 8. 平台过滤与 macOS 调试
 
@@ -512,7 +512,7 @@ provider 兼容：
 
 - 原生 Task/旧 wrapper 若已固定 `-Workspace`，默认原样执行并只读展示，不能暗中覆盖；
 - 需要改变或传入多项时，选择可安全注入参数的共享脚本或 VSIX/`.phoenix` runner；
-- 展示 provider 与执行 provider 必须分离：关联目录不能把 Tasks 行重分类为内置行；若当前 MK 动作明确需要多项 Preq，点击运行或试运行时才选择 bundled provider，并在确认框和 `[Run][preflight]` / `[Run][trial]` 中明确记录实际来源；
+- 展示 provider 与执行 provider 必须分离：关联目录不能把 Tasks 行重分类为内置行；若当前 MK 动作明确需要多项 Preq，点击运行或试运行时才选择 bundled provider，并在 `[Run][preflight]` / `[Run][trial]` 中明确记录实际来源；
 - 每个 CAA project 的稳定展示不受关联目录数量影响：`tasks.json` 中的 MK/Run 仍属于 Tasks，产品提供的 bundled MK/Run 仍各只有一项；
 - 0.6.0 把选择写入资源作用域 `ktAutoCode.run.caaRelatedProjects`，相对当前 project root 保存；未来 `.phoenix/run-targets.json` 只在复杂目标 schema 获批后承载 target-specific 覆盖；
 - 关联目录变化属于运行指纹变化，必须重新确认并写入 `[Run][preflight]` 脱敏摘要。
@@ -715,6 +715,10 @@ resources/run/
 
 UI 可以借鉴 Task Manager 插件的分组折叠树和 CMake 主要命令列表，但不能复制其独立 `TASK MANAGER: TASKS` View。Auto Code 只在现有 `ktAutoCode.modulePanel` 中渲染一个 Run Web Component。
 
+2026-08-21 起，Run 的“项目 → 分组 → 目标”真实消费 Phoenix Wing 的通用 `<pnw-navigation-tree>`：Auto 只投影 Run DTO、保存受控的展开/选择意图；叶子命令单击直接进入 Host runner，不再维护第二套项目/分组/目标 Tree DOM、箭头、hover、选中或键盘焦点实现。展开状态仍由 Auto 的 `expandedNodeIds` 保存；Wing 对有 children 的整行单击报告标准 `toggle`，Auto 只按该事件回写状态。当前 Primary 在 toggle 后会重建 Tree，浏览器双击的两次物理点击可能分别落到新旧节点；因此接受与 VS Code Tree 一致的“两次单击、两次切换”，不把双击去重作为发布条件。当前正式接入已发布的 `@phoenix-wing/code-core@0.6.4`；Run 的直接 `run-core` / `run-node` Registry 版本为 `0.6.3`。Auto 已删除本地候选类型声明，正在完成 Registry/VSIX 门禁。
+
+视觉参考为 CAA Composer 的原生树：其核心不是卡片或常驻大按钮，而是“少量标题栏动作 → 根分组 → 明确命令叶子”。Run 只借鉴这套信息架构：刷新在顶部，低频 Terminal/Problems/日志变为“运行辅助”分组，工程目标保留在各项目分组下；不复制其 Activity Bar Container、TreeDataProvider 实现或业务命令。
+
 默认 macOS、只看当前系统：
 
 ```text
@@ -751,9 +755,9 @@ PNXBomAnalysisWsp · CAA        当前版本 [19 ▾]
 ▸ 其他来源：mk.ps1 / run.ps1 / 内置 runner
 ```
 
-### 13.1 同一 Block 内的树与可选 Tab
+### 13.1 同一 Block 内的 Wing Navigation Tree
 
-默认使用一棵自定义折叠树，项目下只保留四类分组：
+默认使用一棵受控的 Wing Navigation Tree，项目下只保留四类分组：
 
 | 分组 | 内容 |
 | --- | --- |
@@ -762,32 +766,25 @@ PNXBomAnalysisWsp · CAA        当前版本 [19 ▾]
 | `自定义` | `.phoenix/run-targets.json` 与用户显式固定的脚本/可执行文件 |
 | `内置` | 产品固化的少量目标；每个已识别 CAA project 无条件固定 `MK`（mk/mkmk）和 `Run`（run/CNext） |
 
-项目根存在 `.clang-format` 时，`内置`组再显示一个跨平台 `Clang Format`；不存在时不生成。它使用 VSIX 中的 Node runner 递归处理 C/C++ 文件并跳过构建、生成、依赖与工具目录，项目自己的 `clangfile.ps1` 仍作为独立自定义来源。任一分组在当前平台过滤后为 0 项时不渲染节点；非 0 节点默认展开。
+项目根存在 `.clang-format` 时，`内置`组再显示一个跨平台 `Clang Format`；不存在时不生成。它使用 VSIX 中的 Node runner 递归处理 C/C++ 文件并跳过构建、生成、依赖与工具目录，项目自己的 `clangfile.ps1` 仍作为独立自定义来源。任一分组在当前平台过滤后为 0 项时不投影为节点；首次展开首个有目标的项目及其所有可见目标分组，之后展开状态在本次 Run Panel 生命周期内随模型刷新保留。
 
-所有紧凑管理行统一使用连续的 `文件名 · 相对路径` 标签：名称和路径可以用不同字重/颜色，但必须处在同一个弹性截断容器内，只允许整串在最右端出现一次省略号；状态、matcher、平台与动作按钮位于固定右侧尾部。
+Navigation Tree 每行使用 `label · description`：目标行的 description 包含来源/平台状态与相对路径；长文字由 Wing 在行内统一省略。项目和分组节点整行单击切换折叠；双击按两次物理单击处理，可能切换两次，与 VS Code Tree 的使用习惯一致。展开状态由 Auto 保存，首个项目默认展开且其可见目标分组默认展开。可运行的叶子行单击即启动、跨平台叶子行单击即试运行、运行中的叶子行单击即停止；不在 Tree 下方重复放“运行 / 试运行 / 停止”按钮。这样选中、hover、键盘焦点三种状态全部由 Wing 统一呈现。
 
 不把扫描到的每个文件都做成常驻按钮。普通脚本/可执行文件只有被 task、模板或自定义配置选中时进入主树；其余候选放在“添加自定义目标”选择器中。
 
-当项目超过 3 个、目标超过 20 个、存在运行项或存在发现/预检错误时，可以在同一 Block 内启用局部 Tab：
+运行历史和诊断继续置于同一个 Current Tool Block 的 Tree 之后，不创建第二个 View。`<pnw-navigation-tree>` 提供 `tree/treeitem`、roving focus、方向键、Home/End、Space、Enter 和焦点描边；Auto 记录 `select`、按 `toggle` 回写展开状态，并处理叶子的 `activate`。可运行叶子的 Enter 与单击一样直接启动，不另弹确认框；Workspace Trust、平台、并发、目标可用性与 CAA 预检仍在 Host 中强制执行。Tree 组件本身处理窄栏省略、局部滚动与 overscroll containment；Primary 外层三 Block 的滚动边界不变。
 
-- `目标`：项目与四类分组树；
-- `运行中`：本 Block 启动的 active execution 和短期历史；
-- `诊断`：发现/预检/matcher/启动错误摘要，以及“打开输出/Problems”。
-
-Tab 只是 `tablist/tab/tabpanel` 的局部状态，不新增 VS Code View。树使用 `tree/treeitem`、方向键、Enter 展开/运行与明确 focus ring。折叠、搜索和当前 Tab 是页面瞬态状态；Host 状态更新应原位更新节点，避免重建 DOM 后丢失滚动与展开状态。
-
-### 13.2 行布局
+### 13.2 选择与高亮语义
 
 遵守仓库 compact manager 规则：
 
-- 左侧只有一个连续 `目标名 · 相对路径` flexible label，整体省略；
-- 文件名可 semibold、路径可次级文字，但仍在同一 truncation container；
-- 平台、来源、matcher、状态放固定右侧 tail；
-- 行内动作按 VS Code 惯例在鼠标悬停或键盘焦点进入时出现：兼容目标显示 `运行`，跨平台目标显示 `试运行`，并与 `打开来源` 箭头同时出现；
-- 项目和分组按当前可见目标数初始化展开态：数量大于 `0` 默认展开，`0 项` 默认折叠；切换平台筛选后按新的可见数量重新计算；
-- `title` 与 `aria-label` 保留完整路径、cwd 和禁用原因；
-- section 使用全宽边框与很小内 padding，不做卡片式外部横向留白；
-- 运行列表有固定最大高度并独立滚动，不能无限拉长 Primary。
+- hover：仅当前行的轻量列表背景；
+- selected：稳定选中背景，显示 Tree 下方的目标操作行；
+- focus：1px VS Code focus border，不只依赖颜色；
+- selected + focus：同时保留选中背景和描边；
+- disabled：未信任/不可用目标不进入键盘操作队列；其他平台目标仍可选择，但操作行只提供不执行的“试运行”；
+- `label`/`description`、完整路径、cwd 与禁用原因由 Tree 的 ARIA 和 Auto 的操作说明共同提供；
+- section 使用全宽边框与很小内 padding，不做卡片式外部横向留白；运行历史和诊断有各自上限，不能无限拉长 Primary。
 
 ### 13.3 详情与动作
 
@@ -799,43 +796,43 @@ Tab 只是 `tablist/tab/tabpanel` 的局部状态，不新增 VS Code View。树
 - 风险、指纹、缺失依赖和不能执行原因；
 - `运行`、`试运行`、`停止`、`打开来源`、`打开输出`、`打开 Problems`。
 
-Block `…` 菜单：
+当前已实现的辅助入口：
 
-- 刷新发现；
-- 只看当前系统；
-- 显示生成产物；
-- 打开/创建 Run 配置；
-- 打开 KT Auto Code 输出；
-- 打开 Problems；
-- 复制运行诊断；
-- 停止本 Block 全部任务（有运行项时显示）。
+- 顶部：刷新发现、只看当前系统；
+- Tree“运行辅助”：打开 VS Code Terminal、打开 Problems、打开 KT Auto Code 输出；
+- 目标选中操作行：运行/试运行/停止、打开来源；
+- 运行历史：展示本 Block 启动的近期执行状态。
 
-## 14. 安全确认
+“显示生成产物”“创建 Run 配置”“复制运行诊断”“停止本 Block 全部任务”仍是后续候选，不能借用外层工具栏唯一 `…` 或在当前 Run 面板另建第二个 `…`。
+
+### 13.4 2026-08-21 Tree 化人工点检
+
+本轮仅改 Current Tool 内部；外层“工具栏 → 目录 → 当前工具”三 Block 不变。目录为固定单行，Ignore 位于统一设置工具。使用 `pnpm dev` 启动本地 sibling Wing 模式后，点检：
+
+1. 打开 Run：顶部只显示刷新和“仅当前系统”，`Terminal`、`Problems`、`日志`位于“运行辅助”树分组；
+2. 首个项目及其首个有目标分组默认展开；展开/收起任意项目或分组后，刷新模型不应恢复为全部展开；
+3. hover 只有轻量背景、点击后才稳定选中、Tab/方向键有独立 focus border；窄侧栏文字省略但不撑宽；
+4. 单击普通目标直接启动、单击跨平台目标只试运行；Tree 下方不出现重复“运行 / 来源”操作行；未信任或不可用目标不可运行；
+5. Enter 激活已选目标与单击一致直接启动；“运行辅助”叶子单击后只执行对应的打开操作；
+6. CAA 项目/目标被选中时仍可修改 CAA 版本和关联工程；运行、停止、历史和诊断的既有行为不变。
+
+自动门禁：Run 面板、Run model/display/settings 定向测试；全量 `pnpm test`；`pnpm typecheck`；`pnpm docs:check`；以及 `pnpm ext:dev:prepare` 本地 Wing 来源门禁。Registry 构建现在以已发布的 `@phoenix-wing/code-core@0.6.4` 与 `run-core` / `run-node` `0.6.3` 执行。
+
+## 14. Run 执行安全边界
 
 ### 14.1 Workspace Trust
 
 - 未信任工作区允许只读发现和查看；
 - 所有执行按钮禁用，并提供使用 VS Code Workspace Trust 的说明；
-- 获得 trust 后重新预检，不复用未信任阶段的确认。
+- 获得 trust 后重新预检，不复用未信任阶段的发现结果。
 
-### 14.2 首次/变更确认
+### 14.2 直接运行与预检
 
-首次运行 workspace-owned target 显示原生 modal：
-
-```text
-运行“mkmk workspace”？
-来源：PNXBomAnalysisWsp/.vscode/tasks.json
-平台：Windows
-工作目录：PNXBomAnalysisWsp
-版本：19
-Problems：$msCompile（完整）
-```
-
-记忆确认以 `workspace identity + target id + source hash + cwd + program/args + platform + version/matcher` 指纹为单位。文件、配置、cwd、参数、runner hash 或版本变化后重新确认。
+普通 Run 目标不再有“确认运行”modal：用户在 Tree 单击可运行叶子后直接创建 VS Code Task。每次执行仍重新检查 workspace trust、目标可用性、当前平台、同目标/同 CAA 项目的并发和 CAA runner 前置条件；任一检查失败则不创建 Task。工作区外关联工程目录仍在其单独的只读预检选择中要求明确继续，不能把该路径边界确认误当成普通运行确认。
 
 ### 14.3 高风险目标
 
-以下不允许“永久不再询问”：
+以下高风险能力当前不是 Run 默认目标；未来若新增，必须采用独立的显式用户动作与专项设计，不能借普通 Tree 叶子的直接运行语义：
 
 - 删除/清理/格式化磁盘、链接替换、`git clean/reset`；
 - `setx`、注册表、profile、系统环境持久修改；
@@ -1004,7 +1001,7 @@ Primary Web Component 必须 Host-neutral，不导入 `vscode`、`workspace.fs`�
 - 冻结平台兼容矩阵、cwd 规则、matcher fidelity 与日志脱敏格式；
 - 在 Wing 建立有真实测试/消费者的 `run-core`，不建立空 `run-node`。
 
-验收：所有发现、匹配、安全和状态输入都能用纯 fixture 表达，不依赖 `/Users/kathy/...`。
+验收：所有发现、匹配、安全和状态输入都能用纯 fixture 表达，不依赖开发机用户目录或绝对路径。
 
 ### Phase 1：只读发现与 Primary
 

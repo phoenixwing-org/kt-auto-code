@@ -4,15 +4,16 @@
 
 Owner：KT Auto Code maintainers
 
-适用版本：0.6.x
+适用版本：0.7.x
 
-最后核验：2026-08-08
+最后核验：2026-08-21
 
 本页是当前文档的唯一导航。全部 Markdown 的状态、owner、适用版本和替代关系由 [`document-manifest.json`](document-manifest.json) 记录；运行 `pnpm docs:check` 检查清单漂移和 current 文档断链。
 
 ## 当前路线与架构
 
 - [当前路线](current-roadmap.md)
+- [0.7.0 发布准备](0.7.0发布准备.md)（版本边界、Wing 发布后依赖升级与正式门禁）
 - [运行性能、Git 按需加载与 Codegen 刷新研究](运行性能与按需加载研究.md)（含非模态运行诊断与内存点检方案）
 - [产品功能归属矩阵](产品功能归属矩阵.md)（与 Desk 使用相同 `featureId`，并引用 Wing 实际 `capabilityId`）
 - [Phoenix 三形态产品架构](Phoenix三形态产品架构计划.md)
@@ -21,9 +22,11 @@ Owner：KT Auto Code maintainers
 - [仓库结构与扁平化迁移记录](仓库结构与扁平化迁移计划.md)（根包结构、迁移决策与验收）
 - [代码规范](代码规范.md)、[UI 开发规则](前端开发规则.md)与[工程配置/隐藏状态存储规则](工程配置与隐藏状态存储规则.md)
 - [Ribbon 与基础上下文 Block 改进计划](Ribbon与基础上下文Block改进计划.md)（单 View 自动高度、置顶、拖动排序、两档密度与共享工作目录）
+- [工作目录与统一设置 View 改造计划](工作目录与统一设置View改造计划.md)（固定单行目录、唯一设置齿轮与 Ignore 迁入设置）
 - [固定与排序菜单控件](固定与排序菜单控件.md)（唯一 `…`、钉子、分组、拖动排序与用户点检）
 - [ShellBlock 控件提炼 TODO](ShellBlock控件提炼TODO.md)（保持一级 Block 当前效果的后续等价抽取）
 - [工作集退场与多目录范围调查](工作集退场与多目录范围调查.md)（消费者审计、无损边界与分阶段替换方案）
+- [代码辅助入口整合 TODO](代码辅助入口整合TODO.md)（低频工具 Tree 分组、用户级折叠恢复、排序会话释放与逐项点检）
 
 ## Code 与 Codegen
 
