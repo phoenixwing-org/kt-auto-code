@@ -55,11 +55,25 @@ export interface KtcPackageIncludeApplyResult {
   readonly changedIncludes: number;
 }
 
-/** ROOT_DIR_CORE may be the core root or already point at its include directory. */
-export function ktcResolveCoreIncludeDirectory(coreRoot: string): string {
-  const value = coreRoot.trim().replace(/^(["'])(.*)\1$/, "$2");
+/**
+ * ROOT_DIR_INCLUDE points at the public KtCore directory. The package map
+ * needs its parent (.../include) so it can retain KtCore/... in results.
+ */
+export function ktcResolvePackageIncludeDirectoryFromPublicInclude(includeRoot: string): string {
+  const value = includeRoot.trim().replace(/^(["'])(.*)\1$/, "$2");
   if (!value) return "";
-  return basename(value).toLocaleLowerCase("en-US") === "include" ? resolve(value) : resolve(value, "include");
+  const absolute = resolve(value);
+  return basename(absolute).toLocaleLowerCase("en-US") === "ktcore" ? dirname(absolute) : absolute;
+}
+
+/**
+ * KtCore headers are shared on every platform. When ROOT_DIR_INCLUDE is
+ * absent, their canonical location is ROOT_DIR/kt/core/include.
+ */
+export function ktcResolveDefaultPackageIncludeDirectory(rootDirectory: string): string {
+  const value = rootDirectory.trim().replace(/^(["'])(.*)\1$/, "$2");
+  if (!value) return "";
+  return resolve(value, "kt", "core", "include");
 }
 
 async function checkedDirectory(value: string, label: string): Promise<string> {

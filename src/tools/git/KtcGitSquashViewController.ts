@@ -6,6 +6,7 @@ import type {
   KtcPnwGitCommitGraphRefsScope,
   KtcPnwGitCommitGraphRow,
 } from "./KtcGitWingAdapter.js";
+import type { KtcGitWorktreeChanges } from "./KtcGitStashService.js";
 
 export interface KtcGitSquashGraphState {
   readonly repositoryId: string;
@@ -20,6 +21,7 @@ export interface KtcGitSquashGraphState {
   readonly status: "idle" | "loading" | "ready" | "preflight" | "error";
   readonly message: string;
   readonly draft?: KtcGitSquashDraft;
+  readonly dirtyWorktree?: KtcGitWorktreeChanges;
 }
 
 export type KtcGitSquashViewMessage =
@@ -28,6 +30,8 @@ export type KtcGitSquashViewMessage =
   | { readonly type: "select"; readonly selectedOids: readonly string[] }
   | { readonly type: "load"; readonly count: 1 | 5 }
   | { readonly type: "preflight"; readonly selectedOids: readonly string[] }
+  | { readonly type: "openScm" }
+  | { readonly type: "stashAndPreflight"; readonly selectedOids: readonly string[] }
   | {
       readonly type: "execute";
       readonly selectedOids: readonly string[];
@@ -49,9 +53,17 @@ export class KtcGitSquashViewController implements vscode.Disposable {
 
   show(state: KtcGitSquashGraphState): void {
     if (!this.panel) this.panel = this.createPanel();
-    this.panel.title = `Git：合并本地 commit · ${state.repositoryName}`;
+    this.panel.title = `Git：合并 commit 区间 · ${state.repositoryName}`;
     this.panel.webview.html = KtcGitSquashViewHtml(this.panel.webview, state);
-    this.panel.reveal(vscode.ViewColumn.Beside, false);
+    // 状态刷新只更新现有 View，不主动抢占焦点或移动用户安排的分栏。
+  }
+
+  get isOpen(): boolean {
+    return this.panel !== undefined;
+  }
+
+  reveal(): void {
+    this.panel?.reveal(this.panel.viewColumn, false);
   }
 
   dispose(): void {
@@ -67,8 +79,8 @@ export class KtcGitSquashViewController implements vscode.Disposable {
   private createPanel(): vscode.WebviewPanel {
     const panel = vscode.window.createWebviewPanel(
       "ktAutoCode.gitSquash",
-      "Git：合并本地 commit",
-      { viewColumn: vscode.ViewColumn.Beside, preserveFocus: false },
+      "Git：合并 commit 区间",
+      { viewColumn: vscode.ViewColumn.Active, preserveFocus: false },
       { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [] },
     );
     panel.webview.onDidReceiveMessage((message: unknown) => {
@@ -93,6 +105,8 @@ function KtcParseGitSquashViewMessage(value: unknown): KtcGitSquashViewMessage |
   if (value.type === "select" && KtcOidArray(value.selectedOids)) return { type: "select", selectedOids: value.selectedOids };
   if (value.type === "load" && (value.count === 1 || value.count === 5)) return { type: "load", count: value.count };
   if (value.type === "preflight" && KtcOidArray(value.selectedOids)) return { type: "preflight", selectedOids: value.selectedOids };
+  if (value.type === "openScm") return { type: "openScm" };
+  if (value.type === "stashAndPreflight" && KtcOidArray(value.selectedOids)) return { type: "stashAndPreflight", selectedOids: value.selectedOids };
   if (value.type === "execute"
     && KtcOidArray(value.selectedOids)
     && typeof value.message === "string"
@@ -123,63 +137,75 @@ function KtcIsIdentity(value: unknown): value is KtcGitIdentity {
 
 function KtcGitSquashViewHtml(webview: Pick<vscode.Webview, "cspSource">, state: KtcGitSquashGraphState): string {
   const { nonce, csp } = ktcCreateWebviewSecurity(webview);
-  const rows = state.commits.map((commit, index) => KtcGraphCommitRow(commit, state.graphRows[index], state.selectedOids.includes(commit.oid))).join("");
-  const selectionLabel = state.selectedOids.length === 0
-    ? "在同一直线历史中勾选至少 2 个 commit。"
-    : `已选择 ${state.selectedOids.length} 个 commit；预检会拒绝非连续、merge 或不安全历史。`;
-  const draft = state.draft ? KtcSquashDraftEditor(state.draft) : "";
-  const graphControls = state.hasMore
-    ? '<button type="button" data-load="1">下一条</button><button type="button" data-load="5">下 5 条</button>'
-    : '<span class="muted">已到达本地分支图的当前末端。</span>';
+  const graphLaneCount = Math.max(1, ...state.graphRows.map((row) => row.laneCount));
+  const rows = state.commits.map((commit, index) => KtcGraphCommitRow(
+    commit,
+    state.graphRows[index],
+    index > 0 ? state.graphRows[index - 1] : undefined,
+    state.selectedOids.includes(commit.oid),
+    graphLaneCount,
+  )).join("");
+  const draft = state.draft ? KtcSquashDraftEditor(state.draft, state.status === "loading") : "";
+  const recovery = state.dirtyWorktree ? KtcDirtyWorktreeRecovery(state.dirtyWorktree) : "";
+  const graphControls = `<button type="button" data-section-action data-load="1" ${state.hasMore ? "" : "disabled"}>下一条</button><button type="button" data-section-action data-load="5" ${state.hasMore ? "" : "disabled"}>下 5 条</button><button class="primary" type="button" data-section-action id="preflight" ${state.selectedOids.length < 2 || state.status === "loading" ? "disabled" : ""}>选择并预检</button>`;
   const selected = JSON.stringify(state.selectedOids).replaceAll("<", "\\u003c");
   return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta http-equiv="Content-Security-Policy" content="${csp}" />
-<title>Git 合并本地 commit</title>
+<title>Git 合并 commit 区间</title>
 <style>
   :root { color-scheme: light dark; }
   body { margin: 0; color: var(--vscode-foreground); background: var(--vscode-editor-background); font: 13px/1.45 var(--vscode-font-family); }
   * { box-sizing: border-box; } button,input,textarea { font: inherit; }
-  main { max-width: 1120px; margin: 0 auto; padding: 14px 18px 28px; }
+  main { max-width: 1120px; margin: 0 auto; padding: 8px 12px 22px; }
   h1 { margin: 0; font-size: 18px; } h2 { margin: 0; font-size: 14px; }
-  .meta,.notice,.selection { margin-top: 6px; color: var(--vscode-descriptionForeground); }
-  .notice { padding: 7px 9px; border-left: 3px solid var(--vscode-editorInfo-foreground); background: var(--vscode-textBlockQuote-background); }
+  .view-header { display: flex; min-width: 0; align-items: center; gap: 10px; min-height: 32px; padding: 2px 0 7px; border-bottom: 1px solid var(--vscode-panel-border); }
+  .meta { flex: 0 1 auto; min-width: 0; overflow: hidden; color: var(--vscode-descriptionForeground); text-overflow: ellipsis; white-space: nowrap; }
+  .notice { flex: 1 1 240px; min-width: 120px; overflow: hidden; padding: 4px 7px; color: var(--vscode-descriptionForeground); background: var(--vscode-textBlockQuote-background); border-left: 3px solid var(--vscode-editorInfo-foreground); text-overflow: ellipsis; white-space: nowrap; }
   .notice.error { border-left-color: var(--vscode-editorError-foreground); }
-  .section { margin-top: 14px; border: 1px solid var(--vscode-panel-border); }
-  .section-header { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 5px 8px; border-bottom: 1px solid var(--vscode-panel-border); background: var(--vscode-sideBarSectionHeader-background); }
-  .section-header .count { margin-left: auto; color: var(--vscode-descriptionForeground); }
+  .section { margin-top: 10px; border: 1px solid var(--vscode-panel-border); }
+  .section-header { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 4px 8px; background: var(--vscode-sideBarSectionHeader-background); }
+  details.section > summary { cursor: pointer; list-style: none; }
+  details.section > summary::-webkit-details-marker { display: none; }
+  details.section > summary::before { width: 12px; flex: 0 0 12px; color: var(--vscode-descriptionForeground); content: "›"; font-size: 18px; line-height: 1; transform: rotate(0deg); transition: transform .1s ease; }
+  details.section[open] > summary { border-bottom: 1px solid var(--vscode-panel-border); }
+  details.section[open] > summary::before { transform: rotate(90deg); }
+  details.section > summary:hover { background: var(--vscode-list-hoverBackground); }
+  .section-header .count { color: var(--vscode-descriptionForeground); white-space: nowrap; }
+  .section-header-actions { display: inline-flex; min-width: 0; align-items: center; gap: 5px; margin-left: auto; }
   .scope { display: inline-flex; align-items: center; gap: 4px; color: var(--vscode-descriptionForeground); font-size: 11px; } .scope select { min-height: 23px; color: var(--vscode-dropdown-foreground); background: var(--vscode-dropdown-background); border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border)); }
-  .graph-row { display: grid; grid-template-columns: 24px max-content minmax(0,1fr); min-width: 0; min-height: 43px; padding: 2px 8px 2px 2px; border-bottom: 1px solid color-mix(in srgb, var(--vscode-panel-border) 65%, transparent); cursor: pointer; }
+  .graph-row { display: grid; grid-template-columns: 24px max-content minmax(0,1fr); min-width: 0; min-height: 30px; padding: 1px 8px 1px 2px; border-bottom: 1px solid color-mix(in srgb, var(--vscode-panel-border) 65%, transparent); cursor: pointer; }
   .graph-row:hover { background: var(--vscode-list-hoverBackground); } .graph-row:focus-within { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
-  .graph { position: relative; min-height: 38px; overflow: visible; } .graph svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-  .graph line { stroke: var(--vscode-charts-blue, #3794ff); stroke-width: 1.6; } .graph line.merge { stroke: var(--vscode-charts-purple, #b180d7); }
-  .graph .node { position: absolute; top: calc(50% - 5px); width: 10px; height: 10px; border: 2px solid var(--vscode-editor-background); border-radius: 50%; background: var(--vscode-charts-blue, #3794ff); }
-  .graph .node.merge { background: var(--vscode-charts-purple, #b180d7); }
-  .commit { display: flex; min-width: 0; flex-direction: column; justify-content: center; gap: 2px; padding: 2px 7px; }
-  .commit-title { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; } .commit-meta { overflow: hidden; color: var(--vscode-descriptionForeground); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+  .graph { position: relative; min-height: 28px; overflow: visible; } .graph svg { display: block; width: 100%; height: 30px; overflow: visible; }
+  .graph-edge { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+  .graph-edge.merge { stroke-width: 2.2; }
+  .graph-node { stroke: var(--vscode-editor-background); stroke-width: 2; vector-effect: non-scaling-stroke; }
+  .graph-node.tip { fill: var(--vscode-editor-background); stroke-width: 2.5; }
+  .commit { display: flex; min-width: 0; align-items: center; gap: 7px; padding: 1px 7px; overflow: hidden; }
+  .commit-title { flex: 1 1 auto; min-width: 72px; overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; } .commit-meta { flex: 0 1 auto; min-width: 72px; overflow: hidden; color: var(--vscode-descriptionForeground); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
   .decorations { display: inline-flex; gap: 3px; margin-left: 5px; vertical-align: middle; } .decoration { padding: 0 4px; border: 1px solid var(--vscode-badge-background); border-radius: 8px; color: var(--vscode-badge-foreground); background: var(--vscode-badge-background); font-size: 10px; font-weight: 500; } .decoration.tag { border-color: var(--vscode-charts-purple, #b180d7); background: transparent; color: var(--vscode-charts-purple, #b180d7); }
   .select { display: grid; width: 24px; place-items: center; } .select input { width: 16px; height: 16px; }
   .actions { display: flex; flex-wrap: wrap; gap: 7px; padding: 9px; border-top: 1px solid var(--vscode-panel-border); }
   button { min-height: 27px; padding: 3px 10px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: 1px solid transparent; border-radius: 2px; cursor: pointer; } button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); } button.primary { color: var(--vscode-button-foreground); background: var(--vscode-button-background); } button.primary:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); } button:disabled { opacity: .55; cursor: not-allowed; }
   .muted { align-self: center; color: var(--vscode-descriptionForeground); } .draft { display: grid; gap: 8px; padding: 9px; } textarea,input { width: 100%; padding: 5px 7px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, var(--vscode-panel-border)); } textarea { min-height: 100px; resize: vertical; } .fields { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; } label { display: grid; gap: 3px; color: var(--vscode-descriptionForeground); font-size: 11px; } pre { max-height: 170px; overflow: auto; margin: 0; padding: 7px; color: var(--vscode-descriptionForeground); background: var(--vscode-textCodeBlock-background); white-space: pre-wrap; }
-  @media (max-width: 560px) { main { padding: 10px; } .fields { grid-template-columns: 1fr; } }
+  @media (max-width: 700px) { .view-header { flex-wrap: wrap; } .notice { flex-basis: 100%; } .section-header { flex-wrap: wrap; } .section-header-actions { flex-basis: 100%; margin-left: 20px; } }
+  @media (max-width: 560px) { main { padding: 7px; } .fields { grid-template-columns: 1fr; } }
 </style></head><body><main>
-  <h1>合并本地 commit</h1>
-  <div class="meta">${KtcEscape(state.repositoryName)} · ${KtcEscape(state.branchLabel)} · HEAD ${KtcEscape(state.expectedHeadOid.slice(0, 12))}</div>
-  <div class="notice${state.status === "error" ? " error" : ""}">${KtcEscape(state.message)}</div>
-  <section class="section"><div class="section-header"><h2>提交图</h2><label class="scope">范围<select id="refs-scope"><option value="local-branches" ${state.refsScope === "local-branches" ? "selected" : ""}>本地分支</option><option value="local-branches-and-tags" ${state.refsScope === "local-branches-and-tags" ? "selected" : ""}>本地分支和标签</option></select></label><span class="count">已加载 ${state.commits.length}</span></div>
+  <header class="view-header"><h1>合并 commit 区间</h1><div class="meta">${KtcEscape(state.repositoryName)} · ${KtcEscape(state.branchLabel)} · ${KtcEscape(state.expectedHeadOid.slice(0, 12))}</div><div class="notice${state.status === "error" ? " error" : ""}" title="${KtcAttr(state.message)}">${KtcEscape(state.message)}</div></header>
+  <details class="section" open><summary class="section-header"><h2>提交图与选择</h2><label class="scope" data-section-action>范围<select id="refs-scope"><option value="local-branches" ${state.refsScope === "local-branches" ? "selected" : ""}>本地分支</option><option value="local-branches-and-tags" ${state.refsScope === "local-branches-and-tags" ? "selected" : ""}>本地分支和标签</option></select></label><span class="count">已加载 ${state.commits.length} · 已选 ${state.selectedOids.length}</span><span class="section-header-actions">${graphControls}</span></summary>
     <div id="graph">${rows || '<div class="notice">当前分支没有可显示的 commit。</div>'}</div>
-    <div class="actions">${graphControls}</div>
-  </section>
-  <section class="section"><div class="section-header"><h2>合并选择</h2><span class="count">${KtcEscape(selectionLabel)}</span></div>
-    <div class="actions"><button class="primary" id="preflight" ${state.selectedOids.length < 2 || state.status === "loading" ? "disabled" : ""}>选择并预检</button></div>
-  </section>
+  </details>
   ${draft}
+  ${recovery}
 </main><script nonce="${nonce}">
   const vscode = acquireVsCodeApi();
   const selected = new Set(${selected});
   const post = (value) => vscode.postMessage(value);
+  document.querySelectorAll('[data-section-action]').forEach((control) => {
+    control.addEventListener('click', (event) => event.stopPropagation());
+    control.addEventListener('dblclick', (event) => event.stopPropagation());
+  });
   document.querySelectorAll('[data-oid]').forEach((row) => row.addEventListener('change', () => {
     const oid = row.dataset.oid; const input = row.querySelector('input[type=checkbox]');
     if (!oid || !input) return; if (input.checked) selected.add(oid); else selected.delete(oid);
@@ -188,28 +214,93 @@ function KtcGitSquashViewHtml(webview: Pick<vscode.Webview, "cspSource">, state:
   document.querySelectorAll('[data-load]').forEach((button) => button.addEventListener('click', () => post({ type: 'load', count: Number(button.dataset.load) })));
   document.getElementById('refs-scope')?.addEventListener('change', (event) => post({ type: 'setRefsScope', refsScope: event.target.value }));
   document.getElementById('preflight')?.addEventListener('click', () => post({ type: 'preflight', selectedOids: [...selected] }));
+  document.getElementById('open-scm')?.addEventListener('click', () => post({ type: 'openScm' }));
+  document.getElementById('stash-and-preflight')?.addEventListener('click', () => post({ type: 'stashAndPreflight', selectedOids: [...selected] }));
   document.getElementById('execute')?.addEventListener('click', () => post({ type: 'execute', selectedOids: [...selected], message: document.getElementById('message').value, author: { name: document.getElementById('author-name').value, email: document.getElementById('author-email').value, date: document.getElementById('author-date').value, dateLabel: document.getElementById('author-date').value }, committer: { name: document.getElementById('committer-name').value, email: document.getElementById('committer-email').value, date: document.getElementById('committer-date').value, dateLabel: document.getElementById('committer-date').value } }));
   post({ type: 'ready' });
 </script></body></html>`;
 }
 
-function KtcGraphCommitRow(commit: KtcPnwGitCommitGraphCommit, row: KtcPnwGitCommitGraphRow | undefined, checked: boolean): string {
+function KtcGraphCommitRow(
+  commit: KtcPnwGitCommitGraphCommit,
+  row: KtcPnwGitCommitGraphRow | undefined,
+  previousRow: KtcPnwGitCommitGraphRow | undefined,
+  checked: boolean,
+  graphLaneCount: number,
+): string {
   const lane = row?.lane ?? 0;
-  const laneCount = Math.max(1, row?.laneCount ?? 1);
-  const width = Math.max(20, laneCount * 12);
-  const svg = (row?.parentEdges ?? []).map((edge) => `<line class="${edge.kind === "merge-parent" ? "merge" : ""}" x1="${lane * 12 + 6}" y1="0" x2="${edge.toLane * 12 + 6}" y2="44" />`).join("")
-    || `<line x1="${lane * 12 + 6}" y1="0" x2="${lane * 12 + 6}" y2="44" />`;
+  const width = Math.max(24, graphLaneCount * KtcGitGraphLaneWidth + 4);
+  const nodeX = KtcGraphLaneX(lane);
+  const currentOid = row?.lanesBefore[lane] ?? commit.oid;
+  const continuation = (row?.lanesBefore ?? []).flatMap((oid, fromLane) => {
+    if (oid === currentOid) return [];
+    const toLane = row?.lanesAfter.indexOf(oid) ?? -1;
+    if (toLane < 0) return [];
+    return [KtcGraphPath(fromLane, 0, toLane, 30, "continuation")];
+  }).join("");
+  const incoming = previousRow?.lanesAfter.includes(commit.oid)
+    ? KtcGraphPath(lane, 0, lane, 15, "incoming")
+    : "";
+  const parents = (row?.parentEdges ?? []).map((edge) => KtcGraphPath(
+    lane,
+    15,
+    edge.toLane,
+    30,
+    edge.kind === "merge-parent" ? "merge" : "parent",
+  )).join("");
+  const nodeColor = KtcGraphLaneColor(lane);
+  const isTip = commit.decorations.some((item) => item.kind === "head" || item.kind === "local-branch");
+  const svg = `${continuation}${incoming}${parents}<circle class="graph-node${isTip ? " tip" : ""}" cx="${nodeX}" cy="15" r="4.5" style="fill:${isTip ? "var(--vscode-editor-background)" : nodeColor};stroke:${nodeColor}" />`;
   const decorations = commit.decorations.map((item) => `<span class="decoration ${item.kind === "tag" ? "tag" : ""}">${KtcEscape(item.displayName)}</span>`).join("");
-  return `<label class="graph-row" data-oid="${commit.oid}"><span class="select"><input type="checkbox" aria-label="选择 ${KtcEscape(commit.oid.slice(0, 12))} 合并" ${checked ? "checked" : ""} /></span><span class="graph" style="width:${width}px"><svg viewBox="0 0 ${width} 44" preserveAspectRatio="none">${svg}</svg><span class="node ${commit.parentOids.length > 1 ? "merge" : ""}" style="left:${lane * 12 + 1}px"></span></span><span class="commit"><span class="commit-title">${KtcEscape(commit.subject || "(无标题)")}<span class="decorations">${decorations}</span></span><span class="commit-meta">${KtcEscape(commit.oid.slice(0, 12))} · ${KtcEscape(commit.author.name)} · ${KtcEscape(KtcGitDateLabel(commit.author.date))}</span></span></label>`;
+  return `<label class="graph-row" data-oid="${commit.oid}"><span class="select"><input type="checkbox" aria-label="选择 ${KtcEscape(commit.oid.slice(0, 12))} 合并" ${checked ? "checked" : ""} /></span><span class="graph" style="width:${width}px"><svg viewBox="0 0 ${width} 30" aria-hidden="true">${svg}</svg></span><span class="commit"><span class="commit-title">${KtcEscape(commit.subject || "(无标题)")}<span class="decorations">${decorations}</span></span><span class="commit-meta">${KtcEscape(commit.oid.slice(0, 12))} · ${KtcEscape(commit.author.name)} · ${KtcEscape(KtcGitDateLabel(commit.author.date))}</span></span></label>`;
 }
 
-function KtcSquashDraftEditor(draft: KtcGitSquashDraft): string {
+const KtcGitGraphLaneWidth = 16;
+const KtcGitGraphColors = [
+  "var(--vscode-charts-blue, #3794ff)",
+  "var(--vscode-charts-magenta, #e3008c)",
+  "var(--vscode-charts-green, #89d185)",
+  "var(--vscode-charts-orange, #d18616)",
+  "var(--vscode-charts-purple, #b180d7)",
+  "var(--vscode-charts-red, #f14c4c)",
+] as const;
+
+function KtcGraphLaneX(lane: number): number {
+  return lane * KtcGitGraphLaneWidth + 8;
+}
+
+function KtcGraphLaneColor(lane: number): string {
+  return KtcGitGraphColors[Math.abs(lane) % KtcGitGraphColors.length]!;
+}
+
+function KtcGraphPath(
+  fromLane: number,
+  fromY: number,
+  toLane: number,
+  toY: number,
+  kind: "continuation" | "incoming" | "parent" | "merge",
+): string {
+  const fromX = KtcGraphLaneX(fromLane);
+  const toX = KtcGraphLaneX(toLane);
+  const path = fromX === toX
+    ? `M ${fromX} ${fromY} L ${toX} ${toY}`
+    : `M ${fromX} ${fromY} C ${fromX} 15, ${toX} 15, ${toX} ${toY}`;
+  const color = KtcGraphLaneColor(kind === "incoming" ? fromLane : toLane);
+  return `<path class="graph-edge${kind === "merge" ? " merge" : ""}" d="${path}" style="stroke:${color}" />`;
+}
+
+function KtcSquashDraftEditor(draft: KtcGitSquashDraft, executing: boolean): string {
   const details = [
     ...(draft.warnings.length ? ["共享历史警告：", ...draft.warnings.map((warning) => `- ${warning.label}`), ""] : []),
     "所选区间：", ...draft.selectedLabels, "", `Base parent: ${draft.baseParentOid}`,
     `后续重放：${draft.replayCount} 个`, ...draft.replayLabels,
   ].join("\n");
-  return `<section class="section"><div class="section-header"><h2>安全预检通过</h2><span class="count">执行只改本地分支，不自动 push</span></div><div class="draft"><pre>${KtcEscape(details)}</pre><label>合并后的 commit 信息<textarea id="message">${KtcEscape(draft.message)}</textarea></label><div class="fields"><label>Author 姓名<input id="author-name" value="${KtcAttr(draft.author.name)}" /></label><label>Author 邮箱<input id="author-email" value="${KtcAttr(draft.author.email)}" /></label><label>Author 时间<input id="author-date" value="${KtcAttr(draft.author.dateLabel)}" /></label></div><div class="fields"><label>Committer 姓名<input id="committer-name" value="${KtcAttr(draft.committer.name)}" /></label><label>Committer 邮箱<input id="committer-email" value="${KtcAttr(draft.committer.email)}" /></label><label>Committer 时间<input id="committer-date" value="${KtcAttr(draft.committer.dateLabel)}" /></label></div><div class="actions"><button class="primary" id="execute">确认并执行</button></div></div></section>`;
+  return `<details class="section" open><summary class="section-header"><h2>确认信息</h2><span class="count">只改本地分支，不自动 push</span><span class="section-header-actions"><button class="primary" type="button" data-section-action id="execute" ${executing ? "disabled" : ""}>${executing ? "正在执行…" : "确认并执行"}</button></span></summary><div class="draft"><label>合并后的 commit 信息<textarea id="message" ${executing ? "disabled" : ""}>${KtcEscape(draft.message)}</textarea></label><div class="fields"><label>Author 姓名<input id="author-name" value="${KtcAttr(draft.author.name)}" ${executing ? "disabled" : ""} /></label><label>Author 邮箱<input id="author-email" value="${KtcAttr(draft.author.email)}" ${executing ? "disabled" : ""} /></label><label>Author 时间<input id="author-date" value="${KtcAttr(draft.author.dateLabel)}" ${executing ? "disabled" : ""} /></label></div><div class="fields"><label>Committer 姓名<input id="committer-name" value="${KtcAttr(draft.committer.name)}" ${executing ? "disabled" : ""} /></label><label>Committer 邮箱<input id="committer-email" value="${KtcAttr(draft.committer.email)}" ${executing ? "disabled" : ""} /></label><label>Committer 时间<input id="committer-date" value="${KtcAttr(draft.committer.dateLabel)}" ${executing ? "disabled" : ""} /></label></div></div></details><details class="section"><summary class="section-header"><h2>预检详情</h2><span class="count">所选区间与重放信息</span></summary><pre>${KtcEscape(details)}</pre></details>`;
+}
+
+function KtcDirtyWorktreeRecovery(changes: KtcGitWorktreeChanges): string {
+  const description = `工作区有 ${changes.total} 项未归档改动：暂存 ${changes.staged} · 修改 ${changes.modified} · 未跟踪 ${changes.untracked}。`;
+  return `<section class="section"><div class="section-header"><h2>工作区改动</h2><span class="count">需处理后才能合并</span></div><div class="draft"><div class="notice">${KtcEscape(description)}<br />“暂存并重新预检”会包含未跟踪文件，不包含 ignored 文件；合并期间不会自动恢复。</div><div class="actions"><button id="open-scm">打开源代码管理</button><button class="primary" id="stash-and-preflight">暂存并重新预检</button></div></div></section>`;
 }
 
 function KtcGitDateLabel(value: string): string {

@@ -1,12 +1,82 @@
 import { execFile } from "node:child_process";
+import { statSync } from "node:fs";
 import {
   pnwResolveCaaEnvironment,
-  type PnwCaaEnvironment,
-  type PnwCaaEnvironmentValue,
 } from "@phoenix-wing/code-core";
 
-const ENVIRONMENT_VARIABLES = ["ROOT_DIR", "ROOT_DIR_3rdParty", "ROOT_DIR_CORE", "CAA_MK_VERSION"] as const;
+const ENVIRONMENT_VARIABLES = [
+  "ROOT_DIR",
+  "SDK_PREFIX",
+  "ROOT_DIR_CORE",
+  "ROOT_DIR_INCLUDE",
+  "ROOT_DIR_3rdParty",
+  "CAA_MK_VERSION",
+] as const;
 export type KtcProjectEnvironmentVariable = typeof ENVIRONMENT_VARIABLES[number];
+export type KtcProjectEnvironmentKey =
+  | "customRoot"
+  | "sdkPrefix"
+  | "coreRoot"
+  | "includeRoot"
+  | "thirdPartyRoot"
+  | "caaMkVersion";
+
+export interface KtcProjectEnvironmentValue {
+  readonly key: KtcProjectEnvironmentKey;
+  readonly environmentVariable: KtcProjectEnvironmentVariable;
+  readonly required: boolean;
+  readonly source: "system" | "default" | "missing";
+  readonly value?: string;
+  readonly suggestedValue?: string;
+}
+
+export interface KtcProjectEnvironment {
+  readonly values: readonly KtcProjectEnvironmentValue[];
+  readonly complete: boolean;
+}
+
+/**
+ * Chooses a stable starting folder for an environment-directory picker.
+ * Unsaved text is accepted when it points at an existing directory; invalid
+ * or empty text falls back to the current user's home directory.
+ */
+export function ktcResolveEnvironmentDirectoryPickerPath(
+  configuredValue: string | undefined,
+  homeDirectory: string,
+  isDirectory: (candidate: string) => boolean = (candidate) => {
+    try { return statSync(candidate).isDirectory(); }
+    catch { return false; }
+  },
+): string {
+  const candidate = configuredValue?.trim();
+  return candidate && isDirectory(candidate) ? candidate : homeDirectory;
+}
+
+/** Keeps the declared variable order stable inside required/optional groups. */
+export function ktcOrderProjectEnvironmentValues(
+  values: readonly KtcProjectEnvironmentValue[],
+): readonly KtcProjectEnvironmentValue[] {
+  return values
+    .map((value, index) => ({ value, index }))
+    .sort((left, right) => Number(right.value.required) - Number(left.value.required) || left.index - right.index)
+    .map(({ value }) => value);
+}
+
+function ktcNormalizeWingEnvironmentValue(value: {
+  readonly key: "customRoot" | "thirdPartyRoot" | "coreRoot" | "caaMkVersion";
+  readonly environmentVariable: "ROOT_DIR" | "ROOT_DIR_3rdParty" | "ROOT_DIR_CORE" | "CAA_MK_VERSION";
+  readonly required: boolean;
+  readonly source: "workspace" | "system" | "missing";
+  readonly value?: string;
+  readonly suggestedValue?: string;
+}): KtcProjectEnvironmentValue {
+  return {
+    ...value,
+    // Auto reads process/registry values only; Wing's workspace source is not
+    // used here, but normalizing keeps this adapter forward-compatible.
+    source: value.source === "missing" ? "missing" : "system",
+  };
+}
 
 const WINDOWS_ENVIRONMENT_KEYS = [
   "HKCU\\Environment",
@@ -88,7 +158,7 @@ function expandWindowsValue(value: string, system: Readonly<Record<string, strin
  */
 export async function ktcReadProjectEnvironment(
   options: KtcProjectEnvironmentReadOptions = {},
-): Promise<PnwCaaEnvironment> {
+): Promise<KtcProjectEnvironment> {
   const system: Record<string, string | undefined> = { ...(options.system ?? process.env) };
   const platform = options.platform ?? process.platform;
   if (platform === "win32") {
@@ -102,13 +172,38 @@ export async function ktcReadProjectEnvironment(
       if (current?.trim()) system[name] = expandWindowsValue(current, system);
     }
   }
-  return pnwResolveCaaEnvironment(system);
+  const legacy = pnwResolveCaaEnvironment(system);
+  const legacyByKey = new Map(legacy.values.map((value) => [value.key, value]));
+  const sdkPrefix = system.SDK_PREFIX?.trim() || "kt";
+  const includeRoot = system.ROOT_DIR_INCLUDE?.trim();
+  const values: readonly KtcProjectEnvironmentValue[] = [
+    ktcNormalizeWingEnvironmentValue(legacyByKey.get("customRoot")!),
+    {
+      key: "sdkPrefix",
+      environmentVariable: "SDK_PREFIX",
+      required: false,
+      source: system.SDK_PREFIX?.trim() ? "system" : "default",
+      value: sdkPrefix,
+      suggestedValue: "kt",
+    },
+    ktcNormalizeWingEnvironmentValue(legacyByKey.get("coreRoot")!),
+    {
+      key: "includeRoot",
+      environmentVariable: "ROOT_DIR_INCLUDE",
+      required: false,
+      source: includeRoot ? "system" : "missing",
+      ...(includeRoot ? { value: includeRoot } : {}),
+    },
+    ktcNormalizeWingEnvironmentValue(legacyByKey.get("thirdPartyRoot")!),
+    ktcNormalizeWingEnvironmentValue(legacyByKey.get("caaMkVersion")!),
+  ];
+  return { values, complete: values.filter((value) => value.required).every((value) => Boolean(value.value)) };
 }
 
 export async function ktcReadProjectEnvironmentStatus(): Promise<{
   readonly text: string;
   readonly complete: boolean;
-  readonly values: readonly PnwCaaEnvironmentValue[];
+  readonly values: readonly KtcProjectEnvironmentValue[];
 }> {
   const environment = await ktcReadProjectEnvironment();
   const labels = environment.values.map((value) => `${value.environmentVariable}：${value.value ? "系统" : "未设定"}`);

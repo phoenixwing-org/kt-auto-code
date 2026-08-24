@@ -20,6 +20,7 @@ export type KtcGitPrimaryActionDetail =
         | "closeSummary";
     }
   | { readonly action: "removeRepository"; readonly repositoryId: string }
+  | { readonly action: "switchBranch"; readonly repositoryId: string }
   | {
       readonly action: "loadOlderCommits";
       readonly repositoryId: string;
@@ -33,6 +34,12 @@ export type KtcGitPrimaryActionDetail =
       readonly repositoryId: string;
       readonly expectedHeadOid: string;
       readonly copyAfterGenerate: boolean;
+    }
+  | {
+      readonly action: "openSquashWithSelection";
+      readonly repositoryId: string;
+      readonly expectedHeadOid: string;
+      readonly selectedOids: readonly string[];
     }
   | { readonly action: "saveSummaryTextHeight"; readonly height: number }
   | {
@@ -77,17 +84,13 @@ const KtcGitPrimaryPanelStyle = `
   * { box-sizing: border-box; }
   button, input, select, textarea { font: inherit; }
   button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
-  .toolbar { position: sticky; z-index: 12; top: 0; display: flex; align-items: center; gap: 3px; padding: 3px 5px; background: var(--vscode-sideBar-background, var(--vscode-editor-background)); border-block: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
-  .toolbar-title { flex: 1 1 auto; min-width: 0; overflow: hidden; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
   .icon-button { display: inline-grid; width: 27px; height: 27px; place-items: center; padding: 0; color: var(--vscode-foreground); background: transparent; border: 1px solid transparent; border-radius: 3px; cursor: pointer; font-size: 16px; }
   .icon-button:hover { background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground)); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, var(--vscode-panel-border))); }
-  .status, .operation { display: flex; min-width: 0; align-items: center; gap: 6px; padding: 5px 6px; color: var(--vscode-descriptionForeground); border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
-  .operation { color: var(--vscode-foreground); background: var(--vscode-diffEditor-insertedTextBackground); }
+  .status { display: flex; min-width: 0; align-items: center; gap: 6px; padding: 5px 6px; color: var(--vscode-descriptionForeground); border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
   .status-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .badge-tail { display: inline-flex; flex: 0 1 auto; min-width: 0; max-width: 100%; align-items: center; gap: 4px; overflow: hidden; }
   .badge { padding: 1px 5px; color: var(--vscode-descriptionForeground); border: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); border-radius: 999px; font-size: 10px; white-space: nowrap; }
   .project, .editor { border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
-  .repository { display: flex; min-width: 0; align-items: center; gap: 6px; min-height: 32px; padding: 4px 6px; background: var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background)); }
   .actions { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); border-top: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
   .disclosure { min-width: 0; border-top: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
   .disclosure > summary { min-height: 28px; padding: 5px 7px; cursor: pointer; font-weight: 650; }
@@ -102,13 +105,14 @@ const KtcGitPrimaryPanelStyle = `
   .action-button:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, var(--vscode-button-border, transparent))); }
   .secondary-button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground)); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, var(--vscode-panel-border))); }
   .load-more { display: block; width: calc(100% - 12px); margin: 6px; }
-  .history-actions { display: flex; gap: 5px; padding: 6px; }
+  .history-actions { display: flex; gap: 5px; padding: 6px; border-top: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
   .history-actions .secondary-button { flex: 1 1 0; }
   .git-action-tree { display: block; min-width: 0; border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); --pnw-navigation-tree-bg: transparent; --pnw-navigation-tree-row-height: 25px; --pnw-navigation-tree-indent: 14px; }
   button:disabled { opacity: .48; cursor: not-allowed; }
   .section-heading { display: flex; min-width: 0; align-items: center; gap: 6px; min-height: 28px; padding: 3px 6px; border-block: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); font-weight: 650; }
   .section-heading > span:first-child { flex: 1 1 auto; min-width: 0; margin-right: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .generate-summary { min-height: 23px; padding: 1px 6px; }
+  .branch-picker { flex: 0 1 112px; min-width: 62px; min-height: 23px; overflow: hidden; padding: 1px 6px; text-overflow: ellipsis; white-space: nowrap; }
   .commits { max-height: 220px; overflow: auto; }
   .commit { display: flex; width: 100%; min-width: 0; min-height: 32px; align-items: center; gap: 6px; padding: 3px 6px; color: var(--vscode-foreground); background: transparent; border: 0; border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); text-align: left; cursor: pointer; }
   .commit:last-child { border-bottom: 0; }
@@ -188,51 +192,13 @@ export class KtcGitPrimaryPanel extends HTMLElement {
       project.repository.id === model.selectedRepositoryId
     ));
 
-    const toolbar = document.createElement("div");
-    toolbar.className = "toolbar";
-    const title = document.createElement("span");
-    title.className = "toolbar-title";
-    title.textContent = "Git 提交整理";
-    toolbar.append(
-      title,
-      this.KtcToolbarButton("＋", "添加 Git 仓库", "addRepository"),
-      this.KtcToolbarButton("↻", "刷新仓库摘要", "refresh"),
-      this.KtcToolbarButton("⑂", "打开 VS Code 源代码管理", "openScm"),
-      this.KtcToolbarButton("≡", "打开 KT Auto Code 输出", "openOutput"),
-    );
-    if (selectedProject?.repository.external) {
-      const remove = this.KtcToolbarButton("−", "从我的仓库移除", "openOutput");
-      remove.onclick = () => this.KtcEmit({
-        action: "removeRepository",
-        repositoryId: selectedProject.repository.id,
-      });
-      toolbar.append(remove);
-    }
-
-    const status = document.createElement("div");
-    status.className = "status";
-    const statusText = document.createElement("span");
-    statusText.className = "status-text";
-    statusText.textContent = model.statusText;
-    statusText.title = model.statusText;
-    const statusTail = document.createElement("span");
-    statusTail.className = "badge-tail";
-    statusTail.append(this.KtcBadge(`${model.projects.length} 仓库`), this.KtcBadge("本地"));
-    status.append(statusText, statusTail);
-
-    const fragments: (Node | string)[] = [style, toolbar, status];
+    const fragments: (Node | string)[] = [style];
     if (model.discovery.status === "searching") fragments.push(this.KtcSearchProgress(model));
-    if (model.lastOperation && model.lastOperation.repositoryId === model.selectedRepositoryId) {
-      fragments.push(this.KtcOperation(model));
-    }
-    if (model.summaryDraft && model.summaryDraft.repositoryId === model.selectedRepositoryId) {
-      fragments.push(this.KtcSummaryEditor(model));
-    }
     const projects = document.createElement("div");
     if (model.workspaceRepositoryCount === 0 && model.discovery.status !== "searching") {
       projects.append(this.KtcWorkspaceEmpty(model));
     }
-    if (selectedProject) projects.append(this.KtcProject(selectedProject));
+    if (selectedProject) projects.append(this.KtcProject(selectedProject, model));
     else if (model.discovery.status === "searching") projects.append(this.KtcEmpty("搜索到仓库后会立即显示在这里。"));
     const note = document.createElement("div");
     note.className = "note";
@@ -281,22 +247,6 @@ export class KtcGitPrimaryPanel extends HTMLElement {
     stop.textContent = "停止";
     stop.onclick = () => this.KtcEmit({ action: "stopRepositorySearch" });
     row.append(text, stop);
-    return row;
-  }
-
-  private KtcOperation(model: KtcGitViewModel): HTMLElement {
-    const operation = model.lastOperation!;
-    const row = document.createElement("div");
-    row.className = "operation";
-    const text = document.createElement("span");
-    text.className = "status-text";
-    text.textContent = `已改写 ${operation.oldHeadLabel} → ${operation.newHeadLabel}；后续重放 ${operation.rewrittenCount} 个 commit`;
-    const undo = document.createElement("button");
-    undo.className = "secondary-button";
-    undo.type = "button";
-    undo.textContent = "撤销";
-    undo.onclick = () => this.KtcEmit({ action: "undoSquash", repositoryId: operation.repositoryId });
-    row.append(text, undo);
     return row;
   }
 
@@ -477,26 +427,9 @@ export class KtcGitPrimaryPanel extends HTMLElement {
     return heading;
   }
 
-  private KtcProject(project: KtcGitProject): HTMLElement {
+  private KtcProject(project: KtcGitProject, model: KtcGitViewModel): HTMLElement {
     const container = document.createElement("section");
     container.className = "project";
-    const repository = document.createElement("div");
-    repository.className = "repository";
-    const label = document.createElement("span");
-    label.className = "repository-label ktc-compact-label";
-    label.title = `${project.repository.name} · ${project.repository.relativePath}`;
-    const name = document.createElement("span");
-    name.className = "repository-name ktc-compact-label-primary";
-    name.textContent = project.repository.name;
-    const meta = document.createElement("span");
-    meta.className = "repository-meta ktc-compact-label-secondary";
-    meta.textContent = ` · ${project.repository.upstreamLabel} · HEAD ${project.repository.headLabel}`;
-    label.append(name, meta);
-    const tail = document.createElement("span");
-    tail.className = "badge-tail";
-    tail.append(this.KtcBadge(project.repository.branchLabel), this.KtcBadge(project.repository.stateLabel));
-    repository.append(label, tail);
-
     const heading = document.createElement("div");
     heading.className = "section-heading";
     const headingLabel = document.createElement("span");
@@ -513,6 +446,7 @@ export class KtcGitPrimaryPanel extends HTMLElement {
       generate.disabled = selectedOids.size === 0;
       generate.textContent = selectedOids.size > 0 ? `生成（${selectedOids.size}）` : "生成";
     };
+    const syncSelectionActions = syncGenerate;
     const requestSummary = (copyAfterGenerate: boolean) => this.KtcEmit({
       action: "selectCommits",
       selectedOids: [...selectedOids],
@@ -520,10 +454,18 @@ export class KtcGitPrimaryPanel extends HTMLElement {
       expectedHeadOid: project.repository.headOid ?? "",
       copyAfterGenerate,
     });
-    syncGenerate();
+    syncSelectionActions();
     generate.onclick = () => requestSummary(true);
+    const branch = document.createElement("button");
+    branch.type = "button";
+    branch.className = "secondary-button branch-picker";
+    branch.textContent = `${project.repository.branchLabel} ⌄`;
+    branch.title = "使用 VS Code 切换分支";
+    branch.setAttribute("aria-label", `切换分支，当前 ${project.repository.branchLabel}`);
+    branch.onclick = () => this.KtcEmit({ action: "switchBranch", repositoryId: project.repository.id });
     heading.append(
       headingLabel,
+      branch,
       generate,
       this.KtcBadge(`${project.commits.length}${project.hasMoreCommits ? "+" : ""}`),
     );
@@ -532,13 +474,13 @@ export class KtcGitPrimaryPanel extends HTMLElement {
     const latestCommit = project.commits[0];
     if (!latestCommit) latest.append(this.KtcEmpty(project.repository.error ?? "仓库没有可显示的 commit。"));
     else {
-      latest.append(this.KtcCommitRow(latestCommit, selectedOids, syncGenerate, requestSummary));
+      latest.append(this.KtcCommitRow(latestCommit, selectedOids, syncSelectionActions, requestSummary));
       const headOid = project.repository.headOid;
       if (headOid && this.KtcAutoSummaryHeads.get(project.repository.id) !== headOid) {
         this.KtcAutoSummaryHeads.set(project.repository.id, headOid);
         selectedOids.clear();
         selectedOids.add(latestCommit.oid);
-        syncGenerate();
+        syncSelectionActions();
         queueMicrotask(() => requestSummary(true));
       }
     }
@@ -573,30 +515,53 @@ export class KtcGitPrimaryPanel extends HTMLElement {
     const older = document.createElement("div");
     older.className = "commits";
     for (const commit of project.commits.slice(1)) {
-      older.append(this.KtcCommitRow(commit, selectedOids, syncGenerate, requestSummary));
+      older.append(this.KtcCommitRow(commit, selectedOids, syncSelectionActions, requestSummary));
     }
     if (project.commits.length <= 1) older.append(this.KtcEmpty("尚未加载更早的 commit。"));
     history.append(historyTitle, older);
-    if (project.hasMoreCommits && project.repository.headOid) {
-      const historyActions = document.createElement("div");
-      historyActions.className = "history-actions";
-      for (const [labelText, count] of [["下一条", 1], ["下 5 条", 5]] as const) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "secondary-button";
-        button.textContent = labelText;
-        button.onclick = () => this.KtcEmit({
-          action: "loadOlderCommits",
-          repositoryId: project.repository.id,
-          expectedHeadOid: project.repository.headOid!,
-          count,
-        });
-        historyActions.append(button);
-      }
-      history.append(historyActions);
+    const historyActions = document.createElement("div");
+    historyActions.className = "history-actions";
+    for (const [labelText, count] of [["下一条", 1], ["下 5 条", 5]] as const) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "secondary-button";
+      button.textContent = labelText;
+      button.disabled = !project.hasMoreCommits || !project.repository.headOid;
+      button.onclick = () => this.KtcEmit({
+        action: "loadOlderCommits",
+        repositoryId: project.repository.id,
+        expectedHeadOid: project.repository.headOid!,
+        count,
+      });
+      historyActions.append(button);
     }
+    const merge = document.createElement("button");
+    merge.type = "button";
+    merge.className = "secondary-button";
+    merge.textContent = "合并区间";
+    merge.title = "打开合并 View；带入当前勾选，至少 2 条时自动安全预检";
+    merge.onclick = () => {
+      if (selectedOids.size < 2) {
+        this.KtcEmit({
+          action: "openAction",
+          actionId: "squashLocalCommits",
+          repositoryId: project.repository.id,
+        });
+        return;
+      }
+      this.KtcEmit({
+        action: "openSquashWithSelection",
+        repositoryId: project.repository.id,
+        expectedHeadOid: project.repository.headOid ?? "",
+        selectedOids: [...selectedOids],
+      });
+    };
+    historyActions.append(merge);
 
-    container.append(repository, this.KtcGitActionTree(project), heading, latest, history);
+    const content: Node[] = [this.KtcGitActionTree(project)];
+    if (model.summaryDraft?.repositoryId === project.repository.id) content.push(this.KtcSummaryEditor(model));
+    content.push(heading, latest, history, historyActions);
+    container.append(...content);
     return container;
   }
 
@@ -613,17 +578,15 @@ export class KtcGitPrimaryPanel extends HTMLElement {
       nodes: [{
         id: rootId,
         label: "Git 操作",
-        description: "简报 · 提交图 · 本地合并",
         iconKey: "settings",
         children: [
           ...(squash ? [{
             id: `git-action:${project.repository.id}:${squash.id}`,
-            label: squash.title,
-            description: squash.enabled ? "打开提交图并按需预检" : squash.description,
+            label: "合并 commit 区间",
             iconKey: squash.enabled ? "catalog" as const : "warning" as const,
           }] : []),
-          { id: `git-action:${project.repository.id}:scm`, label: "打开源代码管理", description: "VS Code SCM", iconKey: "folder" as const },
-          { id: `git-action:${project.repository.id}:output`, label: "查看 Git 日志", description: "KT Auto Code 输出", iconKey: "info" as const },
+          { id: `git-action:${project.repository.id}:scm`, label: "源代码管理", iconKey: "folder" as const },
+          { id: `git-action:${project.repository.id}:output`, label: "Git 日志", iconKey: "info" as const },
         ],
       }],
     };
@@ -687,21 +650,6 @@ export class KtcGitPrimaryPanel extends HTMLElement {
     sha.textContent = commit.shortOid;
     row.append(checkbox, marker, commitLabel, sha);
     return row;
-  }
-
-  private KtcToolbarButton(
-    glyph: string,
-    label: string,
-    action: "refresh" | "openScm" | "openOutput" | "addRepository",
-  ): HTMLButtonElement {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "icon-button";
-    button.textContent = glyph;
-    button.title = label;
-    button.setAttribute("aria-label", label);
-    button.onclick = () => this.KtcEmit({ action });
-    return button;
   }
 
   private KtcBadge(text: string): HTMLElement {

@@ -50,7 +50,7 @@ Owner：KT Auto Code maintainers
 
 当前实现已经：
 
-- 读取 `ROOT_DIR`、`ROOT_DIR_3rdParty`、`ROOT_DIR_CORE`、`CAA_MK_VERSION`；
+- 读取 `ROOT_DIR`、`SDK_PREFIX`、`ROOT_DIR_CORE`、可选的 `ROOT_DIR_INCLUDE`、`ROOT_DIR_3rdParty`、`CAA_MK_VERSION`；头文件目录优先 `ROOT_DIR_INCLUDE`，为空时回退 `<ROOT_DIR>/kt/core/include`；`ROOT_DIR_CORE` 只用于平台二进制产物；
 - Windows 下优先刷新当前用户/机器注册表，解决 VS Code 主进程环境陈旧问题；
 - macOS 下可通过 `launchctl` 维护当前登录会话值；
 - 通过 Wing `pnwResolveCaaEnvironment()` 生成结构化状态；
@@ -160,7 +160,7 @@ Owner：KT Auto Code maintainers
 - PowerShell：`mk.ps1`、`run.ps1`、`common.ps1`、`clangfile.ps1`、`LinkWinb64Common.ps1`；
 - 批处理：`buildFunction.bat`、`envSet.bat`；
 - `mk.ps1` 的版本优先级是参数 → `CAA_MK_VERSION` → `19`；
-- CAA 构建基于 `C:\DS\RADE<version>\intel_a`，preq 包含 `C:\DS\B<version>` 与 workspace；
+- 内置 CAA 构建默认从 `C:\DS\RADE<version>\win_b64` 调用脚本，preq 包含 `C:\DS\B<version>` 与 workspace；RADE/CATIA 根目录和 `win_b64` / `intel_a` 平台目录均为 machine-scoped User Settings，可覆盖默认约定而不污染工程配置；
 - 构建依次调用 `tck_init.bat`、`tck_profile.bat`、`mkGetPreq.bat`、`mkmk.bat`、`mkrtv.bat`；
 - 运行依次调用 `tck_init.bat`、`tck_profile.bat`、`mkCreateRuntimeView.bat`、`mkrun.bat -c cnext`；
 - 多个 `call` 必须位于同一个 `cmd.exe` 会话，才能继承前序批处理设置的环境；

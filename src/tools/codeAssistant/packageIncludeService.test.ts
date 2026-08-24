@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import iconv from "iconv-lite";
 import { describe, expect, it } from "vitest";
-import { ktcApplyPackageIncludes, ktcPreviewPackageIncludes, ktcResolveCoreIncludeDirectory } from "./packageIncludeService.js";
+import {
+  ktcApplyPackageIncludes,
+  ktcPreviewPackageIncludes,
+  ktcResolveDefaultPackageIncludeDirectory,
+  ktcResolvePackageIncludeDirectoryFromPublicInclude,
+} from "./packageIncludeService.js";
 
 async function createFixture() {
   const root = await mkdtemp(join(tmpdir(), "ktc-package-include-"));
@@ -16,9 +21,15 @@ async function createFixture() {
 }
 
 describe("Package 头文件修正文件服务", () => {
-  it("接受 core 根或 include 根", () => {
-    expect(ktcResolveCoreIncludeDirectory("E:/KtRoot/core").replace(/\\/g, "/")).toMatch(/E:\/KtRoot\/core\/include$/i);
-    expect(ktcResolveCoreIncludeDirectory("E:/KtRoot/core/include").replace(/\\/g, "/")).toMatch(/E:\/KtRoot\/core\/include$/i);
+  it("ROOT_DIR 未显式指定公共目录时使用共享 KtCore include", () => {
+    expect(ktcResolveDefaultPackageIncludeDirectory("E:/KtRoot").replace(/\\/g, "/")).toMatch(/E:\/KtRoot\/kt\/core\/include$/i);
+  });
+
+  it("将 ROOT_DIR_INCLUDE 的 KtCore 公共目录转换为 package 根", () => {
+    expect(ktcResolvePackageIncludeDirectoryFromPublicInclude("E:/KtRoot/phoenix/include/KtCore").replace(/\\/g, "/"))
+      .toMatch(/E:\/KtRoot\/phoenix\/include$/i);
+    expect(ktcResolvePackageIncludeDirectoryFromPublicInclude("E:/KtRoot/phoenix/include").replace(/\\/g, "/"))
+      .toMatch(/E:\/KtRoot\/phoenix\/include$/i);
   });
 
   it("预览并保持 GBK/CRLF 写回", async () => {

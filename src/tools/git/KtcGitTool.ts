@@ -64,9 +64,16 @@ export function KtcParseGitAction(message: unknown): KtcGitActionMessage | undef
   if (candidate.action === "removeRepository" && typeof candidate.repositoryId === "string") {
     return candidate as unknown as KtcGitActionMessage;
   }
+  if (candidate.action === "switchBranch" && typeof candidate.repositoryId === "string") {
+    return candidate as unknown as KtcGitActionMessage;
+  }
   if (candidate.action === "openAction"
     && typeof candidate.actionId === "string"
     && typeof candidate.repositoryId === "string") return candidate as unknown as KtcGitActionMessage;
+  if (candidate.action === "openSquashWithSelection"
+    && typeof candidate.repositoryId === "string"
+    && typeof candidate.expectedHeadOid === "string"
+    && KtcIsStringArray(candidate.selectedOids, true)) return candidate as unknown as KtcGitActionMessage;
   if (candidate.action === "selectCommits"
     && KtcIsStringArray(candidate.selectedOids)
     && typeof candidate.repositoryId === "string"
@@ -107,8 +114,8 @@ export function KtcParseGitAction(message: unknown): KtcGitActionMessage | undef
   return undefined;
 }
 
-function KtcIsStringArray(value: unknown): value is readonly string[] {
-  return Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === "string");
+function KtcIsStringArray(value: unknown, allowEmpty = false): value is readonly string[] {
+  return Array.isArray(value) && (allowEmpty || value.length > 0) && value.every((item) => typeof item === "string");
 }
 
 function KtcIsGitIdentity(value: unknown): boolean {
