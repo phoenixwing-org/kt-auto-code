@@ -46,11 +46,20 @@ import {
 } from "./KtcGitStashService.js";
 import {
   KtcAssessGitBranchRange,
+  KtcCompactGitCommitMessage,
   KtcCreateGitRangeSelection,
+  KtcProjectGitRangeSelection,
   KtcSameGitOidSelection,
   KtcUpdateGitRangeSelection,
+  KtcValidateGitSelectionOids,
 } from "./KtcGitSelection.js";
 import { KtcReadLocalGitBranchLines, KtcSwitchToLocalGitBranch } from "./KtcGitBranchService.js";
+import { KtcReadGitCommitBody } from "./KtcGitCommitBodyService.js";
+import {
+  KtcAnalyzeGitCommitTimeReset,
+  KtcExecuteGitCommitTimeReset,
+  KtcSuggestGitCommitTime,
+} from "./KtcGitCommitTimeService.js";
 
 export type KtcGitActionMessage =
   | {
@@ -234,10 +243,16 @@ export class KtcGitController {
         try {
           await this.KtcHandleSquashViewMessage(message, ctx);
         } catch (error) {
-          const stage = message.type === "execute" ? "合并执行" : "合并视图";
+          const stage = message.type === "execute"
+            ? "合并执行"
+            : message.type === "resetCommitTime"
+              ? "时间重置"
+              : message.type === "copySummary"
+                ? "简报"
+                : "合并视图";
           ctx.log(`[Git][${stage}][ERROR] ${KtcErrorMessage(error)}`);
           const repositoryId = this.KtcSquashViewBinding?.repositoryId;
-          if (repositoryId && this.KtcGraphSessions.has(repositoryId)) {
+          if (message.type !== "copySummary" && repositoryId && this.KtcGraphSessions.has(repositoryId)) {
             // 执行失败不丢弃安全预检草稿。用户可处理工作区、HEAD 或
             // Git 锁等问题后，直接在原页再次确认执行。
             this.KtcShowSquashView(repositoryId, "error", "合并未执行：" + KtcErrorMessage(error), this.KtcSquashDraft);
@@ -1102,7 +1117,9 @@ export class KtcGitController {
     if (expectedHeadOid && expectedHeadOid !== session.snapshot.headOid) {
       throw new Error("HEAD 已变化，不能使用旧的勾选结果；请重新读取后再合并。");
     }
-    const initialSelection = KtcPrimarySelectedOids(session, selectedOids);
+    // Selection identity is an OID list. The fresh graph below, rather than a
+    // potentially stale Primary summary page, decides whether every OID exists.
+    const initialSelection = KtcValidateGitSelectionOids(selectedOids);
     this.KtcSummaryDraft = undefined;
     this.KtcSquashDraft = undefined;
     const generation = ++this.KtcGraphReadGeneration;
@@ -1148,10 +1165,11 @@ export class KtcGitController {
         nextBeforeCursor = continuation.nextBeforeCursor;
         hasMore = continuation.hasMore;
       }
-      if (missingSelectedOids.size > 0) {
-        throw new Error(`带入的 ${missingSelectedOids.size} 个 commit 不在当前可见本地分支图中；请刷新后重新选择。`);
+      const projection = KtcProjectGitRangeSelection(commits, initialSelection);
+      if (projection.missingOids.length > 0) {
+        throw new Error(`带入的 ${projection.missingOids.length} 个 commit 不在当前可见本地分支图中；请刷新后重新选择。`);
       }
-      const rangeSelection = KtcCreateGitRangeSelection(commits, initialSelection);
+      const rangeSelection = projection.selection;
       this.KtcGraphSessions.set(repositoryId, {
         repositoryId,
         root: page.root,
@@ -1206,6 +1224,14 @@ export class KtcGitController {
     }
     if (message.type === "openScm") {
       await vscode.commands.executeCommand("workbench.view.scm");
+      return;
+    }
+    if (message.type === "copySummary") {
+      await this.KtcCopyGraphCommitSummary(repositoryId, message.oid, ctx);
+      return;
+    }
+    if (message.type === "resetCommitTime") {
+      await this.KtcResetGraphCommitTime(repositoryId, message.oid, ctx);
       return;
     }
     if (message.type === "select") {
@@ -1280,6 +1306,132 @@ export class KtcGitController {
       author: { name: message.author.name, email: message.author.email, date: message.author.date },
       committer: { name: message.committer.name, email: message.committer.email, date: message.committer.date },
     }, ctx);
+  }
+
+  private async KtcCopyGraphCommitSummary(repositoryId: string, oid: string, ctx: ToolRunContext): Promise<void> {
+    const graph = this.KtcRequireGraphSession(repositoryId);
+    const session = this.KtcRequireSession(repositoryId);
+    const commit = graph.commits.find((item) => item.oid === oid);
+    if (!commit) throw new Error("所选 commit 已不在当前提交图中；请重新加载后再试。");
+    const body = await KtcReadGitCommitBody(graph.root, oid);
+    const localBranch = commit.decorations.find((item) => item.kind === "local-branch")?.displayName;
+    const branch = localBranch || session.snapshot.branch;
+    const upstream = branch && branch === session.snapshot.branch ? session.snapshot.upstream : undefined;
+    const reviewerChoices = this.KtcReviewerChoices();
+    const reviewer = this.KtcSummaryDraft?.reviewer || reviewerChoices[0] || "";
+    const result = this.KtcAdapter.formatGroupSummary({
+      repositoryName: session.snapshot.name,
+      ...(branch ? { branch } : {}),
+      ...(upstream ? { upstream } : {}),
+      commit: {
+        oid: commit.oid,
+        subject: commit.subject,
+        body,
+        author: commit.author,
+        committer: commit.committer,
+      },
+      visibleOids: graph.commits.map((item) => item.oid),
+      includeCommitTime: this.KtcSummaryDraft?.includeCommitTime ?? true,
+      mentionReviewer: this.KtcSummaryDraft?.mentionReviewer ?? true,
+      fallbackReviewer: reviewer,
+    });
+    await vscode.env.clipboard.writeText(result.text);
+    await this.KtcRememberReviewer(reviewer);
+    this.KtcShowTransientSummaryStatus("Git commit 简报已复制。");
+    ctx.log(`[Git][简报][OK] 已复制：仓库 ${session.snapshot.name}；commit ${commit.oid.slice(0, 7)}。`);
+  }
+
+  private async KtcResetGraphCommitTime(repositoryId: string, oid: string, ctx: ToolRunContext): Promise<void> {
+    const graph = this.KtcRequireGraphSession(repositoryId);
+    const session = this.KtcRequireSession(repositoryId);
+    const commit = graph.commits.find((item) => item.oid === oid);
+    if (!commit) throw new Error("所选 commit 已不在当前提交图中；请重新加载后再试。");
+    if (this.KtcRunningRepositories.has(repositoryId)) throw new Error("这个仓库已有 Git 操作正在执行。");
+    const current = await this.KtcAdapter.readRepository(graph.root, 1);
+    if (current.headOid !== graph.headOid) throw new Error("HEAD 已变化，请刷新提交图后重试。");
+    if (!current.clean || current.operationState !== "idle") {
+      throw new Error("工作区存在未归档改动或正在进行 Git 操作，请处理后再重置提交时间。");
+    }
+    ctx.log(`[Git][时间重置][INFO] 预检：仓库 ${session.snapshot.name}；commit ${oid.slice(0, 12)}。`);
+    const analysis = await KtcAnalyzeGitCommitTimeReset(graph.root, oid, graph.headOid);
+    const suggestedDate = KtcSuggestGitCommitTime(graph.commits, oid);
+    const value = await vscode.window.showInputBox({
+      title: "重置提交时间",
+      prompt: `同时设置 Author / Committer 时间；将重建该 commit 及其后的 ${analysis.affectedOids.length - 1} 个节点。`,
+      value: suggestedDate,
+      placeHolder: "YYYY-MM-DD HH:mm:ss",
+      ignoreFocusOut: true,
+      validateInput: (candidate) => {
+        try {
+          KtcNormalizeGitDateInput(candidate);
+          return undefined;
+        } catch (error) {
+          return KtcErrorMessage(error);
+        }
+      },
+    });
+    if (value === undefined) {
+      ctx.log(`[Git][时间重置][INFO] 已取消：commit ${oid.slice(0, 12)}。`);
+      return;
+    }
+    const date = KtcNormalizeGitDateInput(value);
+    const confirmLabel = "重置时间";
+    const answer = await vscode.window.showWarningMessage(
+      `重置 ${oid.slice(0, 7)} 的 Author / Committer 时间？`,
+      {
+        modal: true,
+        detail: [
+          `分支：${analysis.branchName}`,
+          `提交：${analysis.targetSubject}`,
+          `时间：${KtcFormatGitDate(date)}`,
+          `后续重建：${analysis.affectedOids.length - 1} 个 commit`,
+          "",
+          "仅更新当前本地分支，不会 push；成功后保留备份引用。",
+        ].join("\n"),
+      },
+      confirmLabel,
+    );
+    if (answer !== confirmLabel) {
+      ctx.log(`[Git][时间重置][INFO] 已取消：commit ${oid.slice(0, 12)}。`);
+      return;
+    }
+    this.KtcRunningRepositories.add(repositoryId);
+    this.KtcShowSquashView(repositoryId, "loading", "正在重置提交时间并重建后续本地历史…", this.KtcSquashDraft);
+    try {
+      const result = await KtcExecuteGitCommitTimeReset({
+        repositoryRoot: graph.root,
+        targetOid: oid,
+        expectedHeadOid: graph.headOid,
+        date,
+      });
+      this.KtcSummaryDraft = undefined;
+      this.KtcSquashDraft = undefined;
+      this.KtcUndoState = undefined;
+      const refreshed = await this.KtcAdapter.readRepositorySummary(session.snapshot.root, 1, true);
+      const refreshedSnapshot = KtcGitReadSnapshotFromSummary(refreshed, session.snapshot.name);
+      const refreshedSession = {
+        snapshot: refreshedSnapshot,
+        ...(refreshed.commits.at(-1)?.oid ? { nextBeforeOid: refreshed.commits.at(-1)!.oid } : {}),
+        hasMoreCommits: refreshed.commits.length > 0,
+      } satisfies KtcGitSession;
+      this.KtcSessions.set(repositoryId, refreshedSession);
+      this.KtcRepositoryInputs = this.KtcRepositoryInputs.map((item) => item.id === repositoryId
+        ? this.KtcRepositoryInput(refreshedSnapshot, item, refreshedSession.hasMoreCommits)
+        : item);
+      this.KtcPostState(ctx);
+      await this.KtcOpenSquashView(
+        repositoryId,
+        ctx,
+        graph.refsScope,
+        [],
+        refreshedSnapshot.headOid,
+        `时间已重置：${oid.slice(0, 7)}；提交图已刷新。`,
+        true,
+      );
+      ctx.log(`[Git][时间重置][OK] ${result.oldHeadOid.slice(0, 12)} → ${result.newHeadOid.slice(0, 12)}；重建 ${result.rewritten.length} 个 commit；备份 ${result.backupRef}；未 push。`);
+    } finally {
+      this.KtcRunningRepositories.delete(repositoryId);
+    }
   }
 
   private async KtcLoadOlderGraphCommits(repositoryId: string, count: 1 | 5, ctx: ToolRunContext): Promise<void> {
@@ -1442,6 +1594,7 @@ export class KtcGitController {
       return;
     }
     const commitByOid = new Map(analysis.snapshot.history.map((commit) => [commit.oid, commit]));
+    const defaultCommitter = KtcIdentity(analysis.draft.committer);
     this.KtcGraphSessions.set(repositoryId, { ...graph, selectedOids: analysis.plan.selectedOids });
     this.KtcSquashDraft = {
       repositoryId,
@@ -1461,9 +1614,9 @@ export class KtcGitController {
         return `${oid.slice(0, 12)} ${commit?.subject || "(无标题)"}`;
       }),
       warnings: KtcSquashWarnings(analysis.plan.warnings),
-      message: analysis.draft.message,
-      author: KtcIdentity(analysis.draft.author),
-      committer: KtcIdentity(analysis.draft.committer),
+      message: KtcCompactGitCommitMessage(analysis.draft.message),
+      author: defaultCommitter,
+      committer: defaultCommitter,
     };
     this.KtcSummaryDraft = undefined;
     this.KtcPostState(ctx);
@@ -1925,22 +2078,6 @@ function KtcGraphSelectedOids(
     throw new Error("合并选择包含未加载的 commit，请先在提交图中加载并选择。 ");
   }
   return graph.commits.filter((commit) => requested.has(commit.oid)).map((commit) => commit.oid);
-}
-
-/** Primary 的勾选只能来自当前已读取的轻量摘要；Wing 预检仍会重新验证真实历史。 */
-function KtcPrimarySelectedOids(
-  session: KtcGitSession,
-  requestedOids: readonly string[],
-): readonly string[] {
-  if (requestedOids.length === 0) return [];
-  if (requestedOids.length > 100) throw new Error("一次最多选择 100 个 commit。");
-  const requested = new Set(requestedOids);
-  if (requested.size !== requestedOids.length) throw new Error("合并选择包含重复 commit。");
-  const known = new Set(session.snapshot.history.map((commit) => commit.oid));
-  if ([...requested].some((oid) => !known.has(oid))) {
-    throw new Error("勾选的 commit 已不在当前已读取历史中；请刷新后再试。");
-  }
-  return session.snapshot.history.filter((commit) => requested.has(commit.oid)).map((commit) => commit.oid);
 }
 
 function KtcValidatedDraft(

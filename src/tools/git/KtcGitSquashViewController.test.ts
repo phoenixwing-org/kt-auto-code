@@ -87,10 +87,16 @@ describe("Git squash graph View", () => {
     expect(panel.webview.html).toContain('data-section-action id="preflight"');
     expect(panel.webview.html).toContain("min-height: 30px");
     expect(panel.webview.html).toContain("HEAD");
+    expect(panel.webview.html).toContain("复制简报");
+    expect(panel.webview.html).toContain("重置提交时间…");
+    expect(panel.webview.html).toContain('data-reset-time="' + oid + '"');
+    expect(panel.webview.html).toContain("width: 28px; height: 28px");
     expect(panel.webview.html).not.toContain("1780000000");
-    expect(panel.webview.html).toContain('grid-template-columns: 24px 12px max-content minmax(0,1fr)');
+    expect(panel.webview.html).toContain('grid-template-columns: 24px 16px max-content minmax(0,1fr)');
     expect(panel.webview.html).toContain('class="range-handle"');
     expect(panel.webview.html).toContain("anchorOid: dragAnchor");
+    expect(panel.webview.html).toContain("document.elementFromPoint(event.clientX, event.clientY)");
+    expect(panel.webview.html).toContain("拖动调整连续区间");
     expect(panel.webview.html.indexOf('<span class="select"><input type="checkbox"')).toBeLessThan(panel.webview.html.indexOf('<span class="graph"'));
     expect(panel.reveal).not.toHaveBeenCalled();
   });
@@ -204,8 +210,10 @@ describe("Git squash graph View", () => {
     expect(panel.webview.html).toContain('class="graph-edge');
     expect(panel.webview.html).toContain('class="graph-edge merge"');
     expect(panel.webview.html).toContain(" C ");
-    expect(panel.webview.html).toContain('class="graph-node tip"');
+    expect(panel.webview.html).toContain("C 8 22.5, 24 22.5, 24 30");
+    expect(panel.webview.html).not.toContain('class="graph-node tip"');
     expect(panel.webview.html).toContain("--vscode-charts-magenta");
+    expect(panel.webview.html.indexOf(">develop</span>")).toBeLessThan(panel.webview.html.indexOf(">合并分支</span>"));
   });
 
   it("预检通过后将确认与低优先级详情拆为可折叠的连续 Section", () => {
@@ -243,6 +251,10 @@ describe("Git squash graph View", () => {
       },
     });
     expect(panel.webview.html).toContain("确认并执行");
+    expect(panel.webview.html).toContain('id="same-identity" type="checkbox" checked');
+    expect(panel.webview.html).toContain("Author / Committer 相同");
+    expect(panel.webview.html).toContain('id="committer-fields" hidden');
+    expect(panel.webview.html).toContain("textarea { min-height: 150px");
     expect(panel.webview.html).toContain('data-section-action id="execute"');
     expect(panel.webview.html).not.toContain('<div class="actions"><button class="primary" id="execute"');
     expect(panel.webview.html).toContain("预检详情");

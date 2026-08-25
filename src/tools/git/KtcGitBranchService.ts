@@ -22,13 +22,8 @@ export async function KtcReadLocalGitBranchLines(
   run: KtcGitCommandRunner = KtcRunGit,
 ): Promise<readonly KtcGitBranchLine[]> {
   const refs = await run(["for-each-ref", "--format=%(refname:short)%00%(objectname)", "refs/heads"], repositoryRoot);
-  const values = refs.stdout.split("\0").filter(Boolean);
-  if (values.length % 2 !== 0) throw new Error("Git 返回了不完整的本地分支引用列表。");
   const branches: KtcGitBranchLine[] = [];
-  for (let index = 0; index < values.length; index += 2) {
-    const name = values[index]!.trim();
-    const tipOid = values[index + 1]!.trim();
-    if (!name || !/^[0-9a-f]{40,64}$/iu.test(tipOid)) continue;
+  for (const { name, tipOid } of KtcParseLocalGitBranchRefs(refs.stdout)) {
     const history = await run([
       "rev-list",
       "--first-parent",
@@ -39,6 +34,25 @@ export async function KtcReadLocalGitBranchLines(
     branches.push({ name, firstParentOids });
   }
   return branches;
+}
+
+/** Parses Git's newline-delimited ref records whose two fields are NUL separated. */
+export function KtcParseLocalGitBranchRefs(
+  stdout: string,
+): readonly { readonly name: string; readonly tipOid: string }[] {
+  const result: { name: string; tipOid: string }[] = [];
+  for (const record of stdout.split(/\r?\n/u)) {
+    if (!record) continue;
+    const fields = record.split("\0");
+    if (fields.length !== 2) throw new Error("Git 返回了不完整的本地分支引用列表。");
+    const name = fields[0]!.trim();
+    const tipOid = fields[1]!.trim();
+    if (!name || !/^[0-9a-f]{40,64}$/iu.test(tipOid)) {
+      throw new Error("Git 返回了无效的本地分支引用记录。");
+    }
+    result.push({ name, tipOid });
+  }
+  return result;
 }
 
 /** Switches only to a controller-validated local branch name; no shell interpolation. */

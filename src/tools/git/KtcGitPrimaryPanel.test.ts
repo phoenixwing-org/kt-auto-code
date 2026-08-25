@@ -136,12 +136,13 @@ describe("Git Primary panel", () => {
     expect(controller).toContain("refsScope,");
     expect(controller).toContain("beforeCursor: graph.nextBeforeCursor");
     expect(controller).toContain("KtcGraphSelectedOids(graph, message.selectedOids)");
-    expect(controller).toContain("KtcPrimarySelectedOids(session, selectedOids)");
+    expect(controller).toContain("KtcValidateGitSelectionOids(selectedOids)");
+    expect(controller).toContain("KtcProjectGitRangeSelection(commits, initialSelection)");
     expect(controller).toContain("const missingSelectedOids = new Set(initialSelection)");
     expect(controller).toContain("missingSelectedOids.size > 0 && hasMore && nextBeforeCursor");
     expect(controller).toContain("beforeCursor: nextBeforeCursor");
     expect(controller).toContain("limit: Math.min(5, 1_000 - commits.length)");
-    expect(controller).toContain("带入的 ${missingSelectedOids.size} 个 commit 不在当前可见本地分支图中");
+    expect(controller).toContain("带入的 ${projection.missingOids.length} 个 commit 不在当前可见本地分支图中");
     expect(controller).not.toContain('if (action.selectedOids.length < 2) throw new Error');
     expect(controller).toContain("KtcSameGitOidSelection(trusted.selectedOids, action.selectedOids)");
     expect(controller).toContain("selectedOids: trusted.selectedOids");

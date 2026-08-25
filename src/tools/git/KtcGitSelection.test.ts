@@ -1,12 +1,37 @@
 import { describe, expect, it } from "vitest";
 import {
   KtcAssessGitBranchRange,
+  KtcCompactGitCommitMessage,
   KtcCreateGitRangeSelection,
+  KtcProjectGitRangeSelection,
   KtcSameGitOidSelection,
   KtcUpdateGitRangeSelection,
+  KtcValidateGitSelectionOids,
 } from "./KtcGitSelection.js";
 
 describe("Git selection", () => {
+  it("reconciles persisted OIDs against a freshly read graph without UI state", () => {
+    const [head, middle, base, missing] = ["a", "b", "c", "d"].map((value) => value.repeat(40));
+    const graph = [
+      { oid: head!, parentOids: [middle!] },
+      { oid: middle!, parentOids: [base!] },
+      { oid: base!, parentOids: [] },
+    ];
+    expect(KtcProjectGitRangeSelection(graph, [head!, base!])).toMatchObject({
+      missingOids: [],
+      selection: { selectedOids: [head, middle, base], anchorOid: head, endpointOid: base },
+    });
+    expect(KtcProjectGitRangeSelection(graph, [head!, missing!])).toMatchObject({
+      missingOids: [missing],
+      selection: { selectedOids: [] },
+    });
+    expect(() => KtcValidateGitSelectionOids([head!, head!])).toThrow("重复");
+  });
+
+  it("compacts generated squash messages without blank separator rows", () => {
+    expect(KtcCompactGitCommitMessage("标题一\n\n标题二\n\r\n- 说明\n")).toBe("标题一\n标题二\n- 说明");
+  });
+
   it("treats graph order and trusted preflight order as the same selection", () => {
     const newestFirst = ["a".repeat(40), "b".repeat(40), "c".repeat(40)];
     expect(KtcSameGitOidSelection(newestFirst, [...newestFirst].reverse())).toBe(true);

@@ -241,7 +241,7 @@ PNXCaaStudy origin/sort **Commit:** 4b4622 ++ · 2026-07-18 14:55
 - 提交图以 newest-first 显示，Wing 预检计划可能使用相反的历史顺序。执行前只校验两边是否为同一组 OID，实际写入必须使用 Wing 预检返回的可信顺序，不能按 UI 数组下标误报“合并预览已变化”。
 - 合并 View 固定为三块可独立折叠的连续 Section：`提交图与选择`、`确认信息`、`预检详情`。分页/预检按钮位于第一个 Header，执行按钮位于第二个 Header；提交图每条 commit 压缩为单行。预检详情位于确认块之后，默认收起。
 - 提交图首屏最多读取 5 条，`下一条 / 下 5 条`通过 Wing 返回的不透明 cursor 按拓扑顺序追加；所有请求携带初始 `expectedHeadOid`。从 Primary 带入勾选时，如果首屏实际命中的 OID 数少于带入数，则按每次 5 条自动补页，直到勾选全部显示或明确判定历史失效；普通打开仍保持 5 条首屏。Auto 不得解析 cursor、根据最后 OID 自造 cursor，或为图读取完整快照。
-- 提交图固定显示本地分支及 merge lane/parent edge；Auto 使用 Wing 的纯拓扑 DTO 绘制固定宽度车道、持续线和 SVG 贝塞尔分叉/合并曲线，并使用 VS Code 图表主题色。View 不再提供容易被误解为“切换分支”的 refs 范围下拉；它只浏览和选择，从不 checkout、切换当前分支、移动 ref 或写工作树。
+- 提交图固定显示本地分支及 merge lane/parent edge；Auto 使用 Wing 的纯拓扑 DTO 绘制固定宽度车道、持续线和 SVG 贝塞尔分叉/合并曲线，并使用 VS Code 图表主题色；HEAD 与本地分支 tip 以提交标题前的胶囊标识，只有当前 HEAD 节点为空心圈，其他分支 tip 为实心。View 不再提供容易被误解为“切换分支”的 refs 范围下拉；它只浏览和选择，从不 checkout、切换当前分支、移动 ref 或写工作树。
 - 提交图的选择允许跨多条已加载的拓扑行，但真正合并仍只接受当前分支的连续普通提交区间。用户点“安全预检”后才调用完整 `analyzeSquash`，由 Wing 做区间、工作区、签名、引用占用和 replay 判定。
 - `dirty-worktree` 是唯一可由用户在 View 内恢复的预检阻断：先显示暂存/修改/未跟踪计数，再由用户显式确认“暂存并重新预检”。实现使用带标记的 `git stash push --include-untracked`，不收纳 ignored 文件；执行成功后仅提供恢复入口，绝不自动 apply/pop。
 - 分页/预检检测到 HEAD、仓库根或 cursor 改变时必须拒绝旧会话，但保留原 View 并原地提示。View 从打开起固定绑定仓库；Primary 切库和刷新不能关闭、换仓或抢焦点。只有用户手动关闭 View 才释放图/草稿；若要操作另一仓库或重新建立有效快照，先关闭再打开。合并成功则在同一 View 清空选择并刷新新图。只有同一仓库和同一 HEAD 才复用一次自动简报复制。
@@ -309,9 +309,19 @@ TortoiseGit Windows 版的 Log Dialog 顶部是带分支线的 commit 列表，H
 - 原始 commit 列表、base parent、旧 HEAD 与预计新 HEAD；
 - 合并后会消失的 SHA、后续提交的 old → new SHA 映射，以及将保留的最终 tree SHA。
 
-“默认以最后一个时间重置”在计划中定义为：使用所选范围 tip，也就是所选区间最新 commit 的时间，并保留原时区；它不一定等于 HEAD。界面必须明确写“默认取所选最新提交”，避免列表倒序导致“最后一个”歧义。
+“默认以最后一个时间重置”在计划中定义为：使用所选范围 tip，也就是所选区间最新 commit 的 Committer 时间，并保留原时区；它不一定等于 HEAD。Author 与 Committer 默认都使用该 tip 的 Committer 姓名、邮箱和时间；勾选“Author / Committer 相同”时只显示一行并同步三个字段，取消勾选后才展开第二行分别编辑。界面必须明确写“默认取所选最新提交”，避免列表倒序导致“最后一个”歧义。
 
-author 与 committer 默认也取 tip commit，但允许分别修改。时间输入使用本机可读格式 `YYYY-MM-DD HH:mm:ss`，不显示时区，也不向用户暴露 Git 内部的 `<unix-seconds> <offset>`；读取时把 commit instant 换算成本机时间，执行前再按该日期对应的本机时区严格转换回 Git canonical date。
+author 与 committer 默认也取 tip commit，但允许分别修改。自动生成的 message 连续保留各 commit 正文行，默认不插入或保留空白分隔行。时间输入使用本机可读格式 `YYYY-MM-DD HH:mm:ss`，不显示时区，也不向用户暴露 Git 内部的 `<unix-seconds> <offset>`；读取时把 commit instant 换算成本机时间，执行前再按该日期对应的本机时区严格转换回 Git canonical date。
+
+### 7.8 提交行操作与提交时间重置（0.7.3）
+
+- 提交行悬停或聚焦时显示醒目的 `…`，当前只保留“复制简报”和“重置提交时间…”两个差异化操作，不复制 Git Graph 已有的常规命令。
+- “复制简报”按该 OID 单独读取完整正文，复用 Primary 群消息简报格式并写入剪贴板；成功或失败统一写入 KT Auto Code Output。
+- “重置提交时间…”使用 VS Code 输入框和二次确认，不增加常驻表单；Author Date 与 Committer Date 始终设置为同一时间。已加载到前后相邻 commit 时默认取两者时间中点，否则保留当前提交时间。
+- 仅允许当前本地分支、工作区干净、没有进行中的 Git 操作、目标到 HEAD 为无 merge 的单父直线历史，且目标不被其他本地分支、remote 或 tag 引用。根 commit、签名或额外 header 继续阻断。
+- 执行使用 `git commit-tree` 从目标逐个重建到 HEAD：目标同时修改 Author/Committer 时间，后续 commit 的 tree、message、身份和两个原时间保持不变；最终必须验证 HEAD tree 与工作区状态。
+- 更新当前分支前创建自动编号的 `refs/kt-auto-code/backup/<branch>-time[-n]`，更新失败自动回滚；成功保留备份引用，不移动其他引用且不自动 push。
+- 读取、预检和重建算法位于零 DOM 的纯 TypeScript/Node service；View 只传递 OID 和用户意图，Controller 负责编排输入、确认、刷新和 `[Git][时间重置]` 日志。
 
 ### 7.3 技术实现简述
 

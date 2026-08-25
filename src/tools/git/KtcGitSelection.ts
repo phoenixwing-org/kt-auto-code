@@ -21,6 +21,48 @@ export interface KtcGitRangeSelection {
   readonly endpointOid?: string;
 }
 
+export interface KtcGitRangeSelectionProjection {
+  readonly selection: KtcGitRangeSelection;
+  readonly missingOids: readonly string[];
+}
+
+/** Validates the OID-only selection contract received from any UI or saved state. */
+export function KtcValidateGitSelectionOids(requestedOids: readonly string[]): readonly string[] {
+  if (requestedOids.length > 100) throw new Error("一次最多选择 100 个 commit。");
+  if (requestedOids.some((oid) => !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/iu.test(oid))) {
+    throw new Error("合并选择包含无效 commit OID。");
+  }
+  const unique = new Set(requestedOids);
+  if (unique.size !== requestedOids.length) throw new Error("合并选择包含重复 commit。");
+  return [...requestedOids];
+}
+
+/**
+ * Reconciles persisted OIDs with a freshly read graph. This pure projection is
+ * the only place that turns old checkbox identity into selected/selectable rows.
+ */
+export function KtcProjectGitRangeSelection(
+  commits: readonly KtcGitRangeCommit[],
+  requestedOids: readonly string[],
+): KtcGitRangeSelectionProjection {
+  const requested = KtcValidateGitSelectionOids(requestedOids);
+  const known = new Set(commits.map((commit) => commit.oid));
+  const missingOids = requested.filter((oid) => !known.has(oid));
+  return {
+    selection: KtcCreateGitRangeSelection(commits, missingOids.length === 0 ? requested : []),
+    missingOids,
+  };
+}
+
+/** Removes blank separator rows from an automatically generated squash draft. */
+export function KtcCompactGitCommitMessage(message: string): string {
+  return message
+    .split(/\r?\n/u)
+    .filter((line) => line.trim().length > 0)
+    .join("\n")
+    .trim();
+}
+
 /**
  * A branch line is deliberately a DOM-free projection of Git's first-parent
  * history.  The graph renderer may draw merge lanes, but rewrite eligibility

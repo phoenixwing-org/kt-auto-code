@@ -168,6 +168,9 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('id="environment-block"');
     expect(html).toContain('className = "environment-row-body"');
     expect(html).toContain('className = "environment-icon-button environment-save-button"');
+    expect(html).toContain('actions.prepend(clear)');
+    expect(html).toContain('actions.append(save)');
+    expect(html).toContain('M6.35 12.2 2.6 8.45');
     expect(html).toContain('action: "pick", key: item.key, value: value.value');
     expect(html).toContain('.environment-save-button, .environment-row:hover .environment-icon-button');
     expect(html).toContain('<ktc-codegen-primary-panel id="codegen-panel" hidden>');
