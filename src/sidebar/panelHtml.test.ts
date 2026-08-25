@@ -79,8 +79,10 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('.settings-section[open] .settings-section-chevron { transform: rotate(0deg); }');
     expect(html).toContain('<span>工程环境</span></summary>');
     expect(html).toContain('id="plugin-settings-tree" open');
-    expect(html).toContain('<span>插件设置</span><span class="settings-section-count">1 项</span>');
+    expect(html).toContain('<span>插件设置</span><span class="settings-section-count">5 项</span>');
     expect(html).toContain('role="tree" aria-label="插件设置功能"');
+    expect(html).toContain('id="plugin-setting-values" aria-label="CAA 插件设置当前值"');
+    expect(html).toContain('item.label + " · " + item.value + " · " + item.source');
     expect(html).toContain('role="treeitem" title="打开 KT Auto Code 的 VS Code 设置"');
     expect(html.indexOf('class="ignore-manager-status"')).toBeGreaterThan(html.indexOf('id="ignore-manager"'));
     expect(html.indexOf('id="plugin-ignore-enabled"')).toBeGreaterThan(html.indexOf('class="ignore-manager-status"'));

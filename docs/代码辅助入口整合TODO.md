@@ -1,6 +1,6 @@
 # 代码辅助入口整合 TODO
 
-状态：current（代码辅助分组入口已实现；排序已用户点检，Package/ASCII/编码/UUID/CAA UI 待逐项点检）
+状态：current（代码辅助分组入口已实现；排序已用户点检，头文件引用修正/ASCII/编码/UUID/CAA UI 待逐项点检）
 
 Owner：KT Auto Code maintainers
 
@@ -14,7 +14,7 @@ Owner：KT Auto Code maintainers
 
 ## 1. 背景
 
-Code 模块的 Ribbon 现只保留高频的搜索替换、自动代码、代码辅助、Run 与 Git。低频的 Package 头文件修正、成员排序、头文件 ASCII、编码、UUID 和 CAA UI 已收拢到代码辅助 Tree，避免一级按钮与固定/排序菜单持续膨胀。
+Code 模块的 Ribbon 现只保留高频的搜索替换、自动代码、代码辅助、Run 与 Git。低频的头文件引用修正、成员排序、头文件 ASCII、编码、UUID 和 CAA UI 已收拢到代码辅助 Tree，避免一级按钮与固定/排序菜单持续膨胀。
 
 代码辅助只负责聚合入口，不把头文件 ASCII、编码或 UUID 误命名为 CMake 功能。C++ 成员排序是第一个用户点检通过的迁移样例；所有原命令 ID、设置入口与自动化调用继续兼容。
 
@@ -23,8 +23,8 @@ Code 模块的 Ribbon 现只保留高频的搜索替换、自动代码、代码�
 建议采用以下三层界面：
 
 1. Ribbon 提供一个 `代码辅助`按钮入口；它不再为每个低频代码辅助动作新增一级按钮。新用户首次启动的默认顺序为：`代码辅助 → Git → Run → 替换 → 自动代码`；旧版本已保存的 Ribbon 只做一次兼容迁移，之后始终尊重用户自己的固定或排序选择。`…` 菜单的“重置 Code 默认顺序”只恢复 Code 的默认顺序和固定项，不影响 CAD。
-2. 点击入口后，Primary 的第三个 Block 显示可整体折叠、带轻边框与独立 Header 的“功能目录”Tree。标题右侧显示总数 `（6）`；当前分组为：`C++ 整理`（3 项：Package 头文件修正、成员排序、头文件 ASCII）、`文件工具`（2 项：编码、UUID）和 `CAA`（1 项：CAA UI），每个分组 Header 右侧以紧凑的 `（3）` 样式显示下级功能数。目录内容与 Git Block 一样贴齐当前工具 Block 的左右边界，不另留卡片空隙；当前功能以选中背景和左侧细线标识。整体目录、分类折叠与排序的两个内部 Block 折叠均保存到 VS Code 用户级 `globalState`，不写工程配置；收起目录不关闭已打开的右侧 View 或清理功能会话。
-3. Package 头文件修正等长表格功能在编辑器区打开或激活自己的单例、文档式右侧 View；目录、环境、长表格、Preview 和 Apply 都在该 View 中完成。重复点击同一节点只定位已有标签页。
+2. 点击入口后，Primary 的第三个 Block 显示可整体折叠、带轻边框与独立 Header 的“功能目录”Tree。标题右侧显示总数 `（6）`；当前分组为：`C++ 整理`（3 项：头文件引用修正、成员排序、头文件 ASCII）、`文件工具`（2 项：编码、UUID）和 `CAA`（1 项：CAA UI），每个分组 Header 右侧以紧凑的 `（3）` 样式显示下级功能数。目录内容与 Git Block 一样贴齐当前工具 Block 的左右边界，不另留卡片空隙；当前功能以选中背景和左侧细线标识。整体目录、分类折叠与排序的两个内部 Block 折叠均保存到 VS Code 用户级 `globalState`，不写工程配置；收起目录不关闭已打开的右侧 View 或清理功能会话。
+3. 头文件引用修正等长表格功能在编辑器区打开或激活自己的单例、文档式右侧 View；目录、环境、长表格、Preview 和 Apply 都在该 View 中完成。重复点击同一节点只定位已有标签页。
 4. C++ 成员排序保留在当前工具 Block：点击 `C++ 整理 → C++ 成员排序` 后，在 Tree 下显示既有排序 UI，分为“排序操作”和“预览结果”两个可折叠内部 Block。选择功能本身不扫描、不写入。
 5. 各功能的 Preview/Apply 会话彼此独立；不得把 A 功能的预览或待写入计划用于 B 功能，也不在一个共享页签内切换功能。
 
@@ -32,7 +32,7 @@ Code 模块的 Ribbon 现只保留高频的搜索替换、自动代码、代码�
 
 | 功能 | 当前状态 | 说明 |
 | --- | --- | --- |
-| CMake Package 头文件修正 | 已迁入 `C++ 整理`，待点检 | 将平铺 include 修正为 CMake package include，例如 `#include "KtString.h"` → `#include <KtCore/KtString.h>` |
+| 头文件引用修正 | 已迁入 `C++ 整理`，待点检 | 将平铺 include 修正为 CMake package include，例如 `#include "KtString.h"` → `#include <KtCore/KtString.h>` |
 | C++ 成员排序 | 首个用户参与迁移已完成 | 已从一级 Ribbon 移入 `C++ 整理` Tree；保留原扫描、选择、确认、写入、还原和 Git diff 语义 |
 | 头文件 ASCII 修正 | 已迁入 `C++ 整理`，待点检 | 保留原预检、修复、设置和命令兼容 |
 | 编码修正 | 已迁入 `文件工具`，待点检 | 项目编码策略仍是独立领域能力，不因迁入而改为 CMake 专属 |
@@ -41,14 +41,14 @@ Code 模块的 Ribbon 现只保留高频的搜索替换、自动代码、代码�
 | 发布结构迁移：`export.bat` / SDK include | 仅需求草案 | SDK include 从平铺输出迁移到按 `public/<dll-name>`（以最终约定为准）分目录输出；预览旧平铺文件的清理计划，再显式确认删除 |
 | `CMakeLists.txt` package 迁移 | 仅需求草案 | 将直接引用 lib/dll 的方式改为 `find_package`；搜索目录必须由显式参数、Preset 或项目配置提供 |
 
-## 3. Package 头文件修正规则
+## 3. 头文件引用修正规则
 
 只有该功能被单独批准后，才按以下边界实施：
 
 1. 优先从机器环境变量 `ROOT_DIR_INCLUDE` 读取公共目录并取其 package 根；该变量可为空，仅在显式设置时覆盖默认目录。为空时统一回退 `<ROOT_DIR>/kt/core/include`。KtCore 头文件跨平台只保留这一份共享输出，`ROOT_DIR_CORE` 仅用于 DLL、dylib、so、lib 等平台产物。目录输入框允许直接修改或选择目录，最近明确选择仅保存在本机 UI 状态，不写入工程配置。
 2. 在 CORE include 树中建立不区分大小写的文件名映射。兼容旧 `include/**/source/**/*.{h,hpp}`（去掉结构段 `source`）与已分包的 `include/<package>/**/*.{h,hpp}`；例如 `KtCore/source/KtString.h` 和 `KtCore/KtString.h` 都映射为 `KtCore/KtString.h`。没有 package 目录的平铺头文件不自动猜测。
 3. 同名头文件映射到多个 package 时标为冲突并禁止自动替换，不能任意选择一个。
-4. 目标目录始终使用 Primary 顶部“目录”的当前选择，并只读显示在 View 中；Package View 不单独提供目标目录选择或缓存，不写入团队 `.vscode/settings.json`。
+4. 工程目录在打开 View 时使用 Primary 顶部“目录”的当前选择；View 内文本框允许为本次 Preview/Apply 临时修改，但不提供目录选择按钮、不回写 Primary、不缓存，也不写入团队 `.vscode/settings.json`。Primary Tree 和直接命令入口都必须在点击时解析并传入当前目录，不能绕过 Primary 上下文。
 5. 遍历目标的 C/C++ 头文件和源文件，只修改合法 `#include` 行，匹配文件名时不区分大小写；默认输出尖括号 package include。
 6. Preview 表格显示 `文件名 · 相对目录`、行号、旧值和新值。首列允许局部横向滚动；行号与变更列保持紧凑自动列宽。
 7. Apply 保留 UTF-8、UTF-8 BOM、GBK 和换行；预览记录文件指纹，写入前重新读取，任何文件变化都要求重新预览。
@@ -57,8 +57,8 @@ Code 模块的 Ribbon 现只保留高频的搜索替换、自动代码、代码�
 ### 当前点检清单
 
 1. 点击 Ribbon 的“代码辅助”，确认第三个 Block 显示三组 Tree；一级 Ribbon 与其 `…` 菜单中均不再出现排序、头文件 ASCII、编码、UUID 或 CAA UI。
-2. 点击“Package 头文件修正”，确认右侧打开 `代码辅助 · Package 头文件修正`；再次点击时只定位同一页签。
-3. 设置有效的 `ROOT_DIR`，确认 `ROOT_DIR_INCLUDE` 有值时优先使用、为空时回退 `<ROOT_DIR>/kt/core/include`；点检直接修改与选择 Package 目录，并确认当前“目录”会只读显示为唯一目标目录后执行 Preview。
+2. 点击“头文件引用修正”，确认右侧打开 `代码辅助 · 头文件引用修正`；Header 左侧显示功能名，右侧固定显示“预览 / 写入修正 / 工程环境”，其余目录和结果都位于 Main；再次点击时只定位同一页签。
+3. 设置有效的 `ROOT_DIR`，确认 `ROOT_DIR_INCLUDE` 有值时优先使用、为空时回退 `<ROOT_DIR>/kt/core/include`；Package 行只显示路径、“推导…”和“选择…”，“推导…”菜单提供从 `ROOT_DIR_INCLUDE` 或 `ROOT_DIR` 推导。确认工程目录默认带入 Primary 当前目录，可临时编辑并参与 Preview，但不提供选择按钮且不保存。
 4. 检查同名冲突会列出警告且不会自动替换；点击表格行可定位文件及行号。
 5. Apply 前修改任一待写入文件或 Package 目录，确认必须重新 Preview；确认写入后检查 Git diff、UTF-8 BOM/GBK 与原换行均被保留。
 

@@ -23,7 +23,6 @@ import {
 import {
   KtcCaaInstallationArguments,
   KtcCaaRadeCommandRoot,
-  KtcCaaRuntimeLabel,
   KtcResolveCaaInstallation,
 } from "./KtcCaaInstallation.js";
 import { KtcSelectRunDisplayTargets, KtcSelectRunExecutionProvider } from "./KtcRunDisplayTargets.js";
@@ -34,7 +33,6 @@ export type KtcRunActionMessage =
   | { readonly action: "stopRun"; readonly runId: string }
   | { readonly action: "selectCaaRelated" | "addCaaRelatedFolder"; readonly projectId: string }
   | { readonly action: "setCaaVersion"; readonly projectId: string; readonly value: string }
-  | { readonly action: "setCaaRuntimeDirectory"; readonly value: string }
   | { readonly action: "openSource"; readonly targetId: string };
 
 interface KtcRunProjectRecord {
@@ -148,10 +146,6 @@ export class KtcRunController {
     }
     if (action.action === "setCaaVersion") {
       await this.KtcSetCaaVersion(action.projectId, action.value, ctx);
-      return;
-    }
-    if (action.action === "setCaaRuntimeDirectory") {
-      await this.KtcSetCaaRuntimeDirectory(action.value, ctx);
       return;
     }
     if (action.action === "selectCaaRelated") {
@@ -363,7 +357,7 @@ export class KtcRunController {
     const mode = record.target.action === "caa-build" ? "build" : "run";
     const installation = this.KtcCaaInstallation(version);
     const base = KtcCaaRadeCommandRoot(installation);
-    ctx.log(`[Run][CAA] ${mode === "build" ? "内置 MK" : "内置 Run"} · 版本 ${version} · ${KtcCaaRuntimeLabel(installation.runtimeDirectory)} · RADE：${installation.radeRoot} · CATIA：${installation.catiaRoot}`);
+    ctx.log(`[Run][CAA] ${mode === "build" ? "内置 MK" : "内置 Run"} · 版本 ${version} · RADE 工具：intel_a · RADE：${installation.radeRoot} · CATIA：${installation.catiaRoot}`);
     await KtcRequireCaaDirectory(installation.radeRoot, "RADE 根目录", ctx);
     await KtcRequireCaaDirectory(installation.catiaRoot, "CATIA 目录", ctx);
     const required = mode === "build"
@@ -374,7 +368,7 @@ export class KtcRunController {
         await access(path.win32.join(base, ...relative.split("/")));
       } catch {
         const missing = path.win32.join(base, ...relative.split("/"));
-        ctx.log(`[ERROR] CAA：RADE ${KtcCaaRuntimeLabel(installation.runtimeDirectory)} 的厂商脚本缺失：${missing}`);
+        ctx.log(`[ERROR] CAA：RADE intel_a 的厂商脚本缺失：${missing}`);
         throw new Error(`CAA 预检停止：RADE 厂商脚本缺失：${missing}`);
       }
     }
@@ -399,17 +393,6 @@ export class KtcRunController {
     await context.workspaceState.update(KtcCaaVersionSelectionStateKey, values);
     this.KtcPostState(ctx);
     ctx.log(`[Run][selection] project=${projectId} caaVersion=${value} storage=workspaceState`);
-  }
-
-  private async KtcSetCaaRuntimeDirectory(value: string, ctx: ToolRunContext): Promise<void> {
-    const installation = KtcResolveCaaInstallation({ version: "19", runtimeDirectory: value });
-    await vscode.workspace.getConfiguration("ktAutoCode.run").update(
-      "caaRuntimeDirectory",
-      installation.runtimeDirectory,
-      vscode.ConfigurationTarget.Global,
-    );
-    ctx.log(`[Run][configuration] caaRuntimeDirectory=${installation.runtimeDirectory} platform=${KtcCaaRuntimeLabel(installation.runtimeDirectory)} storage=user-settings`);
-    this.KtcPostState(ctx);
   }
 
   private async KtcSelectCaaRelated(projectId: string, ctx: ToolRunContext): Promise<void> {
@@ -585,7 +568,8 @@ export class KtcRunController {
   private KtcCaaVersion(project: KtcRunProjectRecord): { readonly value: string; readonly source: string } {
     const context = this.KtcRequireExtensionContext();
     const configuration = KtcRunConfiguration(project);
-    const configured = configuration.inspect<string>("caaVersion")?.globalValue?.trim();
+    const configured = configuration.inspect<string>("CAAVersion")?.globalValue?.trim()
+      || configuration.inspect<string>("caaVersion")?.globalValue?.trim();
     const selected = context.workspaceState.get<Record<string, string>>(KtcCaaVersionSelectionStateKey)?.[project.id];
     const resolved = this.KtcAdapter.resolveCaaVersion({
       explicit: selected || configured,
@@ -602,11 +586,15 @@ export class KtcRunController {
 
   private KtcCaaInstallation(version: string) {
     const configuration = vscode.workspace.getConfiguration("ktAutoCode.run");
+    const radeRoot = configuration.get<string>("CAARadeRoot")?.trim()
+      || configuration.get<string>("caaRadeRoot")?.trim();
+    const catiaRoot = configuration.get<string>("CATIARoot")?.trim()
+      || configuration.get<string>("catiaRoot")?.trim()
+      || configuration.get<string>("caaCatiaRoot")?.trim();
     return KtcResolveCaaInstallation({
       version,
-      radeRoot: configuration.get<string>("caaRadeRoot"),
-      catiaRoot: configuration.get<string>("caaCatiaRoot"),
-      runtimeDirectory: configuration.get<string>("caaRuntimeDirectory"),
+      radeRoot,
+      catiaRoot,
     });
   }
 
@@ -647,7 +635,6 @@ export class KtcRunController {
         relativePath: record.project.relativePath,
         kinds: record.project.kinds,
         ...(caa ? { caaVersion: caa.value, caaVersionSource: caa.source } : {}),
-        ...(caa ? { caaRuntimeDirectory: this.KtcCaaInstallation(caa.value).runtimeDirectory } : {}),
         ...(caa ? {
           relatedProjectCount: relatedRoots.length,
           relatedProjectSummary: relatedRoots.map((root) => [...this.KtcProjects.values()]

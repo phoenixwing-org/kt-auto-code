@@ -20,11 +20,12 @@ Owner：KT Auto Code maintainers
 - 原生 Task 的 `problemMatcher` 原样保留；生成任务保留命名 matcher。即使项目没有 `tasks.json`，强证据识别出的 CAA `mk.ps1` 也包装成生成 Task，并自动挂接 Auto Code 自带的 CAA/MSVC matcher，把编译错误送进 Problems。CAA/CMake 内置构建任务同样提供受测试的 MSVC、GCC/Clang 与 CMake matcher。无法由公开 API 表达的嵌套 inline matcher 不静默丢失，而是显示“matcher 降级”或要求将子项目加入 Workspace Folder。
 - 多项目按真实 Workspace Folder、子项目根和 cwd 分组。`KtCore` 按 CMake C++ 项目处理；`PNXBomAnalysisWsp` 按 CAA 项目处理，二者不因都能运行脚本而混为同一项目类型。
 - CAA Block 可为每个子项目选择当前版本。当前选择保存在 `workspaceState`，不写工程文件，也不修改系统 `CAA_MK_VERSION`；其次读取 machine-scoped 插件默认版本和环境值，最后使用建议值 `19`。同一代码可依次选择多个版本编译。
-- 内置 CAA MK / Run 的机器安装位置使用 User Settings：`ktAutoCode.run.caaRadeRoot`、`caaCatiaRoot`、`caaRuntimeDirectory`。两个根目录留空时分别按 `C:\\DS\\RADE<版本>`、`C:\\DS\\B<版本>` 推导；默认平台目录是 `win_b64`，维护旧 32 位安装时可显式选 `intel_a`。这些都是机器集成信息，绝不写入工程的 `.vscode/settings.json`。
-- 点击内置 CAA MK / Run 前，Run 会在输出中记录版本、64/32 位平台、RADE 根和 CATIA 根；任一根目录或所需厂商脚本不存在时，预检立即停止，不会进入 `tck_init.bat`。Run 的 CAA 项目选项提供 64 位 / 32 位单选项，写入机器级 `caaRuntimeDirectory`。
+- 内置 CAA MK / Run 的机器安装位置使用 User Settings：`ktAutoCode.run.CAARadeRoot`、`CATIARoot`。配置后优先使用；留空时分别按 `C:\\DS\\RADE<版本>`、`C:\\DS\\B<版本>` 推导。厂商命令固定从 RADE 根下的 `intel_a` 读取，不能把工程输出目录 `win_b64` 拼成 RADE 工具目录。旧 `caaRadeRoot`、`catiaRoot`、`caaCatiaRoot` 仅保留读取兼容。这些都是机器集成信息，绝不写入工程的 `.vscode/settings.json`。
+- 点击内置 CAA MK / Run 前，Run 会在输出中记录版本、RADE `intel_a` 工具目录、RADE 根和 CATIA 根；任一根目录或所需厂商脚本不存在时，预检立即停止，不会进入 `tck_init.bat`。
+- `设置 → 插件设置` 以紧凑只读行显示当前 `CAA Version`、`CAA Rade Root`、`CATIA Root` 与固定的 `CAA Runtime Directory = intel_a`；来源和完整值保留在悬停提示中。编辑仍统一进入 VS Code 插件设置，不在该清单内维护第二份值。
 - 普通 Run 默认只输出“已启动”和清晰的成功/失败结论；发现数量、内部目标 ID、运行 ID、matcher 等开发诊断默认静默。失败行统一以 `[ERROR]` 开头并说明可行动原因；“试运行”是显式诊断动作，仍输出命令与兼容性细节。
 - CAA `MK` 独立维护“关联工程/Preq 目录”，对应参考脚本的 `-Workspace` 与 `mkGetPreq -p`。它不等于当前 cwd；可从已发现项目勾选或显式选择目录，内置 runner 支持多项并做去重与越界确认。关联目录只影响点击后的执行 provider，不改写列表来源：原生 `mk.ps1` 仍在 Tasks，bundled `MK` 仍在内置组，避免出现重复内置项。
-- 工程级 Run 配置采用 `ktAutoCode.run.caaRelatedProjects`；多 CAA 子工程使用 `ktAutoCode.run.caaProjects` 映射，关联路径优先按各自工程保存为相对路径。`ktAutoCode.run.caaVersion` 只表示本机插件默认版本，不是固定工程版本。
+- 工程级 Run 配置采用 `ktAutoCode.run.caaRelatedProjects`；多 CAA 子工程使用 `ktAutoCode.run.caaProjects` 映射，关联路径优先按各自工程保存为相对路径。`ktAutoCode.run.CAAVersion` 只表示本机插件默认版本，不是固定工程版本。
 - 默认开启“只看当前系统”。macOS 只显示当前可运行目标；关闭后仍可查看 Windows/Linux 候选，但这些候选置灰，仅用于 UI、路径与配置调试，不能伪装执行。
 - 参考脚本不会原样写入用户工作区。提炼后的内置 runner 默认随 VSIX 放在只读 `resources/run/`，通过 `ExtensionContext.extensionUri` 定位；没有 task/项目脚本也能直接运行。为调试和定制，可由用户显式把自包含 runner 与 manifest 生成到 `.phoenix/run/<project>/`；扫描/打开 Block 不自动写文件，也不覆盖用户改过的副本。
 - CAA 内置 runner 计划摆脱 PowerShell 硬依赖，但不能摆脱 Windows 厂商 `.bat`。它必须在一个 `cmd.exe` 会话中依次 `call` 环境与构建/运行脚本，保留批处理设置的环境，并把真实退出码传给 VS Code Task。

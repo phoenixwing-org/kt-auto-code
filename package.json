@@ -3,7 +3,7 @@
   "displayName": "KT Auto Code",
   "description": "CAA / MSVC C++ 工具：编码修正、Ignore、搜索替换、成员排序与 Codegen 参数表",
   "author": "上海锟钛",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "license": "Apache-2.0",
   "publisher": "kuntai",
   "private": true,
@@ -137,7 +137,7 @@
       },
       {
         "command": "ktAutoCode.codeAssistant.packageIncludes",
-        "title": "KT Auto Code：Package 头文件修正",
+        "title": "KT Auto Code：头文件引用修正",
         "icon": "$(symbol-namespace)"
       },
       {
@@ -386,35 +386,24 @@
           "scope": "machine",
           "markdownDescription": "本机常用的工作区外 Git 仓库目录。由 Git 提交整理中的“添加仓库”维护，可在这里删除；只保存仓库根目录，不保存 commit 内容。"
         },
-        "ktAutoCode.run.caaVersion": {
+        "ktAutoCode.run.CAAVersion": {
           "type": "string",
           "pattern": "^(?:[A-Za-z]?\\d{2,4})?$",
           "default": "",
           "scope": "machine",
           "description": "Run Block 的本机默认 CAA 版本。Primary 中每个工程的当前选择只覆盖本工作区；留空时读取 CAA_MK_VERSION，再回退到 19。"
         },
-        "ktAutoCode.run.caaRadeRoot": {
+        "ktAutoCode.run.CAARadeRoot": {
           "type": "string",
           "default": "",
           "scope": "machine",
-          "description": "本机 RADE 安装根目录。留空时按 C:\\DS\\RADE<CAA 版本> 推导；填写时必须是包含 win_b64 或 intel_a 的 RADE 根目录。"
+          "description": "本机 RADE 安装根目录。配置后优先使用；留空时按 C:\\DS\\RADE<CAA 版本> 推导。内置 MK / Run 固定从该根目录下的 intel_a 读取厂商脚本。"
         },
-        "ktAutoCode.run.caaCatiaRoot": {
+        "ktAutoCode.run.CATIARoot": {
           "type": "string",
           "default": "",
           "scope": "machine",
           "description": "本机 CATIA 安装根目录，供内置 CAA MK 的 mkGetPreq 使用。留空时按 C:\\DS\\B<CAA 版本> 推导；RADE 与 CATIA 分开安装时在此填写 CATIA 的实际根目录。"
-        },
-        "ktAutoCode.run.caaRuntimeDirectory": {
-          "type": "string",
-          "enum": ["win_b64", "intel_a"],
-          "default": "win_b64",
-          "scope": "machine",
-          "enumDescriptions": [
-            "Windows 64 位 RADE 平台目录（默认）。",
-            "Windows 32 位 RADE 平台目录。"
-          ],
-          "description": "本机 RADE 脚本所在的平台目录。当前默认 win_b64；仅维护旧版 32 位 CAA 时选择 intel_a。"
         },
         "ktAutoCode.run.caaRelatedProjects": {
           "type": "array",

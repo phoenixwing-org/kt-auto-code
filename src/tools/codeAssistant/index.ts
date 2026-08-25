@@ -3,6 +3,7 @@ import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } fr
 import { KtcPackageIncludeViewController } from "./packageIncludeViewController.js";
 
 let packageIncludeView: KtcPackageIncludeViewController | undefined;
+let runContextFactory: (() => ToolRunContext | undefined) | undefined;
 
 export function registerCodeAssistantSupport(context: vscode.ExtensionContext): void {
   packageIncludeView = new KtcPackageIncludeViewController(context.workspaceState);
@@ -24,8 +25,8 @@ export const codeAssistantTool: KtTool = {
       vscode.commands.registerCommand("ktAutoCode.codeAssistant.open", () => {
         void vscode.commands.executeCommand("ktAutoCode.tool.show", "codeAssistant");
       }),
-      vscode.commands.registerCommand("ktAutoCode.codeAssistant.packageIncludes", () => {
-        void openPackageIncludes();
+      vscode.commands.registerCommand("ktAutoCode.codeAssistant.packageIncludes", async () => {
+        await openPackageIncludes(runContextFactory?.()?.workspaceRoot);
       }),
     );
   },
@@ -40,7 +41,7 @@ export const codeAssistantTool: KtTool = {
       return;
     }
     await openPackageIncludes(ctx.workspaceRoot);
-    ctx.postState({ status: "done", message: "已打开 Package 头文件修正 View。" });
+    ctx.postState({ status: "done", message: "已打开头文件引用修正 View。" });
   },
 };
 
@@ -50,4 +51,8 @@ async function openPackageIncludes(defaultTargetDirectory?: string): Promise<voi
     return;
   }
   await packageIncludeView.show(defaultTargetDirectory);
+}
+
+export function setCodeAssistantRunContextFactory(factory: () => ToolRunContext | undefined): void {
+  runContextFactory = factory;
 }

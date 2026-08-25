@@ -69,7 +69,7 @@ export type WebviewInboundMessage =
   | {
       type: "runAction";
       toolId: "run";
-      action: "refresh" | "openOutput" | "openProblems" | "openTerminal" | "runTarget" | "dryRunTarget" | "stopRun" | "setCaaVersion" | "setCaaRuntimeDirectory" | "openSource";
+      action: "refresh" | "openOutput" | "openProblems" | "openTerminal" | "runTarget" | "dryRunTarget" | "stopRun" | "setCaaVersion" | "openSource";
       targetId?: string;
       runId?: string;
       projectId?: string;
@@ -368,9 +368,16 @@ export interface ToolUiState {
   uuidStrategy?: "map_per_value" | "fresh_per_hit";
   uuidSelectedUris?: string[];
   environmentValues?: ProjectEnvironmentValueSummary[];
+  pluginSettingValues?: KtcPluginSettingValueSummary[];
   codegen?: KtcCodegenPrimaryViewModel;
   run?: KtcRunViewModel;
   git?: KtcGitViewModel;
+}
+
+export interface KtcPluginSettingValueSummary {
+  label: "CAA Version" | "CAA Rade Root" | "CATIA Root" | "CAA Runtime Directory";
+  value: string;
+  source: "用户设置" | "环境" | "默认推导" | "内置固定";
 }
 
 export interface ProjectEnvironmentValueSummary {

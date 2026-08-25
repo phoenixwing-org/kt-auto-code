@@ -2,7 +2,9 @@
 
 面向 **CAA / MSVC C++** 的开发效率工具：核心在 `src/`，通过 **CLI** 或 **VS Code / Cursor 插件** 使用。本仓库只产出基础插件 `KT Auto Code`；可选 CAD 能力由并列仓库 `kt-auto-cad` 独立构建和发布，安装后仍接入同一个 Activity Bar、Ribbon 与 Block 容器。
 
-源码仓库：[phoenixwing/kt-auto-code](https://gitee.com/phoenixwing/kt-auto-code)。
+源码仓库：[Gitee](https://gitee.com/phoenixwing/kt-auto-code) · [GitHub](https://github.com/phoenixwing-org/kt-auto-code)。
+
+需要同时配置两个远端时，macOS/Linux 运行 `./addRemote.sh`，PowerShell 运行 `.\addRemote.ps1`。脚本可重复执行且默认保留已有 `origin`；仅显式使用 `--remove-origin` 或 `-RemoveOrigin` 时才删除它。
 
 当前插件提供 **头文件编码修正、文件转码、Ignore 设置、工作区搜索替换、C++ 成员排序、UUID 替换、CAA UI、工程环境管理与 Codegen 参数表原型**。成员排序、UUID、CAA 扫描和 Codegen 预检可共用 `.phoenix/worksets.json`；搜索替换当前使用独立目录选择，工作集入口待产品交互明确后再评估。工程环境 Block 直接维护操作系统用户环境变量，不使用 VS Code Settings 伪装系统值；其他插件配置仍使用 VS Code Settings。写盘前会检查冲突和文件快照，结果统一显示在单 Block 中；Codegen Apply 会自动预检、重验源码指纹并保持 UTF-8/BOM/GBK 原编码，批量写入失败时尝试回滚。
 

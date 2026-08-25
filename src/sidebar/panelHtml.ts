@@ -199,6 +199,11 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .settings-tree-row:hover { background: var(--vscode-list-hoverBackground); }
     .settings-tree-row:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
     .settings-tree-row svg { width: 16px; height: 16px; flex: 0 0 16px; fill: currentColor; }
+    .plugin-setting-values { display: grid; min-width: 0; }
+    .plugin-setting-row { display: grid; grid-template-columns: minmax(110px, 0.8fr) minmax(0, 1.2fr); align-items: center; gap: 8px; min-height: 27px; padding: 2px 8px; border-bottom: 1px solid var(--vscode-panel-border); }
+    .plugin-setting-name, .plugin-setting-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .plugin-setting-name { font-weight: 600; }
+    .plugin-setting-value { color: var(--vscode-descriptionForeground); }
     .settings-section-count { margin-left: auto; color: var(--vscode-descriptionForeground); font-weight: 400; }
     .ignore-manager { width: 100%; margin: 0; }
     .ignore-manager > summary { display: flex; width: 100%; min-height: 28px; align-items: center; gap: 2px; padding: 0 5px; color: var(--vscode-foreground); cursor: pointer; font-size: var(--vscode-font-size); font-weight: 600; list-style: none; }
@@ -890,7 +895,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
             <span>C++ 整理</span><span class="code-assistant-tree-count">（3）</span>
           </summary>
           <div class="code-assistant-tree-children">
-            <button id="btn-code-assistant-package-includes" data-code-assistant-feature="packageIncludes" type="button" aria-label="打开 Package 头文件修正">
+            <button id="btn-code-assistant-package-includes" data-code-assistant-feature="packageIncludes" type="button" aria-label="打开头文件引用修正">
               <svg class="code-assistant-tree-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h6l3 3v6H3zM9 3.5v3h3M5 9h5M5 11h4"/></svg>
               <span class="code-assistant-tree-copy"><strong>头文件引用修正</strong><span>平铺 include → &lt;KtCore/...&gt;</span></span>
             </button>
@@ -1003,8 +1008,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         </div>
       </details>
       <details class="settings-section" id="plugin-settings-tree" open>
-        <summary><svg class="settings-section-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg><span>插件设置</span><span class="settings-section-count">1 项</span></summary>
+        <summary><svg class="settings-section-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg><span>插件设置</span><span class="settings-section-count">5 项</span></summary>
         <div class="settings-tree" role="tree" aria-label="插件设置功能">
+          <div class="plugin-setting-values" id="plugin-setting-values" aria-label="CAA 插件设置当前值"></div>
           <button class="settings-tree-row" id="btn-environment-plugin-settings" type="button" role="treeitem" title="打开 KT Auto Code 的 VS Code 设置">
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.1 1.1l.4 1.6c.3.1.6.2.9.4l1.4-.9 1.1 1.1-.9 1.4c.2.3.3.6.4.9l1.6.4v1.6l-1.6.4c-.1.3-.2.6-.4.9l.9 1.4-1.1 1.1-1.4-.9c-.3.2-.6.3-.9.4l-.4 1.6H7.5l-.4-1.6c-.3-.1-.6-.2-.9-.4l-1.4.9-1.1-1.1.9-1.4a4 4 0 01-.4-.9l-1.6-.4V6.1l1.6-.4c.1-.3.2-.6.4-.9l-.9-1.4 1.1-1.1 1.4.9c.3-.2.6-.3.9-.4l.4-1.6h1.6zM8.3 5.5a2.1 2.1 0 100 4.2 2.1 2.1 0 000-4.2z"/></svg>
             <span>VS Code 插件设置</span>
@@ -1348,6 +1354,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       btnCaaCheckConnection: document.getElementById("btn-caa-check-connection"),
       environmentBlock: document.getElementById("environment-block"),
       environmentValues: document.getElementById("environment-values"),
+      pluginSettingValues: document.getElementById("plugin-setting-values"),
       btnEnvironmentRefresh: document.getElementById("btn-environment-refresh"),
       btnEnvironmentSystem: document.getElementById("btn-environment-system"),
       btnEnvironmentPluginSettings: document.getElementById("btn-environment-plugin-settings"),
@@ -1819,6 +1826,20 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
 
     function renderEnvironment(ts) {
       els.environmentValues.innerHTML = "";
+      els.pluginSettingValues.innerHTML = "";
+      for (const item of ts.pluginSettingValues || []) {
+        const row = document.createElement("div");
+        row.className = "plugin-setting-row";
+        row.title = item.label + " · " + item.value + " · " + item.source;
+        const name = document.createElement("span");
+        name.className = "plugin-setting-name";
+        name.textContent = item.label;
+        const value = document.createElement("span");
+        value.className = "plugin-setting-value";
+        value.textContent = item.value;
+        row.append(name, value);
+        els.pluginSettingValues.appendChild(row);
+      }
       const values = ts.environmentValues || [];
       if (!values.length) {
         const empty = document.createElement("div");
@@ -1905,7 +1926,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
 
     function activeTool() {
       if (isCodeAssistantTool() && state.codeAssistantFeature === "packageIncludes") {
-        return { title: "Package 头文件修正", description: "在右侧 View 预览并写入 CMake Package include 修正。" };
+        return { title: "头文件引用修正", description: "在右侧 View 预览并写入 CMake Package include 修正。" };
       }
       return state.tools.find((t) => t.id === currentContentToolId());
     }

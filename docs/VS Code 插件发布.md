@@ -21,13 +21,13 @@
 }
 ```
 
-## 0.7.1 发布准备（2026-08-24）
+## 0.7.2 发布准备（2026-08-25）
 
-本轮 Auto 目标版本为 `kuntai.kt-auto-code@0.7.1`。Phoenix Wing 根聚合包 `phoenix-wing@0.7.1` 已发布；Auto 不直接依赖该根包，精确消费已发布的 `@phoenix-wing/code-core`、`git-core`、`git-node`、`kt-codegen` `0.6.4`，以及当前最新 `run-core`、`run-node` `0.6.3`。
+本轮 Auto 目标版本为 `kuntai.kt-auto-code@0.7.2`。Phoenix Wing 根聚合包 `phoenix-wing@0.7.1` 已发布；Auto 不直接依赖该根包，精确消费已发布的 `@phoenix-wing/code-core`、`git-core`、`git-node`、`kt-codegen` `0.6.4`，以及当前最新 `run-core`、`run-node` `0.6.3`。
 
 - manifest 与 lockfile 已按实际 Registry 版本更新；`verify:wing-dependencies` 用逐包版本映射校验，禁止 `link:`、`file:`、workspace override 或本地 Wing 路径。
 - 本地候选 `wingGitGraph`、`wingNavigationTree` 类型声明已删除；Git 简报直接消费正式 formatter，不再由 Auto 追加正文。
-- 随后必须用 Node 22 重新执行 `pnpm dev:registry`、`pnpm test`、`pnpm typecheck`、`pnpm verify:architecture`、`pnpm docs:check`、`pnpm package`、`pnpm ext:verify-artifact` 与 `pnpm release:check`；只归档通过 Registry 构建的 `dist/vsix/kt-auto-code-0.7.1.vsix` 及相邻 SHA-256。
+- 随后必须用 Node 22 重新执行 `pnpm dev:registry`、`pnpm test`、`pnpm typecheck`、`pnpm verify:architecture`、`pnpm docs:check`、`pnpm package`、`pnpm ext:verify-artifact` 与 `pnpm release:check`；只归档通过 Registry 构建的 `dist/vsix/kt-auto-code-0.7.2.vsix` 及相邻 SHA-256。
 - 本轮用户已完成 Primary 三段式 Shell、目录/设置、Git 下拉与合并 View、代码辅助 Tree、Run Tree、紧凑搜索替换的人工功能点检；正式发布前仍需在 Registry 依赖下复核这些代表路径。
 - AI 只完成本地归档、制品和验证；不执行 Git push、tag、Marketplace 上传或 `vsce publish`。
 

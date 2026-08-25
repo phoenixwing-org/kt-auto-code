@@ -70,7 +70,7 @@ Owner：KT Auto Code maintainers
 每项目显式选择 > 目标配置的固定版本 > 当前 CAA_MK_VERSION > 建议值 19
 ```
 
-0.6.0 的每工程当前版本选择保存在 `workspaceState`，通过参数或 task env 只注入本次运行，不修改系统环境；machine-scoped `ktAutoCode.run.caaVersion` 只提供插件默认值。同一代码需要团队固定多个版本时，后续以显式 target/profile 表达，不能把单个当前选择写成唯一工程版本。
+0.6.0 的每工程当前版本选择保存在 `workspaceState`，通过参数或 task env 只注入本次运行，不修改系统环境；machine-scoped `ktAutoCode.run.CAAVersion` 只提供插件默认值。同一代码需要团队固定多个版本时，后续以显式 target/profile 表达，不能把单个当前选择写成唯一工程版本。
 
 ### 3.3 VS Code Task API 能力边界
 
@@ -160,7 +160,7 @@ Owner：KT Auto Code maintainers
 - PowerShell：`mk.ps1`、`run.ps1`、`common.ps1`、`clangfile.ps1`、`LinkWinb64Common.ps1`；
 - 批处理：`buildFunction.bat`、`envSet.bat`；
 - `mk.ps1` 的版本优先级是参数 → `CAA_MK_VERSION` → `19`；
-- 内置 CAA 构建默认从 `C:\DS\RADE<version>\win_b64` 调用脚本，preq 包含 `C:\DS\B<version>` 与 workspace；RADE/CATIA 根目录和 `win_b64` / `intel_a` 平台目录均为 machine-scoped User Settings，可覆盖默认约定而不污染工程配置；
+- 内置 CAA 构建固定从 `C:\DS\RADE<version>\intel_a` 调用厂商脚本，preq 包含 `C:\DS\B<version>` 与 workspace；RADE/CATIA 根目录为 machine-scoped User Settings，配置后优先使用并可覆盖默认约定。工程产物目录 `win_b64` 与 RADE 工具目录无关，不能用于推导厂商脚本路径；
 - 构建依次调用 `tck_init.bat`、`tck_profile.bat`、`mkGetPreq.bat`、`mkmk.bat`、`mkrtv.bat`；
 - 运行依次调用 `tck_init.bat`、`tck_profile.bat`、`mkCreateRuntimeView.bat`、`mkrun.bat -c cnext`；
 - 多个 `call` 必须位于同一个 `cmd.exe` 会话，才能继承前序批处理设置的环境；
@@ -564,7 +564,7 @@ V1 只为每个 CAA project 独立提供 `MK` 与 `Run`，不自动生成“全�
 
 - 可以复用显式、团队可见、workspace-relative 的 CAA project/profile schema，例如版本矩阵、Preq 依赖和目标 ID；
 - 可以复用 `run-core/run-node` 的纯发现、版本解析、安全校验和 launch plan；
-- `ktAutoCode.run.caaVersion` 是本机默认值，Run 当前项目选择在 `workspaceState`，两者都不能作为 CI 的隐式事实来源；
+- `ktAutoCode.run.CAAVersion` 是本机默认值，Run 当前项目选择在 `workspaceState`，两者都不能作为 CI 的隐式事实来源；
 - `ktAutoCode.run.caaProjects` / `caaRelatedProjects` 中可迁移的相对路径数据可以作为未来“导出 profile”的输入，但 CI 应消费独立、显式、可审查的配置文件；
 - CAA 安装路径、Agent 凭据和其他机器集成继续由 CI secret/environment/toolchain 配置提供，不写入仓库。
 

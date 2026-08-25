@@ -35,7 +35,6 @@ export interface KtcRunProjectInput {
   readonly kinds: readonly string[];
   readonly caaVersion?: string;
   readonly caaVersionSource?: string;
-  readonly caaRuntimeDirectory?: "win_b64" | "intel_a";
   readonly relatedProjectCount?: number;
   readonly relatedProjectSummary?: string;
   readonly targets: readonly KtcRunTargetInput[];
@@ -70,7 +69,6 @@ export interface KtcRunProject {
   readonly kindLabel: string;
   readonly caaVersion?: string;
   readonly caaVersionSource?: string;
-  readonly caaRuntimeDirectory?: "win_b64" | "intel_a";
   readonly relatedProjectCount: number;
   readonly relatedProjectSummary?: string;
   readonly groups: readonly KtcRunGroup[];
@@ -146,7 +144,6 @@ function KtcProject(
       : project.kinds.includes("caa") ? "CAA" : project.kinds.includes("cmake-cpp") ? "CMake C++" : "通用",
     ...(project.caaVersion ? { caaVersion: project.caaVersion } : {}),
     ...(project.caaVersionSource ? { caaVersionSource: project.caaVersionSource } : {}),
-    ...(project.caaRuntimeDirectory ? { caaRuntimeDirectory: project.caaRuntimeDirectory } : {}),
     relatedProjectCount: project.relatedProjectCount ?? 0,
     ...(project.relatedProjectSummary ? { relatedProjectSummary: project.relatedProjectSummary } : {}),
     groups,

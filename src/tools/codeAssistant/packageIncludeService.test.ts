@@ -20,7 +20,7 @@ async function createFixture() {
   return { include, target };
 }
 
-describe("Package 头文件修正文件服务", () => {
+describe("头文件引用修正文件服务", () => {
   it("ROOT_DIR 未显式指定公共目录时使用共享 KtCore include", () => {
     expect(ktcResolveDefaultPackageIncludeDirectory("E:/KtRoot").replace(/\\/g, "/")).toMatch(/E:\/KtRoot\/kt\/core\/include$/i);
   });
