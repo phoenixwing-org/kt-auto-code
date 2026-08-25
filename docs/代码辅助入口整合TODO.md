@@ -45,7 +45,7 @@ Code 模块的 Ribbon 现只保留高频的搜索替换、自动代码、代码�
 
 只有该功能被单独批准后，才按以下边界实施：
 
-1. 优先从机器环境变量 `ROOT_DIR_INCLUDE` 读取公共目录并取其 package 根；该变量可为空，仅在显式设置时覆盖默认目录。为空时统一回退 `<ROOT_DIR>/kt/core/include`。KtCore 头文件跨平台只保留这一份共享输出，`ROOT_DIR_CORE` 仅用于 DLL、dylib、so、lib 等平台产物。目录输入框允许直接修改或选择目录，最近明确选择仅保存在本机 UI 状态，不写入工程配置。
+1. 优先从机器环境变量 `ROOT_DIR_INCLUDE` 读取公共目录并取其 package 根；该变量可为空，仅在显式设置时覆盖默认目录。为空时使用 `ROOT_DIR` 与 `SDK_PREFIX` 组合为 `<ROOT_DIR>/<SDK_PREFIX>/core/include`，只有 `SDK_PREFIX` 未设置时才默认使用 `kt`。KtCore 头文件跨平台只保留这一份共享输出，`ROOT_DIR_CORE` 仅用于 DLL、dylib、so、lib 等平台产物。目录输入框允许直接修改或选择目录，最近明确选择仅保存在本机 UI 状态，不写入工程配置。
 2. 在 CORE include 树中建立不区分大小写的文件名映射。兼容旧 `include/**/source/**/*.{h,hpp}`（去掉结构段 `source`）与已分包的 `include/<package>/**/*.{h,hpp}`；例如 `KtCore/source/KtString.h` 和 `KtCore/KtString.h` 都映射为 `KtCore/KtString.h`。没有 package 目录的平铺头文件不自动猜测。
 3. 同名头文件映射到多个 package 时标为冲突并禁止自动替换，不能任意选择一个。
 4. 工程目录在打开 View 时使用 Primary 顶部“目录”的当前选择；View 内文本框允许为本次 Preview/Apply 临时修改，但不提供目录选择按钮、不回写 Primary、不缓存，也不写入团队 `.vscode/settings.json`。Primary Tree 和直接命令入口都必须在点击时解析并传入当前目录，不能绕过 Primary 上下文。
@@ -58,9 +58,10 @@ Code 模块的 Ribbon 现只保留高频的搜索替换、自动代码、代码�
 
 1. 点击 Ribbon 的“代码辅助”，确认第三个 Block 显示三组 Tree；一级 Ribbon 与其 `…` 菜单中均不再出现排序、头文件 ASCII、编码、UUID 或 CAA UI。
 2. 点击“头文件引用修正”，确认右侧打开 `代码辅助 · 头文件引用修正`；Header 左侧显示功能名，右侧固定显示“预览 / 写入修正 / 工程环境”，其余目录和结果都位于 Main；再次点击时只定位同一页签。
-3. 设置有效的 `ROOT_DIR`，确认 `ROOT_DIR_INCLUDE` 有值时优先使用、为空时回退 `<ROOT_DIR>/kt/core/include`；Package 行只显示路径、“推导…”和“选择…”，“推导…”菜单提供从 `ROOT_DIR_INCLUDE` 或 `ROOT_DIR` 推导。确认工程目录默认带入 Primary 当前目录，可临时编辑并参与 Preview，但不提供选择按钮且不保存。
-4. 检查同名冲突会列出警告且不会自动替换；点击表格行可定位文件及行号。
-5. Apply 前修改任一待写入文件或 Package 目录，确认必须重新 Preview；确认写入后检查 Git diff、UTF-8 BOM/GBK 与原换行均被保留。
+3. 设置有效的 `ROOT_DIR` 与非默认 `SDK_PREFIX`，确认 `ROOT_DIR_INCLUDE` 有值时优先使用、为空时回退 `<ROOT_DIR>/<SDK_PREFIX>/core/include`；Package 行只显示路径、“推导…”和“选择…”，“推导…”菜单提供从 `ROOT_DIR_INCLUDE` 或 `ROOT_DIR + SDK_PREFIX` 推导。推导成功、变量缺失或结果目录不存在都必须写入 KT Auto Code Output。确认工程目录默认带入 Primary 当前目录，可临时编辑并参与 Preview，但不提供选择按钮且不保存。
+4. 预览摘要写入 KT Auto Code Output；同名头文件冲突逐项输出“文件名 → 全部候选 include 路径”，未进入 `source`/包目录结构的头文件逐项输出相对路径。两类条目都只供检查，继续排除在自动映射和写入之外。
+5. 检查同名冲突会列出警告且不会自动替换；点击表格行可定位文件及行号。
+6. Apply 前修改任一待写入文件或 Package 目录，确认必须重新 Preview；确认写入后检查 Git diff、UTF-8 BOM/GBK 与原换行均被保留。
 
 ### C++ 成员排序迁移点检清单
 

@@ -4,7 +4,7 @@
 
 Owner：KT Auto Code maintainers
 
-适用版本：KT Auto Code 0.7.2 发布准备中
+适用版本：KT Auto Code 0.7.3 发布准备中
 
 最后核验：2026-08-21
 
@@ -241,7 +241,7 @@ PNXCaaStudy origin/sort **Commit:** 4b4622 ++ · 2026-07-18 14:55
 - 提交图以 newest-first 显示，Wing 预检计划可能使用相反的历史顺序。执行前只校验两边是否为同一组 OID，实际写入必须使用 Wing 预检返回的可信顺序，不能按 UI 数组下标误报“合并预览已变化”。
 - 合并 View 固定为三块可独立折叠的连续 Section：`提交图与选择`、`确认信息`、`预检详情`。分页/预检按钮位于第一个 Header，执行按钮位于第二个 Header；提交图每条 commit 压缩为单行。预检详情位于确认块之后，默认收起。
 - 提交图首屏最多读取 5 条，`下一条 / 下 5 条`通过 Wing 返回的不透明 cursor 按拓扑顺序追加；所有请求携带初始 `expectedHeadOid`。从 Primary 带入勾选时，如果首屏实际命中的 OID 数少于带入数，则按每次 5 条自动补页，直到勾选全部显示或明确判定历史失效；普通打开仍保持 5 条首屏。Auto 不得解析 cursor、根据最后 OID 自造 cursor，或为图读取完整快照。
-- 提交图固定显示本地分支及 merge lane/parent edge；Auto 使用 Wing 的纯拓扑 DTO 绘制固定宽度车道、持续线和 SVG 贝塞尔分叉/合并曲线，并使用 VS Code 图表主题色。View 不再提供容易被误解为“切换分支”的 refs 范围下拉；它只浏览和选择，从不 checkout、切换当前分支、移动 ref 或写工作树。
+- 提交图固定显示本地分支及 merge lane/parent edge；Auto 使用 Wing 的纯拓扑 DTO 绘制固定宽度车道、持续线和 SVG 贝塞尔分叉/合并曲线，并使用 VS Code 图表主题色；HEAD 与本地分支 tip 以提交标题前的胶囊标识，只有当前 HEAD 节点为空心圈，其他分支 tip 为实心。View 不再提供容易被误解为“切换分支”的 refs 范围下拉；它只浏览和选择，从不 checkout、切换当前分支、移动 ref 或写工作树。
 - 提交图的选择允许跨多条已加载的拓扑行，但真正合并仍只接受当前分支的连续普通提交区间。用户点“安全预检”后才调用完整 `analyzeSquash`，由 Wing 做区间、工作区、签名、引用占用和 replay 判定。
 - `dirty-worktree` 是唯一可由用户在 View 内恢复的预检阻断：先显示暂存/修改/未跟踪计数，再由用户显式确认“暂存并重新预检”。实现使用带标记的 `git stash push --include-untracked`，不收纳 ignored 文件；执行成功后仅提供恢复入口，绝不自动 apply/pop。
 - 分页/预检检测到 HEAD、仓库根或 cursor 改变时必须拒绝旧会话，但保留原 View 并原地提示。View 从打开起固定绑定仓库；Primary 切库和刷新不能关闭、换仓或抢焦点。只有用户手动关闭 View 才释放图/草稿；若要操作另一仓库或重新建立有效快照，先关闭再打开。合并成功则在同一 View 清空选择并刷新新图。只有同一仓库和同一 HEAD 才复用一次自动简报复制。
@@ -252,24 +252,24 @@ PNXCaaStudy origin/sort **Commit:** 4b4622 ++ · 2026-07-18 14:55
 2. 从 Git 操作 Tree 打开合并 View，确认首屏只读取 5 条、第二次打开复用同一 View。
 3. 分别点击“下一条”和“下 5 条”，确认只追加对应数量；修改 HEAD 后确认分页被拒绝、原 View 保持并提示关闭重开，不使用过期 cursor。
 4. 在含 merge/标签的本地测试仓库确认持续车道、彩色贝塞尔分叉/合并曲线、空心分支头和 decoration；切换标签范围不触发 checkout。
-5. 选择连续 commit 并进入预检，确认仍只操作当前分支；不连续、merge 或不安全引用范围必须阻断且不写入。
+5. 选择当前分支与另一条本地分支的连续 commit 并进入预检；后者应要求用户确认切换分支后重读预检。不连续、merge 或不安全引用范围必须阻断且不写入。
 
-2026-08-24 人工回执：双分支与 merge 曲线图显示明显优于旧折线，首屏加载速度未见影响；跨分支选择已按“当前同一分支上的相邻连续节点”准确阻断。深色主题、下一页和窄宽度仍留在发布前抽检。
+2026-08-24 人工回执：双分支与 merge 曲线图显示明显优于旧折线，首屏加载速度未见影响。2026-08-25 起，跨当前分支但在其他唯一本地分支上连续的范围不再直接阻断，而是提示用户显式切换并重新预检；深色主题、下一页和窄宽度仍留在发布前抽检。
 
-### 7.0.1 待讨论：非当前分支区间与范围拖动
+### 7.0.1 连续区间、分支归属与受控切换
 
-本项只记录需求，**当前版本不实现、不自动 checkout**。现有 Wing `pnwAnalyzeGitSquash` 只分析当前检出分支的 first-parent 历史，且从所选最旧节点到目标分支 HEAD 的整个受影响区间都必须为单父直线；提交图上有弯曲连线不代表该区间可直接合并，merge commit 本身也不能作为普通 squash 节点处理。
+当前版本已实现 first-parent 线性段的“锚点 + 终点”选择：首次勾选建立锚点，再勾选同一可选线性段的另一条时自动补齐两端之间全部 commit；取消边界会收缩区间，清空锚点后重新开始。checkbox 与图之间提供窄拖动手柄，按下后拖过兼容行只预览范围，松开时向 Host 提交一次区间变更；checkbox 和键盘仍是完整替代操作。Host 使用纯 TypeScript 区间模型重新计算，Webview 不直接决定可写 OID。
 
-后续若立项，按以下约束实施：
+首个锚点建立后，不在其 first-parent 线性段上的 commit checkbox 立即禁用，避免形成跨线或跳跃选择；已有不兼容带入项会被规范化。`KtcGitSelection` 接受纯本地分支 first-parent OID 线，返回候选分支名、是否当前分支及连续性；SVG lane、颜色和 checkbox 状态不参与判断。完整 Wing 安全预检仍是唯一写入依据，并继续检查 HEAD、工作区、merge、签名、共享引用和 replay。
 
-1. 首次勾选 commit 后查询包含该节点的**本地分支 first-parent 主线**。公共祖先可能属于多个分支，不能仅凭第一个 checkbox 或图形 lane 猜目标分支；唯一候选可自动锁定，多个候选必须让用户明确选择。
-2. 锁定目标分支后，只允许选择该分支上、最近一个 merge 之后的可改写线性段；其他分支、merge 节点、根节点及跨越 merge 后需要重放的区间 checkbox 置灰，并在 tooltip 说明原因。远端分支不自动创建本地跟踪分支。
-3. 区间选择采用“锚点 + 终点”：先选一条，再选同一线性段中的另一条，自动勾选两端之间全部 commit。可评估在 checkbox 与提交图之间绘制窄范围轨道及上下手柄，拖动手柄只调整连续端点；同时必须保留纯 checkbox/键盘操作，不能只支持鼠标拖动。
-4. 非当前分支预检先显示 `当前分支 → 目标分支`、将要选取的 OID 区间及工作区状态；用户明确确认后才 checkout。checkout 完成后必须重新读取 HEAD、ref、工作区和完整 Wing 预检，禁止复用切换前的预检结果。
-5. checkout 或二次预检失败时停止，不执行历史改写，并在原 View 与 KT Auto Code Output 记录原因。若 checkout 已成功但预检失败，默认停留在目标分支并明确提示，不擅自切回以免覆盖用户随后产生的状态。
-6. 合并成功后仍停留在目标分支，刷新同一 View 并清空范围；不自动 push。切换前分支只作为日志/提示信息保留。
+现有 Wing `pnwAnalyzeGitSquash` 只分析当前检出分支的 first-parent 历史。因此若纯模型得到唯一的非当前本地候选分支，View 只显示“切换并重新预检”；用户确认且工作区干净后，Host 以参数数组执行 `git switch --quiet <branch>`，重新读取 HEAD/提交图后再调用 Wing。切换不等于历史改写、不自动 push；checkout 或二次预检失败时停止并保留错误。提交图上有弯曲连线不代表该区间可直接合并，merge commit 本身也不能作为普通 squash 节点处理。
 
-立项前还需决定：目标分支多候选选择 UI、是否允许创建远端跟踪分支、范围手柄的键盘替代操作，以及 Auto Host 自行 checkout 与未来 Wing `targetRef` 预检接口的职责边界。
+仍不支持的边界：
+
+1. 公共祖先可能出现在多个本地分支；多个候选不会自动选择，用户需先在 Git Primary 切换真实目标分支。
+2. 远端分支不自动创建本地跟踪分支；只接受已有本地分支。
+3. merge、根节点、签名节点及跨越 merge 后需重放的区间仍由 Wing 预检硬阻断。
+4. 合并成功或二次预检失败后都停留在目标分支，不擅自切回，以免覆盖用户随后产生的状态。
 
 ### 7.0 TortoiseGit 交互参考
 
@@ -283,7 +283,7 @@ TortoiseGit Windows 版的 Log Dialog 顶部是带分支线的 commit 列表，H
 
 所选 commit 必须同时满足：
 
-- 位于当前分支的 first-parent 直线上；
+- 位于某一已有本地分支的 first-parent 直线上；非当前分支必须先由用户确认切换、再重新预检；
 - 连续，不能跳过中间 commit；
 - 所选范围最新端可以是 HEAD，也可以位于这条直线的中间；
 - 从所选最旧 commit 到当前 HEAD 的整个受影响范围都必须是普通单 parent commit，不允许跨过 merge；根提交可单独专项支持；
@@ -309,9 +309,19 @@ TortoiseGit Windows 版的 Log Dialog 顶部是带分支线的 commit 列表，H
 - 原始 commit 列表、base parent、旧 HEAD 与预计新 HEAD；
 - 合并后会消失的 SHA、后续提交的 old → new SHA 映射，以及将保留的最终 tree SHA。
 
-“默认以最后一个时间重置”在计划中定义为：使用所选范围 tip，也就是所选区间最新 commit 的时间，并保留原时区；它不一定等于 HEAD。界面必须明确写“默认取所选最新提交”，避免列表倒序导致“最后一个”歧义。
+“默认以最后一个时间重置”在计划中定义为：使用所选范围 tip，也就是所选区间最新 commit 的 Committer 时间，并保留原时区；它不一定等于 HEAD。Author 与 Committer 默认都使用该 tip 的 Committer 姓名、邮箱和时间；勾选“Author / Committer 相同”时只显示一行并同步三个字段，取消勾选后才展开第二行分别编辑。界面必须明确写“默认取所选最新提交”，避免列表倒序导致“最后一个”歧义。
 
-author 与 committer 默认也取 tip commit，但允许分别修改。时间输入使用本机可读格式 `YYYY-MM-DD HH:mm:ss`，不显示时区，也不向用户暴露 Git 内部的 `<unix-seconds> <offset>`；读取时把 commit instant 换算成本机时间，执行前再按该日期对应的本机时区严格转换回 Git canonical date。
+author 与 committer 默认也取 tip commit，但允许分别修改。自动生成的 message 连续保留各 commit 正文行，默认不插入或保留空白分隔行。时间输入使用本机可读格式 `YYYY-MM-DD HH:mm:ss`，不显示时区，也不向用户暴露 Git 内部的 `<unix-seconds> <offset>`；读取时把 commit instant 换算成本机时间，执行前再按该日期对应的本机时区严格转换回 Git canonical date。
+
+### 7.8 提交行操作与提交时间重置（0.7.3）
+
+- 提交行悬停或聚焦时显示醒目的 `…`，当前只保留“复制简报”和“重置提交时间…”两个差异化操作，不复制 Git Graph 已有的常规命令。
+- “复制简报”按该 OID 单独读取完整正文，复用 Primary 群消息简报格式并写入剪贴板；成功或失败统一写入 KT Auto Code Output。
+- “重置提交时间…”使用 VS Code 输入框和二次确认，不增加常驻表单；Author Date 与 Committer Date 始终设置为同一时间。已加载到前后相邻 commit 时默认取两者时间中点，否则保留当前提交时间。
+- 仅允许当前本地分支、工作区干净、没有进行中的 Git 操作、目标到 HEAD 为无 merge 的单父直线历史，且目标不被其他本地分支、remote 或 tag 引用。根 commit、签名或额外 header 继续阻断。
+- 执行使用 `git commit-tree` 从目标逐个重建到 HEAD：目标同时修改 Author/Committer 时间，后续 commit 的 tree、message、身份和两个原时间保持不变；最终必须验证 HEAD tree 与工作区状态。
+- 更新当前分支前创建自动编号的 `refs/kt-auto-code/backup/<branch>-time[-n]`，更新失败自动回滚；成功保留备份引用，不移动其他引用且不自动 push。
+- 读取、预检和重建算法位于零 DOM 的纯 TypeScript/Node service；View 只传递 OID 和用户意图，Controller 负责编排输入、确认、刷新和 `[Git][时间重置]` 日志。
 
 ### 7.3 技术实现简述
 
@@ -519,5 +529,5 @@ kt-auto-code/media/tools/git.svg
 - [x] 多仓库交互采用现有工作区信息行中的仓库下拉；至少包含活动仓库，下方一次只显示所选仓库，不为每个仓库堆叠完整 Block。
 - [x] 已实现 VS Code Git API + Workspace Folder + 活动编辑器的仓库发现与真实根去重，并补齐 submodule/嵌套仓库、多根工作区及切换安全测试。
 - [x] 已接入 Registry Wing 0.6.0 的轻量 summary/OID 分页/取消 API；完整快照仅用于合并预检。
-- [x] Wing `git-core` / `git-node` 0.6.4 已发布，Auto manifest/lockfile 已精确升级，本地候选类型声明已删除；Registry VSIX 门禁作为 0.7.2 发布条件继续执行。
+- [x] Wing `git-core` / `git-node` 0.6.4 已发布，Auto manifest/lockfile 已精确升级，本地候选类型声明已删除；Registry VSIX 门禁作为 0.7.3 发布条件继续执行。
 - [x] 无 Git 工作区提供新建或显式递归搜索；搜索结果逐个显示，并可由用户停止。

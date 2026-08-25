@@ -18,6 +18,8 @@ describe("Run Primary panel", () => {
     expect(source).toContain("KtcCompactManagerLabelStyle + KtcRunPrimaryPanelStyle");
     expect(source).toContain('className = "badge-tail"');
     expect(source).toContain('document.createElement("pnw-navigation-tree")');
+    expect(source).toContain("overflow: visible !important; overscroll-behavior: auto !important");
+    expect(source).toContain("把滚动交回 Primary 外层");
     expect(entrySource).toContain('import { pnwCodeDefineNavigationTree } from "@phoenix-wing/code-core/ui"');
     expect(entrySource).toContain("pnwCodeDefineNavigationTree()");
     expect(source).toContain('ariaLabel: "运行目标树"');
@@ -54,10 +56,12 @@ describe("Run Primary panel", () => {
     expect(source).toContain('target.availability === "other-platform"');
     expect(source).toContain('else if (target.availability === "other-platform")');
     expect(controllerSource).toContain('[Run][trial] execute=false');
-    expect(controllerSource).toContain('[Run] ▶ ${record.target.label} · ${record.project.project.label} 已启动。');
-    expect(controllerSource).toContain('[Run][CAA] ${mode === "build" ? "内置 MK" : "内置 Run"}');
+    expect(controllerSource).toContain("KtcCaaBuildProblemMatchers(problemMatchers)");
+    expect(controllerSource).toContain("为避免 RADE 输出和 Problems 诊断互相覆盖");
+    expect(controllerSource).toContain('[Run][运行][INFO] ${record.target.label} · ${record.project.project.label} 已启动。');
+    expect(controllerSource).toContain('[Run][CAA 预检][INFO] ${mode === "build" ? "内置 MK" : "内置 Run"}');
     expect(controllerSource).toContain('CAA：CATIA 未安装或目录不可访问');
-    expect(controllerSource).toContain('[ERROR] Run：${record.target.target.label} 失败');
+    expect(controllerSource).toContain('[Run][运行][ERROR] ${identity} 失败');
     expect(controllerSource).toContain('KtcRequireCaaDirectory(installation.radeRoot, "RADE 根目录", ctx)');
     expect(controllerSource).toContain('KtcRequireCaaDirectory(installation.catiaRoot, "CATIA 目录", ctx)');
     expect(controllerSource).toContain('function KtcRunCompletionMessage');

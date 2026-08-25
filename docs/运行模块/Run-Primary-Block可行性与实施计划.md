@@ -50,7 +50,7 @@ Owner：KT Auto Code maintainers
 
 当前实现已经：
 
-- 读取 `ROOT_DIR`、`SDK_PREFIX`、`ROOT_DIR_CORE`、可选的 `ROOT_DIR_INCLUDE`、`ROOT_DIR_3rdParty`、`CAA_MK_VERSION`；头文件目录优先 `ROOT_DIR_INCLUDE`，为空时回退 `<ROOT_DIR>/kt/core/include`；`ROOT_DIR_CORE` 只用于平台二进制产物；
+- 读取 `ROOT_DIR`、`SDK_PREFIX`、`ROOT_DIR_CORE`、可选的 `ROOT_DIR_INCLUDE`、`ROOT_DIR_3rdParty`、`CAA_MK_VERSION`；头文件目录优先 `ROOT_DIR_INCLUDE`，为空时由 `ROOT_DIR + SDK_PREFIX` 回退为 `<ROOT_DIR>/<SDK_PREFIX>/core/include`，只有前缀未设置时才默认 `kt`；`ROOT_DIR_CORE` 只用于平台二进制产物；
 - Windows 下优先刷新当前用户/机器注册表，解决 VS Code 主进程环境陈旧问题；
 - macOS 下可通过 `launchctl` 维护当前登录会话值；
 - 通过 Wing `pnwResolveCaaEnvironment()` 生成结构化状态；
@@ -772,7 +772,7 @@ Navigation Tree 每行使用 `label · description`：目标行的 description �
 
 不把扫描到的每个文件都做成常驻按钮。普通脚本/可执行文件只有被 task、模板或自定义配置选中时进入主树；其余候选放在“添加自定义目标”选择器中。
 
-运行历史和诊断继续置于同一个 Current Tool Block 的 Tree 之后，不创建第二个 View。`<pnw-navigation-tree>` 提供 `tree/treeitem`、roving focus、方向键、Home/End、Space、Enter 和焦点描边；Auto 记录 `select`、按 `toggle` 回写展开状态，并处理叶子的 `activate`。可运行叶子的 Enter 与单击一样直接启动，不另弹确认框；Workspace Trust、平台、并发、目标可用性与 CAA 预检仍在 Host 中强制执行。Tree 组件本身处理窄栏省略、局部滚动与 overscroll containment；Primary 外层三 Block 的滚动边界不变。
+运行历史和诊断继续置于同一个 Current Tool Block 的 Tree 之后，不创建第二个 View。`<pnw-navigation-tree>` 提供 `tree/treeitem`、roving focus、方向键、Home/End、Space、Enter 和焦点描边；Auto 记录 `select`、按 `toggle` 回写展开状态，并处理叶子的 `activate`。可运行叶子的 Enter 与单击一样直接启动，不另弹确认框；Workspace Trust、平台、并发、目标可用性与 CAA 预检仍在 Host 中强制执行。Tree 组件本身处理窄栏省略；Run Host 覆盖其局部 `overflow/overscroll`，由 Current Tool 成为唯一纵向滚动边界，避免长 Tree 吞掉滚轮。Primary 外层三 Block 的滚动边界不变。
 
 ### 13.2 选择与高亮语义
 
@@ -890,30 +890,23 @@ running → succeeded | failed | ended-unknown
 
 ### 16.1 Output Channel
 
-每次用户点击至少输出：
+普通运行只输出必要生命周期：
 
 ```text
-[Run][preflight] target=... platform=darwin compatible=false reason=platform-mismatch
-[Run][trial] execute=false target=... project=...
-[Run][trial] currentPlatform=darwin supported=win32 compatible=false
-[Run][trial] source=native-task cwd=<workspace>/... risk=build
-[Run][trial] command=powershell.exe -NoProfile -File <workspace>/mk.ps1
-[Run][trial] matcher=$msCompile fidelity=native envKeys=CAA_MK_VERSION
-[Run][start] runId=... source=native-task project=... cwd=<workspace>/...
-[Run][start] version=19 matcher=$msCompile fidelity=full envKeys=CAA_MK_VERSION,...
-[Run][state] runId=... starting -> running processId=...
-[Run][state] runId=... running -> failed exitCode=1 durationMs=...
-[Run][error] code=missing-interpreter action="安装 pwsh 或改用当前平台脚本"
+[Run][运行][INFO] CAA MK · DemoWsp 已启动。
+[Run][运行][OK] CAA MK · 成功 · 12.4 s
+[Run][运行][ERROR] CAA MK 失败（退出码 1，12.4 s）；请查看 Terminal 与 Problems。
 ```
 
 要求：
 
-- 使用稳定 error code + 中文说明 + 下一步；
+- 使用统一的 `[模块][阶段][INFO|OK|WARN|ERROR]`、中文说明和下一步，详见[必要日志输出规则](../必要日志输出规则.md)；
 - 绝对 workspace root 在“复制运行诊断”中替换为 `<workspace:name>`；
 - program/args 脱敏但保持足够定位信息；
-- 记录 matcher 是否完整、降级或缺失，不伪造捕获到的问题数量；
-- discovery 记录每根扫描数、排除数、错误数和 incomplete 原因；
+- 普通运行不输出内部 target/run ID、自动 discovery 数量或 matcher 实现明细；只有 matcher 降级/缺失影响结果时才警告；
 - 其他平台目标点击 `试运行` 时写完整 `[Run][trial]` 摘要，方便 Mac 调试；日志必须明确 `execute=false`。
+
+CAA MK 的 Problems 使用共享 owner；为避免多个工程同时运行时旧/新诊断集合互相覆盖，当前一次只允许一个 CAA MK。普通互不相关任务仍可并行。CAA matcher 将带文件/行号的小写 `fatal error/error` 作为错误；厂商大写 `ERROR/WARNING` 统一作为 warning。纯文本 `ERROR` 没有位置时不进入 Problems。
 
 ### 16.2 Terminal 与 Problems
 
@@ -922,6 +915,13 @@ running → succeeded | failed | ended-unknown
 - Run Block 提供“打开 Terminal/输出”和“打开 Problems”；
 - Task API 无 stdout 回读时不在 Primary 复制一个不完整日志面板；
 - exit code 为非零但 Problems 为空时提示“任务失败，但 matcher 未产生 Problems；请查看 Terminal 与 matcher 保真状态”。
+
+### 16.2.1 0.7.3 点检
+
+1. 在有 9 个以上项目、70 个以上目标的工作区展开多个项目和“内置”分组，鼠标停在 Tree 行中部滚轮/触控板滚动，确认 Current Tool 连续滚动；不必移动到右侧滚动条。抽检窄栏、键盘导航、深色/浅色/高对比。
+2. Windows CAA fixture 依次输出 `Demo.cpp(12,3): error C2065: ...`、`Demo.cpp(13,3): ERROR C2065: ...`、`Demo.cpp(14,3): WARNING C4996: ...` 以及没有文件行号的 `ERROR: ...`。确认前者是 Problems error，后二者是 Problems warning，纯文本只留在 Terminal。
+3. 运行一个 CAA MK 后未结束前启动另一 CAA MK，确认第二次被预检阻断、Output 明确说明避免 Problems 覆盖；结束后可重新启动。运行非 CAA 目标不被该全局锁误阻断。
+4. 普通运行只检查开始/成功/失败等必要 Output；点击“试运行”才出现 program、args、matcher 等详细诊断。失败检查 `[Run][运行][ERROR]` 并跳转 Terminal/Problems。
 
 ### 16.3 复制运行诊断
 

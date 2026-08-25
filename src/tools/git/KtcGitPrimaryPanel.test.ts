@@ -136,12 +136,13 @@ describe("Git Primary panel", () => {
     expect(controller).toContain("refsScope,");
     expect(controller).toContain("beforeCursor: graph.nextBeforeCursor");
     expect(controller).toContain("KtcGraphSelectedOids(graph, message.selectedOids)");
-    expect(controller).toContain("KtcPrimarySelectedOids(session, selectedOids)");
+    expect(controller).toContain("KtcValidateGitSelectionOids(selectedOids)");
+    expect(controller).toContain("KtcProjectGitRangeSelection(commits, initialSelection)");
     expect(controller).toContain("const missingSelectedOids = new Set(initialSelection)");
     expect(controller).toContain("missingSelectedOids.size > 0 && hasMore && nextBeforeCursor");
     expect(controller).toContain("beforeCursor: nextBeforeCursor");
     expect(controller).toContain("limit: Math.min(5, 1_000 - commits.length)");
-    expect(controller).toContain("带入的 ${missingSelectedOids.size} 个 commit 不在当前可见本地分支图中");
+    expect(controller).toContain("带入的 ${projection.missingOids.length} 个 commit 不在当前可见本地分支图中");
     expect(controller).not.toContain('if (action.selectedOids.length < 2) throw new Error');
     expect(controller).toContain("KtcSameGitOidSelection(trusted.selectedOids, action.selectedOids)");
     expect(controller).toContain("selectedOids: trusted.selectedOids");
@@ -149,7 +150,8 @@ describe("Git Primary panel", () => {
     expect(controller).toContain('ctx.log(`[Git][合并视图][INFO] 打开：仓库 ${session.snapshot.name}');
     expect(controller).toContain('已加载 ${commits.length} 条');
     expect(controller).toContain('`带入 ${initialSelection.length} 个勾选`');
-    expect(controller).toContain("await this.KtcSelectAndAnalyzeSquash(repositoryId, initialSelection, ctx)");
+    expect(controller).toContain("await this.KtcSelectAndAnalyzeSquash(repositoryId, rangeSelection.selectedOids, ctx)");
+    expect(controller).toContain("KtcUpdateGitRangeSelection(");
     expect(controller).toContain("用户选择优先于打开 View 时自动启动的预检");
     expect(controller).toContain('this.KtcShowSquashView(repositoryId, "loading", "正在执行本地 commit 合并…", this.KtcSquashDraft)');
     expect(controller).toContain('this.KtcShowSquashView(repositoryId, "error", "合并未执行：" + KtcErrorMessage(error), this.KtcSquashDraft)');
@@ -162,7 +164,10 @@ describe("Git Primary panel", () => {
     expect(controller).toContain("KtcGitRefKey(current.currentRef) !== KtcGitRefKey(trusted.currentRef)");
     expect(controller).toContain("develop / refs/heads/develop");
     expect(controller).toContain("KtcStashAndAnalyzeSquash(repositoryId, selectedOids, ctx)");
-    expect(controller).toContain("所选 commit 必须是当前同一分支上相邻的连续节点");
+    expect(controller).toContain("KtcAssessGitBranchRange(branches, currentBranchName, selectedOids)");
+    expect(controller).toContain("KtcReadLocalGitBranchLines(graph.root)");
+    expect(controller).toContain("KtcSwitchToLocalGitBranch(graph.root, pending.targetBranchName)");
+    expect(controller).toContain("切换并重新预检");
     expect(controller).toContain("不能跨分支或跳过中间 commit");
     expect(controller).not.toContain("选择包含已变化的 commit");
     expect(controller).toContain('ctx.log(`[Git][合并预检][ERROR] ${message}`)');

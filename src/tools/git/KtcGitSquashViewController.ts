@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { ktcCreateWebviewSecurity } from "../../webviewSupport.js";
 import type { KtcGitIdentity, KtcGitSquashDraft } from "../../core/git/KtcGitModel.js";
+import { KtcFormatGitDate } from "../../core/git/KtcGitDate.js";
 import type {
   KtcPnwGitCommitGraphCommit,
   KtcPnwGitCommitGraphRefsScope,
@@ -17,20 +18,30 @@ export interface KtcGitSquashGraphState {
   readonly commits: readonly KtcPnwGitCommitGraphCommit[];
   readonly graphRows: readonly KtcPnwGitCommitGraphRow[];
   readonly selectedOids: readonly string[];
+  readonly selectableOids: readonly string[];
+  readonly selectionAnchorOid?: string;
+  readonly selectionEndpointOid?: string;
   readonly hasMore: boolean;
   readonly status: "idle" | "loading" | "ready" | "preflight" | "error";
   readonly message: string;
+  readonly branchSwitch?: {
+    readonly currentBranchName: string;
+    readonly targetBranchName: string;
+  };
   readonly draft?: KtcGitSquashDraft;
   readonly dirtyWorktree?: KtcGitWorktreeChanges;
 }
 
 export type KtcGitSquashViewMessage =
   | { readonly type: "ready" }
-  | { readonly type: "select"; readonly selectedOids: readonly string[] }
+  | { readonly type: "copySummary"; readonly oid: string }
+  | { readonly type: "resetCommitTime"; readonly oid: string }
+  | { readonly type: "select"; readonly oid: string; readonly checked: boolean; readonly anchorOid?: string }
   | { readonly type: "load"; readonly count: 1 | 5 }
   | { readonly type: "preflight"; readonly selectedOids: readonly string[] }
   | { readonly type: "openScm" }
   | { readonly type: "stashAndPreflight"; readonly selectedOids: readonly string[] }
+  | { readonly type: "switchBranch" }
   | {
       readonly type: "execute";
       readonly selectedOids: readonly string[];
@@ -98,11 +109,17 @@ export class KtcGitSquashViewController implements vscode.Disposable {
 function KtcParseGitSquashViewMessage(value: unknown): KtcGitSquashViewMessage | undefined {
   if (!KtcIsRecord(value) || typeof value.type !== "string") return undefined;
   if (value.type === "ready") return { type: "ready" };
-  if (value.type === "select" && KtcOidArray(value.selectedOids)) return { type: "select", selectedOids: value.selectedOids };
+  if (value.type === "copySummary" && KtcIsOid(value.oid)) return { type: "copySummary", oid: value.oid };
+  if (value.type === "resetCommitTime" && KtcIsOid(value.oid)) return { type: "resetCommitTime", oid: value.oid };
+  if (value.type === "select" && KtcIsOid(value.oid) && typeof value.checked === "boolean"
+    && (value.anchorOid === undefined || KtcIsOid(value.anchorOid))) {
+    return { type: "select", oid: value.oid, checked: value.checked, ...(value.anchorOid ? { anchorOid: value.anchorOid } : {}) };
+  }
   if (value.type === "load" && (value.count === 1 || value.count === 5)) return { type: "load", count: value.count };
   if (value.type === "preflight" && KtcOidArray(value.selectedOids)) return { type: "preflight", selectedOids: value.selectedOids };
   if (value.type === "openScm") return { type: "openScm" };
   if (value.type === "stashAndPreflight" && KtcOidArray(value.selectedOids)) return { type: "stashAndPreflight", selectedOids: value.selectedOids };
+  if (value.type === "switchBranch") return { type: "switchBranch" };
   if (value.type === "execute"
     && KtcOidArray(value.selectedOids)
     && typeof value.message === "string"
@@ -123,6 +140,10 @@ function KtcOidArray(value: unknown): value is readonly string[] {
     && value.every((oid) => typeof oid === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(oid));
 }
 
+function KtcIsOid(value: unknown): value is string {
+  return typeof value === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(value);
+}
+
 function KtcIsIdentity(value: unknown): value is KtcGitIdentity {
   return KtcIsRecord(value)
     && typeof value.name === "string"
@@ -139,12 +160,19 @@ function KtcGitSquashViewHtml(webview: Pick<vscode.Webview, "cspSource">, state:
     state.graphRows[index],
     index > 0 ? state.graphRows[index - 1] : undefined,
     state.selectedOids.includes(commit.oid),
+    state.selectableOids.includes(commit.oid),
+    state.selectionEndpointOid === commit.oid,
     graphLaneCount,
   )).join("");
   const draft = state.draft ? KtcSquashDraftEditor(state.draft, state.status === "loading") : "";
   const recovery = state.dirtyWorktree ? KtcDirtyWorktreeRecovery(state.dirtyWorktree) : "";
   const graphControls = `<button type="button" data-section-action data-load="1" ${state.hasMore ? "" : "disabled"}>下一条</button><button type="button" data-section-action data-load="5" ${state.hasMore ? "" : "disabled"}>下 5 条</button><button class="primary" type="button" data-section-action id="preflight" ${state.selectedOids.length < 2 || state.status === "loading" ? "disabled" : ""}>选择并预检</button>`;
+  const branchSwitch = state.branchSwitch
+    ? `<div class="branch-switch"><span>所选区间属于本地分支“${KtcEscape(state.branchSwitch.targetBranchName)}”，当前为“${KtcEscape(state.branchSwitch.currentBranchName)}”。</span><button class="primary" id="switch-branch">切换并重新预检</button></div>`
+    : "";
   const selected = JSON.stringify(state.selectedOids).replaceAll("<", "\\u003c");
+  const anchorOid = JSON.stringify(state.selectionAnchorOid ?? "").replaceAll("<", "\\u003c");
+  const firstParents = JSON.stringify(Object.fromEntries(state.commits.map((commit) => [commit.oid, commit.parentOids[0] ?? ""]))).replaceAll("<", "\\u003c");
   return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -170,32 +198,44 @@ function KtcGitSquashViewHtml(webview: Pick<vscode.Webview, "cspSource">, state:
   details.section > summary:hover { background: var(--vscode-list-hoverBackground); }
   .section-header .count { color: var(--vscode-descriptionForeground); white-space: nowrap; }
   .section-header-actions { display: inline-flex; min-width: 0; align-items: center; gap: 5px; margin-left: auto; }
-  .graph-row { display: grid; grid-template-columns: 24px max-content minmax(0,1fr); min-width: 0; min-height: 30px; padding: 1px 8px 1px 2px; border-bottom: 1px solid color-mix(in srgb, var(--vscode-panel-border) 65%, transparent); cursor: pointer; }
+  .same-identity { display: inline-flex; grid-auto-flow: column; align-items: center; gap: 4px; color: var(--vscode-descriptionForeground); font-size: 11px; white-space: nowrap; } .same-identity input { width: 14px; height: 14px; }
+  .committer-fields[hidden] { display: none; }
+  .graph-row { display: grid; grid-template-columns: 24px 16px max-content minmax(0,1fr); min-width: 0; min-height: 30px; padding: 1px 8px 1px 2px; border-bottom: 1px solid color-mix(in srgb, var(--vscode-panel-border) 65%, transparent); cursor: pointer; }
   .graph-row:hover { background: var(--vscode-list-hoverBackground); } .graph-row:focus-within { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+  .graph-row.unavailable { color: var(--vscode-disabledForeground); cursor: not-allowed; opacity: .58; }
+  .graph-row.range-preview { background: var(--vscode-list-inactiveSelectionBackground); }
   .graph { position: relative; min-height: 28px; overflow: visible; } .graph svg { display: block; width: 100%; height: 30px; overflow: visible; }
   .graph-edge { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
   .graph-edge.merge { stroke-width: 2.2; }
   .graph-node { stroke: var(--vscode-editor-background); stroke-width: 2; vector-effect: non-scaling-stroke; }
   .graph-node.tip { fill: var(--vscode-editor-background); stroke-width: 2.5; }
-  .commit { display: flex; min-width: 0; align-items: center; gap: 7px; padding: 1px 7px; overflow: hidden; }
+  .commit { display: flex; min-width: 0; align-items: center; gap: 7px; padding: 1px 7px; overflow: visible; }
   .commit-title { flex: 1 1 auto; min-width: 72px; overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; } .commit-meta { flex: 0 1 auto; min-width: 72px; overflow: hidden; color: var(--vscode-descriptionForeground); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-  .decorations { display: inline-flex; gap: 3px; margin-left: 5px; vertical-align: middle; } .decoration { padding: 0 4px; border: 1px solid var(--vscode-badge-background); border-radius: 8px; color: var(--vscode-badge-foreground); background: var(--vscode-badge-background); font-size: 10px; font-weight: 500; } .decoration.tag { border-color: var(--vscode-charts-purple, #b180d7); background: transparent; color: var(--vscode-charts-purple, #b180d7); }
+  .decorations { display: inline-flex; flex: 0 0 auto; gap: 3px; } .decoration { padding: 0 5px; border: 1px solid var(--vscode-badge-background); border-radius: 9px; color: var(--vscode-badge-foreground); background: var(--vscode-badge-background); font-size: 10px; font-weight: 600; } .decoration.tag { border-color: var(--vscode-charts-purple, #b180d7); background: transparent; color: var(--vscode-charts-purple, #b180d7); }
   .select { display: grid; width: 24px; place-items: center; } .select input { width: 16px; height: 16px; }
+  .row-menu { position: relative; flex: 0 0 auto; } .row-menu > summary { display: grid; width: 28px; height: 28px; cursor: pointer; list-style: none; opacity: 0; place-items: center; border: 1px solid transparent; border-radius: 3px; font-size: 20px; font-weight: 700; line-height: 1; } .row-menu > summary::-webkit-details-marker { display: none; } .graph-row:hover .row-menu > summary,.row-menu[open] > summary,.row-menu > summary:focus { opacity: 1; } .row-menu > summary:hover,.row-menu[open] > summary { background: var(--vscode-toolbar-hoverBackground); border-color: var(--vscode-panel-border); } .row-menu > summary:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; } .graph-row.unavailable .row-menu { color: var(--vscode-foreground); opacity: 1; } .row-menu-popup { position: absolute; z-index: 10; top: 28px; right: 0; min-width: 132px; padding: 3px; background: var(--vscode-menu-background, var(--vscode-editorWidget-background)); border: 1px solid var(--vscode-menu-border, var(--vscode-panel-border)); box-shadow: 0 2px 8px var(--vscode-widget-shadow); } .row-menu-popup button { width: 100%; text-align: left; color: var(--vscode-menu-foreground, var(--vscode-foreground)); background: transparent; } .row-menu-popup button:hover { color: var(--vscode-menu-selectionForeground, var(--vscode-list-activeSelectionForeground)); background: var(--vscode-menu-selectionBackground, var(--vscode-list-activeSelectionBackground)); }
+  .range-handle { display: grid; width: 16px; min-height: 28px; place-items: center; color: var(--vscode-descriptionForeground); cursor: ns-resize; opacity: 0; user-select: none; touch-action: none; border-radius: 3px; font-size: 18px; line-height: 1; }
+  .graph-row:hover .range-handle, .range-handle.endpoint, .range-handle:focus { opacity: 1; }
+  .range-handle:hover,.range-handle:focus { color: var(--vscode-foreground); background: var(--vscode-toolbar-hoverBackground); }
   .actions { display: flex; flex-wrap: wrap; gap: 7px; padding: 9px; border-top: 1px solid var(--vscode-panel-border); }
+  .branch-switch { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px; color: var(--vscode-descriptionForeground); background: var(--vscode-textBlockQuote-background); border-top: 1px solid var(--vscode-panel-border); }
   button { min-height: 27px; padding: 3px 10px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: 1px solid transparent; border-radius: 2px; cursor: pointer; } button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); } button.primary { color: var(--vscode-button-foreground); background: var(--vscode-button-background); } button.primary:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); } button:disabled { opacity: .55; cursor: not-allowed; }
-  .muted { align-self: center; color: var(--vscode-descriptionForeground); } .draft { display: grid; gap: 8px; padding: 9px; } textarea,input { width: 100%; padding: 5px 7px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, var(--vscode-panel-border)); } textarea { min-height: 100px; resize: vertical; } .fields { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; } label { display: grid; gap: 3px; color: var(--vscode-descriptionForeground); font-size: 11px; } pre { max-height: 170px; overflow: auto; margin: 0; padding: 7px; color: var(--vscode-descriptionForeground); background: var(--vscode-textCodeBlock-background); white-space: pre-wrap; }
+  .muted { align-self: center; color: var(--vscode-descriptionForeground); } .draft { display: grid; gap: 8px; padding: 9px; } textarea,input { width: 100%; padding: 5px 7px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, var(--vscode-panel-border)); } textarea { min-height: 150px; resize: vertical; } .fields { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; } label { display: grid; gap: 3px; color: var(--vscode-descriptionForeground); font-size: 11px; } pre { max-height: 170px; overflow: auto; margin: 0; padding: 7px; color: var(--vscode-descriptionForeground); background: var(--vscode-textCodeBlock-background); white-space: pre-wrap; }
   @media (max-width: 700px) { .view-header { flex-wrap: wrap; } .notice { flex-basis: 100%; } .section-header { flex-wrap: wrap; } .section-header-actions { flex-basis: 100%; margin-left: 20px; } }
   @media (max-width: 560px) { main { padding: 7px; } .fields { grid-template-columns: 1fr; } }
 </style></head><body><main>
   <header class="view-header"><h1>合并 commit 区间</h1><div class="meta">${KtcEscape(state.repositoryName)} · ${KtcEscape(state.branchLabel)} · ${KtcEscape(state.expectedHeadOid.slice(0, 12))}</div><div class="notice${state.status === "error" ? " error" : ""}" title="${KtcAttr(state.message)}">${KtcEscape(state.message)}</div></header>
   <details class="section" open><summary class="section-header"><h2>提交图与选择</h2><span class="count">已加载 ${state.commits.length} · 已选 ${state.selectedOids.length}</span><span class="section-header-actions">${graphControls}</span></summary>
     <div id="graph">${rows || '<div class="notice">当前分支没有可显示的 commit。</div>'}</div>
+    ${branchSwitch}
   </details>
   ${draft}
   ${recovery}
 </main><script nonce="${nonce}">
   const vscode = acquireVsCodeApi();
   const selected = new Set(${selected});
+  const initialAnchor = ${anchorOid};
+  const firstParents = ${firstParents};
   const post = (value) => vscode.postMessage(value);
   document.querySelectorAll('[data-section-action]').forEach((control) => {
     control.addEventListener('click', (event) => event.stopPropagation());
@@ -203,13 +243,34 @@ function KtcGitSquashViewHtml(webview: Pick<vscode.Webview, "cspSource">, state:
   });
   document.querySelectorAll('[data-oid]').forEach((row) => row.addEventListener('change', () => {
     const oid = row.dataset.oid; const input = row.querySelector('input[type=checkbox]');
-    if (!oid || !input) return; if (input.checked) selected.add(oid); else selected.delete(oid);
-    post({ type: 'select', selectedOids: [...selected] });
+    if (!oid || !input) return;
+    post({ type: 'select', oid, checked: input.checked });
   }));
+  const walk = (from, to) => { const result = []; const seen = new Set(); let oid = from; while (oid && !seen.has(oid)) { result.push(oid); if (oid === to) return result; seen.add(oid); oid = firstParents[oid]; } return undefined; };
+  const range = (anchor, endpoint) => walk(anchor, endpoint) || (() => { const reverse = walk(endpoint, anchor); return reverse ? reverse.reverse() : undefined; })();
+  const preview = (oids) => { const values = new Set(oids || []); document.querySelectorAll('[data-oid]').forEach((row) => { row.classList.toggle('range-preview', values.has(row.dataset.oid)); const input = row.querySelector('input[type=checkbox]'); if (input) input.checked = values.has(row.dataset.oid); }); };
+  let dragAnchor = ''; let dragTarget = ''; let dragging = false;
+  document.querySelectorAll('.range-handle').forEach((handle) => handle.addEventListener('pointerdown', (event) => {
+    const row = handle.closest('[data-oid]'); if (!row || row.dataset.selectable !== 'true') return;
+    event.preventDefault(); event.stopPropagation(); dragging = true; dragAnchor = initialAnchor || row.dataset.oid; dragTarget = row.dataset.oid; handle.setPointerCapture?.(event.pointerId); preview(range(dragAnchor, dragTarget));
+  }));
+  window.addEventListener('pointermove', (event) => {
+    if (!dragging) return; const row = document.elementFromPoint(event.clientX, event.clientY)?.closest?.('[data-oid]'); if (!row || row.dataset.selectable !== 'true') return;
+    const candidate = range(dragAnchor, row.dataset.oid); if (!candidate) return; dragTarget = row.dataset.oid; preview(candidate);
+  });
+  window.addEventListener('pointerup', () => { if (!dragging) return; dragging = false; const target = dragTarget; preview(selected); if (target) post({ type: 'select', oid: target, checked: true, anchorOid: dragAnchor }); dragAnchor = ''; dragTarget = ''; });
   document.querySelectorAll('[data-load]').forEach((button) => button.addEventListener('click', () => post({ type: 'load', count: Number(button.dataset.load) })));
+  document.querySelectorAll('.row-menu').forEach((menu) => { menu.addEventListener('click', (event) => event.stopPropagation()); menu.addEventListener('toggle', () => { if (!menu.open) return; document.querySelectorAll('.row-menu[open]').forEach((other) => { if (other !== menu) other.open = false; }); }); });
+  document.querySelectorAll('[data-copy-summary]').forEach((button) => button.addEventListener('click', () => { const oid = button.dataset.copySummary; if (oid) post({ type: 'copySummary', oid }); button.closest('.row-menu')?.removeAttribute('open'); }));
+  document.querySelectorAll('[data-reset-time]').forEach((button) => button.addEventListener('click', () => { const oid = button.dataset.resetTime; if (oid) post({ type: 'resetCommitTime', oid }); button.closest('.row-menu')?.removeAttribute('open'); }));
   document.getElementById('preflight')?.addEventListener('click', () => post({ type: 'preflight', selectedOids: [...selected] }));
   document.getElementById('open-scm')?.addEventListener('click', () => post({ type: 'openScm' }));
   document.getElementById('stash-and-preflight')?.addEventListener('click', () => post({ type: 'stashAndPreflight', selectedOids: [...selected] }));
+  document.getElementById('switch-branch')?.addEventListener('click', () => post({ type: 'switchBranch' }));
+  const sameIdentity = document.getElementById('same-identity'); const committerFields = document.getElementById('committer-fields');
+  const authorInputs = ['name', 'email', 'date'].map((key) => document.getElementById('author-' + key)); const committerInputs = ['name', 'email', 'date'].map((key) => document.getElementById('committer-' + key));
+  const syncIdentity = () => { if (!sameIdentity) return; if (sameIdentity.checked) authorInputs.forEach((input, index) => { if (input && committerInputs[index]) committerInputs[index].value = input.value; }); if (committerFields) committerFields.hidden = sameIdentity.checked; committerInputs.forEach((input) => { if (input) input.disabled = ${JSON.stringify(state.status === "loading")} || sameIdentity.checked; }); };
+  sameIdentity?.addEventListener('change', syncIdentity); authorInputs.forEach((input) => input?.addEventListener('input', syncIdentity)); syncIdentity();
   document.getElementById('execute')?.addEventListener('click', () => post({ type: 'execute', selectedOids: [...selected], message: document.getElementById('message').value, author: { name: document.getElementById('author-name').value, email: document.getElementById('author-email').value, date: document.getElementById('author-date').value, dateLabel: document.getElementById('author-date').value }, committer: { name: document.getElementById('committer-name').value, email: document.getElementById('committer-email').value, date: document.getElementById('committer-date').value, dateLabel: document.getElementById('committer-date').value } }));
   post({ type: 'ready' });
 </script></body></html>`;
@@ -220,6 +281,8 @@ function KtcGraphCommitRow(
   row: KtcPnwGitCommitGraphRow | undefined,
   previousRow: KtcPnwGitCommitGraphRow | undefined,
   checked: boolean,
+  selectable: boolean,
+  endpoint: boolean,
   graphLaneCount: number,
 ): string {
   const lane = row?.lane ?? 0;
@@ -243,10 +306,10 @@ function KtcGraphCommitRow(
     edge.kind === "merge-parent" ? "merge" : "parent",
   )).join("");
   const nodeColor = KtcGraphLaneColor(lane);
-  const isTip = commit.decorations.some((item) => item.kind === "head" || item.kind === "local-branch");
-  const svg = `${continuation}${incoming}${parents}<circle class="graph-node${isTip ? " tip" : ""}" cx="${nodeX}" cy="15" r="4.5" style="fill:${isTip ? "var(--vscode-editor-background)" : nodeColor};stroke:${nodeColor}" />`;
+  const isHead = commit.decorations.some((item) => item.kind === "head");
+  const svg = `${continuation}${incoming}${parents}<circle class="graph-node${isHead ? " tip" : ""}" cx="${nodeX}" cy="15" r="4.5" style="fill:${isHead ? "var(--vscode-editor-background)" : nodeColor};stroke:${nodeColor}" />`;
   const decorations = commit.decorations.map((item) => `<span class="decoration ${item.kind === "tag" ? "tag" : ""}">${KtcEscape(item.displayName)}</span>`).join("");
-  return `<label class="graph-row" data-oid="${commit.oid}"><span class="select"><input type="checkbox" aria-label="选择 ${KtcEscape(commit.oid.slice(0, 12))} 合并" ${checked ? "checked" : ""} /></span><span class="graph" style="width:${width}px"><svg viewBox="0 0 ${width} 30" aria-hidden="true">${svg}</svg></span><span class="commit"><span class="commit-title">${KtcEscape(commit.subject || "(无标题)")}<span class="decorations">${decorations}</span></span><span class="commit-meta">${KtcEscape(commit.oid.slice(0, 12))} · ${KtcEscape(commit.author.name)} · ${KtcEscape(KtcGitDateLabel(commit.author.date))}</span></span></label>`;
+  return `<div class="graph-row${selectable ? "" : " unavailable"}" data-oid="${commit.oid}" data-selectable="${selectable}"><span class="select"><input type="checkbox" aria-label="选择 ${KtcEscape(commit.oid.slice(0, 12))} 合并" ${checked ? "checked" : ""} ${selectable ? "" : "disabled"} /></span><span class="range-handle${endpoint ? " endpoint" : ""}" aria-hidden="true" title="拖动调整连续区间">⠿</span><span class="graph" style="width:${width}px"><svg viewBox="0 0 ${width} 30" aria-hidden="true">${svg}</svg></span><span class="commit"><span class="decorations">${decorations}</span><span class="commit-title">${KtcEscape(commit.subject || "(无标题)")}</span><span class="commit-meta">${KtcEscape(commit.oid.slice(0, 12))} · ${KtcEscape(commit.author.name)} · ${KtcEscape(KtcGitDateLabel(commit.author.date))}</span><details class="row-menu"><summary aria-label="提交操作" title="提交操作">⋯</summary><div class="row-menu-popup"><button type="button" data-copy-summary="${commit.oid}">复制简报</button><button type="button" data-reset-time="${commit.oid}">重置提交时间…</button></div></details></span></div>`;
 }
 
 const KtcGitGraphLaneWidth = 16;
@@ -276,9 +339,10 @@ function KtcGraphPath(
 ): string {
   const fromX = KtcGraphLaneX(fromLane);
   const toX = KtcGraphLaneX(toLane);
+  const middleY = fromY + ((toY - fromY) / 2);
   const path = fromX === toX
     ? `M ${fromX} ${fromY} L ${toX} ${toY}`
-    : `M ${fromX} ${fromY} C ${fromX} 15, ${toX} 15, ${toX} ${toY}`;
+    : `M ${fromX} ${fromY} C ${fromX} ${middleY}, ${toX} ${middleY}, ${toX} ${toY}`;
   const color = KtcGraphLaneColor(kind === "incoming" ? fromLane : toLane);
   return `<path class="graph-edge${kind === "merge" ? " merge" : ""}" d="${path}" style="stroke:${color}" />`;
 }
@@ -289,7 +353,10 @@ function KtcSquashDraftEditor(draft: KtcGitSquashDraft, executing: boolean): str
     "所选区间：", ...draft.selectedLabels, "", `Base parent: ${draft.baseParentOid}`,
     `后续重放：${draft.replayCount} 个`, ...draft.replayLabels,
   ].join("\n");
-  return `<details class="section" open><summary class="section-header"><h2>确认信息</h2><span class="count">只改本地分支，不自动 push</span><span class="section-header-actions"><button class="primary" type="button" data-section-action id="execute" ${executing ? "disabled" : ""}>${executing ? "正在执行…" : "确认并执行"}</button></span></summary><div class="draft"><label>合并后的 commit 信息<textarea id="message" ${executing ? "disabled" : ""}>${KtcEscape(draft.message)}</textarea></label><div class="fields"><label>Author 姓名<input id="author-name" value="${KtcAttr(draft.author.name)}" ${executing ? "disabled" : ""} /></label><label>Author 邮箱<input id="author-email" value="${KtcAttr(draft.author.email)}" ${executing ? "disabled" : ""} /></label><label>Author 时间<input id="author-date" value="${KtcAttr(draft.author.dateLabel)}" ${executing ? "disabled" : ""} /></label></div><div class="fields"><label>Committer 姓名<input id="committer-name" value="${KtcAttr(draft.committer.name)}" ${executing ? "disabled" : ""} /></label><label>Committer 邮箱<input id="committer-email" value="${KtcAttr(draft.committer.email)}" ${executing ? "disabled" : ""} /></label><label>Committer 时间<input id="committer-date" value="${KtcAttr(draft.committer.dateLabel)}" ${executing ? "disabled" : ""} /></label></div></div></details><details class="section"><summary class="section-header"><h2>预检详情</h2><span class="count">所选区间与重放信息</span></summary><pre>${KtcEscape(details)}</pre></details>`;
+  const sameIdentity = draft.author.name === draft.committer.name
+    && draft.author.email === draft.committer.email
+    && draft.author.date === draft.committer.date;
+  return `<details class="section" open><summary class="section-header"><h2>确认信息</h2><span class="count">只改本地分支，不自动 push</span><span class="section-header-actions"><label class="same-identity" data-section-action><input id="same-identity" type="checkbox" ${sameIdentity ? "checked" : ""} ${executing ? "disabled" : ""} />Author / Committer 相同</label><button class="primary" type="button" data-section-action id="execute" ${executing ? "disabled" : ""}>${executing ? "正在执行…" : "确认并执行"}</button></span></summary><div class="draft"><label>合并后的 commit 信息<textarea id="message" ${executing ? "disabled" : ""}>${KtcEscape(draft.message)}</textarea></label><div class="fields"><label>Author 姓名<input id="author-name" value="${KtcAttr(draft.author.name)}" ${executing ? "disabled" : ""} /></label><label>Author 邮箱<input id="author-email" value="${KtcAttr(draft.author.email)}" ${executing ? "disabled" : ""} /></label><label>Author 时间<input id="author-date" value="${KtcAttr(draft.author.dateLabel)}" ${executing ? "disabled" : ""} /></label></div><div class="fields committer-fields" id="committer-fields" ${sameIdentity ? "hidden" : ""}><label>Committer 姓名<input id="committer-name" value="${KtcAttr(draft.committer.name)}" ${executing || sameIdentity ? "disabled" : ""} /></label><label>Committer 邮箱<input id="committer-email" value="${KtcAttr(draft.committer.email)}" ${executing || sameIdentity ? "disabled" : ""} /></label><label>Committer 时间<input id="committer-date" value="${KtcAttr(draft.committer.dateLabel)}" ${executing || sameIdentity ? "disabled" : ""} /></label></div></div></details><details class="section"><summary class="section-header"><h2>预检详情</h2><span class="count">所选区间与重放信息</span></summary><pre>${KtcEscape(details)}</pre></details>`;
 }
 
 function KtcDirtyWorktreeRecovery(changes: KtcGitWorktreeChanges): string {
@@ -298,7 +365,7 @@ function KtcDirtyWorktreeRecovery(changes: KtcGitWorktreeChanges): string {
 }
 
 function KtcGitDateLabel(value: string): string {
-  return value.replace(/\s[+-]\d{4}$/u, "");
+  return KtcFormatGitDate(value).replace(/:([0-5]\d)$/u, "");
 }
 
 function KtcEscape(value: string): string {

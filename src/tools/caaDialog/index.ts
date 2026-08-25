@@ -84,12 +84,22 @@ async function runCaaDialogAction(action: "scan" | "settings", ctx: ToolRunConte
 }
 
 async function scan(ctx: ToolRunContext): Promise<void> {
-  if (!ctx.workspaceRoot) { ctx.postState({ status: "error", message: "请先打开工作区。" }); return; }
+  if (!ctx.workspaceRoot) {
+    const message = "请先打开工作区。";
+    ctx.log(`[CAA UI][扫描][ERROR] ${message}`);
+    ctx.postState({ status: "error", message });
+    return;
+  }
   ctx.postState({ status: "running", message: "正在定位 .CATDlg 文件…" });
   const root = vscode.Uri.file(ctx.workspaceRoot);
   let scope;
   try { scope = await ktcResolveWorkspaceFileScope(root, ctx.workspaceFileScopeId); }
-  catch (error) { ctx.postState({ status: "error", message: error instanceof Error ? error.message : String(error) }); return; }
+  catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    ctx.log(`[CAA UI][扫描][ERROR] ${message}`);
+    ctx.postState({ status: "error", message });
+    return;
+  }
   const ignorePatterns = resolveWorkspaceIgnorePatterns(ctx.workspaceRoot, ctx.pluginIgnoreEnabled);
   const files = (await vscode.workspace.findFiles(new vscode.RelativePattern(root, INCLUDE), EXCLUDE))
     .filter((uri) => ktcFileInWorkspaceScope(uri, scope))
@@ -100,7 +110,7 @@ async function scan(ctx: ToolRunContext): Promise<void> {
   const settings = await ktcReadProjectEnvironmentStatus();
   const message = `范围“${scope.label}”已定位 ${files.length} 个 .CATDlg 文件；请在当前 Block 中按需打开文件或外部编辑器。工程环境：${settings.text}${settings.complete ? "" : "（必填根目录未完整设定）"}`;
   ctx.postState({ status: "done", message, scanned: files.length, issueFiles: files.length, caaDialogResults: caaResultRows(), caaSettingsText: settings.text });
-  ctx.log(`[CAA UI] ${message}`);
+  ctx.log(`[CAA UI][扫描][OK] ${message}`);
   await checkDeskConnection(ctx);
 }
 
@@ -138,6 +148,7 @@ async function openSettings(ctx: ToolRunContext): Promise<void> {
   await ktcOpenCaaSettings();
   const settings = await ktcReadProjectEnvironmentStatus();
   ctx.postState({ status: "done", message: `已打开 Desk Tools 设置。当前环境：${settings.text}`, caaSettingsText: settings.text });
+  ctx.log("[CAA UI][设置][INFO] 已打开 Desk Tools 设置。");
 }
 
 async function openFile(file: string): Promise<void> {
@@ -177,9 +188,11 @@ async function runCaaFileAction(
           ? { status: "online", text: "Desk Tools 桌面服务已连接", endpoint: ktcResolveCaaOpenEndpoint()?.endpoint, checkedAt }
           : { status: "custom-command", text: "使用自定义外部编辑器命令", checkedAt },
       });
+      ctx.log(`[CAA UI][打开][OK] ${transport === "desk-tools" ? `Desk Tools 已接受 ${selected.relativePath}` : `已交给外部编辑器：${selected.relativePath}`}`);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    ctx.log(`[CAA UI][打开][ERROR] ${message}`);
     ctx.postState({
       status: "error",
       message,

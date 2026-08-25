@@ -1898,9 +1898,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         const save = document.createElement("button");
         save.type = "button";
         save.className = "environment-icon-button environment-save-button";
-        save.title = item.value ? "保存修改" : "新建变量";
+        save.title = item.value ? "保存变量" : "新建变量";
         save.setAttribute("aria-label", item.environmentVariable + "：" + save.title);
-        save.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11.7 1.3l3 3-9.5 9.5-3.7.7.7-3.7 9.5-9.5zm0 1.4l-8.58 8.58-.35 1.95 1.95-.35 8.58-8.58-1.6-1.6z"/></svg>';
+        save.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.35 12.2 2.6 8.45l.9-.9 2.85 2.85 6.15-6.15.9.9-7.05 7.05z"/></svg>';
         save.onclick = () => vscode.postMessage({ type: "environmentAction", toolId: "environmentSettings", action: "set", key: item.key, value: value.value });
         value.onkeydown = (event) => {
           if (event.key !== "Enter") return;
@@ -1915,7 +1915,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         clear.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2h4l.5 1H14v1h-1l-.75 9h-8.5L3 4H2V3h3.5L6 2zm-1.25 2l.67 8h5.16l.67-8h-6.5z"/></svg>';
         clear.disabled = !item.value;
         clear.onclick = () => vscode.postMessage({ type: "environmentAction", toolId: "environmentSettings", action: "clear", key: item.key });
-        actions.append(save, clear);
+        // 保存始终固定在最右侧；完整顺序为“删除 → 选择目录 → 保存”。
+        // 悬停动作只从左侧展开，避免按钮换位造成连续点击时误操作。
+        actions.prepend(clear);
+        actions.append(save);
         const body = document.createElement("div");
         body.className = "environment-row-body";
         body.append(value, actions);

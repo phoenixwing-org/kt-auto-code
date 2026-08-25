@@ -3,7 +3,7 @@
   "displayName": "KT Auto Code",
   "description": "CAA / MSVC C++ 工具：编码修正、Ignore、搜索替换、成员排序与 Codegen 参数表",
   "author": "上海锟钛",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "license": "Apache-2.0",
   "publisher": "kuntai",
   "private": true,
@@ -330,6 +330,15 @@
         "message": 6
       },
       {
+        "name": "pnwCaaUpperDiagnostic",
+        "regexp": "^(.+?)\\((\\d+)(?:,(\\d+))?\\)\\s*:\\s*(?:ERROR|WARNING)\\s+([A-Za-z]+\\d+):\\s*(.*)$",
+        "file": 1,
+        "line": 2,
+        "column": 3,
+        "code": 4,
+        "message": 5
+      },
+      {
         "name": "pnwCmake",
         "regexp": "^CMake (Error|Warning)(?: at (.+):(\\d+) \\([^)]*\\))?:\\s*(.*)$",
         "severity": 1,
@@ -344,6 +353,14 @@
         "owner": "cpp",
         "fileLocation": "autoDetect",
         "pattern": "$pnwCaaMsCompile"
+      },
+      {
+        "name": "pnwCaaUpperDiagnostic",
+        "owner": "cpp",
+        "source": "KT Auto Code CAA",
+        "severity": "warning",
+        "fileLocation": "autoDetect",
+        "pattern": "$pnwCaaUpperDiagnostic"
       },
       {
         "name": "pnwCmake",

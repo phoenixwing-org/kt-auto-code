@@ -119,7 +119,7 @@ async function runPreview(ctx: ToolRunContext): Promise<void> {
     selected: new Set(snapshots.filter((row) => row.state === "pending").map((row) => row.uri.toString())),
   };
   postSessionState(ctx, `范围“${scope.label}”：${candidates.length} 个 C++ 文件，${changed} 个可排序。`);
-  ctx.log(`[成员排序] 范围 ${scope.label}；扫描 ${candidates.length} 个文件；${changed} 个有变更。`);
+  ctx.log(`[成员排序][预览][OK] 范围 ${scope.label}；扫描 ${candidates.length} 个文件；${changed} 个有变更。`);
 }
 
 function updateReorderSelection(uris: readonly string[], ctx: ToolRunContext): void {
@@ -158,7 +158,9 @@ async function handleReorderAction(
     syncStates(session.snapshots, session.stateRows);
     postSessionState(ctx, outcome.message, outcome.status);
   } catch (error) {
-    postSessionState(ctx, error instanceof Error ? error.message : String(error), "error");
+    const message = error instanceof Error ? error.message : String(error);
+    ctx.log(`[成员排序][操作][ERROR] ${message}`);
+    postSessionState(ctx, message, "error");
   }
 }
 
@@ -260,13 +262,13 @@ async function revertSnapshot(uri: string, rows: ReadonlyMap<string, Snapshot>, 
     row.state = "reverted";
     await vscode.commands.executeCommand("git.refresh");
     const message = `已还原 ${row.relativePath} 到成员排序前的内容。`;
-    ctx.log(`[成员排序还原] ${message}`);
+    ctx.log(`[成员排序][还原][OK] ${message}`);
     ctx.postState({ status: "done", message });
     return { uri, state: "reverted" };
   } catch (error) {
     const warning = error instanceof Error ? error.message : "还原失败";
     row.state = "blocked";
-    ctx.log(`[成员排序还原] ${row.relativePath}：${warning}`);
+    ctx.log(`[成员排序][还原][ERROR] ${row.relativePath}：${warning}`);
     return { uri, state: "blocked", warning };
   }
 }
@@ -279,7 +281,7 @@ async function applySnapshots(uris: readonly string[], rows: ReadonlyMap<string,
   const updates: Array<{ uri: string; state: "applied" | "blocked"; warning?: string }> = [];
   for (const row of selected) try { if (!equal(await vscode.workspace.fs.readFile(row.uri), row.raw)) { const warning = "文件已被外部修改，未写入"; row.state = "blocked"; rejected.push(`${row.relativePath}（文件已变化）`); updates.push({ uri: row.uri.toString(), state: "blocked", warning }); continue; } await vscode.workspace.fs.writeFile(row.uri, encode(row)); row.state = "applied"; applied.push(row); updates.push({ uri: row.uri.toString(), state: "applied" }); } catch (error) { const warning = error instanceof Error ? error.message : "写入失败"; row.state = "blocked"; rejected.push(`${row.relativePath}（${warning}）`); updates.push({ uri: row.uri.toString(), state: "blocked", warning }); }
   const message = rejected.length ? `已写入 ${applied.length} 个文件；未写入 ${rejected.length} 个：${rejected.join("；")}` : `已写入 ${applied.length} 个文件；可在结果行按需查看 Git 差异。`;
-  ctx.log(`[成员排序应用] ${message}`); ctx.postState({ status: rejected.length ? "error" : "done", message });
+  ctx.log(`[成员排序][写入][${rejected.length ? "WARN" : "OK"}] ${message}`); ctx.postState({ status: rejected.length ? "error" : "done", message });
   return { updates };
 }
 
@@ -300,7 +302,7 @@ async function openGitChanges(rows: readonly Snapshot[], ctx: ToolRunContext): P
     for (const row of rows) await vscode.commands.executeCommand("git.openChange", row.uri);
     return true;
   } catch (error) {
-    ctx.log(`[成员排序应用] 无法打开 VS Code Git 变更：${error instanceof Error ? error.message : String(error)}`);
+    ctx.log(`[成员排序][打开差异][ERROR] 无法打开 VS Code Git 变更：${error instanceof Error ? error.message : String(error)}`);
     return false;
   }
 }

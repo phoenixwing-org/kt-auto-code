@@ -17,13 +17,13 @@ Owner：KT Auto Code maintainers
 - 同时扫描所有 Workspace Folder 及其子目录中的 `ps1`、`bat`、`cmd`、`sh`、Windows 可执行文件和当前平台可执行文件；扫描只发现，不自动运行。
 - 同时发现工作区级与嵌套目录中的 `tasks.json`。VS Code 已原生解析的任务直接执行原 `Task` 对象；嵌套配置采用受限导入，并明确显示 matcher、compound、变量或自定义 task type 是否能完整保留。
 - 优先通过 `vscode.tasks.executeTask()` 运行，直接脚本和可执行文件也包装成 VS Code Task，使 Terminal、Problems、运行事件和停止入口保持一致。
-- 原生 Task 的 `problemMatcher` 原样保留；生成任务保留命名 matcher。即使项目没有 `tasks.json`，强证据识别出的 CAA `mk.ps1` 也包装成生成 Task，并自动挂接 Auto Code 自带的 CAA/MSVC matcher，把编译错误送进 Problems。CAA/CMake 内置构建任务同样提供受测试的 MSVC、GCC/Clang 与 CMake matcher。无法由公开 API 表达的嵌套 inline matcher 不静默丢失，而是显示“matcher 降级”或要求将子项目加入 Workspace Folder。
+- 原生 Task 的 `problemMatcher` 原样保留；生成任务保留命名 matcher。即使项目没有 `tasks.json`，强证据识别出的 CAA `mk.ps1` 也包装成生成 Task，并自动挂接 Auto Code 自带的 CAA/MSVC matcher，把编译错误送进 Problems。小写 `fatal error/error` 保持错误，大写 `ERROR/WARNING` 按 warning 补充捕获；没有文件/行号的文本仍留在 Terminal。CAA/CMake 内置构建任务同样提供受测试的 MSVC、GCC/Clang 与 CMake matcher。无法由公开 API 表达的嵌套 inline matcher 不静默丢失，而是显示“matcher 降级”或要求将子项目加入 Workspace Folder。
 - 多项目按真实 Workspace Folder、子项目根和 cwd 分组。`KtCore` 按 CMake C++ 项目处理；`PNXBomAnalysisWsp` 按 CAA 项目处理，二者不因都能运行脚本而混为同一项目类型。
 - CAA Block 可为每个子项目选择当前版本。当前选择保存在 `workspaceState`，不写工程文件，也不修改系统 `CAA_MK_VERSION`；其次读取 machine-scoped 插件默认版本和环境值，最后使用建议值 `19`。同一代码可依次选择多个版本编译。
 - 内置 CAA MK / Run 的机器安装位置使用 User Settings：`ktAutoCode.run.CAARadeRoot`、`CATIARoot`。配置后优先使用；留空时分别按 `C:\\DS\\RADE<版本>`、`C:\\DS\\B<版本>` 推导。厂商命令固定从 RADE 根下的 `intel_a` 读取，不能把工程输出目录 `win_b64` 拼成 RADE 工具目录。旧 `caaRadeRoot`、`catiaRoot`、`caaCatiaRoot` 仅保留读取兼容。这些都是机器集成信息，绝不写入工程的 `.vscode/settings.json`。
 - 点击内置 CAA MK / Run 前，Run 会在输出中记录版本、RADE `intel_a` 工具目录、RADE 根和 CATIA 根；任一根目录或所需厂商脚本不存在时，预检立即停止，不会进入 `tck_init.bat`。
 - `设置 → 插件设置` 以紧凑只读行显示当前 `CAA Version`、`CAA Rade Root`、`CATIA Root` 与固定的 `CAA Runtime Directory = intel_a`；来源和完整值保留在悬停提示中。编辑仍统一进入 VS Code 插件设置，不在该清单内维护第二份值。
-- 普通 Run 默认只输出“已启动”和清晰的成功/失败结论；发现数量、内部目标 ID、运行 ID、matcher 等开发诊断默认静默。失败行统一以 `[ERROR]` 开头并说明可行动原因；“试运行”是显式诊断动作，仍输出命令与兼容性细节。
+- 普通 Run 默认只输出“已启动”和清晰的成功/失败结论；发现数量、内部目标 ID、运行 ID、matcher 等开发诊断默认静默。格式遵守[必要日志输出规则](../必要日志输出规则.md)；“试运行”是显式诊断动作，仍输出命令与兼容性细节。
 - CAA `MK` 独立维护“关联工程/Preq 目录”，对应参考脚本的 `-Workspace` 与 `mkGetPreq -p`。它不等于当前 cwd；可从已发现项目勾选或显式选择目录，内置 runner 支持多项并做去重与越界确认。关联目录只影响点击后的执行 provider，不改写列表来源：原生 `mk.ps1` 仍在 Tasks，bundled `MK` 仍在内置组，避免出现重复内置项。
 - 工程级 Run 配置采用 `ktAutoCode.run.caaRelatedProjects`；多 CAA 子工程使用 `ktAutoCode.run.caaProjects` 映射，关联路径优先按各自工程保存为相对路径。`ktAutoCode.run.CAAVersion` 只表示本机插件默认版本，不是固定工程版本。
 - 默认开启“只看当前系统”。macOS 只显示当前可运行目标；关闭后仍可查看 Windows/Linux 候选，但这些候选置灰，仅用于 UI、路径与配置调试，不能伪装执行。
@@ -35,6 +35,19 @@ Owner：KT Auto Code maintainers
 详细方案见 [Run Primary Block 可行性与实施计划](Run-Primary-Block可行性与实施计划.md)。
 
 暂不实施的命令行与流水线方向见 [TODO：Phoenix Wing CLI 与 CAA CI/CD](TODO-Wing-CLI与CAA-CICD.md)。
+
+## 已修复问题
+
+### BUG-RUN-PRIMARY-WHEEL-001：Run 长 Tree 与 Current Tool 滚动冲突
+
+- **记录日期**：2026-08-25
+- **现象**：Run Primary 展开较多项目和目标后，鼠标位于 Tree 行或中部内容区时，滚轮无法带动整个 Current Tool Block 纵向滚动；只有把鼠标移到右侧边缘、使外层滚动条成为命中区域后，滚轮才恢复。
+- **复现样本**：已发现 9 个项目、70 个目标，多个项目和“内置”分组同时展开。
+- **根因**：Wing Navigation Tree 自带 `overflow:auto` 和 `overscroll-behavior:contain`，嵌入 Current Tool 后形成第二个纵向滚动边界并截获滚轮。
+- **期望行为**：鼠标位于 Run 内容区任意位置时，滚轮或触控板均能连续滚动 Current Tool Block；到达边界后不出现卡住或必须移到滚动条的情况。
+- **修复约束**：不得改变已锁定的“工具栏、目录、当前工具”三 Block 结构，不得恢复 Primary 页面整体纵向滚动。优先保持 Current Tool 为唯一纵向滚动边界；如 Tree 必须保留局部滚动，则必须实现明确的边界事件交接。
+- **修复**：仅在 Run 的 Host 样式中关闭 Tree 自身纵向 overflow/overscroll，继续由 Current Tool 作为唯一滚动边界；不修改 Wing 通用组件，也不改变三 Block 外壳。
+- **验收范围**：长 Tree、展开/折叠、宽/窄侧栏、鼠标滚轮、触控板、键盘导航，以及深色、浅色和高对比模式。
 
 ## 参考基线
 
