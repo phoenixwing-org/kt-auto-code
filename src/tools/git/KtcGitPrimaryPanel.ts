@@ -527,12 +527,16 @@ export class KtcGitPrimaryPanel extends HTMLElement {
       button.className = "secondary-button";
       button.textContent = labelText;
       button.disabled = !project.hasMoreCommits || !project.repository.headOid;
-      button.onclick = () => this.KtcEmit({
-        action: "loadOlderCommits",
-        repositoryId: project.repository.id,
-        expectedHeadOid: project.repository.headOid!,
-        count,
-      });
+      button.onclick = () => {
+        // 加载动作位于折叠区外，但结果属于“更多 commit”；下一次状态重绘时必须保持结果可见。
+        this.KtcExpandedHistoryRepositories.add(project.repository.id);
+        this.KtcEmit({
+          action: "loadOlderCommits",
+          repositoryId: project.repository.id,
+          expectedHeadOid: project.repository.headOid!,
+          count,
+        });
+      };
       historyActions.append(button);
     }
     const merge = document.createElement("button");

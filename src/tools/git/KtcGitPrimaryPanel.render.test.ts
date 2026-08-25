@@ -183,6 +183,21 @@ describe("Git Primary panel rendering", () => {
     history!.open = true;
     history!.ontoggle?.();
     expect(events).toHaveLength(2);
+
+    history!.open = false;
+    history!.ontoggle?.();
+    const next = findNode(panel.shadow, (node) => node.tagName === "button" && node.textContent === "下一条");
+    expect(next).toBeDefined();
+    next!.onclick?.();
+    expect(events.at(-1)?.detail).toEqual({
+      action: "loadOlderCommits",
+      repositoryId: "/repo",
+      expectedHeadOid: "1234567890abcdef",
+      count: 1,
+    });
+    panel.model = panel.model;
+    const reopenedHistory = findNode(panel.shadow, (node) => node.tagName === "details" && textContent(node).includes("更多 commit"));
+    expect(reopenedHistory?.open).toBe(true);
   });
 
   it("未选或只选一条时仍打开合并 View", async () => {

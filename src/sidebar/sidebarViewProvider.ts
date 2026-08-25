@@ -23,6 +23,7 @@ import { setCaaDialogRunContextFactory } from "../tools/caaDialog/index.js";
 import { setReorderMembersRunContextFactory } from "../tools/reorderMembers/index.js";
 import { setIgnoreSettingsRunContextFactory } from "../tools/ignoreSettings/index.js";
 import { setCodegenRunContextFactory } from "../tools/codegen/index.js";
+import { setCodeAssistantRunContextFactory } from "../tools/codeAssistant/index.js";
 import { getPreserveGbk, getStripBom } from "../tools/headerAscii/options.js";
 import { getFileScope, setFileScopeOption, type ScopeOptionKey } from "../scopeOptions.js";
 import { getWorkspaceLabel, getWorkspaceRoot } from "../workspace.js";
@@ -190,6 +191,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     setReorderMembersRunContextFactory(() => this.createRunContext("reorderMembers"));
     setIgnoreSettingsRunContextFactory(() => this.createRunContext("ignoreSettings"));
     setCodegenRunContextFactory(() => this.createRunContext("codegen"));
+    setCodeAssistantRunContextFactory(() => this.createRunContext("codeAssistant"));
   }
 
   async initializeModuleState(): Promise<void> {

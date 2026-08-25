@@ -46,13 +46,24 @@ describe("Package include View", () => {
     expect(createWebviewPanel).toHaveBeenCalledTimes(1);
     expect(createWebviewPanel).toHaveBeenCalledWith(
       "ktAutoCode.packageIncludes",
-      "代码辅助 · Package 头文件修正",
+      "代码辅助 · 头文件引用修正",
       { viewColumn: 1, preserveFocus: false },
       expect.objectContaining({ enableScripts: true, retainContextWhenHidden: true }),
     );
     expect(panel.webview.html).toContain('class="command-header"');
-    expect(panel.webview.html).toContain("ROOT_DIR_INCLUDE");
-    expect(panel.webview.html).toContain("目标目录（插件当前目录）");
+    expect(panel.webview.html).toContain('<strong>头文件引用修正</strong>');
+    expect(panel.webview.html).toContain('class="header-actions"');
+    expect(panel.webview.html).toContain('id="preview" class="primary" type="button">预览</button>');
+    expect(panel.webview.html).toContain('id="open-env" type="button">工程环境</button>');
+    expect(panel.webview.html).toContain("</header><main>");
+    expect(panel.webview.html).toContain('id="derive-package"');
+    expect(panel.webview.html).toContain("推导…");
+    expect(panel.webview.html).not.toContain('id="use-include-root"');
+    expect(panel.webview.html).not.toContain('id="use-root-directory"');
+    expect(panel.webview.html).toContain('<label for="target-directory">工程目录</label>');
+    expect(panel.webview.html).toContain('id="target-directory" type="text" spellcheck="false"');
+    expect(panel.webview.html).not.toContain('id="target-directory" type="text" readonly');
+    expect(panel.webview.html).toContain("targetDirectory:els.targetDirectory.value");
     expect(panel.reveal).toHaveBeenCalledWith(1, false);
   });
 });

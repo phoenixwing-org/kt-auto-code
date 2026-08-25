@@ -30,16 +30,16 @@ interface KtcPackageIncludeViewState {
 
 type KtcPackageIncludeViewMessage =
   | { readonly type: "ready" }
-  | { readonly type: "useEnvironmentPackageDirectory"; readonly source: "include" | "root" }
+  | { readonly type: "pickEnvironmentPackageDirectory" }
   | { readonly type: "pickPackageDirectory"; readonly packageDirectory?: string }
-  | { readonly type: "preview"; readonly packageDirectory: string }
+  | { readonly type: "preview"; readonly packageDirectory: string; readonly targetDirectory: string }
   | { readonly type: "apply" }
   | { readonly type: "openFile"; readonly filePath: string; readonly line: number }
   | { readonly type: "openEnvironment" };
 
 function isMessage(value: unknown): value is KtcPackageIncludeViewMessage {
   if (!value || typeof value !== "object" || !("type" in value) || typeof value.type !== "string") return false;
-  return ["ready", "useEnvironmentPackageDirectory", "pickPackageDirectory", "preview", "apply", "openFile", "openEnvironment"].includes(value.type);
+  return ["ready", "pickEnvironmentPackageDirectory", "pickPackageDirectory", "preview", "apply", "openFile", "openEnvironment"].includes(value.type);
 }
 
 function safeJson(value: unknown): string {
@@ -78,7 +78,7 @@ export class KtcPackageIncludeViewController implements vscode.Disposable {
     }
     const panel = vscode.window.createWebviewPanel(
       "ktAutoCode.packageIncludes",
-      "代码辅助 · Package 头文件修正",
+      "代码辅助 · 头文件引用修正",
       { viewColumn: vscode.ViewColumn.Active, preserveFocus: false },
       { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [] },
     );
@@ -112,20 +112,14 @@ export class KtcPackageIncludeViewController implements vscode.Disposable {
       await vscode.commands.executeCommand("ktAutoCode.environment.open");
       return;
     }
-    if (message.type === "useEnvironmentPackageDirectory") {
-      const environment = await ktcReadProjectEnvironment();
-      const rootDirectory = environment.values.find((value) => value.key === "customRoot")?.value;
-      const includeRoot = environment.values.find((value) => value.key === "includeRoot")?.value;
-      this.packageDirectory = message.source === "include"
-        ? (includeRoot ? ktcResolvePackageIncludeDirectoryFromPublicInclude(includeRoot) : "")
-        : (rootDirectory ? ktcResolveDefaultPackageIncludeDirectory(rootDirectory) : "");
-      this.session = undefined;
-      await this.workspaceState.update(PACKAGE_DIRECTORY_STATE_KEY, this.packageDirectory);
-      await this.refreshEnvironment(
-        this.packageDirectory
-          ? (message.source === "include" ? "ROOT_DIR_INCLUDE" : "ROOT_DIR/kt/core/include") + " 推导的 Package 目录已填入，请先预览。"
-          : "未读取到 " + (message.source === "include" ? "ROOT_DIR_INCLUDE" : "ROOT_DIR") + "。",
-      );
+    if (message.type === "pickEnvironmentPackageDirectory") {
+      const selected = await vscode.window.showQuickPick([
+        { label: "从 ROOT_DIR_INCLUDE 推导", source: "include" as const },
+        { label: "从 ROOT_DIR 推导", source: "root" as const },
+      ], {
+        placeHolder: "选择 Package 目录推导来源",
+      });
+      if (selected) await this.useEnvironmentPackageDirectory(selected.source);
       return;
     }
     if (message.type === "pickPackageDirectory") {
@@ -146,7 +140,7 @@ export class KtcPackageIncludeViewController implements vscode.Disposable {
       return;
     }
     if (message.type === "preview") {
-      await this.preview(message.packageDirectory);
+      await this.preview(message.packageDirectory, message.targetDirectory);
       return;
     }
     if (message.type === "apply") {
@@ -160,6 +154,22 @@ export class KtcPackageIncludeViewController implements vscode.Disposable {
       editor.selection = new vscode.Selection(position, position);
       editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
     }
+  }
+
+  private async useEnvironmentPackageDirectory(source: "include" | "root"): Promise<void> {
+    const environment = await ktcReadProjectEnvironment();
+    const rootDirectory = environment.values.find((value) => value.key === "customRoot")?.value;
+    const includeRoot = environment.values.find((value) => value.key === "includeRoot")?.value;
+    this.packageDirectory = source === "include"
+      ? (includeRoot ? ktcResolvePackageIncludeDirectoryFromPublicInclude(includeRoot) : "")
+      : (rootDirectory ? ktcResolveDefaultPackageIncludeDirectory(rootDirectory) : "");
+    this.session = undefined;
+    await this.workspaceState.update(PACKAGE_DIRECTORY_STATE_KEY, this.packageDirectory);
+    await this.refreshEnvironment(
+      this.packageDirectory
+        ? (source === "include" ? "ROOT_DIR_INCLUDE" : "ROOT_DIR/kt/core/include") + " 推导的 Package 目录已填入，请先预览。"
+        : "未读取到 " + (source === "include" ? "ROOT_DIR_INCLUDE" : "ROOT_DIR") + "。",
+    );
   }
 
   private async refreshEnvironment(message = this.state.message): Promise<void> {
@@ -193,16 +203,17 @@ export class KtcPackageIncludeViewController implements vscode.Disposable {
     }
   }
 
-  private async preview(packageDirectory: string): Promise<void> {
+  private async preview(packageDirectory: string, targetDirectory: string): Promise<void> {
     if (this.busy) return;
     this.busy = true;
     this.packageDirectory = packageDirectory.trim() || this.packageDirectory;
+    this.targetDirectory = targetDirectory.trim() || this.targetDirectory;
     this.session = undefined;
     await this.workspaceState.update(PACKAGE_DIRECTORY_STATE_KEY, this.packageDirectory);
     await this.refreshEnvironment();
     if (!this.targetDirectory) {
       this.busy = false;
-      this.setState({ status: "error", message: "未确定插件当前目录；请先在 Primary 目录行选择目录。", preview: undefined, canApply: false });
+      this.setState({ status: "error", message: "未确定工程目录；请从 Primary 带入或临时填写目录。", preview: undefined, canApply: false });
       return;
     }
     if (!this.state.packageDirectory || !this.state.packageDirectoryExists) {
@@ -284,15 +295,15 @@ function getPackageIncludeHtml(webview: Pick<vscode.Webview, "cspSource">, initi
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta http-equiv="Content-Security-Policy" content="${csp}" />
 <style>
-:root{color-scheme:light dark}*{box-sizing:border-box}body{margin:0;padding:8px;color:var(--vscode-foreground);background:var(--vscode-editor-background);font:13px/1.4 var(--vscode-font-family)}button,input{font:inherit}button{min-height:28px;padding:3px 11px;border:1px solid var(--vscode-button-border,transparent);border-radius:3px;color:var(--vscode-button-secondaryForeground);background:var(--vscode-button-secondaryBackground);cursor:pointer}button:hover:not(:disabled){background:var(--vscode-button-secondaryHoverBackground)}button.primary{color:var(--vscode-button-foreground);background:var(--vscode-button-background)}button.primary:hover:not(:disabled){background:var(--vscode-button-hoverBackground)}button:disabled{opacity:.5;cursor:not-allowed}button:focus-visible,input:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:1px}.command-header{position:sticky;top:0;z-index:3;display:flex;justify-content:flex-end;gap:7px;margin:-8px -8px 8px;padding:7px 8px;border-bottom:1px solid var(--vscode-panel-border);background:var(--vscode-editor-background)}.section{margin:0 0 8px;padding:7px;border:1px solid var(--vscode-panel-border);border-radius:4px}.section h2{margin:0 0 5px;font-size:13px}.row{display:grid;grid-template-columns:92px minmax(0,1fr) auto;gap:7px;align-items:center;margin:5px 0}.row label{color:var(--vscode-descriptionForeground)}.directory-actions{display:flex;gap:5px}.directory-actions button{padding-inline:7px;white-space:nowrap}input{width:100%;min-width:0;height:29px;padding:3px 7px;border:1px solid var(--vscode-input-border,var(--vscode-panel-border));border-radius:2px;color:var(--vscode-input-foreground);background:var(--vscode-input-background);font-family:var(--vscode-editor-font-family)}input.ready{border-left:3px solid var(--vscode-testing-iconPassed,var(--vscode-focusBorder))}input.missing{border-left:3px solid var(--vscode-errorForeground)}.context{margin:5px 0 0;padding:4px 0;color:var(--vscode-descriptionForeground);font-size:12px}.context code{color:var(--vscode-foreground);font-family:var(--vscode-editor-font-family);word-break:break-all}.actions{display:flex;gap:7px;margin-top:7px}.status{margin:7px 0 0;padding:5px 7px;border-left:2px solid var(--vscode-panel-border);color:var(--vscode-descriptionForeground);background:var(--vscode-textBlockQuote-background)}.status.error{border-left-color:var(--vscode-errorForeground);color:var(--vscode-errorForeground)}.summary{display:flex;flex-wrap:wrap;gap:8px;margin:7px 0;color:var(--vscode-descriptionForeground);font-size:12px}.badge{padding:1px 6px;border:1px solid var(--vscode-panel-border);border-radius:999px}.warning{margin:7px 0;padding:7px;border-left:2px solid var(--vscode-editorWarning-foreground);background:var(--vscode-textBlockQuote-background);color:var(--vscode-descriptionForeground);font-size:12px}.table-wrap{overflow:auto;border:1px solid var(--vscode-panel-border);border-radius:3px;max-height:calc(100vh - 300px)}table{width:max-content;min-width:100%;border-collapse:collapse;font-family:var(--vscode-editor-font-family);font-size:12px}th,td{padding:6px 8px;border-bottom:1px solid var(--vscode-panel-border);vertical-align:top}th{position:sticky;top:0;background:var(--vscode-editor-background);text-align:left;color:var(--vscode-descriptionForeground);font-family:var(--vscode-font-family)}td.file{min-width:280px;max-width:520px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}td.line{text-align:right;white-space:pre}td.old,td.new{text-align:left;white-space:pre;max-width:440px;overflow:hidden;text-overflow:ellipsis}tr{cursor:pointer}tr:hover{background:var(--vscode-list-hoverBackground)}.empty{padding:8px;color:var(--vscode-descriptionForeground)}@media(max-width:640px){body{padding:6px}.command-header{margin:-6px -6px 6px;padding:6px}.row{grid-template-columns:1fr}.row label{margin-bottom:-4px}.table-wrap{max-height:calc(100vh - 330px)}}
+:root{color-scheme:light dark}*{box-sizing:border-box}body{margin:0;padding:8px;color:var(--vscode-foreground);background:var(--vscode-editor-background);font:13px/1.4 var(--vscode-font-family)}button,input{font:inherit}button{min-height:28px;padding:3px 11px;border:1px solid var(--vscode-button-border,transparent);border-radius:3px;color:var(--vscode-button-secondaryForeground);background:var(--vscode-button-secondaryBackground);cursor:pointer}button:hover:not(:disabled){background:var(--vscode-button-secondaryHoverBackground)}button.primary{color:var(--vscode-button-foreground);background:var(--vscode-button-background)}button.primary:hover:not(:disabled){background:var(--vscode-button-hoverBackground)}button:disabled{opacity:.5;cursor:not-allowed}button:focus-visible,input:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:1px}.command-header{position:sticky;top:0;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-8px -8px 8px;padding:7px 8px;border-bottom:1px solid var(--vscode-panel-border);background:var(--vscode-editor-background)}.view-heading{display:flex;align-items:baseline;gap:8px;min-width:0}.view-heading strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}.view-heading span{color:var(--vscode-descriptionForeground);font-size:12px;white-space:nowrap}.header-actions{display:flex;flex:none;gap:7px}.section{margin:0 0 8px;padding:7px;border:1px solid var(--vscode-panel-border);border-radius:4px}.section h2{margin:0 0 5px;font-size:13px}.row{display:grid;grid-template-columns:84px minmax(0,1fr) auto;gap:7px;align-items:center;margin:5px 0}.row label{color:var(--vscode-descriptionForeground)}.directory-actions{display:flex;gap:5px}.directory-actions button{padding-inline:7px;white-space:nowrap}input{width:100%;min-width:0;height:29px;padding:3px 7px;border:1px solid var(--vscode-input-border,var(--vscode-panel-border));border-radius:2px;color:var(--vscode-input-foreground);background:var(--vscode-input-background);font-family:var(--vscode-editor-font-family)}input[readonly]{color:var(--vscode-descriptionForeground);background:var(--vscode-editor-background)}input.ready{border-left:3px solid var(--vscode-testing-iconPassed,var(--vscode-focusBorder))}input.missing{border-left:3px solid var(--vscode-errorForeground)}.status{margin:7px 0 0;padding:5px 7px;border-left:2px solid var(--vscode-panel-border);color:var(--vscode-descriptionForeground);background:var(--vscode-textBlockQuote-background)}.status:empty{display:none}.status.error{border-left-color:var(--vscode-errorForeground);color:var(--vscode-errorForeground)}.summary{display:flex;flex-wrap:wrap;gap:8px;margin:7px 0;color:var(--vscode-descriptionForeground);font-size:12px}.badge{padding:1px 6px;border:1px solid var(--vscode-panel-border);border-radius:999px}.warning{margin:7px 0;padding:7px;border-left:2px solid var(--vscode-editorWarning-foreground);background:var(--vscode-textBlockQuote-background);color:var(--vscode-descriptionForeground);font-size:12px}.table-wrap{overflow:auto;border:1px solid var(--vscode-panel-border);border-radius:3px;max-height:calc(100vh - 300px)}table{width:max-content;min-width:100%;border-collapse:collapse;font-family:var(--vscode-editor-font-family);font-size:12px}th,td{padding:6px 8px;border-bottom:1px solid var(--vscode-panel-border);vertical-align:top}th{position:sticky;top:0;background:var(--vscode-editor-background);text-align:left;color:var(--vscode-descriptionForeground);font-family:var(--vscode-font-family)}td.file{min-width:280px;max-width:520px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}td.line{text-align:right;white-space:pre}td.old,td.new{text-align:left;white-space:pre;max-width:440px;overflow:hidden;text-overflow:ellipsis}tr{cursor:pointer}tr:hover{background:var(--vscode-list-hoverBackground)}.empty{padding:8px;color:var(--vscode-descriptionForeground)}@media(max-width:640px){body{padding:6px}.command-header{margin:-6px -6px 6px;padding:6px}.view-heading span{display:none}.row{grid-template-columns:1fr}.row label{margin-bottom:-4px}.table-wrap{max-height:calc(100vh - 330px)}}
 </style></head><body>
-<header class="command-header"><button id="preview" class="primary" type="button">预览修正</button><button id="apply" type="button" disabled>写入修正</button></header>
-<section><h2>目录与环境</h2><div class="row"><label for="package-directory">Package 目录</label><input id="package-directory" spellcheck="false" title="优先由 ROOT_DIR_INCLUDE 推导；未设置时使用 ROOT_DIR/kt/core/include" /><span class="directory-actions"><button id="use-include-root" type="button" title="按 ROOT_DIR_INCLUDE 推导 package 根">ROOT_DIR_INCLUDE</button><button id="use-root-directory" type="button" title="按 ROOT_DIR/kt/core/include 推导 package 根">ROOT_DIR</button><button id="pick-package" type="button" title="选择 Package include 目录">选择…</button></span></div><div class="context">目标目录（插件当前目录）：<code id="target-directory"></code></div><div class="actions"><button id="open-env" type="button">工程环境</button></div><div class="status" id="status" role="status" aria-live="polite"></div></section>
-<section><h2>预览</h2><div id="summary" class="summary"></div><div id="warnings"></div><div id="rows" class="empty">填写 Package 目录后点击“预览修正”。</div></section>
+<header class="command-header"><div class="view-heading"><strong>头文件引用修正</strong><span>代码辅助</span></div><div class="header-actions"><button id="preview" class="primary" type="button">预览</button><button id="apply" type="button" disabled>写入修正</button><button id="open-env" type="button">工程环境</button></div></header><main>
+<section><h2>目录</h2><div class="row"><label for="package-directory">Package 目录</label><input id="package-directory" spellcheck="false" title="优先由 ROOT_DIR_INCLUDE 推导；未设置时使用 ROOT_DIR/kt/core/include" /><span class="directory-actions"><button id="derive-package" type="button" title="选择环境变量并推导 Package include 目录">推导…</button><button id="pick-package" type="button" title="选择 Package include 目录">选择…</button></span></div><div class="row"><label for="target-directory">工程目录</label><input id="target-directory" type="text" spellcheck="false" title="默认来自 Primary 当前目录；可在本次 View 中临时修改" /></div><div class="status" id="status" role="status" aria-live="polite"></div></section>
+<section><h2>预览</h2><div id="summary" class="summary"></div><div id="warnings"></div><div id="rows" class="empty">填写 Package 目录后点击“预览修正”。</div></section></main>
 <script nonce="${nonce}">
 const vscode=acquireVsCodeApi();let state=${safeJson(initialState)};const byId=id=>document.getElementById(id);const els={packageDirectory:byId('package-directory'),targetDirectory:byId('target-directory'),preview:byId('preview'),apply:byId('apply'),status:byId('status'),summary:byId('summary'),warnings:byId('warnings'),rows:byId('rows')};
 const esc=value=>String(value??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-function render(){const running=state.status==='running';els.packageDirectory.value=state.packageDirectory||'';els.packageDirectory.className=state.packageDirectoryExists?'ready':'missing';els.targetDirectory.textContent=state.targetDirectory||'未选择';els.targetDirectory.title=state.targetDirectory||'未选择';els.preview.disabled=running||!els.packageDirectory.value.trim();els.apply.disabled=running||!state.canApply;els.status.textContent=state.message||'';els.status.className='status '+(state.status==='error'?'error':'');const p=state.preview;if(!p){els.summary.innerHTML='';els.warnings.innerHTML='';els.rows.className='empty';els.rows.textContent='填写 Package 目录后点击“预览修正”。';return}els.summary.innerHTML='<span class="badge">映射 '+p.headerCount+' 个头文件</span><span class="badge">扫描 '+p.scannedFileCount+' 个文件</span><span class="badge">命中 '+p.rows.length+' 处</span>'+(p.unsupportedFileCount?'<span class="badge">跳过 '+p.unsupportedFileCount+' 个未知编码文件</span>':'');const warnings=[];if(p.collisions.length)warnings.push('同名冲突 '+p.collisions.length+' 个，已全部排除，不会自动替换。');if(p.skippedHeaderCount)warnings.push('有 '+p.skippedHeaderCount+' 个头文件不在 source 目录结构中，未加入映射。');els.warnings.innerHTML=warnings.map(item=>'<div class="warning">'+esc(item)+'</div>').join('');if(!p.rows.length){els.rows.className='empty';els.rows.textContent='未发现可修正的 include。';return}els.rows.className='table-wrap';els.rows.innerHTML='<table><thead><tr><th>文件 @ 目录</th><th>行</th><th>旧值</th><th>新值</th></tr></thead><tbody>'+p.rows.map(row=>'<tr data-file="'+esc(row.filePath)+'" data-line="'+row.line+'" title="打开 '+esc(row.relativePath)+' 第 '+row.line+' 行"><td class="file">'+esc(row.fileName)+(row.directory?' @ '+esc(row.directory):'')+'</td><td class="line">'+row.line+'</td><td class="old">'+esc(row.oldValue)+'</td><td class="new">'+esc(row.newValue)+'</td></tr>').join('')+'</tbody></table>';for(const row of els.rows.querySelectorAll('tr[data-file]'))row.onclick=()=>vscode.postMessage({type:'openFile',filePath:row.dataset.file,line:Number(row.dataset.line)});}
-function invalidate(message){els.apply.disabled=true;els.status.textContent=message;els.status.className='status'}byId('use-include-root').onclick=()=>vscode.postMessage({type:'useEnvironmentPackageDirectory',source:'include'});byId('use-root-directory').onclick=()=>vscode.postMessage({type:'useEnvironmentPackageDirectory',source:'root'});byId('pick-package').onclick=()=>vscode.postMessage({type:'pickPackageDirectory',packageDirectory:els.packageDirectory.value});byId('open-env').onclick=()=>vscode.postMessage({type:'openEnvironment'});els.preview.onclick=()=>vscode.postMessage({type:'preview',packageDirectory:els.packageDirectory.value});els.apply.onclick=()=>vscode.postMessage({type:'apply'});els.packageDirectory.oninput=()=>invalidate('Package 目录已编辑，请重新预览后再写入。');els.packageDirectory.onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();els.preview.click()}};window.addEventListener('message',event=>{if(event.data?.type==='state'){state=event.data;render()}});render();vscode.postMessage({type:'ready'});
+function render(){const running=state.status==='running';els.packageDirectory.value=state.packageDirectory||'';els.packageDirectory.className=state.packageDirectoryExists?'ready':'missing';els.targetDirectory.value=state.targetDirectory||'未选择';els.targetDirectory.title=state.targetDirectory||'未选择';els.preview.disabled=running||!els.packageDirectory.value.trim();els.apply.disabled=running||!state.canApply;els.status.textContent=state.message||'';els.status.className='status '+(state.status==='error'?'error':'');const p=state.preview;if(!p){els.summary.innerHTML='';els.warnings.innerHTML='';els.rows.className='empty';els.rows.textContent='填写 Package 目录后点击“预览修正”。';return}els.summary.innerHTML='<span class="badge">映射 '+p.headerCount+' 个头文件</span><span class="badge">扫描 '+p.scannedFileCount+' 个文件</span><span class="badge">命中 '+p.rows.length+' 处</span>'+(p.unsupportedFileCount?'<span class="badge">跳过 '+p.unsupportedFileCount+' 个未知编码文件</span>':'');const warnings=[];if(p.collisions.length)warnings.push('同名冲突 '+p.collisions.length+' 个，已全部排除，不会自动替换。');if(p.skippedHeaderCount)warnings.push('有 '+p.skippedHeaderCount+' 个头文件不在 source 目录结构中，未加入映射。');els.warnings.innerHTML=warnings.map(item=>'<div class="warning">'+esc(item)+'</div>').join('');if(!p.rows.length){els.rows.className='empty';els.rows.textContent='未发现可修正的 include。';return}els.rows.className='table-wrap';els.rows.innerHTML='<table><thead><tr><th>文件 @ 目录</th><th>行</th><th>旧值</th><th>新值</th></tr></thead><tbody>'+p.rows.map(row=>'<tr data-file="'+esc(row.filePath)+'" data-line="'+row.line+'" title="打开 '+esc(row.relativePath)+' 第 '+row.line+' 行"><td class="file">'+esc(row.fileName)+(row.directory?' @ '+esc(row.directory):'')+'</td><td class="line">'+row.line+'</td><td class="old">'+esc(row.oldValue)+'</td><td class="new">'+esc(row.newValue)+'</td></tr>').join('')+'</tbody></table>';for(const row of els.rows.querySelectorAll('tr[data-file]'))row.onclick=()=>vscode.postMessage({type:'openFile',filePath:row.dataset.file,line:Number(row.dataset.line)});}
+function invalidate(message){els.apply.disabled=true;els.status.textContent=message;els.status.className='status'}byId('derive-package').onclick=()=>vscode.postMessage({type:'pickEnvironmentPackageDirectory'});byId('pick-package').onclick=()=>vscode.postMessage({type:'pickPackageDirectory',packageDirectory:els.packageDirectory.value});byId('open-env').onclick=()=>vscode.postMessage({type:'openEnvironment'});els.preview.onclick=()=>vscode.postMessage({type:'preview',packageDirectory:els.packageDirectory.value,targetDirectory:els.targetDirectory.value});els.apply.onclick=()=>vscode.postMessage({type:'apply'});els.packageDirectory.oninput=()=>invalidate('Package 目录已编辑，请重新预览后再写入。');els.targetDirectory.oninput=()=>invalidate('工程目录已编辑，请重新预览后再写入。');els.packageDirectory.onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();els.preview.click()}};els.targetDirectory.onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();els.preview.click()}};window.addEventListener('message',event=>{if(event.data?.type==='state'){state=event.data;render()}});render();vscode.postMessage({type:'ready'});
 </script></body></html>`;
 }

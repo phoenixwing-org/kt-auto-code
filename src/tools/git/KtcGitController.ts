@@ -218,6 +218,8 @@ export class KtcGitController {
         try {
           await this.KtcHandleSquashViewMessage(message, ctx);
         } catch (error) {
+          const stage = message.type === "execute" ? "合并执行" : "合并视图";
+          ctx.log(`[Git][${stage}][ERROR] ${KtcErrorMessage(error)}`);
           const repositoryId = this.KtcSquashViewBinding?.repositoryId;
           if (repositoryId && this.KtcGraphSessions.has(repositoryId)) {
             // 执行失败不丢弃安全预检草稿。用户可处理工作区、HEAD 或
@@ -1116,6 +1118,12 @@ export class KtcGitController {
         repositoryName: session.snapshot.name,
         branchLabel: session.snapshot.branch ?? session.snapshot.currentRef ?? "detached",
       };
+      if (!reloadExisting) {
+        const selectionLabel = initialSelection.length > 0
+          ? `带入 ${initialSelection.length} 个勾选`
+          : "未带入勾选";
+        ctx.log(`[Git][合并视图][INFO] 打开：仓库 ${session.snapshot.name}；分支 ${session.snapshot.branch ?? session.snapshot.currentRef}；HEAD ${session.snapshot.headOid.slice(0, 12)}；${selectionLabel}。`);
+      }
       if (initialSelection.length >= 2) {
         this.KtcShowSquashView(repositoryId, "preflight", "已带入勾选的 commit，正在执行 Git 安全预检…", undefined);
         await this.KtcSelectAndAnalyzeSquash(repositoryId, initialSelection, ctx);
@@ -1154,6 +1162,8 @@ export class KtcGitController {
     if (message.type === "select") {
       const graph = this.KtcRequireGraphSession(repositoryId);
       const selectedOids = KtcGraphSelectedOids(graph, message.selectedOids);
+      // 用户选择优先于打开 View 时自动启动的预检；作废尚未返回的旧分析，避免其覆盖反选结果。
+      this.KtcGraphReadGeneration += 1;
       this.KtcSquashDraft = undefined;
       this.KtcGraphSessions.set(repositoryId, { ...graph, selectedOids });
       this.KtcShowSquashView(repositoryId, "ready", `已选择 ${selectedOids.length} 个 commit；预检会验证连续区间和安全条件。`, undefined);
@@ -1295,6 +1305,7 @@ export class KtcGitController {
     this.KtcDirtyWorktree = undefined;
     const operationGeneration = ++this.KtcGraphReadGeneration;
     const expectedHeadOid = session.snapshot.headOid;
+    ctx.log(`[Git][合并预检][INFO] 开始：仓库 ${session.snapshot.name}；分支 ${session.snapshot.branch ?? session.snapshot.currentRef ?? "detached"}；选择 ${selectedOids.length} 个 commit。`);
     this.KtcShowSquashView(repositoryId, "preflight", "正在执行 Git 安全预检…", undefined);
     const analysis = await this.KtcAdapter.analyzeSquash(graph.root, selectedOids);
     if (operationGeneration !== this.KtcGraphReadGeneration) return;
@@ -1311,7 +1322,7 @@ export class KtcGitController {
       }
       this.KtcPostState(ctx, "error", message);
       this.KtcShowSquashView(repositoryId, "error", message, undefined);
-      if (!this.KtcDirtyWorktree) void vscode.window.showErrorMessage(message);
+      ctx.log(`[Git][合并预检][ERROR] ${message}`);
       return;
     }
     const commitByOid = new Map(analysis.snapshot.history.map((commit) => [commit.oid, commit]));
@@ -1341,6 +1352,7 @@ export class KtcGitController {
     this.KtcSummaryDraft = undefined;
     this.KtcPostState(ctx);
     this.KtcShowSquashView(repositoryId, "ready", "安全预检通过。确认后只改写当前本地分支，不自动 push。", this.KtcSquashDraft);
+    ctx.log(`[Git][合并预检][OK] 通过：分支 ${analysis.plan.currentRef.replace(/^refs\/heads\//u, "")}，区间 ${analysis.plan.selectedOids.length} 个 commit；只改本地分支，不自动 push。`);
   }
 
   private KtcShowSquashView(
@@ -1452,9 +1464,11 @@ export class KtcGitController {
       confirmLabel,
     );
     if (answer !== confirmLabel) {
+      ctx.log(`[Git][合并执行][INFO] 已取消：仓库 ${session.snapshot.name}；分支 ${current.branch ?? current.currentRef ?? "detached"}；区间 ${trusted.selectedOids.length} 个 commit。`);
       this.KtcShowSquashView(action.repositoryId, "ready", "已取消合并；安全预检结果与编辑内容已保留。", trusted);
       return;
     }
+    ctx.log(`[Git][合并执行][INFO] 开始：仓库 ${session.snapshot.name}；分支 ${current.branch ?? current.currentRef ?? "detached"}；区间 ${trusted.selectedOids.length} 个 commit；不会 push。`);
     this.KtcRunningRepositories.add(action.repositoryId);
     ctx.postState({ status: "running", message: "正在隔离 worktree 中合并并重放 commit…" });
     try {
@@ -1509,7 +1523,7 @@ export class KtcGitController {
         } catch (refreshError) {
           // 历史改写已经成功，刷新失败不能再被报告为“合并失败”。保留
           // 单例 View 和清空后的选择，明确提示用户可重新打开/刷新。
-          ctx.log(`[Git] squash succeeded but graph refresh failed: ${KtcErrorMessage(refreshError)}`);
+          ctx.log(`[Git][合并执行][ERROR] 合并已成功，但提交图刷新失败：${KtcErrorMessage(refreshError)}`);
           this.KtcShowSquashView(
             action.repositoryId,
             "error",
@@ -1518,10 +1532,9 @@ export class KtcGitController {
           );
         }
       }
-      ctx.log(`[Git] squash ${result.oldHeadOid.slice(0, 12)} -> ${result.newHeadOid.slice(0, 12)}; backup=${result.backupRef}`);
+      ctx.log(`[Git][合并执行][OK] 成功：${result.oldHeadOid.slice(0, 12)} → ${result.newHeadOid.slice(0, 12)}；合并 ${trusted.selectedOids.length} 个 commit；备份 ${result.backupRef}；未 push。`);
       void this.KtcOfferRestoreStash(temporaryStash);
     } catch (error) {
-      ctx.log(`[Git] squash failed: ${KtcErrorMessage(error)}`);
       this.KtcPostState(ctx, "error", `合并失败：${KtcErrorMessage(error)}`);
       throw error;
     } finally {
