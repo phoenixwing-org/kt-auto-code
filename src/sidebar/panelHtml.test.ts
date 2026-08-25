@@ -78,7 +78,10 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('class="settings-section-chevron"');
     expect(html).toContain('.settings-section[open] .settings-section-chevron { transform: rotate(0deg); }');
     expect(html).toContain('<span>工程环境</span></summary>');
-    expect(html).toContain('<span>插件设置</span></summary>');
+    expect(html).toContain('id="plugin-settings-tree" open');
+    expect(html).toContain('<span>插件设置</span><span class="settings-section-count">1 项</span>');
+    expect(html).toContain('role="tree" aria-label="插件设置功能"');
+    expect(html).toContain('role="treeitem" title="打开 KT Auto Code 的 VS Code 设置"');
     expect(html.indexOf('class="ignore-manager-status"')).toBeGreaterThan(html.indexOf('id="ignore-manager"'));
     expect(html.indexOf('id="plugin-ignore-enabled"')).toBeGreaterThan(html.indexOf('class="ignore-manager-status"'));
     expect(html.indexOf('id="ignore-manager"')).toBeGreaterThan(html.indexOf('id="environment-block"'));
@@ -161,6 +164,10 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('renderCaaResults(ts)');
     expect(html).toContain('renderEnvironment(ts)');
     expect(html).toContain('id="environment-block"');
+    expect(html).toContain('className = "environment-row-body"');
+    expect(html).toContain('className = "environment-icon-button environment-save-button"');
+    expect(html).toContain('action: "pick", key: item.key, value: value.value');
+    expect(html).toContain('.environment-save-button, .environment-row:hover .environment-icon-button');
     expect(html).toContain('<ktc-codegen-primary-panel id="codegen-panel" hidden>');
     expect(html).toContain('document.body.classList.toggle("codegen-tool", codegen)');
     expect(html).toContain('body.codegen-tool .wrap { padding-inline: 0; }');
@@ -193,6 +200,9 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('"ktc-git-primary-action"');
     expect(html).toContain('type: "gitAction", toolId: "git"');
     expect(html).toContain('id="git-repository-select"');
+    expect(html).toContain('id="git-repository-add"');
+    expect(html).toContain('id="git-repository-refresh"');
+    expect(html).toContain('id="git-repository-remove"');
     expect(html).toContain('els.workspaceMeta.hidden = !git');
     expect(html).toContain('els.workspaceContextLabel.textContent = "仓库："');
     expect(html).toContain('els.workspace.hidden = true');
@@ -201,6 +211,8 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('option.textContent = labelsByRepositoryId.get(repository.id) || repository.name');
     expect(html).toContain('selected ? "Git 仓库：" + selected.name + " · " + selected.id : "Git 仓库"');
     expect(html).toContain('action: "selectRepository", repositoryId');
+    expect(html).toContain('action: "addRepository"');
+    expect(html).toContain('action: "removeRepository", repositoryId');
     expect(html).toContain('els.gitRepositorySelect.disabled = running || projects.length <= 1');
     expect(html).toContain('action: "pick"');
     expect(html).toContain('action: "set"');

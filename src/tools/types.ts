@@ -69,7 +69,7 @@ export type WebviewInboundMessage =
   | {
       type: "runAction";
       toolId: "run";
-      action: "refresh" | "openOutput" | "openProblems" | "openTerminal" | "runTarget" | "dryRunTarget" | "stopRun" | "setCaaVersion" | "openSource";
+      action: "refresh" | "openOutput" | "openProblems" | "openTerminal" | "runTarget" | "dryRunTarget" | "stopRun" | "setCaaVersion" | "setCaaRuntimeDirectory" | "openSource";
       targetId?: string;
       runId?: string;
       projectId?: string;
@@ -83,6 +83,7 @@ export type WebviewInboundMessage =
         | "openScm"
         | "openOutput"
         | "selectRepository"
+        | "switchBranch"
         | "openAction"
         | "selectCommit"
         | "copySummary"
@@ -175,7 +176,8 @@ export type WebviewInboundMessage =
   | { type: "applyIgnoreRecommendations"; groupIds: string[] }
   | { type: "environmentAction"; toolId: "environmentSettings"; action: "refresh" | "openSystemSettings" | "openPluginSettings" }
   | { type: "environmentAction"; toolId: "environmentSettings"; action: "set"; key: ProjectEnvironmentValueSummary["key"]; value: string }
-  | { type: "environmentAction"; toolId: "environmentSettings"; action: "clear" | "pick"; key: ProjectEnvironmentValueSummary["key"] }
+  | { type: "environmentAction"; toolId: "environmentSettings"; action: "clear"; key: ProjectEnvironmentValueSummary["key"] }
+  | { type: "environmentAction"; toolId: "environmentSettings"; action: "pick"; key: ProjectEnvironmentValueSummary["key"]; value?: string }
   | { type: "setOption"; toolId: string; key: "preserveGbk" | "stripBom" | "includeHeaders" | "includeSource" | "includeMarkdown"; value: boolean };
 
 /** Extension → Webview */
@@ -372,10 +374,10 @@ export interface ToolUiState {
 }
 
 export interface ProjectEnvironmentValueSummary {
-  key: "customRoot" | "thirdPartyRoot" | "coreRoot" | "caaMkVersion";
-  environmentVariable: "ROOT_DIR" | "ROOT_DIR_3rdParty" | "ROOT_DIR_CORE" | "CAA_MK_VERSION";
+  key: "customRoot" | "sdkPrefix" | "coreRoot" | "includeRoot" | "thirdPartyRoot" | "caaMkVersion";
+  environmentVariable: "ROOT_DIR" | "SDK_PREFIX" | "ROOT_DIR_CORE" | "ROOT_DIR_INCLUDE" | "ROOT_DIR_3rdParty" | "CAA_MK_VERSION";
   required: boolean;
-  source: "system" | "missing";
+  source: "system" | "default" | "missing";
   value?: string;
   suggestedValue?: string;
   pathExists?: boolean;

@@ -1,19 +1,24 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import * as vscode from "vscode";
 import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
 import { ktcOpenPluginSettings } from "../../caaSettings.js";
 import {
   ktcClearProjectEnvironmentVariable,
+  ktcOrderProjectEnvironmentValues,
   ktcReadProjectEnvironmentStatus,
+  ktcResolveEnvironmentDirectoryPickerPath,
   ktcSetProjectEnvironmentVariable,
   type KtcProjectEnvironmentVariable,
 } from "../../projectEnvironment.js";
 
 const VARIABLE_BY_KEY = {
   customRoot: "ROOT_DIR",
-  thirdPartyRoot: "ROOT_DIR_3rdParty",
+  sdkPrefix: "SDK_PREFIX",
   coreRoot: "ROOT_DIR_CORE",
+  includeRoot: "ROOT_DIR_INCLUDE",
+  thirdPartyRoot: "ROOT_DIR_3rdParty",
   caaMkVersion: "CAA_MK_VERSION",
 } as const satisfies Record<string, KtcProjectEnvironmentVariable>;
 
@@ -45,12 +50,17 @@ export const environmentSettingsTool: KtTool = {
         else if (message.action === "set") {
           await ktcSetProjectEnvironmentVariable(VARIABLE_BY_KEY[message.key], message.value);
         } else if (message.action === "pick") {
+          const environment = await ktcReadProjectEnvironmentStatus();
+          const currentValue = message.value
+            ?? environment.values.find((value) => value.key === message.key)?.value;
+          const defaultPath = ktcResolveEnvironmentDirectoryPickerPath(currentValue, homedir());
           const selected = await vscode.window.showOpenDialog({
-            canSelectFiles: true,
+            defaultUri: vscode.Uri.file(defaultPath),
+            canSelectFiles: false,
             canSelectFolders: true,
             canSelectMany: false,
             openLabel: `设为 ${VARIABLE_BY_KEY[message.key]}`,
-            title: `选择 ${VARIABLE_BY_KEY[message.key]} 的目录或文件`,
+            title: `选择 ${VARIABLE_BY_KEY[message.key]} 的目录`,
           });
           if (!selected?.[0]) return;
           await ktcSetProjectEnvironmentVariable(VARIABLE_BY_KEY[message.key], selected[0].fsPath);
@@ -91,14 +101,14 @@ async function refreshEnvironment(ctx: ToolRunContext, updateMessage?: string): 
         : invalidRequired
           ? `${invalidRequired} 个必需工程路径当前无法访问，请检查路径或磁盘。`
           : "工程环境变量已就绪。"),
-      environmentValues: environment.values.map((value) => ({
+      environmentValues: ktcOrderProjectEnvironmentValues(environment.values).map((value) => ({
         key: value.key,
         environmentVariable: value.environmentVariable,
         required: value.required,
-        source: value.value ? "system" : "missing",
+        source: value.source,
         value: value.value,
         suggestedValue: value.suggestedValue,
-        pathExists: value.key === "caaMkVersion" || !value.value ? undefined : existsSync(value.value),
+        pathExists: value.key === "caaMkVersion" || value.key === "sdkPrefix" || !value.value ? undefined : existsSync(value.value),
       })),
     });
   } catch (error) {
@@ -120,6 +130,6 @@ async function openSystemEnvironmentSettings(): Promise<void> {
     return;
   }
   void vscode.window.showInformationMessage(
-    "请在操作系统或登录 shell 中设置 ROOT_DIR、ROOT_DIR_3rdParty、ROOT_DIR_CORE 与可选的 CAA_MK_VERSION，然后返回此 Block 刷新。",
+    "请按 KtRoot 脚本设置 ROOT_DIR、SDK_PREFIX、ROOT_DIR_CORE、ROOT_DIR_INCLUDE、ROOT_DIR_3rdParty 与可选的 CAA_MK_VERSION，然后返回此 Block 刷新。",
   );
 }

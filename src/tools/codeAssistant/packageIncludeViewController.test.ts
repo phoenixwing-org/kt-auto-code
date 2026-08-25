@@ -50,7 +50,9 @@ describe("Package include View", () => {
       { viewColumn: 1, preserveFocus: false },
       expect.objectContaining({ enableScripts: true, retainContextWhenHidden: true }),
     );
-    expect(panel.webview.html).toContain("Package 头文件修正");
+    expect(panel.webview.html).toContain('class="command-header"');
+    expect(panel.webview.html).toContain("ROOT_DIR_INCLUDE");
+    expect(panel.webview.html).toContain("目标目录（插件当前目录）");
     expect(panel.reveal).toHaveBeenCalledWith(1, false);
   });
 });

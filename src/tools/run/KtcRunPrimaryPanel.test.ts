@@ -47,12 +47,20 @@ describe("Run Primary panel", () => {
     expect(source).toContain('action: "dryRunTarget"');
     expect(source).toContain('action: "stopRun"');
     expect(source).toContain('action: "setCaaVersion"');
+    expect(source).toContain('action: "setCaaRuntimeDirectory"');
+    expect(source).toContain('document.createTextNode("编译平台")');
     expect(source).toContain('action: "selectCaaRelated"');
     expect(source).toContain('action: "addCaaRelatedFolder"');
     expect(source).toContain('target.availability === "other-platform"');
     expect(source).toContain('else if (target.availability === "other-platform")');
     expect(controllerSource).toContain('[Run][trial] execute=false');
-    expect(controllerSource).toContain('[Run][execute] target=${record.id} confirmation=skipped');
+    expect(controllerSource).toContain('[Run] ▶ ${record.target.label} · ${record.project.project.label} 已启动。');
+    expect(controllerSource).toContain('[Run][CAA] ${mode === "build" ? "内置 MK" : "内置 Run"}');
+    expect(controllerSource).toContain('CAA：CATIA 未安装或目录不可访问');
+    expect(controllerSource).toContain('[ERROR] Run：${record.target.target.label} 失败');
+    expect(controllerSource).toContain('KtcRequireCaaDirectory(installation.radeRoot, "RADE 根目录", ctx)');
+    expect(controllerSource).toContain('KtcRequireCaaDirectory(installation.catiaRoot, "CATIA 目录", ctx)');
+    expect(controllerSource).toContain('function KtcRunCompletionMessage');
     expect(controllerSource).not.toContain('运行“${record.target.label}”？');
     expect(controllerSource).not.toContain('"确认运行"');
     expect(controllerSource).toContain('[Run][trial] command=');
@@ -67,9 +75,18 @@ describe("Run Primary panel", () => {
     expect(controllerSource).toContain("KtcSerializeCaaRelatedProjects");
     expect(controllerSource).toContain("KtcResolveCaaRelatedProjects");
     expect(manifest.contributes.configuration.properties).toHaveProperty("ktAutoCode.run.caaVersion");
+    expect(manifest.contributes.configuration.properties).toHaveProperty("ktAutoCode.run.caaRadeRoot");
+    expect(manifest.contributes.configuration.properties).toHaveProperty("ktAutoCode.run.caaCatiaRoot");
+    expect(manifest.contributes.configuration.properties).toHaveProperty("ktAutoCode.run.caaRuntimeDirectory");
     expect(manifest.contributes.configuration.properties).toHaveProperty("ktAutoCode.run.caaRelatedProjects");
     expect(manifest.contributes.configuration.properties).toHaveProperty("ktAutoCode.run.caaProjects");
     expect(manifest.contributes.configuration.properties["ktAutoCode.run.caaVersion"]).toMatchObject({ scope: "machine" });
+    expect(manifest.contributes.configuration.properties["ktAutoCode.run.caaRadeRoot"]).toMatchObject({ scope: "machine" });
+    expect(manifest.contributes.configuration.properties["ktAutoCode.run.caaCatiaRoot"]).toMatchObject({ scope: "machine" });
+    expect(manifest.contributes.configuration.properties["ktAutoCode.run.caaRuntimeDirectory"]).toMatchObject({
+      scope: "machine",
+      default: "win_b64",
+    });
     expect(source).not.toContain("acquireVsCodeApi");
   });
 });

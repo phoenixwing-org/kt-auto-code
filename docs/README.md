@@ -13,7 +13,7 @@ Owner：KT Auto Code maintainers
 ## 当前路线与架构
 
 - [当前路线](current-roadmap.md)
-- [0.7.0 发布准备](0.7.0发布准备.md)（版本边界、Wing 发布后依赖升级与正式门禁）
+- [0.7.1 发布准备](0.7.1发布准备.md)（版本边界、Wing 发布后依赖升级与正式门禁）
 - [运行性能、Git 按需加载与 Codegen 刷新研究](运行性能与按需加载研究.md)（含非模态运行诊断与内存点检方案）
 - [产品功能归属矩阵](产品功能归属矩阵.md)（与 Desk 使用相同 `featureId`，并引用 Wing 实际 `capabilityId`）
 - [Phoenix 三形态产品架构](Phoenix三形态产品架构计划.md)

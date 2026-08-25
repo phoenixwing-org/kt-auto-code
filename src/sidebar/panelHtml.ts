@@ -167,6 +167,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     body.run-tool .meta { margin: 4px 5px 5px; }
     body.git-tool .wrap { padding-inline: 0; }
     body.git-tool .meta { margin: 4px 5px 5px; }
+    .git-repository-action { display: inline-grid; width: 27px; height: 27px; flex: 0 0 27px; place-items: center; padding: 0; border: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); border-radius: 3px; color: var(--vscode-foreground); background: var(--vscode-button-secondaryBackground, transparent); cursor: pointer; font-size: 17px; }
+    .git-repository-action:hover { border-color: var(--ktc-ui-active-border, var(--vscode-focusBorder)); background: var(--vscode-button-secondaryHoverBackground, var(--vscode-toolbar-hoverBackground)); }
+    .git-repository-action:disabled { opacity: .48; cursor: not-allowed; }
     .tabs {
       display: flex;
       gap: 4px;
@@ -191,6 +194,12 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .settings-section-chevron path { fill: currentColor; }
     .settings-section[open] .settings-section-chevron { transform: rotate(0deg); }
     .settings-section-body { padding: 5px 8px 8px; }
+    .settings-tree { padding: 2px 0 4px 21px; }
+    .settings-tree-row { display: flex; width: 100%; min-height: 28px; align-items: center; gap: 6px; padding: 2px 8px; border: 0; color: var(--vscode-foreground); background: transparent; font: inherit; text-align: left; cursor: pointer; }
+    .settings-tree-row:hover { background: var(--vscode-list-hoverBackground); }
+    .settings-tree-row:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+    .settings-tree-row svg { width: 16px; height: 16px; flex: 0 0 16px; fill: currentColor; }
+    .settings-section-count { margin-left: auto; color: var(--vscode-descriptionForeground); font-weight: 400; }
     .ignore-manager { width: 100%; margin: 0; }
     .ignore-manager > summary { display: flex; width: 100%; min-height: 28px; align-items: center; gap: 2px; padding: 0 5px; color: var(--vscode-foreground); cursor: pointer; font-size: var(--vscode-font-size); font-weight: 600; list-style: none; }
     .ignore-manager > summary::-webkit-details-marker { display: none; }
@@ -451,16 +460,23 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .environment-block { margin: 0; }
     .environment-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; margin-bottom: 9px; }
     .environment-values { border-top: 1px solid var(--vscode-panel-border); }
-    .environment-row { padding: 8px 2px; border-bottom: 1px solid var(--vscode-panel-border); }
-    .environment-row-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
-    .environment-name { font-family: var(--vscode-editor-font-family); font-weight: 600; }
-    .environment-required { color: var(--vscode-errorForeground); font-size: 10px; }
-    .environment-source { margin-left: auto; color: var(--vscode-descriptionForeground); font-size: 10px; }
+    .environment-row { display: grid; grid-template-columns: minmax(105px, 180px) minmax(72px, 1fr) auto; align-items: center; gap: 7px; min-height: 36px; padding: 4px 2px; border-bottom: 1px solid var(--vscode-panel-border); }
+    .environment-row.environment-empty { display: block; min-height: 0; }
+    .environment-row-head { display: flex; align-items: center; gap: 4px; min-width: 0; margin: 0; overflow: hidden; white-space: nowrap; }
+    .environment-name { min-width: 0; overflow: hidden; font-family: var(--vscode-editor-font-family); font-weight: 600; text-overflow: ellipsis; }
+    .environment-required { flex: 0 0 auto; color: var(--vscode-errorForeground); font-size: 12px; font-weight: 700; }
+    .environment-source { flex: 0 0 auto; color: var(--vscode-descriptionForeground); font-size: 10px; }
     .environment-source.ready { color: var(--vscode-testing-iconPassed, var(--vscode-descriptionForeground)); }
     .environment-value { display: block; width: 100%; min-width: 0; height: 28px; overflow: hidden; padding: 4px 6px; border: 1px solid var(--vscode-input-border, var(--vscode-panel-border)); outline: none; color: var(--vscode-input-foreground); background: var(--vscode-input-background); font-family: var(--vscode-editor-font-family); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
     .environment-value:focus { border-color: var(--vscode-focusBorder); }
     .environment-value.missing { color: var(--vscode-descriptionForeground); font-style: italic; }
-    .environment-row-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 5px; }
+    .environment-row-body { display: contents; }
+    .environment-row-actions { display: flex; justify-content: flex-end; gap: 2px; margin: 0; white-space: nowrap; }
+    .environment-icon-button { display: none; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 3px; color: var(--vscode-foreground); background: transparent; cursor: pointer; }
+    .environment-save-button, .environment-row:hover .environment-icon-button, .environment-row:focus-within .environment-icon-button { display: inline-flex; }
+    .environment-icon-button:hover { background: var(--vscode-toolbar-hoverBackground); }
+    .environment-icon-button:disabled { opacity: .35; cursor: default; }
+    .environment-icon-button svg { width: 16px; height: 16px; fill: currentColor; }
     .environment-footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; color: var(--vscode-descriptionForeground); font-size: 10px; line-height: 1.35; }
     .replace-fields { display: grid; gap: 5px; }
     .replace-fields input[type="text"], .replace-fields select, .replace-query-row input {
@@ -855,6 +871,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       <span id="workspace-context-label">工作区：</span>
       <strong id="workspace-label">—</strong>
       <select id="git-repository-select" aria-label="Git 仓库" hidden></select>
+      <button class="git-repository-action" id="git-repository-add" type="button" title="添加 Git 仓库" aria-label="添加 Git 仓库" hidden>＋</button>
+      <button class="git-repository-action" id="git-repository-refresh" type="button" title="刷新仓库摘要" aria-label="刷新仓库摘要" hidden>↻</button>
+      <button class="git-repository-action" id="git-repository-remove" type="button" title="从我的仓库移除" aria-label="从我的仓库移除" hidden>−</button>
     </p>
     <div class="actions" id="general-actions">
       <button class="action secondary" id="btn-scan">预检</button>
@@ -983,9 +1002,14 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
           <div class="environment-footer"><span>修改当前用户环境；不会改机器级变量。其他应用需重启后继承新值。</span></div>
         </div>
       </details>
-      <details class="settings-section">
-        <summary><svg class="settings-section-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg><span>插件设置</span></summary>
-        <div class="settings-section-body"><button class="text-button" id="btn-environment-plugin-settings" type="button">打开 VS Code 插件设置</button></div>
+      <details class="settings-section" id="plugin-settings-tree" open>
+        <summary><svg class="settings-section-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg><span>插件设置</span><span class="settings-section-count">1 项</span></summary>
+        <div class="settings-tree" role="tree" aria-label="插件设置功能">
+          <button class="settings-tree-row" id="btn-environment-plugin-settings" type="button" role="treeitem" title="打开 KT Auto Code 的 VS Code 设置">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.1 1.1l.4 1.6c.3.1.6.2.9.4l1.4-.9 1.1 1.1-.9 1.4c.2.3.3.6.4.9l1.6.4v1.6l-1.6.4c-.1.3-.2.6-.4.9l.9 1.4-1.1 1.1-1.4-.9c-.3.2-.6.3-.9.4l-.4 1.6H7.5l-.4-1.6c-.3-.1-.6-.2-.9-.4l-1.4.9-1.1-1.1.9-1.4a4 4 0 01-.4-.9l-1.6-.4V6.1l1.6-.4c.1-.3.2-.6.4-.9l-.9-1.4 1.1-1.1 1.4.9c.3-.2.6-.3.9-.4l.4-1.6h1.6zM8.3 5.5a2.1 2.1 0 100 4.2 2.1 2.1 0 000-4.2z"/></svg>
+            <span>VS Code 插件设置</span>
+          </button>
+        </div>
       </details>
     </section>
     <section class="replace-block" id="replace-block" hidden>
@@ -1331,6 +1355,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       workspaceMeta: document.getElementById("workspace-meta"),
       workspaceContextLabel: document.getElementById("workspace-context-label"),
       gitRepositorySelect: document.getElementById("git-repository-select"),
+      gitRepositoryAdd: document.getElementById("git-repository-add"),
+      gitRepositoryRefresh: document.getElementById("git-repository-refresh"),
+      gitRepositoryRemove: document.getElementById("git-repository-remove"),
       ignoreBlock: document.getElementById("ignore-block"),
       scopeBlock: document.getElementById("scope-block"),
       scopeHeaders: document.getElementById("scope-headers"),
@@ -1795,7 +1822,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       const values = ts.environmentValues || [];
       if (!values.length) {
         const empty = document.createElement("div");
-        empty.className = "environment-row";
+        empty.className = "environment-row environment-empty";
         empty.textContent = ts.status === "running" ? "正在读取…" : "点击“刷新系统值”读取工程环境。";
         els.environmentValues.appendChild(empty);
         return;
@@ -1808,17 +1835,25 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         const name = document.createElement("span");
         name.className = "environment-name";
         name.textContent = item.environmentVariable;
+        name.title = item.environmentVariable;
         head.appendChild(name);
         if (item.required) {
           const required = document.createElement("span");
           required.className = "environment-required";
-          required.textContent = "必需";
+          required.textContent = "*";
+          required.title = "必需";
+          required.setAttribute("aria-label", "必需");
           head.appendChild(required);
         }
+        const sourceLabel = item.value
+          ? (item.pathExists === false ? "路径不存在" : item.source === "default" ? "默认" : "")
+          : "未设定";
         const source = document.createElement("span");
         source.className = "environment-source" + (item.value && item.pathExists !== false ? " ready" : "");
-        source.textContent = item.value ? (item.pathExists === false ? "路径不存在" : "系统") : "未设定";
-        head.appendChild(source);
+        source.textContent = sourceLabel;
+        source.title = item.value ? (item.source === "default" ? "使用默认值" : "来源：系统环境") : "未设定";
+        if (sourceLabel) head.appendChild(source);
+        head.title = item.environmentVariable + (item.required ? " · 必需" : "") + " · " + source.title;
         const value = document.createElement("input");
         value.type = "text";
         value.spellcheck = false;
@@ -1829,18 +1864,22 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         value.setAttribute("aria-label", item.environmentVariable);
         const actions = document.createElement("div");
         actions.className = "environment-row-actions";
-        if (item.key !== "caaMkVersion") {
+        if (item.key !== "caaMkVersion" && item.key !== "sdkPrefix") {
           const pick = document.createElement("button");
           pick.type = "button";
-          pick.className = "text-button";
-          pick.textContent = "选择…";
-          pick.onclick = () => vscode.postMessage({ type: "environmentAction", toolId: "environmentSettings", action: "pick", key: item.key });
+          pick.className = "environment-icon-button environment-pick-button";
+          pick.title = "选择目录";
+          pick.setAttribute("aria-label", item.environmentVariable + "：选择目录");
+          pick.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 3h5l1.25 1.5h6.75v8.75H1.5V3zm1 1v8.25h11V5.5H7.28L6.03 4H2.5z"/></svg>';
+          pick.onclick = () => vscode.postMessage({ type: "environmentAction", toolId: "environmentSettings", action: "pick", key: item.key, value: value.value });
           actions.appendChild(pick);
         }
         const save = document.createElement("button");
         save.type = "button";
-        save.className = "text-button";
-        save.textContent = item.value ? "修改" : "新建";
+        save.className = "environment-icon-button environment-save-button";
+        save.title = item.value ? "保存修改" : "新建变量";
+        save.setAttribute("aria-label", item.environmentVariable + "：" + save.title);
+        save.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11.7 1.3l3 3-9.5 9.5-3.7.7.7-3.7 9.5-9.5zm0 1.4l-8.58 8.58-.35 1.95 1.95-.35 8.58-8.58-1.6-1.6z"/></svg>';
         save.onclick = () => vscode.postMessage({ type: "environmentAction", toolId: "environmentSettings", action: "set", key: item.key, value: value.value });
         value.onkeydown = (event) => {
           if (event.key !== "Enter") return;
@@ -1849,12 +1888,17 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         };
         const clear = document.createElement("button");
         clear.type = "button";
-        clear.className = "text-button";
-        clear.textContent = "清除";
+        clear.className = "environment-icon-button environment-clear-button";
+        clear.title = "清除用户变量";
+        clear.setAttribute("aria-label", item.environmentVariable + "：清除用户变量");
+        clear.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2h4l.5 1H14v1h-1l-.75 9h-8.5L3 4H2V3h3.5L6 2zm-1.25 2l.67 8h5.16l.67-8h-6.5z"/></svg>';
         clear.disabled = !item.value;
         clear.onclick = () => vscode.postMessage({ type: "environmentAction", toolId: "environmentSettings", action: "clear", key: item.key });
         actions.append(save, clear);
-        row.append(head, value, actions);
+        const body = document.createElement("div");
+        body.className = "environment-row-body";
+        body.append(value, actions);
+        row.append(head, body);
         els.environmentValues.appendChild(row);
       }
     }
@@ -2095,7 +2139,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.workspaceContextLabel.textContent = "仓库：";
       els.workspace.hidden = true;
       els.gitRepositorySelect.hidden = !git;
+      els.gitRepositoryAdd.hidden = !git;
+      els.gitRepositoryRefresh.hidden = !git;
       if (!git) {
+        els.gitRepositoryRemove.hidden = true;
         els.workspaceMeta.title = "";
         return;
       }
@@ -2139,6 +2186,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         selected ? "Git 仓库：" + selected.name + " · " + selected.id : "Git 仓库",
       );
       els.gitRepositorySelect.disabled = running || projects.length <= 1;
+      els.gitRepositoryAdd.disabled = running;
+      els.gitRepositoryRefresh.disabled = running;
+      els.gitRepositoryRemove.hidden = !selected?.external;
+      els.gitRepositoryRemove.disabled = running;
     }
 
     function renderWelcome() {
@@ -2674,6 +2725,12 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       if (!repositoryId) return;
       els.gitRepositorySelect.disabled = true;
       vscode.postMessage({ type: "gitAction", toolId: "git", action: "selectRepository", repositoryId });
+    };
+    els.gitRepositoryAdd.onclick = () => vscode.postMessage({ type: "gitAction", toolId: "git", action: "addRepository" });
+    els.gitRepositoryRefresh.onclick = () => vscode.postMessage({ type: "gitAction", toolId: "git", action: "refresh" });
+    els.gitRepositoryRemove.onclick = () => {
+      const repositoryId = els.gitRepositorySelect.value;
+      if (repositoryId) vscode.postMessage({ type: "gitAction", toolId: "git", action: "removeRepository", repositoryId });
     };
     function postCodegenControl(type, detail) {
       const model = els.codegenPanel.model;

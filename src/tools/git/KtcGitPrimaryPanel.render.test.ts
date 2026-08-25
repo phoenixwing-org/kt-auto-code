@@ -14,6 +14,7 @@ class FakeNode {
   hidden = false;
   open = false;
   onclick?: () => void;
+  onchange?: () => void;
   ontoggle?: () => void;
   addEventListener(_name: string, _listener: (event: Event) => void): void {}
 
@@ -182,5 +183,61 @@ describe("Git Primary panel rendering", () => {
     history!.open = true;
     history!.ontoggle?.();
     expect(events).toHaveLength(2);
+  });
+
+  it("未选或只选一条时仍打开合并 View", async () => {
+    const registry = new Map<string, CustomElementConstructor>();
+    const events: Array<{ detail?: unknown }> = [];
+    vi.stubGlobal("HTMLElement", class extends FakeElement {
+      override dispatchEvent(event: { detail?: unknown }): boolean { events.push(event); return true; }
+    });
+    vi.stubGlobal("document", { createElement: (tagName: string) => new FakeNode(tagName) });
+    vi.stubGlobal("CustomEvent", class {
+      constructor(_name: string, readonly options: { detail?: unknown }) {}
+      get detail(): unknown { return this.options.detail; }
+    });
+    vi.stubGlobal("customElements", {
+      get: (name: string) => registry.get(name),
+      define: (name: string, value: CustomElementConstructor) => registry.set(name, value),
+    });
+
+    const { KtcGitPrimaryPanel } = await import("./KtcGitPrimaryPanel.js");
+    const panel = new KtcGitPrimaryPanel() as unknown as FakeElement & { model: KtcGitViewModel };
+    panel.model = {
+      projects: [{
+        repository: {
+          id: "/repo", name: "repo", relativePath: ".", branchLabel: "develop",
+          upstreamLabel: "origin/develop", headLabel: "1234567", stateLabel: "工作区干净",
+          detached: false, clean: true, loaded: true, external: false, groupLabel: "当前工作区",
+          headOid: "1234567890abcdef",
+        },
+        actions: [{
+          id: "squashLocalCommits", title: "合并", description: "", buttonLabel: "打开",
+          tone: "caution", badge: "本地", enabled: true,
+        }],
+        commits: [{
+          oid: "1234567890abcdef", shortOid: "1234567", subject: "最新提交", body: "",
+          author: { name: "Phoenix", email: "dev@example.com", date: "0", dateLabel: "2026-08-08 10:00" },
+          committer: { name: "Phoenix", email: "dev@example.com", date: "0", dateLabel: "2026-08-08 10:00" },
+          isHead: true,
+        }],
+        visibleCommitLimit: 20, totalCommitCount: 1, hasMoreCommits: false,
+      }],
+      selectedRepositoryId: "/repo", statusText: "", recentCommitLimit: 20,
+      workspaceFolderCount: 1, workspaceRepositoryCount: 1,
+      discovery: { status: "idle", scannedDirectories: 0, foundRepositories: 1 },
+    };
+
+    const merge = findNode(panel.shadow, (node) => node.tagName === "button" && node.textContent === "合并区间");
+    expect(merge).toBeDefined();
+    merge!.onclick?.();
+    expect(events.at(-1)?.detail).toEqual({ action: "openAction", actionId: "squashLocalCommits", repositoryId: "/repo" });
+
+    const checkbox = findNode(panel.shadow, (node) => node.tagName === "input" && node.className === "commit-select");
+    expect(checkbox).toBeDefined();
+    checkbox!.checked = false;
+    checkbox!.onchange?.();
+    merge!.onclick?.();
+    expect(events.at(-1)?.detail).toEqual({ action: "openAction", actionId: "squashLocalCommits", repositoryId: "/repo" });
   });
 });

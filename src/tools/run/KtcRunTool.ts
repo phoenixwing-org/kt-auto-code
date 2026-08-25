@@ -56,5 +56,7 @@ export function KtcParseRunAction(message: unknown): KtcRunActionMessage | undef
   if (candidate.action === "setCaaVersion"
     && typeof candidate.projectId === "string"
     && typeof candidate.value === "string") return candidate as unknown as KtcRunActionMessage;
+  if (candidate.action === "setCaaRuntimeDirectory"
+    && typeof candidate.value === "string") return candidate as unknown as KtcRunActionMessage;
   return undefined;
 }
