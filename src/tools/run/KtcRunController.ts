@@ -95,7 +95,7 @@ export class KtcRunController {
       try {
         return await this.KtcAdapter.discover(folder.uri.fsPath, platform);
       } catch (error) {
-        ctx.log(`[ERROR] Run：无法扫描“${folder.name}”：${KtcErrorMessage(error)}`);
+        ctx.log(`[Run][发现][ERROR] 无法扫描“${folder.name}”：${KtcErrorMessage(error)}`);
         return undefined;
       }
     }));
@@ -133,7 +133,7 @@ export class KtcRunController {
       return;
     }
     if (action.action === "openOutput") {
-      ctx.log("[Run] 已从 Run Primary 打开 KT Auto Code 输出。");
+      ctx.log("[Run][日志][INFO] 已从 Run Primary 打开 KT Auto Code 输出。");
       return;
     }
     if (action.action === "openProblems") {
@@ -181,13 +181,22 @@ export class KtcRunController {
     if (!vscode.workspace.isTrusted) throw new Error("未信任工作区只允许发现目标；请先使用 VS Code Workspace Trust。");
     if (record.target.disabledReason) throw new Error(KtcDisabledReason(record.target.disabledReason));
     if (!record.target.platforms.includes(KtcPlatform())) {
-      ctx.log(`[Run][preflight] target=${record.id} compatible=false reason=platform-mismatch`);
-      throw new Error(`目标仅支持 ${record.target.platforms.join(" / ")}，当前为 ${KtcPlatform()}。`);
+      const message = `目标仅支持 ${record.target.platforms.join(" / ")}，当前为 ${KtcPlatform()}。`;
+      ctx.log(`[Run][预检][ERROR] ${message}`);
+      throw new Error(message);
     }
     if ([...this.KtcExecutions.values()].some((item) => KtcIsActive(item.state)
       && (item.target.id === record.id
         || (KtcIsCaa(item.target.target) && KtcIsCaa(record.target) && item.target.project.id === record.project.id)))) {
-      throw new Error("同一目标或同一 CAA 项目已有任务正在运行。");
+      const message = "同一目标或同一 CAA 项目已有任务正在运行。";
+      ctx.log(`[Run][预检][ERROR] ${message}`);
+      throw new Error(message);
+    }
+    if (record.target.action === "caa-build" && [...this.KtcExecutions.values()].some((item) =>
+      KtcIsActive(item.state) && item.target.target.action === "caa-build")) {
+      const message = "已有 CAA MK 正在运行；为避免 RADE 输出和 Problems 诊断互相覆盖，请等待其结束后再启动。";
+      ctx.log(`[Run][预检][ERROR] ${message}`);
+      throw new Error(message);
     }
     const caa = KtcIsCaa(record.target) ? this.KtcCaaVersion(record.project) : undefined;
     if (record.target.sourceKind === "native-task" && caa) {
@@ -206,7 +215,7 @@ export class KtcRunController {
     try {
       execution = await vscode.tasks.executeTask(task);
     } catch (error) {
-      ctx.log(`[ERROR] Run：无法启动“${record.target.label}”：${KtcErrorMessage(error)}`);
+      ctx.log(`[Run][运行][ERROR] 无法启动“${record.target.label}”：${KtcErrorMessage(error)}`);
       throw error;
     }
     const runId = `run-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -215,7 +224,7 @@ export class KtcRunController {
     this.KtcRunByExecution.set(execution, runId);
     this.KtcTrimExecutionHistory();
     this.KtcPostState(ctx);
-    ctx.log(`[Run] ▶ ${record.target.label} · ${record.project.project.label} 已启动。`);
+    ctx.log(`[Run][运行][INFO] ${record.target.label} · ${record.project.project.label} 已启动。`);
   }
 
   private KtcDryRunTarget(targetId: string, ctx: ToolRunContext): void {
@@ -309,6 +318,9 @@ export class KtcRunController {
     } else {
       execution = KtcTaskExecution(record.target, environment);
     }
+    if (record.target.action === "caa-build") {
+      problemMatchers = KtcCaaBuildProblemMatchers(problemMatchers);
+    }
     const task = new vscode.Task(
       { type: "kt-auto-code-run", target: record.id },
       scope,
@@ -357,7 +369,7 @@ export class KtcRunController {
     const mode = record.target.action === "caa-build" ? "build" : "run";
     const installation = this.KtcCaaInstallation(version);
     const base = KtcCaaRadeCommandRoot(installation);
-    ctx.log(`[Run][CAA] ${mode === "build" ? "内置 MK" : "内置 Run"} · 版本 ${version} · RADE 工具：intel_a · RADE：${installation.radeRoot} · CATIA：${installation.catiaRoot}`);
+    ctx.log(`[Run][CAA 预检][INFO] ${mode === "build" ? "内置 MK" : "内置 Run"} · 版本 ${version} · RADE 工具：intel_a · RADE：${installation.radeRoot} · CATIA：${installation.catiaRoot}`);
     await KtcRequireCaaDirectory(installation.radeRoot, "RADE 根目录", ctx);
     await KtcRequireCaaDirectory(installation.catiaRoot, "CATIA 目录", ctx);
     const required = mode === "build"
@@ -368,7 +380,7 @@ export class KtcRunController {
         await access(path.win32.join(base, ...relative.split("/")));
       } catch {
         const missing = path.win32.join(base, ...relative.split("/"));
-        ctx.log(`[ERROR] CAA：RADE intel_a 的厂商脚本缺失：${missing}`);
+        ctx.log(`[Run][CAA 预检][ERROR] RADE intel_a 的厂商脚本缺失：${missing}`);
         throw new Error(`CAA 预检停止：RADE 厂商脚本缺失：${missing}`);
       }
     }
@@ -380,7 +392,7 @@ export class KtcRunController {
     record.state = "stopping";
     record.execution.terminate();
     this.KtcPostState(ctx);
-    ctx.log(`[Run][stop] runId=${runId} requested=true`);
+    ctx.log(`[Run][停止][INFO] 已请求停止 ${record.target.target.label} · ${record.target.project.project.label}。`);
   }
 
   private async KtcSetCaaVersion(projectId: string, rawValue: string, ctx: ToolRunContext): Promise<void> {
@@ -392,7 +404,7 @@ export class KtcRunController {
     values[projectId] = value;
     await context.workspaceState.update(KtcCaaVersionSelectionStateKey, values);
     this.KtcPostState(ctx);
-    ctx.log(`[Run][selection] project=${projectId} caaVersion=${value} storage=workspaceState`);
+    ctx.log(`[Run][配置][OK] ${project.project.label} 的当前 CAA 版本已设为 ${value}。`);
   }
 
   private async KtcSelectCaaRelated(projectId: string, ctx: ToolRunContext): Promise<void> {
@@ -424,7 +436,7 @@ export class KtcRunController {
     const roots = KtcUniquePaths(picked.map((item) => item.root));
     await this.KtcStoreCaaRelatedRoots(projectId, roots);
     this.KtcPostState(ctx);
-    ctx.log(`[Run][config] project=${projectId} relatedProjectRoots=${roots.length}`);
+    ctx.log(`[Run][配置][OK] ${project.project.label} 的 CAA MK 关联工程已更新：${roots.length} 个。`);
   }
 
   private async KtcAddCaaRelatedFolder(projectId: string, ctx: ToolRunContext): Promise<void> {
@@ -452,7 +464,7 @@ export class KtcRunController {
       .filter((root) => KtcPathKey(root) !== KtcPathKey(project.project.rootUri));
     await this.KtcStoreCaaRelatedRoots(projectId, values);
     this.KtcPostState(ctx);
-    ctx.log(`[Run][config] project=${projectId} relatedProjectRoots=${values.length}`);
+    ctx.log(`[Run][配置][OK] ${project.project.label} 的 CAA MK 关联工程已更新：${values.length} 个。`);
   }
 
   private KtcRequireCaaProject(projectId: string): KtcRunProjectRecord {
@@ -785,6 +797,10 @@ function KtcIsCaa(target: KtcPnwRunTarget): boolean {
   return target.action === "caa-build" || target.action === "caa-run";
 }
 
+function KtcCaaBuildProblemMatchers(values: readonly string[]): string[] {
+  return [...new Set([...values, "$pnwCaaMsCompile", "$pnwCaaUpperDiagnostic"])];
+}
+
 function KtcIsActive(state: KtcRunExecutionState): boolean {
   return state === "starting" || state === "running" || state === "stopping";
 }
@@ -796,10 +812,11 @@ function KtcSafeCaaVersion(value: string | undefined): string | undefined {
 
 function KtcRunCompletionMessage(record: KtcRunExecutionRecord, exitCode?: number): string {
   const duration = KtcFormatRunDuration(Date.now() - record.startedAt);
-  if (record.state === "succeeded") return `[Run] ✓ ${record.target.target.label} · 成功 · ${duration}`;
-  if (record.state === "failed") return `[ERROR] Run：${record.target.target.label} 失败（退出码 ${exitCode ?? "未知"}，${duration}）；请查看终端错误。`;
-  if (record.state === "terminated") return `[Run] ■ ${record.target.target.label} · 已停止 · ${duration}`;
-  return `[Run] ? ${record.target.target.label} · 结束状态未知 · ${duration}；请查看终端。`;
+  const identity = `${record.target.target.label} · ${record.target.project.project.label}`;
+  if (record.state === "succeeded") return `[Run][运行][OK] ${identity} 成功 · ${duration}`;
+  if (record.state === "failed") return `[Run][运行][ERROR] ${identity} 失败（退出码 ${exitCode ?? "未知"}，${duration}）；请查看 Terminal 与 Problems。`;
+  if (record.state === "terminated") return `[Run][停止][OK] ${identity} 已停止 · ${duration}`;
+  return `[Run][运行][WARN] ${identity} 结束状态未知 · ${duration}；请查看 Terminal。`;
 }
 
 function KtcFormatRunDuration(value: number): string {
@@ -816,7 +833,7 @@ async function KtcRequireCaaDirectory(directory: string, label: string, ctx: Too
   const message = label === "RADE 根目录"
     ? `CAA：RADE 未安装或根目录不可访问：${directory}`
     : `CAA：CATIA 未安装或目录不可访问：${directory}`;
-  ctx.log(`[ERROR] ${message}`);
+  ctx.log(`[Run][CAA 预检][ERROR] ${message}`);
   throw new Error(`预检停止：${message}`);
 }
 

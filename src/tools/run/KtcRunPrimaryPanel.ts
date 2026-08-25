@@ -57,7 +57,10 @@ const KtcRunPrimaryPanelStyle = `
   .summary-text, .project-option-source { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .badge-tail { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; }
   .badge { padding: 1px 5px; color: var(--vscode-descriptionForeground); border: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); border-radius: 999px; font-size: 10px; white-space: nowrap; }
-  .run-tree { display: block; min-width: 0; --pnw-navigation-tree-bg: transparent; --pnw-navigation-tree-row-height: 25px; --pnw-navigation-tree-indent: 14px; }
+  /* Current Tool 是唯一纵向滚动边界。Wing Tree 默认的 overflow:auto +
+     overscroll:contain 会在自身没有滚动余量时截断滚轮冒泡，因此 Run 的长树
+     必须展开到内容高度，把滚动交回 Primary 外层。 */
+  .run-tree { display: block; min-width: 0; overflow: visible !important; overscroll-behavior: auto !important; --pnw-navigation-tree-bg: transparent; --pnw-navigation-tree-row-height: 25px; --pnw-navigation-tree-indent: 14px; }
   .project-options { flex-wrap: wrap; padding-left: 20px; }
   .version-input { width: 64px; min-height: 24px; padding: 2px 5px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, var(--ktc-ui-border, var(--vscode-panel-border))); }
   .history { max-height: 130px; overflow: auto; border-top: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }

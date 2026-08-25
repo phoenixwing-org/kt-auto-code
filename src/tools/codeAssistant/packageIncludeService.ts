@@ -33,6 +33,7 @@ export interface KtcPackageIncludePreview {
   readonly scannedFileCount: number;
   readonly unsupportedFileCount: number;
   readonly skippedHeaderCount: number;
+  readonly skippedHeaders: readonly string[];
   readonly collisions: readonly KtcCmakePackageHeaderCollision[];
   readonly rows: readonly KtcPackageIncludePreviewRow[];
 }
@@ -68,12 +69,17 @@ export function ktcResolvePackageIncludeDirectoryFromPublicInclude(includeRoot: 
 
 /**
  * KtCore headers are shared on every platform. When ROOT_DIR_INCLUDE is
- * absent, their canonical location is ROOT_DIR/kt/core/include.
+ * absent, their canonical location is ROOT_DIR/SDK_PREFIX/core/include.
+ * SDK_PREFIX is one directory segment and defaults to "kt".
  */
-export function ktcResolveDefaultPackageIncludeDirectory(rootDirectory: string): string {
+export function ktcResolveDefaultPackageIncludeDirectory(rootDirectory: string, sdkPrefix = "kt"): string {
   const value = rootDirectory.trim().replace(/^(["'])(.*)\1$/, "$2");
   if (!value) return "";
-  return resolve(value, "kt", "core", "include");
+  const prefix = sdkPrefix.trim().replace(/^(["'])(.*)\1$/, "$2") || "kt";
+  if (isAbsolute(prefix) || prefix === "." || prefix === ".." || /[\\/]/u.test(prefix)) {
+    throw new Error("SDK_PREFIX 必须是单个目录名称。");
+  }
+  return resolve(value, prefix, "core", "include");
 }
 
 async function checkedDirectory(value: string, label: string): Promise<string> {
@@ -112,10 +118,10 @@ export async function ktcPreviewPackageIncludes(options: {
   const coreIncludeDirectory = await checkedDirectory(options.coreIncludeDirectory, "CORE include 目录");
   const targetDirectory = await checkedDirectory(options.targetDirectory, "目标目录");
   const coreHeaders = await walkFiles(coreIncludeDirectory, KTC_CMAKE_PACKAGE_HEADER_EXTENSIONS, options.signal);
-  const map = ktcBuildCmakePackageHeaderMap(coreHeaders.map((filePath) => relative(coreIncludeDirectory, filePath)));
-  if (map.mappings.size === 0) {
-    throw new Error("CORE include 中未找到带 package 目录的可用 .h 或 .hpp 文件。");
+  if (coreHeaders.length === 0) {
+    throw new Error("CORE include 中未找到 .h 或 .hpp 文件。");
   }
+  const map = ktcBuildCmakePackageHeaderMap(coreHeaders.map((filePath) => relative(coreIncludeDirectory, filePath)));
 
   const targetFiles = await walkFiles(targetDirectory, KTC_CMAKE_PACKAGE_TARGET_EXTENSIONS, options.signal);
   const rows: KtcPackageIncludePreviewRow[] = [];
@@ -154,6 +160,7 @@ export async function ktcPreviewPackageIncludes(options: {
       scannedFileCount: targetFiles.length,
       unsupportedFileCount,
       skippedHeaderCount: map.skippedUnqualifiedHeaders.length,
+      skippedHeaders: map.skippedUnqualifiedHeaders,
       collisions: map.collisions,
       rows,
     },

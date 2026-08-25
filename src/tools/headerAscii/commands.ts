@@ -158,7 +158,7 @@ export async function runHeaderAsciiAction(
     ctx.postState({ status: "error", message: `未知操作：${action}` });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    ctx.log(`错误: ${msg}`);
+    ctx.log(`[头文件 ASCII 修正][${action === "fix" ? "修复" : "预检"}][ERROR] ${msg}`);
     ctx.postState({ status: "error", message: msg });
   }
 }

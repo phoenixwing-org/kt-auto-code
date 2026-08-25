@@ -63,6 +63,7 @@ describe("Git squash graph View", () => {
         parentEdges: [{ parentOid: "b".repeat(40), fromLane: 0, toLane: 0, kind: "first-parent" as const }],
       }],
       selectedOids: [],
+      selectableOids: [oid],
       hasMore: true,
       status: "ready" as const,
       message: "已读取最近 5 条本地分支提交图；按需继续加载。",
@@ -86,9 +87,27 @@ describe("Git squash graph View", () => {
     expect(panel.webview.html).toContain('data-section-action id="preflight"');
     expect(panel.webview.html).toContain("min-height: 30px");
     expect(panel.webview.html).toContain("HEAD");
-    expect(panel.webview.html).toContain('grid-template-columns: 24px max-content minmax(0,1fr)');
+    expect(panel.webview.html).not.toContain("1780000000");
+    expect(panel.webview.html).toContain('grid-template-columns: 24px 12px max-content minmax(0,1fr)');
+    expect(panel.webview.html).toContain('class="range-handle"');
+    expect(panel.webview.html).toContain("anchorOid: dragAnchor");
     expect(panel.webview.html.indexOf('<span class="select"><input type="checkbox"')).toBeLessThan(panel.webview.html.indexOf('<span class="graph"'));
     expect(panel.reveal).not.toHaveBeenCalled();
+  });
+
+  it("shows the explicit branch-switch action for a validated non-current range", () => {
+    const panel = fakePanel();
+    createWebviewPanel.mockReturnValue(panel);
+    const view = new KtcGitSquashViewController({ onMessage: vi.fn(), onDispose: vi.fn() });
+    view.show({
+      repositoryId: "/repo", repositoryName: "repo", branchLabel: "develop", expectedHeadOid: oid,
+      refsScope: "local-branches", commits: [], graphRows: [], selectedOids: [oid, "b".repeat(40)],
+      selectableOids: [], hasMore: false, status: "ready", message: "请切换后重新预检。",
+      branchSwitch: { currentBranchName: "develop", targetBranchName: "topic/fix" },
+    });
+    expect(panel.webview.html).toContain("topic/fix");
+    expect(panel.webview.html).toContain("切换并重新预检");
+    expect(panel.webview.html).toContain("switchBranch");
   });
 
   it("后台状态刷新不主动显示 View，只有显式 reveal 才恢复焦点", () => {
@@ -105,6 +124,7 @@ describe("Git squash graph View", () => {
       commits: [],
       graphRows: [],
       selectedOids: [],
+      selectableOids: [],
       hasMore: false,
       status: "error" as const,
       message: "HEAD 已变化；请关闭后重新打开。",
@@ -131,6 +151,7 @@ describe("Git squash graph View", () => {
       commits: [],
       graphRows: [],
       selectedOids: [oid, "b".repeat(40)],
+      selectableOids: [],
       hasMore: false,
       status: "error",
       message: "工作区有未归档改动。",
@@ -174,6 +195,7 @@ describe("Git squash graph View", () => {
         ],
       }],
       selectedOids: [],
+      selectableOids: [oid],
       hasMore: false,
       status: "ready",
       message: "已读取提交图。",
@@ -199,6 +221,7 @@ describe("Git squash graph View", () => {
       commits: [],
       graphRows: [],
       selectedOids: [oid, "b".repeat(40)],
+      selectableOids: [],
       hasMore: false,
       status: "ready",
       message: "安全预检通过。",

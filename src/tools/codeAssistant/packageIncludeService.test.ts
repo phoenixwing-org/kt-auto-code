@@ -21,8 +21,13 @@ async function createFixture() {
 }
 
 describe("头文件引用修正文件服务", () => {
-  it("ROOT_DIR 未显式指定公共目录时使用共享 KtCore include", () => {
-    expect(ktcResolveDefaultPackageIncludeDirectory("E:/KtRoot").replace(/\\/g, "/")).toMatch(/E:\/KtRoot\/kt\/core\/include$/i);
+  it("ROOT_DIR 未显式指定公共目录时组合 SDK_PREFIX 定位共享 KtCore include", () => {
+    expect(ktcResolveDefaultPackageIncludeDirectory("E:/KtRoot", "phoenix").replace(/\\/g, "/"))
+      .toMatch(/E:\/KtRoot\/phoenix\/core\/include$/i);
+    expect(ktcResolveDefaultPackageIncludeDirectory("E:/KtRoot").replace(/\\/g, "/"))
+      .toMatch(/E:\/KtRoot\/kt\/core\/include$/i);
+    expect(() => ktcResolveDefaultPackageIncludeDirectory("E:/KtRoot", "../outside"))
+      .toThrow("SDK_PREFIX 必须是单个目录名称");
   });
 
   it("将 ROOT_DIR_INCLUDE 的 KtCore 公共目录转换为 package 根", () => {
@@ -30,6 +35,28 @@ describe("头文件引用修正文件服务", () => {
       .toMatch(/E:\/KtRoot\/phoenix\/include$/i);
     expect(ktcResolvePackageIncludeDirectoryFromPublicInclude("E:/KtRoot/phoenix/include").replace(/\\/g, "/"))
       .toMatch(/E:\/KtRoot\/phoenix\/include$/i);
+  });
+
+  it("保留同名冲突和未进入 source/包目录结构的头文件明细供 Output 检查", async () => {
+    const root = await mkdtemp(join(tmpdir(), "ktc-package-conflict-"));
+    const include = join(root, "include");
+    const target = join(root, "target");
+    await mkdir(join(include, "KtCore", "source"), { recursive: true });
+    await mkdir(join(include, "KtExtra", "source"), { recursive: true });
+    await mkdir(target, { recursive: true });
+    await writeFile(join(include, "KtCore", "source", "Common.h"), "#pragma once\n");
+    await writeFile(join(include, "KtExtra", "source", "Common.h"), "#pragma once\n");
+    await writeFile(join(include, "Flat.h"), "#pragma once\n");
+    await writeFile(join(target, "Demo.cpp"), "#include \"Common.h\"\n");
+
+    const session = await ktcPreviewPackageIncludes({ coreIncludeDirectory: include, targetDirectory: target });
+
+    expect(session.preview.collisions).toEqual([{
+      fileName: "Common.h",
+      includePaths: ["KtCore/Common.h", "KtExtra/Common.h"],
+    }]);
+    expect(session.preview.skippedHeaders).toEqual(["Flat.h"]);
+    expect(session.preview.rows).toHaveLength(0);
   });
 
   it("预览并保持 GBK/CRLF 写回", async () => {

@@ -2,6 +2,14 @@
 
 所有显著变更会记录在本文件中。
 
+## 0.7.3（发布准备）
+
+- Git 合并提交图的连续区间改为纯 TypeScript 的本地分支 first-parent OID 模型判定，SVG 连线与 Webview 勾选不再参与安全结论；连续区间若唯一属于其他本地分支，用户确认后切换分支并重新预检。
+- 合并 View 中的提交时间统一格式化为本机日期时间，不再裸显示 Unix 秒级时间戳；分支切换、连续性失败与预检均写入 KT Auto Code Output。
+- Run 主树取消与当前工具滚动边界的竞争；CAA MK 的 Problems matcher 区分小写 `error`、大写 `ERROR`/`WARNING`，并限制并发 MK，避免共享 RADE 输出和 Problems 相互覆盖。
+- 代码辅助的头文件引用修正默认以 `ROOT_DIR + SDK_PREFIX + core/include` 推导 Package 目录，优先尊重 `ROOT_DIR_INCLUDE`；映射冲突、未纳入映射的头文件、预览与写入均输出必要日志。
+- 新增统一必要日志规则，收敛 Git、Run、头文件/编码/UUID/CAA UI 和成员排序的成功、警告、错误日志边界。
+
 ## 0.7.2（发布候选）
 
 - Git 合并 View 会按带入 OID 数量检查首屏命中；深层勾选未显示全时才沿 Wing cursor 每次补 5 条，直至所有预选项可见。移除容易误解为分支切换的 refs 范围下拉，保留 Primary 的真实分支入口。

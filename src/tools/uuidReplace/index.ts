@@ -102,12 +102,22 @@ async function runUuidAction(
 }
 
 async function scanUuids(ctx: ToolRunContext, strategy: PnwUuidReplacementStrategy): Promise<void> {
-  if (!ctx.workspaceRoot) { ctx.postState({ status: "error", message: "请先打开工作区。" }); return; }
+  if (!ctx.workspaceRoot) {
+    const message = "请先打开工作区。";
+    ctx.log(`[UUID][预览][ERROR] ${message}`);
+    ctx.postState({ status: "error", message });
+    return;
+  }
   ctx.postState({ status: "running", message: "正在扫描 UUID…" });
   const root = vscode.Uri.file(ctx.workspaceRoot);
   let scope;
   try { scope = await ktcResolveWorkspaceFileScope(root, ctx.workspaceFileScopeId); }
-  catch (error) { ctx.postState({ status: "error", message: error instanceof Error ? error.message : String(error) }); return; }
+  catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    ctx.log(`[UUID][预览][ERROR] ${message}`);
+    ctx.postState({ status: "error", message });
+    return;
+  }
   lastStrategy = strategy;
   const ignorePatterns = resolveWorkspaceIgnorePatterns(ctx.workspaceRoot, ctx.pluginIgnoreEnabled);
   const uris = (await vscode.workspace.findFiles(new vscode.RelativePattern(root, INCLUDE), EXCLUDE))
@@ -137,7 +147,9 @@ async function scanUuids(ctx: ToolRunContext, strategy: PnwUuidReplacementStrate
     { strategy, createUuid: randomUUID },
   );
   if (!plan.valid) {
-    ctx.postState({ status: "error", message: `无法创建 UUID 替换计划：${plan.diagnostics.join("；")}` });
+    const message = `无法创建 UUID 替换计划：${plan.diagnostics.join("；")}`;
+    ctx.log(`[UUID][预览][ERROR] ${message}`);
+    ctx.postState({ status: "error", message });
     return;
   }
   const states = new Map(plan.hits.map((hit) => [hit.id, "pending" as const]));
@@ -146,7 +158,7 @@ async function scanUuids(ctx: ToolRunContext, strategy: PnwUuidReplacementStrate
   const hits = plan.hits.length;
   const message = `范围“${scope.label}”已扫描 ${uris.length} 个文本文件，命中 ${hits} 处 UUID（${plan.groups.length} 组，${strategyLabel(strategy)}）；映射已在本次会话固定，请在当前 Block 中勾选并写盘。`;
   ctx.postState({ status: "done", message, scanned: uris.length, issueFiles: files.length, ...uuidUiState() });
-  ctx.log(`[UUID] ${message}`);
+  ctx.log(`[UUID][预览][OK] ${message}`);
 }
 
 function normalizeStrategy(value: unknown): PnwUuidReplacementStrategy | undefined {
@@ -190,7 +202,7 @@ async function applySelectedUuidHits(hitIds: readonly string[], ctx: ToolRunCont
   await vscode.commands.executeCommand("git.refresh");
   const message = rejected.length ? `已写入 ${writtenFiles} 个文件；未写入 ${rejected.length} 个：${rejected.join("；")}` : `已写入 ${writtenFiles} 个文件；可在当前 Block 的结果行按需查看 Git 差异。`;
   ctx.postState({ status: rejected.length ? "error" : "done", message });
-  ctx.log(`[UUID] ${message}`);
+  ctx.log(`[UUID][写入][${rejected.length ? "WARN" : "OK"}] ${message}`);
   return updates;
 }
 

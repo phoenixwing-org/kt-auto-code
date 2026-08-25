@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import * as vscode from "vscode";
+import { appendOutputLine } from "../../output.js";
 import { ktcCreateWebviewSecurity } from "../../webviewSupport.js";
 import { ktcReadProjectEnvironment } from "../../projectEnvironment.js";
 import {
@@ -64,6 +65,7 @@ export class KtcPackageIncludeViewController implements vscode.Disposable {
 
   constructor(
     private readonly workspaceState: Pick<vscode.Memento, "get" | "update">,
+    private readonly log: (text: string) => void = appendOutputLine,
   ) {}
 
   async show(defaultTargetDirectory?: string): Promise<void> {
@@ -159,15 +161,24 @@ export class KtcPackageIncludeViewController implements vscode.Disposable {
   private async useEnvironmentPackageDirectory(source: "include" | "root"): Promise<void> {
     const environment = await ktcReadProjectEnvironment();
     const rootDirectory = environment.values.find((value) => value.key === "customRoot")?.value;
+    const sdkPrefix = environment.values.find((value) => value.key === "sdkPrefix")?.value || "kt";
     const includeRoot = environment.values.find((value) => value.key === "includeRoot")?.value;
     this.packageDirectory = source === "include"
       ? (includeRoot ? ktcResolvePackageIncludeDirectoryFromPublicInclude(includeRoot) : "")
-      : (rootDirectory ? ktcResolveDefaultPackageIncludeDirectory(rootDirectory) : "");
+      : (rootDirectory ? ktcResolveDefaultPackageIncludeDirectory(rootDirectory, sdkPrefix) : "");
     this.session = undefined;
     await this.workspaceState.update(PACKAGE_DIRECTORY_STATE_KEY, this.packageDirectory);
+    const derivation = source === "include"
+      ? "ROOT_DIR_INCLUDE"
+      : `ROOT_DIR + SDK_PREFIX（${sdkPrefix}）`;
+    this.log(this.packageDirectory
+      ? existsSync(this.packageDirectory)
+        ? `[代码辅助][头文件引用修正][目录推导][OK] ${derivation} -> ${this.packageDirectory}`
+        : `[代码辅助][头文件引用修正][目录推导][ERROR] 推导结果不存在：${derivation} -> ${this.packageDirectory}`
+      : `[代码辅助][头文件引用修正][目录推导][ERROR] 未读取到 ${source === "include" ? "ROOT_DIR_INCLUDE" : "ROOT_DIR"}，无法推导 Package 目录。`);
     await this.refreshEnvironment(
       this.packageDirectory
-        ? (source === "include" ? "ROOT_DIR_INCLUDE" : "ROOT_DIR/kt/core/include") + " 推导的 Package 目录已填入，请先预览。"
+        ? derivation + " 推导的 Package 目录已填入，请先预览。"
         : "未读取到 " + (source === "include" ? "ROOT_DIR_INCLUDE" : "ROOT_DIR") + "。",
     );
   }
@@ -180,7 +191,7 @@ export class KtcPackageIncludeViewController implements vscode.Disposable {
       const includeRoot = environment.values.find((value) => value.key === "includeRoot")?.value;
       const packageDirectory = this.packageDirectory
         || (includeRoot ? ktcResolvePackageIncludeDirectoryFromPublicInclude(includeRoot) : "")
-        || (rootDirectory ? ktcResolveDefaultPackageIncludeDirectory(rootDirectory) : "");
+        || (rootDirectory ? ktcResolveDefaultPackageIncludeDirectory(rootDirectory, sdkPrefix) : "");
       this.setState({
         status: this.state.status === "error" ? "idle" : this.state.status,
         message: includeRoot || rootDirectory ? message : "未读取到 ROOT_DIR_INCLUDE 或 ROOT_DIR；请先在工程环境中设置，或直接填写 Package 目录。",
@@ -213,14 +224,17 @@ export class KtcPackageIncludeViewController implements vscode.Disposable {
     await this.refreshEnvironment();
     if (!this.targetDirectory) {
       this.busy = false;
+      this.log("[代码辅助][头文件引用修正][预览][ERROR] 未确定工程目录；请从 Primary 带入或临时填写目录。");
       this.setState({ status: "error", message: "未确定工程目录；请从 Primary 带入或临时填写目录。", preview: undefined, canApply: false });
       return;
     }
     if (!this.state.packageDirectory || !this.state.packageDirectoryExists) {
       this.busy = false;
+      this.log("[代码辅助][头文件引用修正][预览][ERROR] Package include 目录不可用；请检查 ROOT_DIR_INCLUDE、ROOT_DIR 或直接修改目录。");
       this.setState({ status: "error", message: "Package include 目录不可用；请检查 ROOT_DIR_INCLUDE、ROOT_DIR 或直接修改目录。", preview: undefined, canApply: false });
       return;
     }
+    this.log(`[代码辅助][头文件引用修正][预览][INFO] 开始：Package=${this.state.packageDirectory}；工程=${this.targetDirectory}。`);
     this.setState({ status: "running", message: "正在建立 Package 头文件映射并扫描目标目录…", preview: undefined, canApply: false });
     try {
       const session = await ktcPreviewPackageIncludes({
@@ -229,6 +243,15 @@ export class KtcPackageIncludeViewController implements vscode.Disposable {
       });
       this.session = session;
       const { preview } = session;
+      this.log(
+        `[代码辅助][头文件引用修正][预览][OK] 完成：映射 ${preview.headerCount} 个头文件；扫描 ${preview.scannedFileCount} 个文件；命中 ${preview.rows.length} 处；同名冲突 ${preview.collisions.length} 个；未加入映射 ${preview.skippedHeaderCount} 个。`,
+      );
+      for (const collision of preview.collisions) {
+        this.log(`[代码辅助][头文件引用修正][预览][WARN] 同名冲突：${collision.fileName} -> ${collision.includePaths.join(" | ")}`);
+      }
+      for (const skipped of preview.skippedHeaders) {
+        this.log(`[代码辅助][头文件引用修正][预览][WARN] 未加入映射（不在 source/包目录结构中）：${skipped}`);
+      }
       this.setState({
         status: "done",
         message: preview.rows.length
@@ -238,6 +261,7 @@ export class KtcPackageIncludeViewController implements vscode.Disposable {
         canApply: preview.rows.length > 0,
       });
     } catch (error) {
+      this.log(`[代码辅助][头文件引用修正][预览][ERROR] ${error instanceof Error ? error.message : String(error)}`);
       this.setState({ status: "error", message: error instanceof Error ? error.message : String(error), preview: undefined, canApply: false });
     } finally {
       this.busy = false;
@@ -252,8 +276,12 @@ export class KtcPackageIncludeViewController implements vscode.Disposable {
       { modal: true },
       "写入修正",
     );
-    if (action !== "写入修正") return;
+    if (action !== "写入修正") {
+      this.log(`[代码辅助][头文件引用修正][写入][INFO] 已取消：预览中的 ${preview.rows.length} 处 include 未写入。`);
+      return;
+    }
     this.busy = true;
+    this.log(`[代码辅助][头文件引用修正][写入][INFO] 开始：${this.session.files.length} 个文件、${preview.rows.length} 处 include。`);
     this.setState({ status: "running", message: "正在复核文件快照并写入 Package include 修正…" });
     try {
       const result = await ktcApplyPackageIncludes(this.session);
@@ -264,7 +292,9 @@ export class KtcPackageIncludeViewController implements vscode.Disposable {
         preview,
         canApply: false,
       });
+      this.log(`[代码辅助][头文件引用修正][写入][OK] 完成：修正 ${result.changedFiles} 个文件、${result.changedIncludes} 处 include；请通过 Git diff 审查。`);
     } catch (error) {
+      this.log(`[代码辅助][头文件引用修正][写入][ERROR] ${error instanceof Error ? error.message : String(error)}`);
       this.setState({ status: "error", message: error instanceof Error ? error.message : String(error), canApply: false });
     } finally {
       this.busy = false;
@@ -298,7 +328,7 @@ function getPackageIncludeHtml(webview: Pick<vscode.Webview, "cspSource">, initi
 :root{color-scheme:light dark}*{box-sizing:border-box}body{margin:0;padding:8px;color:var(--vscode-foreground);background:var(--vscode-editor-background);font:13px/1.4 var(--vscode-font-family)}button,input{font:inherit}button{min-height:28px;padding:3px 11px;border:1px solid var(--vscode-button-border,transparent);border-radius:3px;color:var(--vscode-button-secondaryForeground);background:var(--vscode-button-secondaryBackground);cursor:pointer}button:hover:not(:disabled){background:var(--vscode-button-secondaryHoverBackground)}button.primary{color:var(--vscode-button-foreground);background:var(--vscode-button-background)}button.primary:hover:not(:disabled){background:var(--vscode-button-hoverBackground)}button:disabled{opacity:.5;cursor:not-allowed}button:focus-visible,input:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:1px}.command-header{position:sticky;top:0;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-8px -8px 8px;padding:7px 8px;border-bottom:1px solid var(--vscode-panel-border);background:var(--vscode-editor-background)}.view-heading{display:flex;align-items:baseline;gap:8px;min-width:0}.view-heading strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}.view-heading span{color:var(--vscode-descriptionForeground);font-size:12px;white-space:nowrap}.header-actions{display:flex;flex:none;gap:7px}.section{margin:0 0 8px;padding:7px;border:1px solid var(--vscode-panel-border);border-radius:4px}.section h2{margin:0 0 5px;font-size:13px}.row{display:grid;grid-template-columns:84px minmax(0,1fr) auto;gap:7px;align-items:center;margin:5px 0}.row label{color:var(--vscode-descriptionForeground)}.directory-actions{display:flex;gap:5px}.directory-actions button{padding-inline:7px;white-space:nowrap}input{width:100%;min-width:0;height:29px;padding:3px 7px;border:1px solid var(--vscode-input-border,var(--vscode-panel-border));border-radius:2px;color:var(--vscode-input-foreground);background:var(--vscode-input-background);font-family:var(--vscode-editor-font-family)}input[readonly]{color:var(--vscode-descriptionForeground);background:var(--vscode-editor-background)}input.ready{border-left:3px solid var(--vscode-testing-iconPassed,var(--vscode-focusBorder))}input.missing{border-left:3px solid var(--vscode-errorForeground)}.status{margin:7px 0 0;padding:5px 7px;border-left:2px solid var(--vscode-panel-border);color:var(--vscode-descriptionForeground);background:var(--vscode-textBlockQuote-background)}.status:empty{display:none}.status.error{border-left-color:var(--vscode-errorForeground);color:var(--vscode-errorForeground)}.summary{display:flex;flex-wrap:wrap;gap:8px;margin:7px 0;color:var(--vscode-descriptionForeground);font-size:12px}.badge{padding:1px 6px;border:1px solid var(--vscode-panel-border);border-radius:999px}.warning{margin:7px 0;padding:7px;border-left:2px solid var(--vscode-editorWarning-foreground);background:var(--vscode-textBlockQuote-background);color:var(--vscode-descriptionForeground);font-size:12px}.table-wrap{overflow:auto;border:1px solid var(--vscode-panel-border);border-radius:3px;max-height:calc(100vh - 300px)}table{width:max-content;min-width:100%;border-collapse:collapse;font-family:var(--vscode-editor-font-family);font-size:12px}th,td{padding:6px 8px;border-bottom:1px solid var(--vscode-panel-border);vertical-align:top}th{position:sticky;top:0;background:var(--vscode-editor-background);text-align:left;color:var(--vscode-descriptionForeground);font-family:var(--vscode-font-family)}td.file{min-width:280px;max-width:520px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}td.line{text-align:right;white-space:pre}td.old,td.new{text-align:left;white-space:pre;max-width:440px;overflow:hidden;text-overflow:ellipsis}tr{cursor:pointer}tr:hover{background:var(--vscode-list-hoverBackground)}.empty{padding:8px;color:var(--vscode-descriptionForeground)}@media(max-width:640px){body{padding:6px}.command-header{margin:-6px -6px 6px;padding:6px}.view-heading span{display:none}.row{grid-template-columns:1fr}.row label{margin-bottom:-4px}.table-wrap{max-height:calc(100vh - 330px)}}
 </style></head><body>
 <header class="command-header"><div class="view-heading"><strong>头文件引用修正</strong><span>代码辅助</span></div><div class="header-actions"><button id="preview" class="primary" type="button">预览</button><button id="apply" type="button" disabled>写入修正</button><button id="open-env" type="button">工程环境</button></div></header><main>
-<section><h2>目录</h2><div class="row"><label for="package-directory">Package 目录</label><input id="package-directory" spellcheck="false" title="优先由 ROOT_DIR_INCLUDE 推导；未设置时使用 ROOT_DIR/kt/core/include" /><span class="directory-actions"><button id="derive-package" type="button" title="选择环境变量并推导 Package include 目录">推导…</button><button id="pick-package" type="button" title="选择 Package include 目录">选择…</button></span></div><div class="row"><label for="target-directory">工程目录</label><input id="target-directory" type="text" spellcheck="false" title="默认来自 Primary 当前目录；可在本次 View 中临时修改" /></div><div class="status" id="status" role="status" aria-live="polite"></div></section>
+<section><h2>目录</h2><div class="row"><label for="package-directory">Package 目录</label><input id="package-directory" spellcheck="false" title="优先由 ROOT_DIR_INCLUDE 推导；未设置时使用 ROOT_DIR/SDK_PREFIX/core/include" /><span class="directory-actions"><button id="derive-package" type="button" title="选择环境变量并推导 Package include 目录">推导…</button><button id="pick-package" type="button" title="选择 Package include 目录">选择…</button></span></div><div class="row"><label for="target-directory">工程目录</label><input id="target-directory" type="text" spellcheck="false" title="默认来自 Primary 当前目录；可在本次 View 中临时修改" /></div><div class="status" id="status" role="status" aria-live="polite"></div></section>
 <section><h2>预览</h2><div id="summary" class="summary"></div><div id="warnings"></div><div id="rows" class="empty">填写 Package 目录后点击“预览修正”。</div></section></main>
 <script nonce="${nonce}">
 const vscode=acquireVsCodeApi();let state=${safeJson(initialState)};const byId=id=>document.getElementById(id);const els={packageDirectory:byId('package-directory'),targetDirectory:byId('target-directory'),preview:byId('preview'),apply:byId('apply'),status:byId('status'),summary:byId('summary'),warnings:byId('warnings'),rows:byId('rows')};

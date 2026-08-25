@@ -6,7 +6,7 @@ Owner：KT Auto Code maintainers
 
 适用版本：0.7.x
 
-最后核验：2026-08-24
+最后核验：2026-08-26
 
 ## 已完成基线
 
@@ -24,7 +24,7 @@ Owner：KT Auto Code maintainers
 
 ## 当前优先级
 
-0. **[发布验证：0.7.2]** Auto 自身目标版本为 `0.7.2`。Phoenix Wing 根包 `0.7.1` 不进入 Auto manifest；继续精确消费已发布的 `code-core`、`git-core`、`git-node`、`kt-codegen` `0.6.4` 和 `run-core`、`run-node` `0.6.3`。本补丁集中验证 Git 深层预选、头文件引用修正、CAA RADE `intel_a` 与设置摘要；Registry/VSIX 不得写入本地路径。
+0. **[发布验证：0.7.3]** Auto 自身目标版本为 `0.7.3`。Phoenix Wing 根包 `0.7.1` 不进入 Auto manifest；继续精确消费已发布的 `code-core`、`git-core`、`git-node`、`kt-codegen` `0.6.4` 和 `run-core`、`run-node` `0.6.3`。本补丁集中验证 Git 跨当前分支连续区间的受控切换、必要日志、Run 滚动/CAA Problems 与头文件引用推导；Registry/VSIX 不得写入本地路径。
 1. 将字符串型架构检查升级为 AST/import graph，固化 pure core、Extension Host 与 Webview 的依赖方向。
 2. 与 Wing、Desk 共享 Analyze/Apply/Schema golden fixtures，避免宿主用自己的样例解释同一协议。
 3. 真实 Extension Host 的打开、预览、冲突、Apply、保存复读和失败回滚已进入自动 smoke；继续补齐浅色、深色、高对比、取消和 VSIX 安装的人工视觉矩阵。
