@@ -22,7 +22,8 @@ describe("reorder members panel architecture", () => {
     expect(component).toContain("pnwCodeDefineReorderMembersPanel(tagName)");
     expect(component).not.toMatch(/document\.createElement|attachShadow|ktcNextReorderSelection/);
     expect(component).not.toMatch(/from ["']vscode["']|acquireVsCodeApi|postMessage|clipboard|workspace\.fs/);
-    expect(sidebar).toContain('<ktc-reorder-members-panel id="reorder-members-panel" hidden>');
+    expect(sidebar).toContain('<ktc-reorder-members-panel id="reorder-members-panel"></ktc-reorder-members-panel>');
+    expect(sidebar).toContain('id="code-assistant-reorder-results"');
     expect(sidebar).toContain("els.reorderMembersPanel.model = {");
     expect(sidebar).toContain('addEventListener("pnw-code-reorder-members-action"');
     expect(sidebar).not.toContain("function createReorderGroup");

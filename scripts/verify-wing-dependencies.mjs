@@ -12,7 +12,14 @@ const dependencySections = [
   "optionalDependencies",
   "peerDependencies",
 ];
-const expectedWingVersion = "0.6.2";
+const expectedWingVersions = new Map([
+  ["@phoenix-wing/code-core", "0.6.4"],
+  ["@phoenix-wing/git-core", "0.6.4"],
+  ["@phoenix-wing/git-node", "0.6.4"],
+  ["@phoenix-wing/kt-codegen", "0.6.4"],
+  ["@phoenix-wing/run-core", "0.6.3"],
+  ["@phoenix-wing/run-node", "0.6.3"],
+]);
 const wingDependencies = new Map();
 
 for (const relative of manifestFiles) {
@@ -34,12 +41,13 @@ for (const relative of manifestFiles) {
 }
 
 if (wingDependencies.size === 0) throw new Error("No Wing dependencies were found");
-const versions = new Set([...wingDependencies.values()].map(({ specifier }) => specifier));
-if (versions.size !== 1) {
-  throw new Error(`Wing dependencies must be lockstep, got ${[...versions].join(", ")}`);
+for (const { name, specifier } of wingDependencies.values()) {
+  const expected = expectedWingVersions.get(name);
+  if (!expected) throw new Error(`Unexpected Wing dependency ${name}; add an explicit expected Registry version`);
+  if (specifier !== expected) throw new Error(`${name} must use Registry ${expected}, got ${specifier}`);
 }
-if (![...versions].every((version) => version === expectedWingVersion)) {
-  throw new Error(`Wing dependencies must use Registry ${expectedWingVersion}, got ${[...versions].join(", ")}`);
+if (wingDependencies.size !== expectedWingVersions.size) {
+  throw new Error(`Expected ${expectedWingVersions.size} Wing dependencies, found ${wingDependencies.size}`);
 }
 
 const lockfile = fs.readFileSync(path.join(root, "pnpm-lock.yaml"), "utf8");
@@ -53,5 +61,5 @@ for (const { name, specifier } of wingDependencies.values()) {
 }
 
 process.stdout.write(
-  `[verify] ${wingDependencies.size} Wing manifest references use Registry ${[...versions][0]} with no local overrides\n`,
+  `[verify] ${wingDependencies.size} Wing manifest references match the approved Registry version map with no local overrides\n`,
 );

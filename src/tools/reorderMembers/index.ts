@@ -41,7 +41,18 @@ export function registerReorderMembersSupport(context: vscode.ExtensionContext):
 
 export const reorderMembersTool: KtTool = {
   id: "reorderMembers", title: "C++ 成员排序", description: "扫描、预览、确认写回 C++ 成员排序。", icon: "media/tools/member-sort.svg",
-  getPanelModel(): ToolPanelModel { return { summary: { id: this.id, title: this.title, description: this.description, icon: this.icon } }; },
+  ribbonVisible: false,
+  getPanelModel(): ToolPanelModel {
+    return {
+      summary: {
+        id: this.id,
+        title: this.title,
+        description: this.description,
+        icon: this.icon,
+        ribbonVisible: this.ribbonVisible,
+      },
+    };
+  },
   registerCommands(context): void { context.subscriptions.push(
     vscode.commands.registerCommand("ktAutoCode.reorderMembers.preview", async () => { await vscode.commands.executeCommand("ktAutoCode.tool.show", this.id); const ctx = getRunContext(); if (ctx) await runPreview(ctx); }),
   ); },
@@ -51,9 +62,24 @@ export const reorderMembersTool: KtTool = {
     }
     if (message.type === "reorderAction" && message.toolId === this.id) await handleReorderAction(message, ctx);
     if (message.type === "reorderSelection" && message.toolId === this.id) updateReorderSelection(message.uris, ctx);
+    if (message.type === "clearReorderMembersSession" && message.toolId === this.id) clearReorderSession(ctx);
   },
   async runAction(action: string, ctx: ToolRunContext): Promise<void> { if (action === "preview" || action === "scan") await runPreview(ctx); },
 };
+
+function clearReorderSession(ctx: ToolRunContext): void {
+  activeSession = undefined;
+  previewContents.clear();
+  ctx.postState({
+    status: "idle",
+    message: "",
+    scanned: 0,
+    reorderRevision: undefined,
+    reorderScopeLabel: undefined,
+    reorderSelectedUris: [],
+    reorderResults: [],
+  });
+}
 
 async function runPreview(ctx: ToolRunContext): Promise<void> {
   if (!ctx.workspaceRoot) { ctx.postState({ status: "error", message: "请先打开工作区。" }); return; }

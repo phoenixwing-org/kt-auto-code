@@ -69,6 +69,7 @@ import type {
 } from "../tools/types.js";
 import { registerTool } from "../tools/registry.js";
 import { encodingFixTool } from "../tools/encodingFix/index.js";
+import { reorderMembersTool } from "../tools/reorderMembers/index.js";
 import {
   SidebarViewProvider,
   ktcWelcomeExtensionSummaries,
@@ -111,6 +112,7 @@ const testTool: KtTool = {
 
 registerTool(testTool);
 registerTool(encodingFixTool);
+registerTool(reorderMembersTool);
 registerTool({
   ...testTool,
   id: SECOND_TEST_TOOL_ID,
@@ -185,12 +187,14 @@ function createProvider(): {
   provider: SidebarViewProvider;
   internals: ProviderInternals;
   module: FakeWebviewView;
+  globalState: vscode.Memento;
 } {
-  const provider = new SidebarViewProvider(extensionUri(), memory(), memory());
+  const globalState = memory();
+  const provider = new SidebarViewProvider(extensionUri(), globalState, memory());
   const internals = provider as unknown as ProviderInternals;
   const module = webviewView(SidebarViewProvider.moduleViewType);
   internals.moduleView = module;
-  return { provider, internals, module };
+  return { provider, internals, module, globalState };
 }
 
 function stateMessages(view: FakeWebviewView): Extract<WebviewOutboundMessage, { type: "state" }>[] {
@@ -230,6 +234,46 @@ describe("SidebarViewProvider transient tool state", () => {
         installed: false,
       },
     ]);
+  });
+
+  it("代码辅助 Tree 折叠状态保存到用户级 globalState 并在 init 时回传", async () => {
+    const { internals, module, globalState } = createProvider();
+    const state = {
+      treeExpanded: false,
+      cppOrganizeExpanded: false,
+      fileToolsExpanded: true,
+      caaExpanded: false,
+      reorderActionsExpanded: false,
+      reorderResultsExpanded: true,
+    };
+
+    await internals.onMessage({ type: "setCodeAssistantTreeUiState", state }, module);
+    expect(globalState.get("ktAutoCode.codeAssistant.treeUi.v1")).toEqual(state);
+
+    await internals.sendInit(module);
+    expect(module.messages.find((message) => message.type === "init")).toMatchObject({
+      type: "init",
+      codeAssistantTreeUiState: state,
+    });
+  });
+
+  it("关闭成员排序会清空 Host 会话状态并回到代码辅助 Tree", async () => {
+    const { internals, module } = createProvider();
+    internals.setToolState("reorderMembers", {
+      status: "done",
+      message: "已扫描",
+      scanned: 2,
+      reorderResults: [],
+      reorderSelectedUris: [],
+    });
+    module.messages.length = 0;
+
+    await internals.onMessage({ type: "clearReorderMembersSession", toolId: "reorderMembers" }, module);
+
+    expect(stateMessages(module).at(-1)).toMatchObject({
+      toolId: "reorderMembers",
+      state: { status: "idle", scanned: 0, reorderResults: [], reorderSelectedUris: [] },
+    });
   });
 
   it("欢迎页链接、设置与安装动作只调用对应宿主入口", async () => {

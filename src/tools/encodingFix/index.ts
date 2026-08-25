@@ -11,6 +11,7 @@ export const encodingFixTool: KtTool = {
   description:
     "按当前项目策略检测并无损转换 ASCII、UTF-8、GBK 与带 BOM 文件。",
   icon: "media/tools/encoding-convert.svg",
+  ribbonVisible: false,
 
   getPanelModel(): ToolPanelModel {
     return {
@@ -19,6 +20,7 @@ export const encodingFixTool: KtTool = {
         title: "编码修正",
         description: this.description,
         icon: this.icon,
+        ribbonVisible: this.ribbonVisible,
       },
     };
   },

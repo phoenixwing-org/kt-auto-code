@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { KtcCreateGitModel, type KtcGitIdentity } from "./KtcGitModel.js";
+import { KtcCreateGitModel, ktcGitRepositoryOptionLabels, type KtcGitIdentity } from "./KtcGitModel.js";
 
 const identity: KtcGitIdentity = {
   name: "Phoenix Wing",
@@ -9,6 +9,18 @@ const identity: KtcGitIdentity = {
 };
 
 describe("Git Primary model", () => {
+  it("仓库下拉仅在名称重复时追加父目录", () => {
+    expect(ktcGitRepositoryOptionLabels([
+      { id: "/workspace/phoenix-wing", name: "phoenix-wing", relativePath: "phoenix-wing" },
+      { id: "/workspace/kt-auto-code", name: "kt-auto-code", relativePath: "kt-auto-code" },
+    ])).toEqual(["phoenix-wing", "kt-auto-code"]);
+
+    expect(ktcGitRepositoryOptionLabels([
+      { id: "/workspace/phoenix/KtRoot", name: "KtRoot", relativePath: "phoenix/KtRoot" },
+      { id: "/workspace/archive/KtRoot", name: "KtRoot", relativePath: "archive/KtRoot" },
+    ])).toEqual(["KtRoot @ phoenix", "KtRoot @ archive"]);
+  });
+
   it("只突出简报与本地 commit 合并，并投影仓库上下文", () => {
     const model = KtcCreateGitModel({
       repositories: [{
@@ -46,7 +58,7 @@ describe("Git Primary model", () => {
     expect(project?.actions.map((action) => action.id)).toEqual(["squashLocalCommits"]);
     expect(project?.repository).toMatchObject({ upstreamLabel: "check/sort", headLabel: "4b4622d" });
     expect(project?.commits[0]).toMatchObject({ shortOid: "4b4622d", isHead: true });
-    expect(project?.actions[0]).toMatchObject({ enabled: true, buttonLabel: "选择并预检" });
+    expect(project?.actions[0]).toMatchObject({ enabled: true, buttonLabel: "打开提交图" });
   });
 
   it("detached HEAD 保留只读简报并阻断合并入口", () => {

@@ -19,8 +19,8 @@ const VARIABLE_BY_KEY = {
 
 export const environmentSettingsTool: KtTool = {
   id: "environmentSettings",
-  title: "工程环境",
-  description: "查看并维护当前用户的操作系统工程环境变量；插件配置仍使用 VS Code Settings。",
+  title: "设置",
+  description: "管理 Ignore、工程环境和插件配置。",
   icon: "media/tools/environment-settings.svg",
 
   getPanelModel(): ToolPanelModel {

@@ -3,6 +3,7 @@
 .github/**
 .agents/**
 .codex/**
+.obsidian/**
 .phoenix/**
 .pnpm-store/**
 .gitignore
@@ -11,7 +12,7 @@ node_modules/**
 src/**
 scripts/**
 tests/**
-doc/**
+docs/**
 esbuild.mjs
 tsconfig.json
 pnpm-lock.yaml

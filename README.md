@@ -8,7 +8,7 @@
 
 ## Code 与 CAD 功能关系
 
-![KT Auto Code 与 KT Auto CAD 功能关系](doc/assets/KT-Auto-Code-CAD功能关系.png)
+![KT Auto Code 与 KT Auto CAD 功能关系](docs/assets/KT-Auto-Code-CAD功能关系.png)
 
 ## 快速开始
 
@@ -30,33 +30,33 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 
 **基础插件**：`pnpm ext:watch` → 本仓库 **F5** → Host 窗口打开 CAA 工程 → Side Bar **KT Auto Code**。
 
-开发环境使用 Node.js 22 LTS 与 pnpm 10。`pnpm dev` 是默认跨仓双插件联调入口，强制消费并列本地 Wing，并分别在 Auto 与 CAD 所属仓库构建扩展；`pnpm ext:dev:code` 只构建基础插件。完成来源门禁后，启动器把两个仓库的扩展复制到独立临时快照并启动全新 Host 窗口。正式 Auto Registry 对照与发布不要求 CAD 仓库存在，使用 `pnpm dev:registry` 或 `pnpm ext:release-candidate`。详见[本地 Wing 并列开发](doc/本地Wing并列开发.md)、[可选模块接入契约](doc/可选模块接入契约.md)与 [KT Auto CAD 仓库](https://gitee.com/PhoenixWing321/kt-auto-cad)。
+开发环境使用 Node.js 22 LTS 与 pnpm 10。`pnpm dev` 是默认跨仓双插件联调入口，强制消费并列本地 Wing，并分别在 Auto 与 CAD 所属仓库构建扩展；`pnpm ext:dev:code` 只构建基础插件。完成来源门禁后，启动器把两个仓库的扩展复制到独立临时快照并启动全新 Host 窗口。正式 Auto Registry 对照与发布不要求 CAD 仓库存在，使用 `pnpm dev:registry` 或 `pnpm ext:release-candidate`。详见[本地 Wing 并列开发](docs/本地Wing并列开发.md)、[可选模块接入契约](docs/可选模块接入契约.md)与 [KT Auto CAD 仓库](https://gitee.com/PhoenixWing321/kt-auto-cad)。
 
 ## 发布
 
-正式 VSIX 建议从 `../.worktrees/kt-auto-code-release` 的 detached worktree 构建，切到明确 tag 或 commit 后执行 `pnpm install --frozen-lockfile && pnpm verify:ci`；不要把 `pnpm dev` 的本地 Wing 联调产物用于发布。Auto 的完整 worktree 更新、制品位置、人工安装与 Marketplace 点检见[VS Code 插件发布](doc/VS%20Code%20插件发布.md)；CAD 发布由 [KT Auto CAD 仓库](https://gitee.com/PhoenixWing321/kt-auto-cad)独立维护。
+正式 VSIX 建议从 `../.worktrees/kt-auto-code-release` 的 detached worktree 构建，切到明确 tag 或 commit 后执行 `pnpm install --frozen-lockfile && pnpm verify:ci`；不要把 `pnpm dev` 的本地 Wing 联调产物用于发布。Auto 的完整 worktree 更新、制品位置、人工安装与 Marketplace 点检见[VS Code 插件发布](docs/VS%20Code%20插件发布.md)；CAD 发布由 [KT Auto CAD 仓库](https://gitee.com/PhoenixWing321/kt-auto-cad)独立维护。
 
 ## 文档
 
 | 文档 | 内容 |
 | --- | --- |
-| [doc/README.md](doc/README.md) | 文档索引 |
-| [当前路线](doc/current-roadmap.md) | 当前优先级、完成基线与 92.5 联合治理接入责任 |
-| [Phoenix 三形态产品架构计划](doc/Phoenix三形态产品架构计划.md) | VS Code 双插件、Tauri/Web、共享 core 与统一发布总纲 |
-| [项目调查](doc/项目调查.md) | 项目定位、实际实现、架构、当前状态与行为边界 |
-| [PNXCaaStudy CAA 命名规则调查](doc/PNXCaaStudy-CAA命名规则调查.md) | I/E、TIE、dico 命名证据与完整名称/末词段两种模式 |
-| [工作区验收记录](doc/真实工作区只读验收.md) | CAA、C++、Web 只读预览与一次性工作区真实写盘验收 |
-| [代码规范](doc/代码规范.md) | 命名前缀、代码整理、MVC、状态与测试规则 |
-| [UI 开发规则](doc/前端开发规则.md) | Ribbon、单显示多打开、Block 布局、范围、缓存、结果、Diff、主题与验收的权威规范 |
-| [Codegen 快速原型](doc/Codegen快速原型.md) | Codegen 单 Block、多 JSON View、共享 Table 与 MVC 边界 |
-| [Codegen 总 Controller 会话提炼点检](doc/codegen-plan/Codegen总Controller会话提炼点检表.md) | Session Controller、VS Code Host adapter 责任图与后续拆分边界 |
-| [Codegen 手工验收](doc/codegen-plan/Codegen手工验收.md) | 可重置 fixture 工作区、深浅主题与冲突/取消测试步骤 |
-| [搜索替换](doc/搜索替换.md) | 文本/文件名/文件夹名替换、字节精确处理与安全边界 |
-| [源文件编码扫描](doc/源文件编码扫描.md) | CLI、扫描范围；**CP1252 / 全角标点映射表** |
-| [编码修正](doc/编码修正.md) | 整文件编码检测与转换（`encodingFix`） |
-| [开发与测试](doc/开发与测试.md) | F5、测试、选项与检查清单 |
-| [本地 Wing 并列开发](doc/本地Wing并列开发.md) | `pnpm dev` 本地双插件联调、AI 构建与 Registry 对照门禁 |
-| [VS Code 插件发布](doc/VS%20Code%20插件发布.md) | Marketplace 发布流程、上架检查清单与版权说明 |
+| [docs/README.md](docs/README.md) | 文档索引 |
+| [当前路线](docs/current-roadmap.md) | 当前优先级、完成基线与 92.5 联合治理接入责任 |
+| [Phoenix 三形态产品架构计划](docs/Phoenix三形态产品架构计划.md) | VS Code 双插件、Tauri/Web、共享 core 与统一发布总纲 |
+| [项目调查](docs/项目调查.md) | 项目定位、实际实现、架构、当前状态与行为边界 |
+| [PNXCaaStudy CAA 命名规则调查](docs/PNXCaaStudy-CAA命名规则调查.md) | I/E、TIE、dico 命名证据与完整名称/末词段两种模式 |
+| [工作区验收记录](docs/真实工作区只读验收.md) | CAA、C++、Web 只读预览与一次性工作区真实写盘验收 |
+| [代码规范](docs/代码规范.md) | 命名前缀、代码整理、MVC、状态与测试规则 |
+| [UI 开发规则](docs/前端开发规则.md) | Ribbon、单显示多打开、Block 布局、范围、缓存、结果、Diff、主题与验收的权威规范 |
+| [Codegen 快速原型](docs/Codegen快速原型.md) | Codegen 单 Block、多 JSON View、共享 Table 与 MVC 边界 |
+| [Codegen 总 Controller 会话提炼点检](docs/codegen-plan/Codegen总Controller会话提炼点检表.md) | Session Controller、VS Code Host adapter 责任图与后续拆分边界 |
+| [Codegen 手工验收](docs/codegen-plan/Codegen手工验收.md) | 可重置 fixture 工作区、深浅主题与冲突/取消测试步骤 |
+| [搜索替换](docs/搜索替换.md) | 文本/文件名/文件夹名替换、字节精确处理与安全边界 |
+| [源文件编码扫描](docs/源文件编码扫描.md) | CLI、扫描范围；**CP1252 / 全角标点映射表** |
+| [编码修正](docs/编码修正.md) | 整文件编码检测与转换（`encodingFix`） |
+| [开发与测试](docs/开发与测试.md) | F5、测试、选项与检查清单 |
+| [本地 Wing 并列开发](docs/本地Wing并列开发.md) | `pnpm dev` 本地双插件联调、AI 构建与 Registry 对照门禁 |
+| [VS Code 插件发布](docs/VS%20Code%20插件发布.md) | Marketplace 发布流程、上架检查清单与版权说明 |
 
 ## 常用命令
 
@@ -93,12 +93,12 @@ resources/            # 随 VSIX 发布的只读 runner
 scripts/              # CLI + 开发、构建、测试、打包与发布门禁
 tests/fixtures/       # 核心、CLI 与 Extension Host 代表夹具
 tests/webview/        # 浏览器/Webview 结构夹具
-doc/                  # 当前中文文档、专项计划与历史归档
+docs/                  # 当前中文文档、专项计划与历史归档
 dist/                 # 扩展运行 bundle（Git ignored）
 dist/vsix/            # Git ignored 的 VSIX 与 SHA-256
 ```
 
-仓库根现在就是唯一的 VS Code 扩展包根，不再保留只有一个成员的 `extension/` workspace。原 Host-neutral 逻辑集中在 `src/core/`，继续由架构门禁限制其不得依赖 `vscode`；实施记录见[仓库结构与扁平化迁移计划](doc/仓库结构与扁平化迁移计划.md)。KT Auto CAD 已是同样的根包结构，但因规模较小无需照搬 Auto 的全部内部分层。
+仓库根现在就是唯一的 VS Code 扩展包根，不再保留只有一个成员的 `extension/` workspace。原 Host-neutral 逻辑集中在 `src/core/`，继续由架构门禁限制其不得依赖 `vscode`；实施记录见[仓库结构与扁平化迁移计划](docs/仓库结构与扁平化迁移计划.md)。KT Auto CAD 已是同样的根包结构，但因规模较小无需照搬 Auto 的全部内部分层。
 
 ## 版权、技术来源与许可证
 
@@ -110,4 +110,4 @@ KT Auto Code 由上海锟钛开发，面向 CAA / MSVC C++ 工作流提供编码
 - Copyright © 2024–2026 上海锟钛。
 - 本项目使用 [Apache License 2.0](LICENSE) 开源。
 
-完整的中英文版权声明及 Marketplace 发布信息见 [VS Code 插件发布文档](doc/VS%20Code%20插件发布.md)。
+完整的中英文版权声明及 Marketplace 发布信息见 [VS Code 插件发布文档](docs/VS%20Code%20插件发布.md)。

@@ -134,6 +134,40 @@ export interface KtcGitDiscoveryState {
   readonly foundRepositories: number;
 }
 
+/**
+ * Produce compact repository labels for the shared Git selector.
+ *
+ * A repository name is sufficient until it becomes ambiguous. Only duplicate
+ * names receive an `@ parent` suffix; this keeps a multi-root workspace
+ * readable without rendering `name · name` for every normal repository.
+ */
+export function ktcGitRepositoryOptionLabels(
+  repositories: readonly { readonly id: string; readonly name: string; readonly relativePath?: string }[],
+): readonly string[] {
+  const normalizedNames = repositories.map((repository) => repository.name.trim() || "未命名仓库");
+  const counts = new Map<string, number>();
+  for (const name of normalizedNames) {
+    const key = name.toLocaleLowerCase();
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  return repositories.map((repository, index) => {
+    const name = normalizedNames[index]!;
+    if ((counts.get(name.toLocaleLowerCase()) ?? 0) <= 1) return name;
+
+    const paths = [repository.relativePath, repository.id]
+      .filter((value): value is string => typeof value === "string" && value.length > 0);
+    for (const value of paths) {
+      const normalized = value.replace(/^file:\/\//u, "").replace(/\\/gu, "/").replace(/\/+$/u, "");
+      const segments = normalized.split("/").filter(Boolean);
+      if (segments.length > 1 && segments.at(-1)?.toLocaleLowerCase() === name.toLocaleLowerCase()) {
+        return `${name} @ ${segments.slice(0, -1).join("/")}`;
+      }
+    }
+    return `${name} @ ${repository.id}`;
+  });
+}
+
 export function KtcCreateGitModel(input: {
   readonly repositories: readonly KtcGitRepositoryInput[];
   readonly selectedRepositoryId?: string;
@@ -220,13 +254,13 @@ function KtcCreateGitProject(
         id: "squashLocalCommits",
         title: "合并本地未发布 commit",
         description: source.error
-          ? "仓库读取成功后才可预检。"
+          ? "仓库读取成功后才可打开提交图。"
           : !loaded
-            ? "选择仓库后再准备合并。"
+            ? "选择仓库后再打开提交图。"
           : detached
             ? "detached HEAD 不能合并。"
-            : "点击后读取完整状态并检查工作区、Git 操作和直线历史。",
-        buttonLabel: "选择并预检",
+            : "在编辑器区按需读取首 5 条提交图；选择后才执行完整安全预检。",
+        buttonLabel: "打开提交图",
         tone: "caution",
         badge: "不自动 push",
         enabled: squashEnabled,

@@ -196,21 +196,9 @@ export class KtcRunController {
     if (record.target.sourceKind === "bundled" && KtcIsCaa(record.target)) {
       await this.KtcPreflightBundledCaa(record, caa!.value, relatedRoots);
     }
-    const detail = [
-      `来源：${record.target.sourceKind}${record.target.sourceUri ? ` · ${record.target.sourceUri}` : ""}`,
-      `工作目录：${record.target.cwd}`,
-      `风险：${record.target.risk}`,
-      ...(record.target.action === "clang-format" ? ["操作：递归改写项目中的 C/C++ 源文件（忽略构建、生成、依赖与工具目录）"] : []),
-      ...(caa ? [`CAA 版本：${caa.value}`] : []),
-      ...(relatedRoots.length > 0 ? [`关联工程 / Preq：${relatedRoots.length} 项（使用内置 runner）`] : []),
-      `Problems：${record.target.problemMatchers.length > 0 ? record.target.problemMatchers.join(", ") : "无"}`,
-    ].join("\n");
-    const answer = await vscode.window.showWarningMessage(
-      `运行“${record.target.label}”？`,
-      { modal: true, detail },
-      "确认运行",
-    );
-    if (answer !== "确认运行") return;
+    // Primary Tree 单击即执行：安全边界由上面的 trust/平台/并发/CAA 预检保证，
+    // 不再额外弹出确认框中断常用的构建与运行流程。
+    ctx.log(`[Run][execute] target=${record.id} confirmation=skipped preq=${relatedRoots.length}`);
     const task = await this.KtcCreateTask(record, caa?.value, relatedRoots);
     let execution: vscode.TaskExecution;
     try {

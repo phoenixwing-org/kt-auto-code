@@ -10,6 +10,7 @@ export const headerAsciiTool: KtTool = {
   description:
     "预检并修正头文件中的弯引号、GBK 注释和其他非 ASCII 内容。",
   icon: "media/tools/header-ascii.svg",
+  ribbonVisible: false,
 
   getPanelModel(): ToolPanelModel {
     return {
@@ -18,6 +19,7 @@ export const headerAsciiTool: KtTool = {
         title: "头文件 ASCII 修正",
         description: this.description,
         icon: this.icon,
+        ribbonVisible: this.ribbonVisible,
       },
     };
   },

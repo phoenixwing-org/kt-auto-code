@@ -176,7 +176,7 @@ describe("Ribbon customization menu", () => {
     expect(style).toContain(".row:hover .pin:not(.pinned), .row:focus-within .pin:not(.pinned)");
   });
 
-  it("只发送模块、打开、固定与键盘上移下移语义事件", async () => {
+  it("发送模块、打开、固定、重置与键盘上移下移语义事件", async () => {
     installFakeDom();
     const browser = await import("./ribbonCustomizationMenu.js");
     const element = new browser.KtcRibbonCustomizationMenu() as unknown as FakeElement & {
@@ -186,12 +186,14 @@ describe("Ribbon customization menu", () => {
     byAria(element.shadow, "隐藏 CAD 工具").onclick?.();
     byAria(element.shadow, "打开 Ignore 设置").onclick?.();
     byAria(element.shadow, "固定 Ignore 设置").onclick?.();
+    byAria(element.shadow, "重置 Code 默认顺序和固定项").onclick?.();
     byAria(element.shadow, "上移 搜索替换").onclick?.();
     byAria(element.shadow, "下移 头文件 ASCII").onclick?.();
     expect(element.events.map((event) => event.detail)).toEqual([
       { kind: "toggleModule", moduleId: "cad" },
       { kind: "open", toolId: "ignoreSettings" },
       { kind: "togglePin", toolId: "ignoreSettings" },
+      { kind: "resetCodeLayout" },
       { kind: "move", sourceId: "codeRename", targetId: "ignoreSettings", placement: "before" },
       { kind: "move", sourceId: "headerAscii", targetId: "ignoreSettings", placement: "after" },
     ]);

@@ -2,7 +2,7 @@
 /**
  * 整文件编码预检与转换（GBK / BOM / UTF-16 → UTF-8 无 BOM）。
  *
- * 用法见 doc/编码修正.md
+ * 用法见 docs/编码修正.md
  */
 import { resolve } from "node:path";
 import {

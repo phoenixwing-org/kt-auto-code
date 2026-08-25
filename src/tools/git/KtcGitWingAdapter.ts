@@ -41,6 +41,50 @@ export interface KtcPnwGitCommitPage {
   readonly hasMore: boolean;
 }
 
+/** Wing 的只读拓扑提交图；不等同于 squash 安全快照。 */
+export type KtcPnwGitCommitGraphRefsScope = "head" | "local-branches" | "local-branches-and-tags";
+
+export interface KtcPnwGitCommitGraphDecoration {
+  readonly name: string;
+  readonly displayName: string;
+  readonly kind: "head" | "local-branch" | "tag";
+}
+
+export interface KtcPnwGitCommitGraphCommit {
+  readonly oid: string;
+  readonly parentOids: readonly string[];
+  readonly subject: string;
+  readonly author: KtcPnwGitIdentity;
+  readonly committer: KtcPnwGitIdentity;
+  readonly decorations: readonly KtcPnwGitCommitGraphDecoration[];
+}
+
+export interface KtcPnwGitCommitGraphParentEdge {
+  readonly parentOid: string;
+  readonly fromLane: number;
+  readonly toLane: number;
+  readonly kind: "first-parent" | "merge-parent";
+}
+
+export interface KtcPnwGitCommitGraphRow {
+  readonly commitOid: string;
+  readonly lane: number;
+  readonly laneCount: number;
+  readonly lanesBefore: readonly string[];
+  readonly lanesAfter: readonly string[];
+  readonly parentEdges: readonly KtcPnwGitCommitGraphParentEdge[];
+}
+
+export interface KtcPnwGitCommitGraphPage {
+  readonly root: string;
+  readonly headOid: string;
+  readonly refsScope: KtcPnwGitCommitGraphRefsScope;
+  readonly commits: readonly KtcPnwGitCommitGraphCommit[];
+  readonly graphRows: readonly KtcPnwGitCommitGraphRow[];
+  readonly nextBeforeCursor?: string;
+  readonly hasMore: boolean;
+}
+
 export interface KtcPnwGitRepositorySnapshot {
   readonly root: string;
   readonly name: string;
@@ -159,6 +203,17 @@ interface KtcPnwGitNodeModule {
       readonly signal?: AbortSignal;
     },
   ): Promise<KtcPnwGitCommitPage>;
+  pnwReadGitCommitGraphPage(
+    startPath: string,
+    options?: {
+      readonly expectedHeadOid?: string;
+      readonly beforeCursor?: string;
+      readonly limit?: number;
+      readonly refsScope?: KtcPnwGitCommitGraphRefsScope;
+      readonly gitExecutable?: string;
+      readonly signal?: AbortSignal;
+    },
+  ): Promise<KtcPnwGitCommitGraphPage>;
   pnwReadGitRepository(
     startPath: string,
     options?: { readonly maxCommits?: number; readonly gitExecutable?: string; readonly signal?: AbortSignal },
@@ -223,29 +278,35 @@ export class KtcGitWingAdapter {
     });
   }
 
+  readCommitGraphPage(
+    startPath: string,
+    options: {
+      readonly expectedHeadOid?: string;
+      readonly beforeCursor?: string;
+      readonly limit: number;
+      readonly refsScope: KtcPnwGitCommitGraphRefsScope;
+      readonly signal?: AbortSignal;
+    },
+  ): Promise<KtcPnwGitCommitGraphPage> {
+    return KtcGitNode.pnwReadGitCommitGraphPage(startPath, {
+      ...(options.expectedHeadOid ? { expectedHeadOid: options.expectedHeadOid } : {}),
+      ...(options.beforeCursor ? { beforeCursor: options.beforeCursor } : {}),
+      limit: options.limit,
+      refsScope: options.refsScope,
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+  }
+
   readRepository(startPath: string, maxCommits = 200): Promise<KtcPnwGitRepositorySnapshot> {
     return KtcGitNode.pnwReadGitRepository(startPath, { maxCommits });
   }
 
   formatGroupSummary(input: Parameters<KtcPnwGitCoreModule["pnwFormatGitGroupSummary"]>[0]): ReturnType<KtcPnwGitCoreModule["pnwFormatGitGroupSummary"]> {
-    return KtcIncludeCommitBody(KtcGitCore.pnwFormatGitGroupSummary(input), input.commit.body);
+    return KtcGitCore.pnwFormatGitGroupSummary(input);
   }
 
   formatGroupSummaries(input: Parameters<KtcPnwGitCoreModule["pnwFormatGitGroupSummaries"]>[0]): ReturnType<KtcPnwGitCoreModule["pnwFormatGitGroupSummaries"]> {
-    const result = KtcGitCore.pnwFormatGitGroupSummaries(input);
-    const summaries = result.summaries.map((summary, index) => (
-      KtcIncludeCommitBody(summary, input.commits[index]?.body ?? "")
-    ));
-    if (summaries.every((summary, index) => summary === result.summaries[index])) return result;
-    const originalSummaryText = result.summaries.map((summary) => summary.text).join("\n");
-    const prefix = result.text.endsWith(originalSummaryText)
-      ? result.text.slice(0, -originalSummaryText.length)
-      : "";
-    return {
-      ...result,
-      text: `${prefix}${summaries.map((summary) => summary.text).join("\n")}`,
-      summaries,
-    };
+    return KtcGitCore.pnwFormatGitGroupSummaries(input);
   }
 
   analyzeSquash(startPath: string, selectedOids: readonly string[]): Promise<KtcPnwGitSquashAnalysis> {
@@ -266,11 +327,5 @@ export class KtcGitWingAdapter {
   }
 }
 
-// TODO: Wing 0.6.3 发布并完成 Registry 消费验证后删除；见 doc/git/README.md。
-function KtcIncludeCommitBody<T extends { readonly text: string }>(summary: T, rawBody: string): T {
-  const body = rawBody.replace(/\r\n?/gu, "\n").trim();
-  if (!body || summary.text.endsWith(`\n\n${body}`)) return summary;
-  return { ...summary, text: `${summary.text}\n\n${body}` };
-}
 import * as KtcGitCoreImport from "@phoenix-wing/git-core";
 import * as KtcGitNodeImport from "@phoenix-wing/git-node";

@@ -17,6 +17,7 @@ import { caaDialogTool } from "./tools/caaDialog/index.js";
 import { getGitRuntimeDiagnosticsSnapshot, KtcGitTool } from "./tools/git/KtcGitTool.js";
 import { KtcRunTool } from "./tools/run/KtcRunTool.js";
 import { environmentSettingsTool } from "./tools/environmentSettings/index.js";
+import { codeAssistantTool, registerCodeAssistantSupport } from "./tools/codeAssistant/index.js";
 import {
   codegenTool,
   getCodegenRuntimeDiagnosticsSnapshot,
@@ -57,6 +58,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<KtcAut
   ktcRegisterEditorMatchHighlight(context);
   registerReorderMembersSupport(context);
   registerCodegenSupport(context);
+  registerCodeAssistantSupport(context);
   registerTool(headerAsciiTool);
   registerTool(encodingFixTool);
   registerTool(ignoreSettingsTool);
@@ -64,6 +66,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<KtcAut
   registerTool(codeRenameTool);
   registerTool(codegenTool);
   registerTool(reorderMembersTool);
+  registerTool(codeAssistantTool);
   registerTool(uuidReplaceTool);
   registerTool(caaDialogTool);
   registerTool(KtcGitTool);

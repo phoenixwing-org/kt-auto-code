@@ -14,7 +14,7 @@ import {
 
 function example<T>(name: string): T {
   return JSON.parse(readFileSync(
-    new URL(`../../../doc/codegen-plan/${name}`, import.meta.url),
+    new URL(`../../../docs/codegen-plan/${name}`, import.meta.url),
     "utf8",
   )) as T;
 }

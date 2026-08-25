@@ -58,7 +58,8 @@ export const uuidReplaceTool: KtTool = {
   title: "UUID 替换",
   description: "扫描文本 UUID，按同值生成稳定映射；勾选映射后确认写盘。",
   icon: "media/tools/uuid-replace.svg",
-  getPanelModel(): ToolPanelModel { return { summary: { id: this.id, title: this.title, description: this.description, icon: this.icon } }; },
+  ribbonVisible: false,
+  getPanelModel(): ToolPanelModel { return { summary: { id: this.id, title: this.title, description: this.description, icon: this.icon, ribbonVisible: this.ribbonVisible } }; },
   registerCommands(context): void {
     const run = (action: "scan" | "apply") => async () => {
       await vscode.commands.executeCommand("ktAutoCode.tool.show", this.id);

@@ -2,31 +2,27 @@ import { describe, expect, it } from "vitest";
 import {
   ktcMoveRibbonTool,
   ktcNormalizeRibbonLayout,
+  ktcResetCodeRibbonLayout,
   ktcToggleRibbonToolPin,
   type KtcRibbonLayoutTool,
 } from "./ribbonLayout.js";
 
 const CODE_TOOLS: readonly KtcRibbonLayoutTool[] = [
-  { id: "headerAscii", moduleId: "code" },
-  { id: "encodingFix", moduleId: "code" },
-  { id: "ignoreSettings", moduleId: "code" },
   { id: "codeRename", moduleId: "code" },
   { id: "codegen", moduleId: "code" },
   { id: "git", moduleId: "code" },
   { id: "run", moduleId: "code" },
-  { id: "reorderMembers", moduleId: "code" },
-  { id: "uuidReplace", moduleId: "code" },
+  { id: "codeAssistant", moduleId: "code" },
 ];
 
 describe("Ribbon layout state", () => {
   it("creates the first-run Code defaults from an empty persisted state", () => {
     expect(ktcNormalizeRibbonLayout(CODE_TOOLS)).toEqual({
       pinnedToolIds: [
-        "codeRename", "codegen", "reorderMembers", "run", "git", "uuidReplace", "headerAscii", "encodingFix",
+        "codeAssistant", "git", "run", "codeRename", "codegen",
       ],
       toolOrder: [
-        "codeRename", "codegen", "reorderMembers", "run", "git", "uuidReplace", "headerAscii", "encodingFix",
-        "ignoreSettings",
+        "codeAssistant", "git", "run", "codeRename", "codegen",
       ],
     });
   });
@@ -37,23 +33,49 @@ describe("Ribbon layout state", () => {
       pinnedToolIds: ["git", "missing", "git", 42],
       toolOrder: ["run", "missing", "run", "git"],
     })).toEqual({
-      pinnedToolIds: ["git"],
+      pinnedToolIds: ["codeAssistant", "git"],
       toolOrder: [
-        "run", "git", "headerAscii", "encodingFix", "ignoreSettings", "codeRename", "codegen",
-        "reorderMembers", "uuidReplace",
+        "codeAssistant", "run", "git", "codeRename", "codegen",
       ],
     });
   });
 
-  it("appends a newly contributed tool without pinning it in a known module", () => {
+  it("appends a normal newly contributed tool without pinning it in a known module", () => {
     const previousTools = CODE_TOOLS.filter((tool) => tool.id !== "run");
     const previous = ktcNormalizeRibbonLayout(previousTools);
     expect(ktcNormalizeRibbonLayout(CODE_TOOLS, previous)).toEqual({
       pinnedToolIds: [
-        "codeRename", "codegen", "reorderMembers", "git", "uuidReplace", "headerAscii", "encodingFix",
+        "codeAssistant", "git", "codeRename", "codegen",
       ],
       toolOrder: [...previous.toolOrder, "run"],
     });
+  });
+
+  it("upgrades an old saved layout by pinning 代码辅助 at its approved default position once", () => {
+    const oldTools = CODE_TOOLS.filter((tool) => tool.id !== "codeAssistant");
+    const oldLayout = ktcNormalizeRibbonLayout(oldTools);
+    const upgraded = ktcNormalizeRibbonLayout(CODE_TOOLS, oldLayout);
+    expect(upgraded.pinnedToolIds).toContain("codeAssistant");
+    expect(upgraded.toolOrder.indexOf("codeAssistant")).toBe(upgraded.toolOrder.indexOf("run") - 1);
+    expect(upgraded.toolOrder.indexOf("codeAssistant")).toBeLessThan(upgraded.toolOrder.indexOf("run"));
+
+    const userUnpinned = ktcToggleRibbonToolPin(upgraded, CODE_TOOLS, "codeAssistant").layout;
+    expect(ktcNormalizeRibbonLayout(CODE_TOOLS, userUnpinned).pinnedToolIds).not.toContain("codeAssistant");
+  });
+
+  it("首次启动时按代码辅助、Git、Run、替换、自动代码排序", () => {
+    const layout = ktcNormalizeRibbonLayout(CODE_TOOLS);
+    expect(layout.pinnedToolIds).toEqual(["codeAssistant", "git", "run", "codeRename", "codegen"]);
+  });
+
+  it("只重置 Code 默认顺序与固定项，保留 CAD 的顺序和固定状态", () => {
+    const tools = [...CODE_TOOLS, { id: "cadOpen", moduleId: "cad" as const }];
+    const reset = ktcResetCodeRibbonLayout({
+      toolOrder: ["codegen", "cadOpen", "run", "git", "codeRename", "codeAssistant"],
+      pinnedToolIds: ["codegen", "cadOpen"],
+    }, tools);
+    expect(reset.toolOrder).toEqual(["codeAssistant", "git", "run", "codeRename", "codegen", "cadOpen"]);
+    expect(reset.pinnedToolIds).toEqual(["codeAssistant", "git", "run", "codeRename", "codegen", "cadOpen"]);
   });
 
   it("pins an optional module on first install but not tools added in a later upgrade", () => {
@@ -99,15 +121,12 @@ describe("Ribbon layout state", () => {
 
   it("moves pinned tools before and after another tool in the same module", () => {
     const original = ktcNormalizeRibbonLayout(CODE_TOOLS);
-    const before = ktcMoveRibbonTool(original, CODE_TOOLS, "run", "encodingFix", "before");
-    expect(before.changed).toBe(true);
-    expect(before.layout.pinnedToolIds.slice(0, 3)).toEqual(["codeRename", "codegen", "reorderMembers"]);
-    expect(before.layout.pinnedToolIds.indexOf("run")).toBeLessThan(before.layout.pinnedToolIds.indexOf("encodingFix"));
-
-    const after = ktcMoveRibbonTool(before.layout, CODE_TOOLS, "run", "codegen", "after");
+    const after = ktcMoveRibbonTool(original, CODE_TOOLS, "run", "codegen", "after");
     expect(after.changed).toBe(true);
-    expect(after.layout.pinnedToolIds).toEqual([
-      "codeRename", "codegen", "run", "reorderMembers", "git", "uuidReplace", "headerAscii", "encodingFix",
+    const before = ktcMoveRibbonTool(after.layout, CODE_TOOLS, "run", "git", "before");
+    expect(before.changed).toBe(true);
+    expect(before.layout.pinnedToolIds).toEqual([
+      "codeAssistant", "run", "git", "codeRename", "codegen",
     ]);
   });
 
@@ -115,16 +134,16 @@ describe("Ribbon layout state", () => {
     const original = ktcToggleRibbonToolPin(
       ktcNormalizeRibbonLayout(CODE_TOOLS),
       CODE_TOOLS,
-      "uuidReplace",
+      "git",
     ).layout;
-    const moved = ktcMoveRibbonTool(original, CODE_TOOLS, "uuidReplace", "codegen", "before");
+    const moved = ktcMoveRibbonTool(original, CODE_TOOLS, "git", "codegen", "before");
     expect(moved.changed).toBe(true);
-    expect(moved.layout.pinnedToolIds).not.toContain("uuidReplace");
-    expect(moved.layout.toolOrder.indexOf("uuidReplace")).toBeLessThan(
+    expect(moved.layout.pinnedToolIds).not.toContain("git");
+    expect(moved.layout.toolOrder.indexOf("git")).toBeLessThan(
       moved.layout.toolOrder.indexOf("codegen"),
     );
-    const repinned = ktcToggleRibbonToolPin(moved.layout, CODE_TOOLS, "uuidReplace");
-    expect(repinned.layout.pinnedToolIds.indexOf("uuidReplace")).toBeLessThan(
+    const repinned = ktcToggleRibbonToolPin(moved.layout, CODE_TOOLS, "git");
+    expect(repinned.layout.pinnedToolIds.indexOf("git")).toBeLessThan(
       repinned.layout.pinnedToolIds.indexOf("codegen"),
     );
   });

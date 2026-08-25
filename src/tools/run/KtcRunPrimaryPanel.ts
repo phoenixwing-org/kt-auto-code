@@ -1,5 +1,4 @@
 import type {
-  KtcRunGroup,
   KtcRunProject,
   KtcRunTarget,
   KtcRunViewModel,
@@ -15,61 +14,70 @@ export type KtcRunPrimaryActionDetail =
   | { readonly action: "selectCaaRelated" | "addCaaRelatedFolder"; readonly projectId: string }
   | { readonly action: "setCaaVersion"; readonly projectId: string; readonly value: string };
 
+type KtcNavigationTreeIconKey = "catalog" | "folder" | "folder-open" | "file" | "info" | "settings" | "search" | "warning" | "error";
+
+interface KtcNavigationTreeNode {
+  readonly id: string;
+  readonly label: string;
+  readonly description?: string;
+  readonly iconKey?: KtcNavigationTreeIconKey;
+  readonly disabled?: boolean;
+  readonly children?: readonly KtcNavigationTreeNode[];
+}
+
+interface KtcNavigationTreeModel {
+  readonly ariaLabel: string;
+  readonly nodes: readonly KtcNavigationTreeNode[];
+  readonly expandedNodeIds: readonly string[];
+  readonly selectedNodeId?: string;
+  readonly emptyMessage: string;
+}
+
+type KtcNavigationTreeAction =
+  | { readonly kind: "select" | "activate"; readonly nodeId: string }
+  | { readonly kind: "toggle"; readonly nodeId: string; readonly expanded: boolean };
+
+type KtcRunUtilityAction = "openTerminal" | "openProblems" | "openOutput";
+
+interface KtcNavigationTreeElement extends HTMLElement {
+  model: KtcNavigationTreeModel | undefined;
+  colorScheme: "light" | "dark" | "system";
+}
+
 const KtcRunPrimaryPanelStyle = `
   :host { display: grid; width: 100%; min-width: 0; max-width: 100%; min-height: 0; overflow-x: hidden; color: var(--vscode-foreground); font: 12px/1.35 var(--vscode-font-family); }
   * { box-sizing: border-box; }
   button, input { font: inherit; }
-  button:focus-visible, input:focus-visible, summary:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
-  .toolbar { position: sticky; z-index: 12; top: 0; display: flex; min-width: 0; max-width: 100%; flex-wrap: wrap; align-items: center; gap: 3px; padding: 3px 5px; background: var(--vscode-sideBar-background, var(--vscode-editor-background)); border-block: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
-  .toolbar-button { min-height: 26px; padding: 2px 7px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); border-radius: 3px; cursor: pointer; }
-  .toolbar-button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); border-color: var(--ktc-ui-active-border, var(--vscode-focusBorder)); }
+  button:focus-visible, input:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
+  .toolbar { position: sticky; z-index: 1; top: 0; display: flex; min-width: 0; max-width: 100%; flex-wrap: wrap; align-items: center; gap: 2px; padding: 2px 4px; background: var(--vscode-sideBar-background, var(--vscode-editor-background)); border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
+  .toolbar-button, .project-option-button { min-height: 24px; padding: 1px 6px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); border-radius: 3px; cursor: pointer; }
+  .toolbar-button:hover:not(:disabled), .project-option-button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); border-color: var(--ktc-ui-active-border, var(--vscode-focusBorder)); }
   .platform-filter { display: inline-flex; min-width: 0; align-items: center; gap: 4px; margin-left: auto; color: var(--vscode-descriptionForeground); white-space: nowrap; }
-  .summary { display: flex; min-width: 0; align-items: center; gap: 6px; padding: 5px 6px; color: var(--vscode-descriptionForeground); border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
-  .summary-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .summary, .project-options { display: flex; min-width: 0; align-items: center; gap: 6px; padding: 4px 6px; color: var(--vscode-descriptionForeground); border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
+  .summary-text, .project-option-source { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .badge-tail { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; }
   .badge { padding: 1px 5px; color: var(--vscode-descriptionForeground); border: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); border-radius: 999px; font-size: 10px; white-space: nowrap; }
-  .project { border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
-  .project > summary, .group > summary { display: flex; min-width: 0; align-items: center; gap: 5px; min-height: 30px; padding: 3px 6px; background: var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background)); cursor: pointer; user-select: none; }
-  .project > summary::-webkit-details-marker, .group > summary::-webkit-details-marker { display: none; }
-  .project > summary::before, .group > summary::before { content: "›"; flex: 0 0 auto; font-size: 16px; line-height: 1; }
-  .project[open] > summary::before, .group[open] > summary::before { transform: rotate(90deg); }
-  .project-options { display: flex; min-width: 0; max-width: 100%; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 6px 4px 22px; color: var(--vscode-descriptionForeground); border-top: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
+  .run-tree { display: block; min-width: 0; --pnw-navigation-tree-bg: transparent; --pnw-navigation-tree-row-height: 25px; --pnw-navigation-tree-indent: 14px; }
+  .project-options { flex-wrap: wrap; padding-left: 20px; }
   .version-input { width: 64px; min-height: 24px; padding: 2px 5px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, var(--ktc-ui-border, var(--vscode-panel-border))); }
-  .project-option-button { min-height: 24px; padding: 1px 6px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); border-radius: 3px; cursor: pointer; white-space: nowrap; }
-  .project-option-button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); border-color: var(--ktc-ui-active-border, var(--vscode-focusBorder)); }
-  .project-option-source { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .groups { border-top: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
-  .group { border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
-  .group:last-child { border-bottom: 0; }
-  .group > summary { min-height: 27px; padding-left: 16px; font-weight: 600; }
-  .group-title { margin-right: auto; }
-  .target-list { display: grid; }
-  .target-row { display: flex; min-width: 0; border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
-  .target-row:last-child { border-bottom: 0; }
-  .target { display: flex; flex: 1 1 auto; width: 100%; min-width: 0; min-height: 34px; align-items: center; gap: 6px; padding: 3px 6px 3px 34px; color: var(--vscode-foreground); background: transparent; border: 0; text-align: left; }
-  .target-action { flex: 0 0 52px; min-width: 52px; padding: 0 7px; color: var(--vscode-button-foreground); background: var(--vscode-button-background); border: 0; border-left: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); cursor: pointer; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .08s ease; white-space: nowrap; }
-  .target-action.trial { color: var(--vscode-editorWarning-foreground); background: transparent; }
-  .target-action:hover:not(:disabled), .source-button:hover:not(:disabled) { background: var(--vscode-list-hoverBackground); box-shadow: inset 0 0 0 1px var(--ktc-ui-active-border, var(--ktc-ui-border, var(--vscode-panel-border))); }
-  .target-action:disabled, .source-button:disabled { opacity: .48; cursor: not-allowed; }
-  .source-button { flex: 0 0 28px; padding: 0; color: var(--vscode-foreground); background: transparent; border: 0; border-left: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .08s ease; }
-  .target-row:hover .target-action, .target-row:hover .source-button, .target-row:focus-within .target-action, .target-row:focus-within .source-button { opacity: 1; pointer-events: auto; }
-  .target-row:hover .target-action:disabled, .target-row:hover .source-button:disabled, .target-row:focus-within .target-action:disabled, .target-row:focus-within .source-button:disabled { opacity: .42; }
-  .target-platform { color: var(--vscode-editorWarning-foreground); border-color: currentColor; }
-  .target-running { color: var(--vscode-charts-blue); border-color: currentColor; }
-  .target-failed { color: var(--vscode-errorForeground); border-color: currentColor; }
-  .diagnostics { max-height: 100px; padding: 5px 6px; overflow: auto; color: var(--vscode-descriptionForeground); border-top: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); font-size: 10px; }
   .history { max-height: 130px; overflow: auto; border-top: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
-  .history-title, .history-row { display: flex; min-width: 0; align-items: center; gap: 6px; min-height: 26px; padding: 3px 6px; border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
+  .history-title, .history-row { display: flex; min-width: 0; align-items: center; gap: 6px; min-height: 25px; padding: 2px 6px; border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
   .history-title { font-weight: 650; background: var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background)); }
   .history-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .empty { padding: 10px 8px 10px 34px; color: var(--vscode-descriptionForeground); font-size: 11px; }
-  .note { padding: 7px 6px; color: var(--vscode-descriptionForeground); border-top: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); font-size: 11px; }
+  .empty, .note, .diagnostics { padding: 7px 8px; color: var(--vscode-descriptionForeground); border-top: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); font-size: 11px; }
+  .diagnostics { max-height: 100px; overflow: auto; }
 `;
 
 export class KtcRunPrimaryPanel extends HTMLElement {
   private readonly root = this.attachShadow({ mode: "open" });
   private currentModel: KtcRunViewModel | undefined;
   private showAllPlatforms = false;
+  private readonly expandedNodeIds = new Set<string>();
+  private selectedNodeId: string | undefined;
+  private readonly targetByNodeId = new Map<string, KtcRunTarget>();
+  private readonly projectByNodeId = new Map<string, KtcRunProject>();
+  private readonly utilityActionByNodeId = new Map<string, KtcRunUtilityAction>();
+  private readonly groupIdsByProjectNodeId = new Map<string, readonly string[]>();
 
   get model(): KtcRunViewModel | undefined { return this.currentModel; }
   set model(value: KtcRunViewModel | undefined) {
@@ -88,14 +96,32 @@ export class KtcRunPrimaryPanel extends HTMLElement {
       this.root.replaceChildren(style, this.empty("Run Primary 正在发现运行目标…"));
       return;
     }
+
+    this.targetByNodeId.clear();
+    this.projectByNodeId.clear();
+    this.utilityActionByNodeId.clear();
+    this.groupIdsByProjectNodeId.clear();
+    const toolbar = this.toolbar();
+    const summary = this.summary(model);
+    const tree = this.navigationTree(model);
+    const content: Node[] = [style, toolbar, summary, tree];
+    const selectedProject = this.selectedProject();
+    if (selectedProject?.caaVersion) content.push(this.caaVersion(selectedProject));
+    if (model.executions.length > 0) content.push(this.executionHistory(model));
+    if (model.diagnostics.length > 0) {
+      const diagnostics = document.createElement("div");
+      diagnostics.className = "diagnostics";
+      diagnostics.textContent = model.diagnostics.join("\n");
+      content.push(diagnostics);
+    }
+    content.push(this.note());
+    this.root.replaceChildren(...content);
+  }
+
+  private toolbar(): HTMLElement {
     const toolbar = document.createElement("div");
     toolbar.className = "toolbar";
-    toolbar.append(
-      this.toolbarButton("刷新", "refresh", "重新扫描运行目标"),
-      this.toolbarButton("Terminal", "openTerminal", "打开 VS Code Terminal"),
-      this.toolbarButton("Problems", "openProblems", "打开 VS Code Problems"),
-      this.toolbarButton("日志", "openOutput", "打开 KT Auto Code 输出"),
-    );
+    toolbar.append(this.toolbarButton("↻", "refresh", "刷新运行目标"));
     const platformFilter = document.createElement("label");
     platformFilter.className = "platform-filter";
     platformFilter.title = "关闭后显示其他系统目标，但仍禁止跨平台执行";
@@ -110,35 +136,176 @@ export class KtcRunPrimaryPanel extends HTMLElement {
     filterText.textContent = "仅当前系统";
     platformFilter.append(currentPlatformOnly, filterText);
     toolbar.append(platformFilter);
+    return toolbar;
+  }
 
+  private summary(model: KtcRunViewModel): HTMLElement {
     const activeCount = model.executions.filter((execution) => ["starting", "running", "stopping"].includes(execution.state)).length;
     const summary = document.createElement("div");
     summary.className = "summary";
-    const summaryText = document.createElement("span");
-    summaryText.className = "summary-text";
-    summaryText.textContent = model.trusted ? model.statusText : `${model.statusText} 未信任工作区只读。`;
-    summaryText.title = summaryText.textContent;
+    const text = document.createElement("span");
+    text.className = "summary-text";
+    text.textContent = model.trusted ? model.statusText : `${model.statusText} 未信任工作区只读。`;
+    text.title = text.textContent;
     const badges = document.createElement("span");
     badges.className = "badge-tail";
     badges.append(this.badge(model.platformLabel), this.badge(`${model.projects.length} 项目`), this.badge(`${activeCount} 运行中`));
-    summary.append(summaryText, badges);
+    summary.append(text, badges);
+    return summary;
+  }
 
-    const projects = document.createElement("div");
-    if (model.projects.length === 0) projects.append(this.empty("打开文件夹或工作区后，这里会按项目列出运行目标。"));
-    else for (const project of model.projects) projects.append(this.project(project));
-    const content: Node[] = [style, toolbar, summary, projects];
-    if (model.executions.length > 0) content.push(this.executionHistory(model));
-    if (model.diagnostics.length > 0) {
-      const diagnostics = document.createElement("div");
-      diagnostics.className = "diagnostics";
-      diagnostics.textContent = model.diagnostics.join("\n");
-      content.push(diagnostics);
+  private navigationTree(model: KtcRunViewModel): KtcNavigationTreeElement {
+    const tree = document.createElement("pnw-navigation-tree") as KtcNavigationTreeElement;
+    tree.className = "run-tree";
+    tree.colorScheme = "system";
+    const nodes = [this.utilityNode(), ...model.projects.map((project, index) => this.projectNode(project, index))];
+    const allNodeIds = new Set(this.projectByNodeId.keys());
+    for (const targetId of this.targetByNodeId.keys()) allNodeIds.add(targetId);
+    for (const actionId of this.utilityActionByNodeId.keys()) allNodeIds.add(actionId);
+    if (this.selectedNodeId && !allNodeIds.has(this.selectedNodeId)) this.selectedNodeId = undefined;
+    tree.model = {
+      ariaLabel: "运行目标树",
+      nodes,
+      expandedNodeIds: [...this.expandedNodeIds],
+      ...(this.selectedNodeId ? { selectedNodeId: this.selectedNodeId } : {}),
+      emptyMessage: "打开文件夹或工作区后，这里会按项目列出运行目标。",
+    };
+    tree.addEventListener("pnw-navigation-tree-action", (event) => {
+      this.handleTreeAction((event as CustomEvent<KtcNavigationTreeAction>).detail);
+    });
+    return tree;
+  }
+
+  private utilityNode(): KtcNavigationTreeNode {
+    const id = "run-utility";
+    const children: readonly [string, string, KtcRunUtilityAction, KtcNavigationTreeIconKey][] = [
+      ["run-utility-terminal", "打开 Terminal", "openTerminal", "catalog"],
+      ["run-utility-problems", "查看 Problems", "openProblems", "warning"],
+      ["run-utility-output", "查看运行日志", "openOutput", "info"],
+    ];
+    for (const [childId, , action] of children) this.utilityActionByNodeId.set(childId, action);
+    return {
+      id,
+      label: "运行辅助",
+      description: "Terminal · Problems · 日志",
+      iconKey: "settings",
+      children: children.map(([childId, label, action, iconKey]) => ({
+        id: childId,
+        label,
+        iconKey,
+        description: action === "openTerminal" ? "VS Code Terminal" : action === "openProblems" ? "编译与运行问题" : "KT Auto Code 输出",
+      })),
+    };
+  }
+
+  private projectNode(project: KtcRunProject, index: number): KtcNavigationTreeNode {
+    const projectId = this.projectNodeId(project);
+    this.projectByNodeId.set(projectId, project);
+    const groups: KtcNavigationTreeNode[] = [];
+    const groupIds: string[] = [];
+    project.groups.forEach((group, groupIndex) => {
+      const visible = group.targets.filter((target) => this.showAllPlatforms || target.availability !== "other-platform");
+      if (!visible.length) return;
+      const groupId = `${projectId}:group:${group.id}`;
+      groupIds.push(groupId);
+      groups.push({
+        id: groupId,
+        label: group.title,
+        description: `${visible.length} 项`,
+        iconKey: "catalog",
+        children: visible.map((target) => this.targetNode(project, target)),
+      });
+    });
+    this.groupIdsByProjectNodeId.set(projectId, groupIds);
+    // 首次只展开首个项目；项目内部的目标分组全部展开，打开后即可直接执行命令。
+    if (index === 0 && this.expandedNodeIds.size === 0) this.expandProjectWithGroups(projectId);
+    return {
+      id: projectId,
+      label: project.name,
+      description: `${project.kindLabel} · ${project.relativePath}`,
+      iconKey: this.expandedNodeIds.has(projectId) ? "folder-open" : "folder",
+      children: groups,
+    };
+  }
+
+  private targetNode(project: KtcRunProject, target: KtcRunTarget): KtcNavigationTreeNode {
+    const id = this.targetNodeId(project, target);
+    this.targetByNodeId.set(id, target);
+    const availability = target.running
+      ? "运行中"
+      : target.availability === "other-platform"
+        ? "其他系统（可试运行）"
+        : target.availability === "ready"
+          ? target.source
+          : "不可用";
+    return {
+      id,
+      label: target.title,
+      description: `${availability} · ${target.relativePath}`,
+      iconKey: target.availability === "disabled" || target.availability === "untrusted" ? "warning" : "file",
+      disabled: target.availability === "disabled" || target.availability === "untrusted",
+    };
+  }
+
+  private handleTreeAction(action: KtcNavigationTreeAction): void {
+    if (action.kind === "toggle") {
+      if (action.expanded) this.expandProjectWithGroups(action.nodeId);
+      else this.expandedNodeIds.delete(action.nodeId);
+      this.render();
+      return;
     }
-    const note = document.createElement("div");
-    note.className = "note";
-    note.textContent = "所有目标通过 VS Code Task API 进入 Task Terminal；命名 problem matcher 会把编译错误送入 Problems。";
-    content.push(note);
-    this.root.replaceChildren(...content);
+    // Wing 对有 children 的整行单击会发 select + 唯一 toggle：Auto 只记录选择，
+    // 展开状态只由上面的标准 toggle 事件回写，避免维护第二套分组切换逻辑。
+    this.selectedNodeId = action.nodeId;
+    // 叶子命令单击即直接调用 Host runner；不再在 Tree 下方重复放一行运行按钮。
+    this.runSelectedTarget();
+  }
+
+  private expandProjectWithGroups(nodeId: string): void {
+    this.expandedNodeIds.add(nodeId);
+    for (const groupId of this.groupIdsByProjectNodeId.get(nodeId) ?? []) this.expandedNodeIds.add(groupId);
+  }
+
+  private runSelectedTarget(): void {
+    const utilityAction = this.selectedUtilityAction();
+    if (utilityAction) {
+      this.emit({ action: utilityAction });
+      return;
+    }
+    const target = this.selectedTarget();
+    if (!target) return;
+    if (target.running) this.emit({ action: "stopRun", runId: target.running.runId });
+    else if (target.availability === "other-platform") this.emit({ action: "dryRunTarget", targetId: target.id });
+    else if (target.availability === "ready") this.emit({ action: "runTarget", targetId: target.id });
+  }
+
+  private caaVersion(project: KtcRunProject): HTMLElement {
+    const row = document.createElement("div");
+    row.className = "project-options";
+    const text = document.createElement("span");
+    text.textContent = "当前 CAA 版本";
+    const input = document.createElement("input");
+    input.className = "version-input";
+    input.value = project.caaVersion ?? "19";
+    input.setAttribute("aria-label", `${project.name} 当前 CAA 版本`);
+    input.onchange = () => this.emit({ action: "setCaaVersion", projectId: project.id, value: input.value });
+    const source = document.createElement("span");
+    source.className = "project-option-source";
+    source.textContent = `来源：${project.caaVersionSource ?? "建议"}`;
+    const related = document.createElement("button");
+    related.type = "button";
+    related.className = "project-option-button";
+    related.textContent = `关联工程 ${project.relatedProjectCount}`;
+    related.title = project.relatedProjectSummary ? `MK Preq：${project.relatedProjectSummary}` : "从当前工作区已发现的项目中选择 MK Preq";
+    related.onclick = () => this.emit({ action: "selectCaaRelated", projectId: project.id });
+    const addFolder = document.createElement("button");
+    addFolder.type = "button";
+    addFolder.className = "project-option-button";
+    addFolder.textContent = "+目录";
+    addFolder.title = "添加一个或多个 MK Preq 目录";
+    addFolder.onclick = () => this.emit({ action: "addCaaRelatedFolder", projectId: project.id });
+    row.append(text, input, source, related, addFolder);
+    return row;
   }
 
   private executionHistory(model: KtcRunViewModel): HTMLElement {
@@ -161,156 +328,27 @@ export class KtcRunPrimaryPanel extends HTMLElement {
     return history;
   }
 
-  private project(project: KtcRunProject): HTMLElement {
-    const details = document.createElement("details");
-    details.className = "project";
-    details.open = project.groups.some((group) => group.targets.length > 0);
-    const summary = document.createElement("summary");
-    const label = document.createElement("span");
-    label.className = "project-label ktc-compact-label";
-    label.title = `${project.name} · ${project.relativePath}`;
-    const name = document.createElement("span");
-    name.className = "project-name ktc-compact-label-primary";
-    name.textContent = project.name;
-    const projectPath = document.createElement("span");
-    projectPath.className = "project-path ktc-compact-label-secondary";
-    projectPath.textContent = ` · ${project.relativePath}`;
-    label.append(name, projectPath);
-    const tail = document.createElement("span");
-    tail.className = "badge-tail";
-    tail.append(this.badge(project.kindLabel));
-    summary.append(label, tail);
-    details.append(summary);
-    if (project.caaVersion) details.append(this.caaVersion(project));
-    const groups = document.createElement("div");
-    groups.className = "groups";
-    for (const group of project.groups) {
-      const rendered = this.group(group);
-      if (rendered) groups.append(rendered);
-    }
-    details.append(groups);
-    return details;
+  private selectedTarget(): KtcRunTarget | undefined {
+    return this.selectedNodeId ? this.targetByNodeId.get(this.selectedNodeId) : undefined;
   }
 
-  private caaVersion(project: KtcRunProject): HTMLElement {
-    const row = document.createElement("div");
-    row.className = "project-options";
-    const text = document.createElement("span");
-    text.textContent = "当前 CAA 版本";
-    const input = document.createElement("input");
-    input.className = "version-input";
-    input.value = project.caaVersion ?? "19";
-    input.setAttribute("aria-label", `${project.name} 当前 CAA 版本`);
-    input.onchange = () => this.emit({ action: "setCaaVersion", projectId: project.id, value: input.value });
-    const source = document.createElement("span");
-    source.className = "project-option-source";
-    source.textContent = `来源：${project.caaVersionSource ?? "建议"}`;
-    const related = document.createElement("button");
-    related.type = "button";
-    related.className = "project-option-button";
-    related.textContent = `关联工程 ${project.relatedProjectCount}`;
-    related.title = project.relatedProjectSummary
-      ? `MK Preq：${project.relatedProjectSummary}`
-      : "从当前工作区已发现的项目中选择 MK Preq";
-    related.onclick = () => this.emit({ action: "selectCaaRelated", projectId: project.id });
-    const addFolder = document.createElement("button");
-    addFolder.type = "button";
-    addFolder.className = "project-option-button";
-    addFolder.textContent = "+目录";
-    addFolder.title = "添加一个或多个 MK Preq 目录";
-    addFolder.onclick = () => this.emit({ action: "addCaaRelatedFolder", projectId: project.id });
-    row.append(text, input, source, related, addFolder);
-    return row;
+  private selectedUtilityAction(): KtcRunUtilityAction | undefined {
+    return this.selectedNodeId ? this.utilityActionByNodeId.get(this.selectedNodeId) : undefined;
   }
 
-  private group(group: KtcRunGroup): HTMLElement | undefined {
-    const visible = group.targets.filter((target) => this.showAllPlatforms || target.availability !== "other-platform");
-    if (visible.length === 0) return undefined;
-    const details = document.createElement("details");
-    details.className = "group";
-    details.open = visible.length > 0;
-    const summary = document.createElement("summary");
-    const title = document.createElement("span");
-    title.className = "group-title";
-    title.textContent = group.title;
-    const tail = document.createElement("span");
-    tail.className = "badge-tail";
-    tail.append(this.badge(`${visible.length} 项`));
-    summary.append(title, tail);
-    const list = document.createElement("div");
-    list.className = "target-list";
-    for (const target of visible) list.append(this.target(target));
-    details.append(summary, list);
-    return details;
+  private selectedProject(): KtcRunProject | undefined {
+    if (!this.selectedNodeId) return undefined;
+    const direct = this.projectByNodeId.get(this.selectedNodeId);
+    if (direct) return direct;
+    const target = this.selectedTarget();
+    if (!target) return undefined;
+    return this.currentModel?.projects.find((project) => project.groups.some((group) => group.targets.some((candidate) => candidate.id === target.id)));
   }
 
-  private target(target: KtcRunTarget): HTMLElement {
-    const wrapper = document.createElement("div");
-    wrapper.className = "target-row";
-    const row = document.createElement("div");
-    row.className = "target";
-    row.title = `${target.title} · ${target.relativePath}\ncwd: ${target.cwd}\nsource: ${target.source}\nmatcher: ${target.problemMatchers.join(", ") || "none"}${target.disabledReason ? `\n${target.disabledReason}` : ""}`;
-    row.setAttribute("aria-label", row.title);
-    const label = document.createElement("span");
-    label.className = "target-label ktc-compact-label";
-    const name = document.createElement("span");
-    name.className = "target-name ktc-compact-label-primary";
-    name.textContent = target.title;
-    const targetPath = document.createElement("span");
-    targetPath.className = "target-path ktc-compact-label-secondary";
-    targetPath.textContent = ` · ${target.relativePath}`;
-    label.append(name, targetPath);
-    const tail = document.createElement("span");
-    tail.className = "badge-tail";
-    tail.append(this.badge(target.source));
-    if (target.problemMatchers.length > 0) tail.append(this.badge(target.matcherFidelity === "native" ? "Problems 完整" : "Problems"));
-    if (target.platformLabel !== "全部") {
-      const platform = this.badge(target.platformLabel);
-      platform.classList.add("target-platform");
-      tail.append(platform);
-    }
-    if (target.running) {
-      const running = this.badge(target.running.state === "stopping" ? "停止中" : "运行中 · 点击停止");
-      running.classList.add("target-running");
-      tail.append(running);
-    }
-    row.append(label, tail);
-    const action = document.createElement("button");
-    action.type = "button";
-    action.className = "target-action" + (target.availability === "other-platform" ? " trial" : "");
-    action.textContent = target.running
-      ? "停止"
-      : target.availability === "other-platform"
-        ? "试运行"
-        : target.availability === "ready"
-          ? "运行"
-          : "不可用";
-    action.title = target.availability === "other-platform"
-      ? "只输出目标、平台、cwd、命令与 matcher 诊断；不会启动任务"
-      : action.textContent;
-    action.disabled = !target.running && target.availability !== "ready" && target.availability !== "other-platform";
-    action.onclick = () => target.running
-      ? this.emit({ action: "stopRun", runId: target.running!.runId })
-      : target.availability === "other-platform"
-        ? this.emit({ action: "dryRunTarget", targetId: target.id })
-        : this.emit({ action: "runTarget", targetId: target.id });
-    const source = document.createElement("button");
-    source.type = "button";
-    source.className = "source-button";
-    source.textContent = "↗";
-    source.title = "打开目标来源";
-    source.setAttribute("aria-label", "打开目标来源");
-    source.disabled = !target.sourceUri;
-    source.onclick = () => this.emit({ action: "openSource", targetId: target.id });
-    wrapper.append(row, action, source);
-    return wrapper;
-  }
+  private projectNodeId(project: KtcRunProject): string { return `run-project:${project.id}`; }
+  private targetNodeId(project: KtcRunProject, target: KtcRunTarget): string { return `run-target:${project.id}:${target.id}`; }
 
-  private toolbarButton(
-    label: string,
-    action: "refresh" | "openOutput" | "openProblems" | "openTerminal",
-    title: string,
-  ): HTMLButtonElement {
+  private toolbarButton(label: string, action: "refresh" | "openOutput" | "openProblems" | "openTerminal", title: string): HTMLButtonElement {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "toolbar-button";
@@ -327,6 +365,13 @@ export class KtcRunPrimaryPanel extends HTMLElement {
     return badge;
   }
 
+  private note(): HTMLElement {
+    const note = document.createElement("div");
+    note.className = "note";
+    note.textContent = "单击可运行的命令会直接启动；所有目标均通过 VS Code Task API 进入 Task Terminal。";
+    return note;
+  }
+
   private empty(text: string): HTMLElement {
     const empty = document.createElement("div");
     empty.className = "empty";
@@ -335,10 +380,7 @@ export class KtcRunPrimaryPanel extends HTMLElement {
   }
 
   private emit(detail: KtcRunPrimaryActionDetail): void {
-    this.dispatchEvent(new CustomEvent<KtcRunPrimaryActionDetail>(
-      "ktc-run-primary-action",
-      { bubbles: true, composed: true, detail },
-    ));
+    this.dispatchEvent(new CustomEvent<KtcRunPrimaryActionDetail>("ktc-run-primary-action", { bubbles: true, composed: true, detail }));
   }
 }
 

@@ -7,7 +7,7 @@ function source(name: string): string {
 
 describe("Codegen MVC dependency boundary", () => {
   it("跨宿主审计确认 VS Code 与 Desk 共用 Apply，旧 Qt 仅作行为参考", () => {
-    const audit = JSON.parse(source("../../../doc/codegen-plan/CodegenMvcDependencyAudit.json")) as {
+    const audit = JSON.parse(source("../../../docs/codegen-plan/CodegenMvcDependencyAudit.json")) as {
       crossHostConsumers: Array<{ id: string; status: string; duplicatePureLogic?: string[] }>;
     };
     expect(source("./sourceApply.ts")).toContain("ktCodegenProjectApply as ktcProjectCodegenApply");

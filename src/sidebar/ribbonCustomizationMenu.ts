@@ -19,6 +19,7 @@ export type KtcRibbonCustomizationMenuActionDetail =
   | { readonly kind: "open"; readonly toolId: string }
   | { readonly kind: "togglePin"; readonly toolId: string }
   | { readonly kind: "toggleModule"; readonly moduleId: string }
+  | { readonly kind: "resetCodeLayout" }
   | {
       readonly kind: "move";
       readonly sourceId: string;
@@ -75,6 +76,8 @@ const STYLE = `
   .pin svg { width:14px; height:14px; pointer-events:none; }
   .pin.pinned svg { fill:currentColor; }
   .pin:not(.pinned) svg { fill:none; }
+  .reset-code { display:block; width:calc(100% - 8px); min-height:25px; margin:3px 4px 4px; padding:2px 6px; border:1px solid var(--vscode-panel-border); border-radius:3px; color:var(--vscode-textLink-foreground,var(--vscode-foreground)); background:transparent; cursor:pointer; text-align:left; }
+  .reset-code:hover { background:var(--vscode-list-hoverBackground); border-color:var(--ktc-ui-active-border,var(--vscode-focusBorder)); }
   @media (forced-colors:active) {
     .row.drop-before, .row.drop-after, .icon:hover { border-color:Highlight; }
   }
@@ -166,6 +169,12 @@ export class KtcRibbonCustomizationMenu extends HTMLElement {
     list.setAttribute("role", "list");
     tools.forEach((tool) => list.append(this.renderToolRow(tool, moduleId, pinned, tools)));
     section.append(header, list);
+    if (moduleId === "code") {
+      const reset = this.button("重置 Code 默认顺序", "reset-code", "重置 Code 默认顺序和固定项");
+      reset.title = "恢复代码辅助、Git、Run、替换、自动代码的默认顺序";
+      reset.onclick = () => this.emit({ kind: "resetCodeLayout" });
+      section.append(reset);
+    }
     return section;
   }
 

@@ -3,7 +3,7 @@
   "displayName": "KT Auto Code",
   "description": "CAA / MSVC C++ 工具：编码修正、Ignore、搜索替换、成员排序与 Codegen 参数表",
   "author": "上海锟钛",
-  "version": "0.6.3",
+  "version": "0.7.0",
   "license": "Apache-2.0",
   "publisher": "kuntai",
   "private": true,
@@ -131,6 +131,16 @@
         "icon": "$(settings-gear)"
       },
       {
+        "command": "ktAutoCode.codeAssistant.open",
+        "title": "KT Auto Code：代码辅助",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "ktAutoCode.codeAssistant.packageIncludes",
+        "title": "KT Auto Code：Package 头文件修正",
+        "icon": "$(symbol-namespace)"
+      },
+      {
         "command": "ktAutoCode.codegen.open",
         "title": "打开 JSON…",
         "category": "KT Auto Code",
@@ -224,7 +234,7 @@
       },
       {
         "command": "ktAutoCode.environment.open",
-        "title": "KT Auto Code：检查工程环境",
+        "title": "KT Auto Code：打开设置",
         "icon": "$(settings-gear)"
       },
       {
@@ -274,11 +284,6 @@
           "command": "ktAutoCode.searchReplace.preview",
           "when": "view == ktAutoCode.modulePanel",
           "group": "navigation@20"
-        },
-        {
-          "command": "ktAutoCode.environment.open",
-          "when": "view == ktAutoCode.modulePanel",
-          "group": "navigation@23"
         },
         {
           "submenu": "ktAutoCode.modulePanel.more",
@@ -653,12 +658,12 @@
     "watch": "node esbuild.mjs --watch"
   },
   "dependencies": {
-    "@phoenix-wing/code-core": "0.6.2",
-    "@phoenix-wing/git-core": "0.6.2",
-    "@phoenix-wing/git-node": "0.6.2",
-    "@phoenix-wing/kt-codegen": "0.6.2",
-    "@phoenix-wing/run-core": "0.6.2",
-    "@phoenix-wing/run-node": "0.6.2",
+    "@phoenix-wing/code-core": "0.6.4",
+    "@phoenix-wing/git-core": "0.6.4",
+    "@phoenix-wing/git-node": "0.6.4",
+    "@phoenix-wing/kt-codegen": "0.6.4",
+    "@phoenix-wing/run-core": "0.6.3",
+    "@phoenix-wing/run-node": "0.6.3",
     "iconv-lite": "0.6.3"
   },
   "devDependencies": {

@@ -1,7 +1,5 @@
 import type {
-  KtcGitAction,
   KtcGitCommit,
-  KtcGitIdentity,
   KtcGitProject,
   KtcGitViewModel,
 } from "../../core/git/KtcGitModel.js";
@@ -19,8 +17,7 @@ export type KtcGitPrimaryActionDetail =
         | "initializeRepository"
         | "searchRepositories"
         | "stopRepositorySearch"
-        | "closeSummary"
-        | "cancelSquash";
+        | "closeSummary";
     }
   | { readonly action: "removeRepository"; readonly repositoryId: string }
   | {
@@ -54,16 +51,26 @@ export type KtcGitPrimaryActionDetail =
       readonly mentionReviewer: boolean;
       readonly reviewer: string;
     }
-  | {
-      readonly action: "executeSquash";
-      readonly repositoryId: string;
-      readonly expectedHeadOid: string;
-      readonly selectedOids: readonly string[];
-      readonly message: string;
-      readonly author: { readonly name: string; readonly email: string; readonly date: string };
-      readonly committer: { readonly name: string; readonly email: string; readonly date: string };
-    }
   | { readonly action: "undoSquash"; readonly repositoryId: string };
+
+type KtcGitTreeIconKey = "catalog" | "folder" | "folder-open" | "file" | "info" | "settings" | "search" | "warning" | "error";
+
+interface KtcGitTreeNode {
+  readonly id: string;
+  readonly label: string;
+  readonly description?: string;
+  readonly iconKey?: KtcGitTreeIconKey;
+  readonly children?: readonly KtcGitTreeNode[];
+}
+
+interface KtcGitTreeElement extends HTMLElement {
+  model: {
+    readonly ariaLabel: string;
+    readonly nodes: readonly KtcGitTreeNode[];
+    readonly expandedNodeIds: readonly string[];
+    readonly emptyMessage: string;
+  } | undefined;
+}
 
 const KtcGitPrimaryPanelStyle = `
   :host { display: grid; width: 100%; min-width: 0; max-width: 100%; min-height: 0; overflow-x: hidden; color: var(--vscode-foreground); font: 12px/1.35 var(--vscode-font-family); }
@@ -97,6 +104,7 @@ const KtcGitPrimaryPanelStyle = `
   .load-more { display: block; width: calc(100% - 12px); margin: 6px; }
   .history-actions { display: flex; gap: 5px; padding: 6px; }
   .history-actions .secondary-button { flex: 1 1 0; }
+  .git-action-tree { display: block; min-width: 0; border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); --pnw-navigation-tree-bg: transparent; --pnw-navigation-tree-row-height: 25px; --pnw-navigation-tree-indent: 14px; }
   button:disabled { opacity: .48; cursor: not-allowed; }
   .section-heading { display: flex; min-width: 0; align-items: center; gap: 6px; min-height: 28px; padding: 3px 6px; border-block: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); font-weight: 650; }
   .section-heading > span:first-child { flex: 1 1 auto; min-width: 0; margin-right: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -140,9 +148,10 @@ const KtcGitPrimaryPanelStyle = `
 export class KtcGitPrimaryPanel extends HTMLElement {
   private readonly KtcRoot = this.attachShadow({ mode: "open" });
   private readonly KtcSelectedSummaryOids = new Map<string, Set<string>>();
+  private readonly KtcAutoSummaryHeads = new Map<string, string>();
   private readonly KtcExpandedHistoryRepositories = new Set<string>();
   private readonly KtcHistoryAutoLoadHeads = new Map<string, string>();
-  private readonly KtcExpandedSquashRepositories = new Set<string>();
+  private readonly KtcExpandedGitActionNodes = new Set<string>();
   private KtcCurrentModel: KtcGitViewModel | undefined;
   private KtcSummaryTextHeight: number | undefined;
 
@@ -218,9 +227,6 @@ export class KtcGitPrimaryPanel extends HTMLElement {
     }
     if (model.summaryDraft && model.summaryDraft.repositoryId === model.selectedRepositoryId) {
       fragments.push(this.KtcSummaryEditor(model));
-    }
-    if (model.squashDraft && model.squashDraft.repositoryId === model.selectedRepositoryId) {
-      fragments.push(this.KtcSquashEditor(model));
     }
     const projects = document.createElement("div");
     if (model.workspaceRepositoryCount === 0 && model.discovery.status !== "searching") {
@@ -365,83 +371,6 @@ export class KtcGitPrimaryPanel extends HTMLElement {
     text.textContent = labelText;
     label.append(input, text);
     return { label, input };
-  }
-
-  private KtcSquashEditor(model: KtcGitViewModel): HTMLElement {
-    const draft = model.squashDraft!;
-    const editor = document.createElement("section");
-    editor.className = "editor";
-    const title = this.KtcEditorTitle(
-      `合并预览：${draft.selectedOids.length} 个 → 1 个；之后重放 ${draft.replayCount} 个`,
-      () => this.KtcEmit({ action: "cancelSquash" }),
-    );
-    const selected = document.createElement("pre");
-    selected.className = "selected-list";
-    selected.textContent = [
-      ...(draft.warnings.length > 0 ? ["需确认的共享历史警告：", ...draft.warnings.map((warning) => `- ${warning.label}`), ""] : []),
-      "所选区间：",
-      ...draft.selectedLabels,
-      "",
-      `Base parent: ${draft.baseParentOid}`,
-      `旧 HEAD: ${draft.expectedHeadOid}`,
-      `合并节点目标 tree: ${draft.selectedTipTreeOid}`,
-      `最终保留 tree: ${draft.finalTreeOid}`,
-      "",
-      "后续重放（old SHA → 执行时生成 new SHA）：",
-      ...(draft.replayLabels.length > 0 ? draft.replayLabels : ["(无)"]),
-    ].join("\n");
-    const message = document.createElement("textarea");
-    message.value = draft.message;
-    message.setAttribute("aria-label", "合并后的 commit 信息");
-    const author = this.KtcIdentityFields("Author", draft.author);
-    const committer = this.KtcIdentityFields("Committer", draft.committer);
-    const actions = document.createElement("div");
-    actions.className = "editor-actions";
-    const execute = document.createElement("button");
-    execute.type = "button";
-    execute.className = "action-button";
-    execute.textContent = "确认并执行";
-    execute.onclick = () => this.KtcEmit({
-      action: "executeSquash",
-      repositoryId: draft.repositoryId,
-      expectedHeadOid: draft.expectedHeadOid,
-      selectedOids: draft.selectedOids,
-      message: message.value,
-      author: author.value(),
-      committer: committer.value(),
-    });
-    actions.append(execute);
-    editor.append(title, selected, message, author.element, committer.element, actions);
-    return editor;
-  }
-
-  private KtcIdentityFields(label: string, identity: KtcGitIdentity): {
-    readonly element: HTMLElement;
-    readonly value: () => { readonly name: string; readonly email: string; readonly date: string };
-  } {
-    const grid = document.createElement("div");
-    grid.className = "identity-grid";
-    const name = this.KtcInput(`${label} 姓名`, identity.name);
-    const email = this.KtcInput(`${label} 邮箱`, identity.email);
-    const date = this.KtcInput(
-      `${label} 时间（默认取所选最新提交）`,
-      identity.dateLabel,
-      "格式：YYYY-MM-DD HH:mm:ss；按本机时区保存",
-    );
-    grid.append(name.field, email.field, date.field);
-    return { element: grid, value: () => ({ name: name.input.value, email: email.input.value, date: date.input.value }) };
-  }
-
-  private KtcInput(labelText: string, value: string, title?: string): { readonly field: HTMLElement; readonly input: HTMLInputElement } {
-    const field = document.createElement("label");
-    field.className = "field";
-    const label = document.createElement("span");
-    label.textContent = labelText;
-    const input = document.createElement("input");
-    input.value = value;
-    if (title) input.title = title;
-    field.append(label, input);
-    return { field, input };
   }
 
   private KtcReviewerSelect(
@@ -602,7 +531,17 @@ export class KtcGitPrimaryPanel extends HTMLElement {
     latest.className = "commits";
     const latestCommit = project.commits[0];
     if (!latestCommit) latest.append(this.KtcEmpty(project.repository.error ?? "仓库没有可显示的 commit。"));
-    else latest.append(this.KtcCommitRow(latestCommit, selectedOids, syncGenerate, requestSummary));
+    else {
+      latest.append(this.KtcCommitRow(latestCommit, selectedOids, syncGenerate, requestSummary));
+      const headOid = project.repository.headOid;
+      if (headOid && this.KtcAutoSummaryHeads.get(project.repository.id) !== headOid) {
+        this.KtcAutoSummaryHeads.set(project.repository.id, headOid);
+        selectedOids.clear();
+        selectedOids.add(latestCommit.oid);
+        syncGenerate();
+        queueMicrotask(() => requestSummary(true));
+      }
+    }
 
     const history = document.createElement("details");
     history.className = "disclosure";
@@ -626,7 +565,7 @@ export class KtcGitPrimaryPanel extends HTMLElement {
         action: "loadOlderCommits",
         repositoryId: project.repository.id,
         expectedHeadOid: headOid,
-        count: 1,
+        count: 5,
       });
     };
     const historyTitle = document.createElement("summary");
@@ -657,21 +596,57 @@ export class KtcGitPrimaryPanel extends HTMLElement {
       history.append(historyActions);
     }
 
-    const squash = document.createElement("details");
-    squash.className = "disclosure";
-    squash.open = this.KtcExpandedSquashRepositories.has(project.repository.id);
-    squash.ontoggle = () => {
-      if (squash.open) this.KtcExpandedSquashRepositories.add(project.repository.id);
-      else this.KtcExpandedSquashRepositories.delete(project.repository.id);
-    };
-    const squashTitle = document.createElement("summary");
-    squashTitle.textContent = "合并本地 commit（高级）";
-    const actions = document.createElement("div");
-    actions.className = "actions";
-    for (const action of project.actions) actions.append(this.KtcAction(project.repository.id, action));
-    squash.append(squashTitle, actions);
-    container.append(repository, heading, latest, history, squash);
+    container.append(repository, this.KtcGitActionTree(project), heading, latest, history);
     return container;
+  }
+
+  private KtcGitActionTree(project: KtcGitProject): KtcGitTreeElement {
+    const tree = document.createElement("pnw-navigation-tree") as KtcGitTreeElement;
+    tree.className = "git-action-tree";
+    const rootId = `git-actions:${project.repository.id}`;
+    if (!this.KtcExpandedGitActionNodes.has(rootId)) this.KtcExpandedGitActionNodes.add(rootId);
+    const squash = project.actions.find((action) => action.id === "squashLocalCommits");
+    tree.model = {
+      ariaLabel: "Git 工具操作",
+      expandedNodeIds: [...this.KtcExpandedGitActionNodes],
+      emptyMessage: "没有可用的 Git 操作。",
+      nodes: [{
+        id: rootId,
+        label: "Git 操作",
+        description: "简报 · 提交图 · 本地合并",
+        iconKey: "settings",
+        children: [
+          ...(squash ? [{
+            id: `git-action:${project.repository.id}:${squash.id}`,
+            label: squash.title,
+            description: squash.enabled ? "打开提交图并按需预检" : squash.description,
+            iconKey: squash.enabled ? "catalog" as const : "warning" as const,
+          }] : []),
+          { id: `git-action:${project.repository.id}:scm`, label: "打开源代码管理", description: "VS Code SCM", iconKey: "folder" as const },
+          { id: `git-action:${project.repository.id}:output`, label: "查看 Git 日志", description: "KT Auto Code 输出", iconKey: "info" as const },
+        ],
+      }],
+    };
+    tree.addEventListener("pnw-navigation-tree-action", (event) => {
+      const action = (event as CustomEvent<{ readonly kind: "select" | "activate" | "toggle"; readonly nodeId: string; readonly expanded?: boolean }>).detail;
+      if (action.kind === "toggle") {
+        if (action.expanded) this.KtcExpandedGitActionNodes.add(action.nodeId);
+        else this.KtcExpandedGitActionNodes.delete(action.nodeId);
+        // PnwNavigationTree 是 Host 受控组件；toggle 后立即回写 model，不能等下一次 Primary 重渲染。
+        tree.model = { ...tree.model!, expandedNodeIds: [...this.KtcExpandedGitActionNodes] };
+        return;
+      }
+      if (!action.nodeId.startsWith(`git-action:${project.repository.id}:`)) return;
+      const actionId = action.nodeId.slice(`git-action:${project.repository.id}:`.length);
+      if (actionId === "squashLocalCommits" && squash?.enabled) {
+        this.KtcEmit({ action: "openAction", actionId, repositoryId: project.repository.id });
+      } else if (actionId === "scm") {
+        this.KtcEmit({ action: "openScm" });
+      } else if (actionId === "output") {
+        this.KtcEmit({ action: "openOutput" });
+      }
+    });
+    return tree;
   }
 
   private KtcCommitRow(
@@ -712,28 +687,6 @@ export class KtcGitPrimaryPanel extends HTMLElement {
     sha.textContent = commit.shortOid;
     row.append(checkbox, marker, commitLabel, sha);
     return row;
-  }
-
-  private KtcAction(repositoryId: string, action: KtcGitAction): HTMLElement {
-    const card = document.createElement("article");
-    card.className = `action ${action.tone}`;
-    const heading = document.createElement("div");
-    heading.className = "action-heading";
-    const title = document.createElement("span");
-    title.className = "action-title";
-    title.textContent = action.title;
-    heading.append(title, this.KtcBadge(action.badge));
-    const description = document.createElement("div");
-    description.className = "action-description";
-    description.textContent = action.description;
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "action-button";
-    button.textContent = action.buttonLabel;
-    button.disabled = !action.enabled;
-    button.onclick = () => this.KtcEmit({ action: "openAction", actionId: action.id, repositoryId });
-    card.append(heading, description, button);
-    return card;
   }
 
   private KtcToolbarButton(
