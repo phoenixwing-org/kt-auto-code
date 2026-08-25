@@ -4,7 +4,7 @@
 
 Owner：KT Auto Code maintainers
 
-适用版本：KT Auto Code 0.7.1 发布准备中
+适用版本：KT Auto Code 0.7.2 发布准备中
 
 最后核验：2026-08-21
 
@@ -240,8 +240,8 @@ PNXCaaStudy origin/sort **Commit:** 4b4622 ++ · 2026-07-18 14:55
 - `更多 commit` 的操作行位于折叠内容之外，固定显示“下一条 / 下 5 条 / 合并区间”，所以历史收起时仍可操作。前两项会在加载时保持历史展开，让结果立即可见，并在历史末端禁用；“合并区间”始终可进入单例 View，0/1 条仅作为初始选择，至少 2 条时才执行预检。Host 仅接受当前摘要中已知的 OID，Wing 仍重新判定连续区间与安全条件。用户在 View 中改变勾选时必须作废尚未完成的旧自动预检；预检错误写入 View 与 Output，不再重复显示气泡。
 - 提交图以 newest-first 显示，Wing 预检计划可能使用相反的历史顺序。执行前只校验两边是否为同一组 OID，实际写入必须使用 Wing 预检返回的可信顺序，不能按 UI 数组下标误报“合并预览已变化”。
 - 合并 View 固定为三块可独立折叠的连续 Section：`提交图与选择`、`确认信息`、`预检详情`。分页/预检按钮位于第一个 Header，执行按钮位于第二个 Header；提交图每条 commit 压缩为单行。预检详情位于确认块之后，默认收起。
-- 提交图首屏最多读取 5 条，`下一条 / 下 5 条`通过 Wing 返回的不透明 cursor 按拓扑顺序追加；所有请求携带初始 `expectedHeadOid`。Auto 不得解析 cursor、根据最后 OID 自造 cursor，或为图读取完整快照。
-- 提交图可以显示本地分支、可选标签 decoration、merge lane/parent edge；Auto 使用 Wing 的纯拓扑 DTO 绘制固定宽度车道、持续线和 SVG 贝塞尔分叉/合并曲线，并使用 VS Code 图表主题色。它只浏览和选择，从不 checkout、切换当前分支、移动 ref 或写工作树。
+- 提交图首屏最多读取 5 条，`下一条 / 下 5 条`通过 Wing 返回的不透明 cursor 按拓扑顺序追加；所有请求携带初始 `expectedHeadOid`。从 Primary 带入勾选时，如果首屏实际命中的 OID 数少于带入数，则按每次 5 条自动补页，直到勾选全部显示或明确判定历史失效；普通打开仍保持 5 条首屏。Auto 不得解析 cursor、根据最后 OID 自造 cursor，或为图读取完整快照。
+- 提交图固定显示本地分支及 merge lane/parent edge；Auto 使用 Wing 的纯拓扑 DTO 绘制固定宽度车道、持续线和 SVG 贝塞尔分叉/合并曲线，并使用 VS Code 图表主题色。View 不再提供容易被误解为“切换分支”的 refs 范围下拉；它只浏览和选择，从不 checkout、切换当前分支、移动 ref 或写工作树。
 - 提交图的选择允许跨多条已加载的拓扑行，但真正合并仍只接受当前分支的连续普通提交区间。用户点“安全预检”后才调用完整 `analyzeSquash`，由 Wing 做区间、工作区、签名、引用占用和 replay 判定。
 - `dirty-worktree` 是唯一可由用户在 View 内恢复的预检阻断：先显示暂存/修改/未跟踪计数，再由用户显式确认“暂存并重新预检”。实现使用带标记的 `git stash push --include-untracked`，不收纳 ignored 文件；执行成功后仅提供恢复入口，绝不自动 apply/pop。
 - 分页/预检检测到 HEAD、仓库根或 cursor 改变时必须拒绝旧会话，但保留原 View 并原地提示。View 从打开起固定绑定仓库；Primary 切库和刷新不能关闭、换仓或抢焦点。只有用户手动关闭 View 才释放图/草稿；若要操作另一仓库或重新建立有效快照，先关闭再打开。合并成功则在同一 View 清空选择并刷新新图。只有同一仓库和同一 HEAD 才复用一次自动简报复制。
@@ -519,5 +519,5 @@ kt-auto-code/media/tools/git.svg
 - [x] 多仓库交互采用现有工作区信息行中的仓库下拉；至少包含活动仓库，下方一次只显示所选仓库，不为每个仓库堆叠完整 Block。
 - [x] 已实现 VS Code Git API + Workspace Folder + 活动编辑器的仓库发现与真实根去重，并补齐 submodule/嵌套仓库、多根工作区及切换安全测试。
 - [x] 已接入 Registry Wing 0.6.0 的轻量 summary/OID 分页/取消 API；完整快照仅用于合并预检。
-- [x] Wing `git-core` / `git-node` 0.6.4 已发布，Auto manifest/lockfile 已精确升级，本地候选类型声明已删除；Registry VSIX 门禁作为 0.7.1 发布条件继续执行。
+- [x] Wing `git-core` / `git-node` 0.6.4 已发布，Auto manifest/lockfile 已精确升级，本地候选类型声明已删除；Registry VSIX 门禁作为 0.7.2 发布条件继续执行。
 - [x] 无 Git 工作区提供新建或显式递归搜索；搜索结果逐个显示，并可由用户停止。

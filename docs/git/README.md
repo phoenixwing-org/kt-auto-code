@@ -76,7 +76,8 @@ commit 群消息简报                         [复制简报] [×]
 
 - 首屏调用 Wing `pnwReadGitCommitGraphPage`，只读取所选本地分支图的最近 **5** 条；不读 status、remote、全部 refs 或完整历史。
 - “下一条”和“下 5 条”使用 Wing 返回的**不透明 cursor**继续分页，并携带首屏 `expectedHeadOid`；Auto 不解析、拼接或用 OID 重建 cursor。
-- 提交图按拓扑顺序绘制 Wing 提供的 lane/parent edge；本地分支和标签仅以 decoration 显示。切换“本地分支 / 本地分支和标签”会重新开始一份只读图，不会 checkout、移动 ref 或切换工作分支。
+- 从 Primary 带入勾选时，View 先读默认 5 条，再比较带入 OID 数量与提交图中的实际命中数量；如有勾选落在后续页，才沿同一不透明 cursor 每次补 5 条，直到所有带入项都可见或明确报告历史已失效。未带入深层选择的普通打开仍只读 5 条。
+- 提交图按拓扑顺序绘制 Wing 提供的 lane/parent edge，并固定读取本地分支图；分支 decoration 只用于识别拓扑。原“本地分支 / 本地分支和标签”范围下拉因不切换真实分支且容易误解已移除；真实分支切换仍由 Git Primary 的分支入口负责。
 - 用户至少选择 2 条后才执行一次完整 Wing squash 安全预检。预检继续负责连续区间、HEAD、工作区、受影响引用、签名和 replay 等硬安全判断；图仅用于浏览和选择。
 - Primary 的操作行放在“更多 commit”折叠内容之外，始终显示“下一条 / 下 5 条 / 合并区间”；到达末端时前两项禁用。点击任一加载按钮会同时保持“更多 commit”展开，让新增结果立即可见。“合并区间”始终可进入 View：0/1 条作为初始选择，至少 2 条时自动预检；不会把 Primary 的显示顺序当作历史安全结论。执行时以 OID 集合确认选择未变，并使用 Wing 预检计划中的可信历史顺序。
 - 合并 View 使用三个可独立折叠的连续 Section：`提交图与选择`、`确认信息`、`预检详情`。“下一条 / 下 5 条 / 选择并预检”常驻第一个 Header，“确认并执行”常驻第二个 Header；提交图每个 commit 只占一行。低优先级的所选区间、Base parent 与后续重放信息放在最后的默认收起详情块。
@@ -94,7 +95,7 @@ commit 群消息简报                         [复制简报] [×]
 
 1. 打开 Git，确认首条简报仍自动生成并复制一次；同一 HEAD 不重复覆盖编辑中的简报。
 2. 在 Primary 未勾选、勾选 1 条和勾选 2 条三种状态下点击“合并区间”，确认都能在当前编辑器组进入同一个 View；前两种等待用户继续选择，2 条时自动预检。手工把 View 移到其他分栏后继续选择/预检，确认不会跳回独立 split。
-3. 在含 merge 的测试仓库确认图形列宽稳定，持续车道不断线，分叉/合并使用彩色弯曲连线，分支头为空心节点；切换标签范围后确认 tag decoration 出现且未切换分支，并抽检深色/浅色主题。
+3. 在含 merge 的测试仓库确认图形列宽稳定，持续车道不断线，分叉/合并使用彩色弯曲连线，分支头为空心节点，并抽检深色/浅色主题；View Header 不再显示容易误解的范围下拉。
 4. 分别点击“下一条”“下 5 条”，确认只追加相应条数；新建 commit 后再次分页，确认旧图被拒绝、原 View 保持并提示关闭重开，而不是使用旧 cursor 写入。
 5. 选择连续普通 commit 后预检，确认身份/时间/提交说明可编辑；选择不连续（中间漏选）、merge 或受保护引用范围时确认只显示阻断，不写工作树。
 6. 在预检后制造或模拟执行失败，确认页面不退回选择预检，顶部显示错误且草稿仍可编辑；修复问题后可直接再次点击“确认并执行”。
@@ -129,5 +130,5 @@ Auto 侧已按“最新简报 → 默认收缩的更多 commit → 点击后才�
 
 - [x] Wing 公开发布包含正文格式化和提交图 API 的版本后，按实际被消费的包精确升级 Auto manifest 与 lockfile。
 - [x] 用 Open Issue 0.7.0 多行 commit 样例验证 Registry formatter、Auto 简报与剪贴板文本；正文仅出现一次、空行完整保留，已删除 `KtcIncludeCommitBody` 兼容函数。
-- [x] 删除 `src/wingGitGraph.local.d.ts`，以正式 `@phoenix-wing/git-node` 类型替代候选声明；Registry VSIX 与 Extension Host 门禁继续作为 0.7.1 发布条件。
+- [x] 删除 `src/wingGitGraph.local.d.ts`，以正式 `@phoenix-wing/git-node` 类型替代候选声明；Registry VSIX 与 Extension Host 门禁继续作为 0.7.2 发布条件。
 - [ ] 保留 Auto 消费级简报和提交图测试，防止未来 Wing 或 Host adapter 再次只输出 subject、解析 cursor 或退化为整仓读取。

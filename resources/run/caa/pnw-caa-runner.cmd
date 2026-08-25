@@ -8,7 +8,6 @@ set "PNW_VERSION="
 set "PNW_RELATED="
 set "PNW_RADE_ROOT="
 set "PNW_CATIA_ROOT="
-set "PNW_RUNTIME="
 
 :parse
 if "%~1"=="" goto parsed
@@ -42,12 +41,6 @@ if /i "%~1"=="--catia-root" (
   shift
   goto parse
 )
-if /i "%~1"=="--runtime" (
-  set "PNW_RUNTIME=%~2"
-  shift
-  shift
-  goto parse
-)
 echo [pnw-caa] unknown argument: %~1 1>&2
 exit /b 2
 
@@ -75,12 +68,7 @@ if not exist "%PNW_PROJECT%\." (
 
 if not defined PNW_RADE_ROOT set "PNW_RADE_ROOT=C:\DS\RADE%PNW_VERSION%"
 if not defined PNW_CATIA_ROOT set "PNW_CATIA_ROOT=C:\DS\B%PNW_VERSION%"
-if not defined PNW_RUNTIME set "PNW_RUNTIME=win_b64"
-if /i not "%PNW_RUNTIME%"=="win_b64" if /i not "%PNW_RUNTIME%"=="intel_a" (
-  echo [pnw-caa] runtime must be win_b64 or intel_a 1>&2
-  exit /b 2
-)
-set "PNW_BASE=%PNW_RADE_ROOT%\%PNW_RUNTIME%"
+set "PNW_BASE=%PNW_RADE_ROOT%\intel_a"
 set "PNW_TCK_INIT=%PNW_BASE%\code\command\tck_init.bat"
 set "PNW_TCK_PROFILE=%PNW_BASE%\TCK\command\tck_profile.bat"
 set "PNW_PROFILE=V5R%PNW_VERSION%_B%PNW_VERSION%"

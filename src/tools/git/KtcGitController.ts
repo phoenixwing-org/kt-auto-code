@@ -1102,15 +1102,48 @@ export class KtcGitController {
       if (KtcGitPathKey(page.root) !== KtcGitPathKey(session.snapshot.root) || page.headOid !== session.snapshot.headOid) {
         throw new Error("HEAD 或仓库根目录在打开提交图期间变化，请刷新后重试。");
       }
+      const commits = [...page.commits];
+      const graphRows = [...page.graphRows];
+      let nextBeforeCursor = page.nextBeforeCursor;
+      let hasMore = page.hasMore;
+      const missingSelectedOids = new Set(initialSelection);
+      for (const commit of commits) missingSelectedOids.delete(commit.oid);
+      // Primary 可能已勾选首屏 5 条之外的 commit。普通打开仍只读 5 条；仅当带入数量
+      // 与图中实际命中数量不一致时，才沿 Wing 的不透明 cursor 每次补 5 条。
+      while (missingSelectedOids.size > 0 && hasMore && nextBeforeCursor && commits.length < 1_000) {
+        const continuation = await this.KtcAdapter.readCommitGraphPage(session.snapshot.root, {
+          expectedHeadOid: session.snapshot.headOid,
+          beforeCursor: nextBeforeCursor,
+          limit: Math.min(5, 1_000 - commits.length),
+          refsScope,
+          signal: cancellation.signal,
+        });
+        if (generation !== this.KtcGraphReadGeneration) return;
+        if (
+          KtcGitPathKey(continuation.root) !== KtcGitPathKey(session.snapshot.root)
+          || continuation.headOid !== session.snapshot.headOid
+          || continuation.refsScope !== refsScope
+        ) {
+          throw new Error("HEAD、仓库根目录或提交图范围在补齐勾选期间变化，请刷新后重试。");
+        }
+        commits.push(...continuation.commits);
+        graphRows.push(...continuation.graphRows);
+        for (const commit of continuation.commits) missingSelectedOids.delete(commit.oid);
+        nextBeforeCursor = continuation.nextBeforeCursor;
+        hasMore = continuation.hasMore;
+      }
+      if (missingSelectedOids.size > 0) {
+        throw new Error(`带入的 ${missingSelectedOids.size} 个 commit 不在当前可见本地分支图中；请刷新后重新选择。`);
+      }
       this.KtcGraphSessions.set(repositoryId, {
         repositoryId,
         root: page.root,
         headOid: page.headOid,
         refsScope: page.refsScope,
-        commits: page.commits,
-        graphRows: page.graphRows,
-        ...(page.nextBeforeCursor ? { nextBeforeCursor: page.nextBeforeCursor } : {}),
-        hasMore: page.hasMore,
+        commits,
+        graphRows,
+        ...(nextBeforeCursor ? { nextBeforeCursor } : {}),
+        hasMore,
         selectedOids: initialSelection,
       });
       this.KtcSquashViewBinding = {
@@ -1122,7 +1155,7 @@ export class KtcGitController {
         const selectionLabel = initialSelection.length > 0
           ? `带入 ${initialSelection.length} 个勾选`
           : "未带入勾选";
-        ctx.log(`[Git][合并视图][INFO] 打开：仓库 ${session.snapshot.name}；分支 ${session.snapshot.branch ?? session.snapshot.currentRef}；HEAD ${session.snapshot.headOid.slice(0, 12)}；${selectionLabel}。`);
+        ctx.log(`[Git][合并视图][INFO] 打开：仓库 ${session.snapshot.name}；分支 ${session.snapshot.branch ?? session.snapshot.currentRef}；HEAD ${session.snapshot.headOid.slice(0, 12)}；${selectionLabel}；已加载 ${commits.length} 条。`);
       }
       if (initialSelection.length >= 2) {
         this.KtcShowSquashView(repositoryId, "preflight", "已带入勾选的 commit，正在执行 Git 安全预检…", undefined);
@@ -1153,10 +1186,6 @@ export class KtcGitController {
     }
     if (message.type === "openScm") {
       await vscode.commands.executeCommand("workbench.view.scm");
-      return;
-    }
-    if (message.type === "setRefsScope") {
-      await this.KtcOpenSquashView(repositoryId, ctx, message.refsScope, [], undefined, undefined, true);
       return;
     }
     if (message.type === "select") {

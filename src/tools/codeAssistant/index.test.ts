@@ -50,7 +50,7 @@ describe("代码辅助命令上下文", () => {
     mocks.registerCommand.mockImplementation((_name, _handler) => ({ dispose: vi.fn() }));
   });
 
-  it("从 Primary 打开 Package View 时传入当前选择的工作目录", async () => {
+  it("从 Primary 打开头文件引用修正 View 时传入当前选择的工作目录", async () => {
     const context = { subscriptions: [], workspaceState: { get: vi.fn(), update: vi.fn() } } as unknown as vscode.ExtensionContext;
     setCodeAssistantRunContextFactory(() => runContext("/workspace/selected-project"));
     registerCodeAssistantSupport(context);

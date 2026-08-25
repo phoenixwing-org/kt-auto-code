@@ -41,7 +41,7 @@ export const codeAssistantTool: KtTool = {
       return;
     }
     await openPackageIncludes(ctx.workspaceRoot);
-    ctx.postState({ status: "done", message: "已打开 Package 头文件修正 View。" });
+    ctx.postState({ status: "done", message: "已打开头文件引用修正 View。" });
   },
 };
 

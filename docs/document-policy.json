@@ -37,7 +37,7 @@
     {
       "match": "^docs/代码辅助入口整合TODO\\.md$",
       "status": "current",
-      "reason": "代码辅助入口、首项 Package 头文件修正与 C++ 成员排序用户参与迁移边界"
+      "reason": "代码辅助入口、首项头文件引用修正与 C++ 成员排序用户参与迁移边界"
     },
     {
       "match": "^docs/Ribbon与基础上下文Block改进计划\\.md$",

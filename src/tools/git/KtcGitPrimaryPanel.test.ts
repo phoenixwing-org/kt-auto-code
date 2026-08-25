@@ -137,11 +137,17 @@ describe("Git Primary panel", () => {
     expect(controller).toContain("beforeCursor: graph.nextBeforeCursor");
     expect(controller).toContain("KtcGraphSelectedOids(graph, message.selectedOids)");
     expect(controller).toContain("KtcPrimarySelectedOids(session, selectedOids)");
+    expect(controller).toContain("const missingSelectedOids = new Set(initialSelection)");
+    expect(controller).toContain("missingSelectedOids.size > 0 && hasMore && nextBeforeCursor");
+    expect(controller).toContain("beforeCursor: nextBeforeCursor");
+    expect(controller).toContain("limit: Math.min(5, 1_000 - commits.length)");
+    expect(controller).toContain("带入的 ${missingSelectedOids.size} 个 commit 不在当前可见本地分支图中");
     expect(controller).not.toContain('if (action.selectedOids.length < 2) throw new Error');
     expect(controller).toContain("KtcSameGitOidSelection(trusted.selectedOids, action.selectedOids)");
     expect(controller).toContain("selectedOids: trusted.selectedOids");
     expect(controller).toContain('"已带入勾选的 commit，正在执行 Git 安全预检…"');
     expect(controller).toContain('ctx.log(`[Git][合并视图][INFO] 打开：仓库 ${session.snapshot.name}');
+    expect(controller).toContain('已加载 ${commits.length} 条');
     expect(controller).toContain('`带入 ${initialSelection.length} 个勾选`');
     expect(controller).toContain("await this.KtcSelectAndAnalyzeSquash(repositoryId, initialSelection, ctx)");
     expect(controller).toContain("用户选择优先于打开 View 时自动启动的预检");

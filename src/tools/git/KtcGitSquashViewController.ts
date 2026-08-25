@@ -26,7 +26,6 @@ export interface KtcGitSquashGraphState {
 
 export type KtcGitSquashViewMessage =
   | { readonly type: "ready" }
-  | { readonly type: "setRefsScope"; readonly refsScope: "local-branches" | "local-branches-and-tags" }
   | { readonly type: "select"; readonly selectedOids: readonly string[] }
   | { readonly type: "load"; readonly count: 1 | 5 }
   | { readonly type: "preflight"; readonly selectedOids: readonly string[] }
@@ -99,9 +98,6 @@ export class KtcGitSquashViewController implements vscode.Disposable {
 function KtcParseGitSquashViewMessage(value: unknown): KtcGitSquashViewMessage | undefined {
   if (!KtcIsRecord(value) || typeof value.type !== "string") return undefined;
   if (value.type === "ready") return { type: "ready" };
-  if (value.type === "setRefsScope" && (value.refsScope === "local-branches" || value.refsScope === "local-branches-and-tags")) {
-    return { type: "setRefsScope", refsScope: value.refsScope };
-  }
   if (value.type === "select" && KtcOidArray(value.selectedOids)) return { type: "select", selectedOids: value.selectedOids };
   if (value.type === "load" && (value.count === 1 || value.count === 5)) return { type: "load", count: value.count };
   if (value.type === "preflight" && KtcOidArray(value.selectedOids)) return { type: "preflight", selectedOids: value.selectedOids };
@@ -174,7 +170,6 @@ function KtcGitSquashViewHtml(webview: Pick<vscode.Webview, "cspSource">, state:
   details.section > summary:hover { background: var(--vscode-list-hoverBackground); }
   .section-header .count { color: var(--vscode-descriptionForeground); white-space: nowrap; }
   .section-header-actions { display: inline-flex; min-width: 0; align-items: center; gap: 5px; margin-left: auto; }
-  .scope { display: inline-flex; align-items: center; gap: 4px; color: var(--vscode-descriptionForeground); font-size: 11px; } .scope select { min-height: 23px; color: var(--vscode-dropdown-foreground); background: var(--vscode-dropdown-background); border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border)); }
   .graph-row { display: grid; grid-template-columns: 24px max-content minmax(0,1fr); min-width: 0; min-height: 30px; padding: 1px 8px 1px 2px; border-bottom: 1px solid color-mix(in srgb, var(--vscode-panel-border) 65%, transparent); cursor: pointer; }
   .graph-row:hover { background: var(--vscode-list-hoverBackground); } .graph-row:focus-within { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
   .graph { position: relative; min-height: 28px; overflow: visible; } .graph svg { display: block; width: 100%; height: 30px; overflow: visible; }
@@ -193,7 +188,7 @@ function KtcGitSquashViewHtml(webview: Pick<vscode.Webview, "cspSource">, state:
   @media (max-width: 560px) { main { padding: 7px; } .fields { grid-template-columns: 1fr; } }
 </style></head><body><main>
   <header class="view-header"><h1>合并 commit 区间</h1><div class="meta">${KtcEscape(state.repositoryName)} · ${KtcEscape(state.branchLabel)} · ${KtcEscape(state.expectedHeadOid.slice(0, 12))}</div><div class="notice${state.status === "error" ? " error" : ""}" title="${KtcAttr(state.message)}">${KtcEscape(state.message)}</div></header>
-  <details class="section" open><summary class="section-header"><h2>提交图与选择</h2><label class="scope" data-section-action>范围<select id="refs-scope"><option value="local-branches" ${state.refsScope === "local-branches" ? "selected" : ""}>本地分支</option><option value="local-branches-and-tags" ${state.refsScope === "local-branches-and-tags" ? "selected" : ""}>本地分支和标签</option></select></label><span class="count">已加载 ${state.commits.length} · 已选 ${state.selectedOids.length}</span><span class="section-header-actions">${graphControls}</span></summary>
+  <details class="section" open><summary class="section-header"><h2>提交图与选择</h2><span class="count">已加载 ${state.commits.length} · 已选 ${state.selectedOids.length}</span><span class="section-header-actions">${graphControls}</span></summary>
     <div id="graph">${rows || '<div class="notice">当前分支没有可显示的 commit。</div>'}</div>
   </details>
   ${draft}
@@ -212,7 +207,6 @@ function KtcGitSquashViewHtml(webview: Pick<vscode.Webview, "cspSource">, state:
     post({ type: 'select', selectedOids: [...selected] });
   }));
   document.querySelectorAll('[data-load]').forEach((button) => button.addEventListener('click', () => post({ type: 'load', count: Number(button.dataset.load) })));
-  document.getElementById('refs-scope')?.addEventListener('change', (event) => post({ type: 'setRefsScope', refsScope: event.target.value }));
   document.getElementById('preflight')?.addEventListener('click', () => post({ type: 'preflight', selectedOids: [...selected] }));
   document.getElementById('open-scm')?.addEventListener('click', () => post({ type: 'openScm' }));
   document.getElementById('stash-and-preflight')?.addEventListener('click', () => post({ type: 'stashAndPreflight', selectedOids: [...selected] }));

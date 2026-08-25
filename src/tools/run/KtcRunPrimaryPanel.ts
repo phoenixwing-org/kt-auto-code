@@ -12,8 +12,7 @@ export type KtcRunPrimaryActionDetail =
   | { readonly action: "runTarget" | "dryRunTarget" | "openSource"; readonly targetId: string }
   | { readonly action: "stopRun"; readonly runId: string }
   | { readonly action: "selectCaaRelated" | "addCaaRelatedFolder"; readonly projectId: string }
-  | { readonly action: "setCaaVersion"; readonly projectId: string; readonly value: string }
-  | { readonly action: "setCaaRuntimeDirectory"; readonly value: "win_b64" | "intel_a" };
+  | { readonly action: "setCaaVersion"; readonly projectId: string; readonly value: string };
 
 type KtcNavigationTreeIconKey = "catalog" | "folder" | "folder-open" | "file" | "info" | "settings" | "search" | "warning" | "error";
 
@@ -61,8 +60,6 @@ const KtcRunPrimaryPanelStyle = `
   .run-tree { display: block; min-width: 0; --pnw-navigation-tree-bg: transparent; --pnw-navigation-tree-row-height: 25px; --pnw-navigation-tree-indent: 14px; }
   .project-options { flex-wrap: wrap; padding-left: 20px; }
   .version-input { width: 64px; min-height: 24px; padding: 2px 5px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, var(--ktc-ui-border, var(--vscode-panel-border))); }
-  .runtime-options { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; color: var(--vscode-descriptionForeground); white-space: nowrap; }
-  .runtime-options label { display: inline-flex; align-items: center; gap: 2px; cursor: pointer; }
   .history { max-height: 130px; overflow: auto; border-top: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
   .history-title, .history-row { display: flex; min-width: 0; align-items: center; gap: 6px; min-height: 25px; padding: 2px 6px; border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
   .history-title { font-weight: 650; background: var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background)); }
@@ -295,23 +292,6 @@ export class KtcRunPrimaryPanel extends HTMLElement {
     const source = document.createElement("span");
     source.className = "project-option-source";
     source.textContent = `来源：${project.caaVersionSource ?? "建议"}`;
-    const runtime = document.createElement("span");
-    runtime.className = "runtime-options";
-    runtime.append(document.createTextNode("编译平台"));
-    for (const [value, label] of [["win_b64", "64 位"], ["intel_a", "32 位"]] as const) {
-      const option = document.createElement("label");
-      const radio = document.createElement("input");
-      radio.type = "radio";
-      radio.name = "ktc-caa-runtime-directory";
-      radio.value = value;
-      radio.checked = (project.caaRuntimeDirectory ?? "win_b64") === value;
-      radio.setAttribute("aria-label", `CAA ${label} 编译平台`);
-      radio.onchange = () => {
-        if (radio.checked) this.emit({ action: "setCaaRuntimeDirectory", value });
-      };
-      option.append(radio, document.createTextNode(label));
-      runtime.append(option);
-    }
     const related = document.createElement("button");
     related.type = "button";
     related.className = "project-option-button";
@@ -324,7 +304,7 @@ export class KtcRunPrimaryPanel extends HTMLElement {
     addFolder.textContent = "+目录";
     addFolder.title = "添加一个或多个 MK Preq 目录";
     addFolder.onclick = () => this.emit({ action: "addCaaRelatedFolder", projectId: project.id });
-    row.append(text, input, source, runtime, related, addFolder);
+    row.append(text, input, source, related, addFolder);
     return row;
   }
 

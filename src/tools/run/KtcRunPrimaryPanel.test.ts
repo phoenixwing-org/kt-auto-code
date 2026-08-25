@@ -47,8 +47,8 @@ describe("Run Primary panel", () => {
     expect(source).toContain('action: "dryRunTarget"');
     expect(source).toContain('action: "stopRun"');
     expect(source).toContain('action: "setCaaVersion"');
-    expect(source).toContain('action: "setCaaRuntimeDirectory"');
-    expect(source).toContain('document.createTextNode("编译平台")');
+    expect(source).not.toContain('action: "setCaaRuntimeDirectory"');
+    expect(source).not.toContain('document.createTextNode("编译平台")');
     expect(source).toContain('action: "selectCaaRelated"');
     expect(source).toContain('action: "addCaaRelatedFolder"');
     expect(source).toContain('target.availability === "other-platform"');
@@ -74,19 +74,18 @@ describe("Run Primary panel", () => {
     expect(controllerSource).toContain('update("caaProjects", projects, vscode.ConfigurationTarget.WorkspaceFolder)');
     expect(controllerSource).toContain("KtcSerializeCaaRelatedProjects");
     expect(controllerSource).toContain("KtcResolveCaaRelatedProjects");
-    expect(manifest.contributes.configuration.properties).toHaveProperty("ktAutoCode.run.caaVersion");
-    expect(manifest.contributes.configuration.properties).toHaveProperty("ktAutoCode.run.caaRadeRoot");
-    expect(manifest.contributes.configuration.properties).toHaveProperty("ktAutoCode.run.caaCatiaRoot");
-    expect(manifest.contributes.configuration.properties).toHaveProperty("ktAutoCode.run.caaRuntimeDirectory");
+    expect(manifest.contributes.configuration.properties).toHaveProperty("ktAutoCode.run.CAAVersion");
+    expect(manifest.contributes.configuration.properties).toHaveProperty("ktAutoCode.run.CAARadeRoot");
+    expect(manifest.contributes.configuration.properties).toHaveProperty("ktAutoCode.run.CATIARoot");
+    expect(manifest.contributes.configuration.properties).not.toHaveProperty("ktAutoCode.run.caaRuntimeDirectory");
     expect(manifest.contributes.configuration.properties).toHaveProperty("ktAutoCode.run.caaRelatedProjects");
     expect(manifest.contributes.configuration.properties).toHaveProperty("ktAutoCode.run.caaProjects");
-    expect(manifest.contributes.configuration.properties["ktAutoCode.run.caaVersion"]).toMatchObject({ scope: "machine" });
-    expect(manifest.contributes.configuration.properties["ktAutoCode.run.caaRadeRoot"]).toMatchObject({ scope: "machine" });
-    expect(manifest.contributes.configuration.properties["ktAutoCode.run.caaCatiaRoot"]).toMatchObject({ scope: "machine" });
-    expect(manifest.contributes.configuration.properties["ktAutoCode.run.caaRuntimeDirectory"]).toMatchObject({
-      scope: "machine",
-      default: "win_b64",
-    });
+    expect(manifest.contributes.configuration.properties["ktAutoCode.run.CAAVersion"]).toMatchObject({ scope: "machine" });
+    expect(manifest.contributes.configuration.properties["ktAutoCode.run.CAARadeRoot"]).toMatchObject({ scope: "machine" });
+    expect(manifest.contributes.configuration.properties["ktAutoCode.run.CATIARoot"]).toMatchObject({ scope: "machine" });
+    expect(controllerSource).toContain('configuration.inspect<string>("caaVersion")');
+    expect(controllerSource).toContain('configuration.get<string>("caaRadeRoot")');
+    expect(controllerSource).toContain('configuration.get<string>("caaCatiaRoot")');
     expect(source).not.toContain("acquireVsCodeApi");
   });
 });

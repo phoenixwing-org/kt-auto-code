@@ -92,6 +92,17 @@ async function refreshEnvironment(ctx: ToolRunContext, updateMessage?: string): 
   ctx.postState({ status: "running", message: "正在读取操作系统工程环境变量…" });
   try {
     const environment = await ktcReadProjectEnvironmentStatus();
+    const runConfiguration = vscode.workspace.getConfiguration("ktAutoCode.run");
+    const configuredVersion = runConfiguration.get<string>("CAAVersion")?.trim()
+      || runConfiguration.get<string>("caaVersion")?.trim();
+    const environmentVersion = process.env.CAA_MK_VERSION?.trim();
+    const version = configuredVersion || environmentVersion || "19";
+    const versionToken = version.replace(/^[A-Za-z]/u, "") || "19";
+    const configuredRadeRoot = runConfiguration.get<string>("CAARadeRoot")?.trim()
+      || runConfiguration.get<string>("caaRadeRoot")?.trim();
+    const configuredCatiaRoot = runConfiguration.get<string>("CATIARoot")?.trim()
+      || runConfiguration.get<string>("catiaRoot")?.trim()
+      || runConfiguration.get<string>("caaCatiaRoot")?.trim();
     const missingRequired = environment.values.filter((value) => value.required && !value.value).length;
     const invalidRequired = environment.values.filter((value) => value.required && value.value && !existsSync(value.value)).length;
     ctx.postState({
@@ -110,6 +121,24 @@ async function refreshEnvironment(ctx: ToolRunContext, updateMessage?: string): 
         suggestedValue: value.suggestedValue,
         pathExists: value.key === "caaMkVersion" || value.key === "sdkPrefix" || !value.value ? undefined : existsSync(value.value),
       })),
+      pluginSettingValues: [
+        {
+          label: "CAA Version",
+          value: version,
+          source: configuredVersion ? "用户设置" : environmentVersion ? "环境" : "默认推导",
+        },
+        {
+          label: "CAA Rade Root",
+          value: configuredRadeRoot || `C:\\DS\\RADE${versionToken}`,
+          source: configuredRadeRoot ? "用户设置" : "默认推导",
+        },
+        {
+          label: "CATIA Root",
+          value: configuredCatiaRoot || `C:\\DS\\B${versionToken}`,
+          source: configuredCatiaRoot ? "用户设置" : "默认推导",
+        },
+        { label: "CAA Runtime Directory", value: "intel_a", source: "内置固定" },
+      ],
     });
   } catch (error) {
     ctx.postState({ status: "error", message: error instanceof Error ? error.message : String(error) });
