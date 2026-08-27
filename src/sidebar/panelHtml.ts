@@ -70,6 +70,30 @@ export function ktcGitPanelModel(
   };
 }
 
+/**
+ * Shared inner Block for Code Assistant leaves. Keep collapse, close semantics
+ * and accessibility identical so a newly added feature cannot silently drift
+ * back to the legacy unframed action row.
+ */
+export function ktcCodeAssistantFeatureBlock(input: {
+  readonly id: string;
+  readonly titleId?: string;
+  readonly title: string;
+  readonly closeId: string;
+  readonly closeTitle: string;
+  readonly closeAriaLabel: string;
+  readonly body: string;
+  readonly hidden?: boolean;
+}): string {
+  const title = input.titleId
+    ? `<span id="${input.titleId}">${input.title}</span>`
+    : `<span>${input.title}</span>`;
+  return `<details class="code-assistant-feature" id="${input.id}" open${input.hidden ? " hidden" : ""}>
+        <summary>${title}<button class="code-assistant-feature-close" id="${input.closeId}" type="button" title="${input.closeTitle}" aria-label="${input.closeAriaLabel}">×</button></summary>
+        ${input.body}
+      </details>`;
+}
+
 export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string {
   const { nonce, csp } = ktcCreateWebviewSecurity(webview, { allowImages: true });
   const basePath = extensionUri.path.replace(/\/$/, "");
@@ -880,10 +904,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       <button class="git-repository-action" id="git-repository-refresh" type="button" title="刷新仓库摘要" aria-label="刷新仓库摘要" hidden>↻</button>
       <button class="git-repository-action" id="git-repository-remove" type="button" title="从我的仓库移除" aria-label="从我的仓库移除" hidden>−</button>
     </p>
-    <div class="actions" id="general-actions">
-      <button class="action secondary" id="btn-scan">预检</button>
-      <button class="action" id="btn-fix">修复</button>
-    </div>
     <section class="code-assistant-block" id="code-assistant-block" hidden aria-label="代码辅助功能">
       <details class="code-assistant-tree-section" id="code-assistant-tree-section" open>
         <summary><svg class="code-assistant-tree-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg><span>功能目录</span><span class="code-assistant-tree-section-count">（6）</span></summary>
@@ -942,14 +962,19 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       </div>
       </details>
       <p class="code-assistant-empty" id="code-assistant-empty">从上方功能 Tree 选择一项开始。</p>
-      <details class="code-assistant-feature" id="code-assistant-reorder-actions" open hidden>
-        <summary><span>排序操作</span><button class="code-assistant-feature-close" id="btn-code-assistant-reorder-close" type="button" title="关闭成员排序，返回功能列表" aria-label="关闭成员排序">×</button></summary>
-        <div class="code-assistant-feature-actions">
+      ${ktcCodeAssistantFeatureBlock({
+        id: "code-assistant-reorder-actions",
+        title: "排序操作",
+        closeId: "btn-code-assistant-reorder-close",
+        closeTitle: "关闭成员排序，返回功能列表",
+        closeAriaLabel: "关闭成员排序",
+        hidden: true,
+        body: `<div class="code-assistant-feature-actions">
           <button class="action secondary" id="btn-code-assistant-reorder-scan" type="button">扫描排序</button>
           <button class="action" id="btn-code-assistant-reorder-apply" type="button" disabled>应用所选</button>
         </div>
-        <p class="code-assistant-feature-status" id="code-assistant-reorder-status"></p>
-      </details>
+        <p class="code-assistant-feature-status" id="code-assistant-reorder-status"></p>`,
+      })}
       <details class="code-assistant-feature" id="code-assistant-reorder-results" open hidden>
         <summary>预览结果 <span class="code-assistant-feature-result-count" id="code-assistant-reorder-result-count"></span></summary>
         <div class="code-assistant-feature-results">
@@ -957,6 +982,19 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         </div>
       </details>
     </section>
+    ${ktcCodeAssistantFeatureBlock({
+      id: "code-assistant-generic-actions",
+      titleId: "code-assistant-generic-title",
+      title: "功能操作",
+      closeId: "btn-code-assistant-generic-close",
+      closeTitle: "关闭当前功能，返回功能目录",
+      closeAriaLabel: "关闭当前代码辅助功能",
+      hidden: true,
+      body: `<div class="code-assistant-feature-actions actions" id="general-actions">
+        <button class="action secondary" id="btn-scan">预检</button>
+        <button class="action" id="btn-fix">修复</button>
+      </div>`,
+    })}
     <ktc-codegen-primary-panel id="codegen-panel" hidden></ktc-codegen-primary-panel>
     <ktc-run-primary-panel id="run-panel" hidden></ktc-run-primary-panel>
     <ktc-git-primary-panel id="git-panel" hidden></ktc-git-primary-panel>
@@ -1304,6 +1342,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       btnCodeAssistantReorderScan: document.getElementById("btn-code-assistant-reorder-scan"),
       btnCodeAssistantReorderApply: document.getElementById("btn-code-assistant-reorder-apply"),
       btnCodeAssistantReorderClose: document.getElementById("btn-code-assistant-reorder-close"),
+      codeAssistantGenericActions: document.getElementById("code-assistant-generic-actions"),
+      codeAssistantGenericTitle: document.getElementById("code-assistant-generic-title"),
+      btnCodeAssistantGenericClose: document.getElementById("btn-code-assistant-generic-close"),
       codeAssistantReorderStatus: document.getElementById("code-assistant-reorder-status"),
       codeAssistantReorderResultCount: document.getElementById("code-assistant-reorder-result-count"),
       replaceToggle: document.getElementById("btn-replace-toggle"),
@@ -2545,7 +2586,17 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.uuidResultsPanel.hidden = !uuid;
       els.renameResultsPanel.hidden = !rename;
       els.environmentBlock.hidden = !environment;
-      els.generalActions.hidden = rename || codeAssistantTreeOnly || codegen || run || git || ignore || environment;
+      const genericActionFeature = enc || header || uuid || caaDialog;
+      els.codeAssistantGenericActions.hidden = !genericActionFeature;
+      els.codeAssistantGenericTitle.textContent = enc
+        ? "编码操作"
+        : header
+          ? "头文件操作"
+          : uuid
+            ? "UUID 操作"
+            : "CAA UI 操作";
+      els.btnCodeAssistantGenericClose.hidden = !codeAssistantGenericFeature;
+      els.generalActions.hidden = !genericActionFeature;
       els.uuidOptions.hidden = !uuid;
       els.uuidStrategy.value = state.uuidStrategy;
       els.uuidStrategy.disabled = running;
@@ -2667,7 +2718,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       if (isIgnoreTool()) vscode.postMessage({ type: "openIgnoreFile" });
       else vscode.postMessage({
         type: "run",
-        toolId: state.activeToolId,
+        toolId: currentContentToolId(),
         action: isCodeRenameTool() ? "open" : "scan",
         uuidStrategy: isUuidTool() ? state.uuidStrategy : undefined,
       });
@@ -2679,13 +2730,27 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     }
     function selectCodeAssistantFeature(feature, message) {
       state.codeAssistantFeature = feature;
+      if (feature === "reorderMembers") {
+        const treeUi = state.codeAssistantTreeUiState;
+        if (!treeUi.reorderActionsExpanded && !treeUi.reorderResultsExpanded) {
+          treeUi.reorderActionsExpanded = true;
+          els.codeAssistantReorderActions.open = true;
+          persistCodeAssistantTreeUiState();
+        }
+      } else {
+        // Generic leaves own one inner Block. Re-selecting a feature must not
+        // leave the user with a collapsed tree and no visible operation area.
+        els.codeAssistantGenericActions.open = true;
+      }
       collapseCodeAssistantDirectory();
       vscode.postMessage(message);
     }
-    els.btnCodeAssistantPackageIncludes.onclick = () => selectCodeAssistantFeature(
-      "packageIncludes",
-      { type: "openCodeAssistantFeature", feature: "packageIncludes" },
-    );
+    els.btnCodeAssistantPackageIncludes.onclick = () => {
+      // Editor View features do not own a Primary inner Block. Keep the tree
+      // expanded so opening the View never leaves an apparently empty Primary.
+      state.codeAssistantFeature = "packageIncludes";
+      vscode.postMessage({ type: "openCodeAssistantFeature", feature: "packageIncludes" });
+    };
     els.btnCodeAssistantReorderMembers.onclick = () => {
       selectCodeAssistantFeature("reorderMembers", { type: "selectTool", toolId: "reorderMembers" });
     };
@@ -2696,7 +2761,12 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     els.btnCodeAssistantReorderClose.onclick = (event) => {
       event.preventDefault();
       event.stopPropagation();
-      vscode.postMessage({ type: "clearReorderMembersSession", toolId: "reorderMembers" });
+      vscode.postMessage({ type: "closeCodeAssistantFeature", toolId: "reorderMembers" });
+    };
+    els.btnCodeAssistantGenericClose.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      vscode.postMessage({ type: "closeCodeAssistantFeature", toolId: currentContentToolId() });
     };
     function persistCodeAssistantTreeUiState() {
       if (!initialized) return;
@@ -2816,7 +2886,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       if (isIgnoreTool()) vscode.postMessage({ type: "syncIgnoreFromGit" });
       else vscode.postMessage({
         type: "run",
-        toolId: state.activeToolId,
+        toolId: currentContentToolId(),
         action: isEncodingTool() ? "convert" : "fix",
       });
     };

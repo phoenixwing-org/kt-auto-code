@@ -4,6 +4,7 @@ const vscodeHost = vi.hoisted(() => ({
   executeCommand: vi.fn(async () => undefined),
   openExternal: vi.fn<(uri: unknown) => Promise<boolean>>(async () => true),
   configurationValues: new Map<string, unknown>(),
+  outputLines: [] as string[],
 }));
 
 vi.mock("vscode", () => {
@@ -53,7 +54,7 @@ vi.mock("vscode", () => {
     },
     window: {
       createOutputChannel: vi.fn(() => ({
-        appendLine: vi.fn(),
+        appendLine: vi.fn((line: string) => vscodeHost.outputLines.push(line)),
         show: vi.fn(),
         dispose: vi.fn(),
       })),
@@ -77,6 +78,7 @@ import { encodingFixTool } from "../tools/encodingFix/index.js";
 import { reorderMembersTool } from "../tools/reorderMembers/index.js";
 import {
   SidebarViewProvider,
+  ktcRunSignalContractError,
   ktcWelcomeExtensionSummaries,
 } from "./sidebarViewProvider.js";
 
@@ -97,6 +99,7 @@ const testTool: KtTool = {
   id: TEST_TOOL_ID,
   title: "Transient picker test",
   description: "Host transient state boundary",
+  runActions: ["open", "picker", "complete"],
   registerCommands() {},
   getPanelModel() {
     return {
@@ -221,6 +224,7 @@ describe("SidebarViewProvider transient tool state", () => {
     vscodeHost.executeCommand.mockClear();
     vscodeHost.openExternal.mockClear();
     vscodeHost.configurationValues.clear();
+    vscodeHost.outputLines.length = 0;
     nextState = {
       status: "idle",
       message: "请选择要添加的关联规则。",
@@ -281,6 +285,51 @@ describe("SidebarViewProvider transient tool state", () => {
       activeToolId: "codeAssistant",
       codeAssistantFeature: "encodingFix",
       codeAssistantTreeUiState: { treeExpanded: false },
+    });
+  });
+
+  it("独立编辑器 View 叶子不会自动收起功能目录", async () => {
+    const { internals, module } = createProvider();
+
+    await internals.onMessage({ type: "openCodeAssistantFeature", feature: "packageIncludes" }, module);
+
+    expect(module.messages.filter((message) => message.type === "init").at(-1)).toMatchObject({
+      type: "init",
+      activeToolId: TEST_TOOL_ID,
+      codeAssistantFeature: "packageIncludes",
+      codeAssistantTreeUiState: { treeExpanded: true },
+    });
+  });
+
+  it("run 信号必须使用真实叶子和受支持动作", async () => {
+    expect(ktcRunSignalContractError({ type: "run", toolId: "headerAscii", action: "scan" }, ["scan", "fix"])).toBeUndefined();
+    expect(ktcRunSignalContractError({ type: "run", toolId: "codeAssistant", action: "scan" }, ["openPackageIncludes"]))
+      .toContain("不支持动作");
+
+    const { internals, module } = createProvider();
+    await internals.onMessage({ type: "run", toolId: "codeAssistant", action: "scan" }, module);
+
+    expect(vscodeHost.outputLines).toContainEqual(expect.stringContaining("[Primary][信号][ERROR]"));
+    expect(stateMessages(module).at(-1)).toMatchObject({
+      toolId: "codeAssistant",
+      state: { status: "error" },
+    });
+  });
+
+  it("关闭内部叶子会清理会话并重新展开功能目录", async () => {
+    const { internals, module, globalState } = createProvider();
+    await internals.onMessage({ type: "selectTool", toolId: "encodingFix" }, module);
+    internals.setToolState("encodingFix", { status: "done", message: "已有结果", encodingResults: [] });
+    module.messages.length = 0;
+
+    await internals.onMessage({ type: "closeCodeAssistantFeature", toolId: "encodingFix" }, module);
+
+    expect(internals.toolStates.has("encodingFix")).toBe(false);
+    expect(globalState.get("ktAutoCode.codeAssistant.treeUi.v1")).toMatchObject({ treeExpanded: true });
+    expect(module.messages.filter((message) => message.type === "init").at(-1)).toMatchObject({
+      type: "init",
+      codeAssistantFeature: undefined,
+      codeAssistantTreeUiState: { treeExpanded: true },
     });
   });
 

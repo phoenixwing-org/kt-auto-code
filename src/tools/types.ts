@@ -126,6 +126,10 @@ export type WebviewInboundMessage =
     }
   | { type: "reorderSelection"; toolId: "reorderMembers"; uris: string[] }
   | { type: "clearReorderMembersSession"; toolId: "reorderMembers" }
+  | {
+      type: "closeCodeAssistantFeature";
+      toolId: "reorderMembers" | "headerAscii" | "encodingFix" | "uuidReplace" | "caaDialog";
+    }
   | { type: "openIssue"; toolId: string; file: string; line: number }
   | { type: "openEncodingFile"; toolId: string; file: string }
   | { type: "setEncodingDefaultTarget"; toolId: "encodingFix"; target: "utf8" | "gbk" }
@@ -446,9 +450,13 @@ export interface KtTool {
   readonly icon?: string;
   /** Tool remains command-addressable but is surfaced from a parent feature tree. */
   readonly ribbonVisible?: boolean;
+  /** Explicit Webview `run` actions; absent means that `run` signals are rejected and logged. */
+  readonly runActions?: readonly string[];
   registerCommands(context: vscode.ExtensionContext): void;
   onDidShow?(ctx: ToolRunContext): Promise<void> | void;
   getPanelModel(): ToolPanelModel;
   handleMessage(message: WebviewInboundMessage, ctx: ToolRunContext): Promise<void>;
   runAction(action: string, ctx: ToolRunContext): Promise<void>;
+  /** Releases transient preview/results when a nested Code Assistant leaf is explicitly closed. */
+  clearSession?(ctx: ToolRunContext): Promise<void> | void;
 }

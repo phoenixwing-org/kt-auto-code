@@ -36,6 +36,7 @@ export const caaDialogTool: KtTool = {
   description: "扫描 .CATDlg，并连接 Desk Tools 图形编辑器。",
   icon: "media/tools/code-rename.svg",
   ribbonVisible: false,
+  runActions: ["scan", "fix", "checkConnection"],
   getPanelModel(): ToolPanelModel { return { summary: { id: this.id, title: this.title, description: this.description, icon: this.icon, ribbonVisible: this.ribbonVisible } }; },
   registerCommands(context): void {
     const invoke = (action: "scan" | "settings") => async () => {
@@ -61,6 +62,10 @@ export const caaDialogTool: KtTool = {
   async runAction(action: string, ctx: ToolRunContext): Promise<void> {
     if (action === "checkConnection") await checkDeskConnection(ctx);
     else await runCaaDialogAction(action === "fix" ? "settings" : "scan", ctx);
+  },
+  clearSession(ctx: ToolRunContext): void {
+    session = undefined;
+    ctx.postState({ status: "idle", message: "", caaDialogResults: [] });
   },
 };
 

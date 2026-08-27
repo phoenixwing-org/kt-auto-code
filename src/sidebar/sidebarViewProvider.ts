@@ -150,6 +150,17 @@ function isCodeAssistantFeatureId(value: string): value is KtcCodeAssistantFeatu
     || value === "caaDialog";
 }
 
+export function ktcRunSignalContractError(
+  message: Extract<WebviewInboundMessage, { type: "run" }>,
+  actions: readonly string[] | undefined,
+): string | undefined {
+  if (!actions) return `工具“${message.toolId}”未声明可接收 run 信号。`;
+  if (!actions.includes(message.action)) {
+    return `工具“${message.toolId}”不支持动作“${message.action}”；允许：${actions.join("、")}。`;
+  }
+  return undefined;
+}
+
 export class SidebarViewProvider implements vscode.WebviewViewProvider {
   public static readonly moduleViewType = "ktAutoCode.modulePanel";
 
@@ -574,6 +585,25 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
+    if (message.type === "closeCodeAssistantFeature") {
+      const tool = getTool(message.toolId);
+      if (!tool || !isCodeAssistantFeatureId(message.toolId)) {
+        const text = `无法关闭不存在的代码辅助功能“${message.toolId}”。`;
+        logOutput(`[Primary][信号][ERROR] ${text}`);
+        this.setToolState("codeAssistant", { status: "error", message: text }, source);
+        return;
+      }
+      const ctx = this.createRunContext(message.toolId, source);
+      await tool.clearSession?.(ctx);
+      this.toolStates.delete(message.toolId);
+      this.codeAssistantFeatureId = undefined;
+      this.codeAssistantTreeUiState = { ...this.codeAssistantTreeUiState, treeExpanded: true };
+      await this.globalState.update(CODE_ASSISTANT_TREE_UI_STATE_KEY, this.codeAssistantTreeUiState);
+      ctx.log(`[代码辅助][关闭][INFO] 已关闭：${tool.title}；临时结果已清理。`);
+      await this.sendInit(source);
+      return;
+    }
+
     if (message.type === "welcomeAction") {
       if (message.action === "installExtension") {
         const extension = WELCOME_EXTENSIONS.find(({ id }) => id === message.extensionId);
@@ -762,8 +792,6 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
     if (message.type === "openCodeAssistantFeature") {
       this.codeAssistantFeatureId = message.feature;
-      this.codeAssistantTreeUiState = { ...this.codeAssistantTreeUiState, treeExpanded: false };
-      await this.globalState.update(CODE_ASSISTANT_TREE_UI_STATE_KEY, this.codeAssistantTreeUiState);
       this.createRunContext("codeAssistant").log(`[代码辅助][入口][INFO] 已打开：头文件引用修正；目录 ${this.getWorkingContext().label}。`);
       await this.sendInit(source);
       await vscode.commands.executeCommand("ktAutoCode.codeAssistant.packageIncludes");
@@ -797,7 +825,18 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
     const tool = getTool(message.toolId);
     if (!tool) {
+      const text = `未找到工具“${message.toolId}”，信号“${message.type}”未执行。`;
+      logOutput(`[Primary][信号][ERROR] ${text}`);
+      this.setToolState(message.toolId, { status: "error", message: text }, source);
       return;
+    }
+    if (message.type === "run") {
+      const signalError = ktcRunSignalContractError(message, tool.runActions);
+      if (signalError) {
+        logOutput(`[Primary][信号][ERROR] ${signalError}`);
+        this.setToolState(message.toolId, { status: "error", message: signalError }, source);
+        return;
+      }
     }
 
     const ctx = this.createRunContext(message.toolId, source);
