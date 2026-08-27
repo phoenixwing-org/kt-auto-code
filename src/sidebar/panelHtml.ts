@@ -2672,14 +2672,27 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         uuidStrategy: isUuidTool() ? state.uuidStrategy : undefined,
       });
     };
-    els.btnCodeAssistantPackageIncludes.onclick = () => vscode.postMessage({ type: "openCodeAssistantFeature", feature: "packageIncludes" });
+    function collapseCodeAssistantDirectory() {
+      state.codeAssistantTreeUiState.treeExpanded = false;
+      els.codeAssistantTreeSection.open = false;
+      persistCodeAssistantTreeUiState();
+    }
+    function selectCodeAssistantFeature(feature, message) {
+      state.codeAssistantFeature = feature;
+      collapseCodeAssistantDirectory();
+      vscode.postMessage(message);
+    }
+    els.btnCodeAssistantPackageIncludes.onclick = () => selectCodeAssistantFeature(
+      "packageIncludes",
+      { type: "openCodeAssistantFeature", feature: "packageIncludes" },
+    );
     els.btnCodeAssistantReorderMembers.onclick = () => {
-      vscode.postMessage({ type: "selectTool", toolId: "reorderMembers" });
+      selectCodeAssistantFeature("reorderMembers", { type: "selectTool", toolId: "reorderMembers" });
     };
-    els.btnCodeAssistantHeaderAscii.onclick = () => vscode.postMessage({ type: "selectTool", toolId: "headerAscii" });
-    els.btnCodeAssistantEncodingFix.onclick = () => vscode.postMessage({ type: "selectTool", toolId: "encodingFix" });
-    els.btnCodeAssistantUuidReplace.onclick = () => vscode.postMessage({ type: "selectTool", toolId: "uuidReplace" });
-    els.btnCodeAssistantCaaDialog.onclick = () => vscode.postMessage({ type: "selectTool", toolId: "caaDialog" });
+    els.btnCodeAssistantHeaderAscii.onclick = () => selectCodeAssistantFeature("headerAscii", { type: "selectTool", toolId: "headerAscii" });
+    els.btnCodeAssistantEncodingFix.onclick = () => selectCodeAssistantFeature("encodingFix", { type: "selectTool", toolId: "encodingFix" });
+    els.btnCodeAssistantUuidReplace.onclick = () => selectCodeAssistantFeature("uuidReplace", { type: "selectTool", toolId: "uuidReplace" });
+    els.btnCodeAssistantCaaDialog.onclick = () => selectCodeAssistantFeature("caaDialog", { type: "selectTool", toolId: "caaDialog" });
     els.btnCodeAssistantReorderClose.onclick = (event) => {
       event.preventDefault();
       event.stopPropagation();

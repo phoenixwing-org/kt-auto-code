@@ -107,18 +107,22 @@ export async function runEncodingFixAction(
   ctx: ToolRunContext,
 ): Promise<void> {
   if (!ctx.workspaceRoot) {
+    const message = "请先打开工作区文件夹。";
+    ctx.log(`[编码修正][${action === "convert" ? "转换" : "预检"}][ERROR] ${message}`);
     ctx.postState({
       status: "error",
-      message: "请先打开工作区文件夹。",
+      message,
     });
     return;
   }
 
   const scope = getFileScope();
   if (isScopeEmpty(scope, true)) {
+    const message = "请至少勾选一种扫描范围（头文件 / 源文件 / .md）。";
+    ctx.log(`[编码修正][${action === "convert" ? "转换" : "预检"}][ERROR] ${message}`);
     ctx.postState({
       status: "error",
-      message: "请至少勾选一种扫描范围（头文件 / 源文件 / .md）。",
+      message,
     });
     return;
   }
@@ -155,10 +159,12 @@ export async function runEncodingFixAction(
     if (action === "convert") {
       const report = await convertEncodings(ctx.workspaceRoot, workspaceScope, ctx.pluginIgnoreEnabled);
       if (!report) {
+        ctx.log("[编码修正][转换][INFO] 用户已取消，未写入文件。");
         ctx.postState({ status: "idle", message: "已取消转换。" });
         return;
       }
       if (report.convertedFiles === 0) {
+        ctx.log(`[编码修正][转换][OK] 已扫描 ${report.scanned} 个文件，没有可无损自动转换的文件。`);
         ctx.postState({
           status: "done",
           message: "没有可无损自动转换的文件；其余不符合项仅报告。",

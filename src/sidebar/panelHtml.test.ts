@@ -299,6 +299,9 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('头文件引用修正');
     expect(html).toContain('class="code-assistant-tree-chevron" viewBox="0 0 16 16"');
     expect(html).toContain('button.classList.toggle("selected", button.dataset.codeAssistantFeature === state.codeAssistantFeature)');
+    expect(html).toContain('function collapseCodeAssistantDirectory()');
+    expect(html).toContain('state.codeAssistantTreeUiState.treeExpanded = false');
+    expect(html).toContain('selectCodeAssistantFeature("encodingFix", { type: "selectTool", toolId: "encodingFix" })');
     expect(html).not.toContain('code-assistant-tree-group-count');
     expect(html).toContain('if (state.ribbonBlockCollapsed) {');
     expect(html).toContain('type: "toggleRibbonDensity"');

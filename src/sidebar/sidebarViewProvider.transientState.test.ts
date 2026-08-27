@@ -52,6 +52,11 @@ vi.mock("vscode", () => {
       fs: {},
     },
     window: {
+      createOutputChannel: vi.fn(() => ({
+        appendLine: vi.fn(),
+        show: vi.fn(),
+        dispose: vi.fn(),
+      })),
       showInformationMessage: vi.fn(),
       showErrorMessage: vi.fn(),
     },
@@ -113,6 +118,14 @@ const testTool: KtTool = {
 registerTool(testTool);
 registerTool(encodingFixTool);
 registerTool(reorderMembersTool);
+registerTool({
+  ...testTool,
+  id: "codeAssistant",
+  title: "代码辅助",
+  getPanelModel() {
+    return { summary: { id: "codeAssistant", title: this.title, description: this.description } };
+  },
+});
 registerTool({
   ...testTool,
   id: SECOND_TEST_TOOL_ID,
@@ -254,6 +267,20 @@ describe("SidebarViewProvider transient tool state", () => {
     expect(module.messages.find((message) => message.type === "init")).toMatchObject({
       type: "init",
       codeAssistantTreeUiState: state,
+    });
+  });
+
+  it("选择代码辅助叶子后收起目录并立即回传当前功能", async () => {
+    const { internals, module, globalState } = createProvider();
+
+    await internals.onMessage({ type: "selectTool", toolId: "encodingFix" }, module);
+
+    expect(globalState.get("ktAutoCode.codeAssistant.treeUi.v1")).toMatchObject({ treeExpanded: false });
+    expect(module.messages.filter((message) => message.type === "init").at(-1)).toMatchObject({
+      type: "init",
+      activeToolId: "codeAssistant",
+      codeAssistantFeature: "encodingFix",
+      codeAssistantTreeUiState: { treeExpanded: false },
     });
   });
 
