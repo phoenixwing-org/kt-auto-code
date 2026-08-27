@@ -4,9 +4,9 @@
 
 Owner：KT Auto Code maintainers
 
-适用版本：KT Auto Code 0.7.3 发布准备中
+适用版本：KT Auto Code 0.7.4 测试候选
 
-最后核验：2026-08-21
+最后核验：2026-08-27
 
 ## 1. 目标
 

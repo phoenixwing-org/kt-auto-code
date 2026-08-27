@@ -9,7 +9,7 @@
 - Marketplace 发布者 ID：`kuntai`
 - Marketplace 发布者名称：`Shanghai Kuntai`
 - 当前版本：以 [`package.json`](../package.json) 的 `version` 为准
-- Marketplace 当前公开版本为 KT Auto Code `0.6.1`，由 `kuntai` 发布并已通过人工审查。CAD 当前版本由 [KT Auto CAD 发布说明](https://gitee.com/PhoenixWing321/kt-auto-cad/blob/master/docs/发布.md)维护。
+- Marketplace 当前公开版本为 KT Auto Code `0.7.3`，由 `kuntai` 发布；`0.7.4` 仍是本地测试候选。CAD 当前版本由 [KT Auto CAD 发布说明](https://gitee.com/PhoenixWing321/kt-auto-cad/blob/master/docs/发布.md)维护。
 - 开源许可：[Apache License 2.0](../LICENSE)
 
 当前扩展标识由下列清单字段组成：
@@ -21,7 +21,16 @@
 }
 ```
 
-## 0.7.3 发布准备（2026-08-26）
+## 0.7.4 测试候选（2026-08-27）
+
+本轮 Auto 目标版本为 `kuntai.kt-auto-code@0.7.4`。Phoenix Wing Registry 依赖保持 0.7.3 已发布基线，不升级、不使用本地路径。
+
+- 只修复代码辅助叶子动作路由、内部功能 Block 一致性、关闭清理和未知信号日志；不改变 Primary 三段式外壳、Git/Run 算法或公开命令。
+- 用户测试前执行并列 Wing 的 `pnpm ext:dev:prepare`；正式打包前再执行 Registry 构建、全量门禁、`pnpm package` 与 `pnpm ext:verify-artifact`。
+- 人工抽检头文件 ASCII、编码、UUID、CAA UI 与成员排序的入口、预检/扫描、成功/取消/错误日志、内部 Block 关闭和重新打开行为。
+- 只在人工功能点检通过后生成 `dist/vsix/kt-auto-code-0.7.4.vsix`；当前阶段不上传 Marketplace、不 push、不打 tag。
+
+## 0.7.3 已发布（2026-08-26）
 
 本轮 Auto 目标版本为 `kuntai.kt-auto-code@0.7.3`。Phoenix Wing 根聚合包 `phoenix-wing@0.7.1` 已发布；Auto 不直接依赖该根包，精确消费已发布的 `@phoenix-wing/code-core`、`git-core`、`git-node`、`kt-codegen` `0.6.4`，以及当前最新 `run-core`、`run-node` `0.6.3`。
 

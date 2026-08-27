@@ -108,6 +108,13 @@
       "lastVerified": "2026-08-21"
     },
     {
+      "path": "docs/0.7.4发布准备.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.7.x",
+      "lastVerified": "2026-08-21"
+    },
+    {
       "path": "docs/2026-07-20-功能修复人工点检表.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
