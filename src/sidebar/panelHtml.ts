@@ -1090,6 +1090,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       </div>
       <div class="replace-more-bar">
         <button class="text-button" id="btn-expand-rules" type="button">展开关联规则</button>
+        <button class="text-button" id="btn-project-rename-analysis" type="button" title="以当前目录创建独立的大型项目改名任务；先分析，确认后受控执行；重复点击只聚焦现有 View">大型项目改名分析…</button>
       </div>
       <div class="multi-rules" id="multi-rules" hidden>
         <div class="profile-row">
@@ -1364,6 +1365,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       btnPickWorkingDirectory: document.getElementById("btn-pick-working-directory"),
       btnOpenSettings: document.getElementById("btn-open-settings"),
       btnExpandRules: document.getElementById("btn-expand-rules"),
+      btnProjectRenameAnalysis: document.getElementById("btn-project-rename-analysis"),
       multiRules: document.getElementById("multi-rules"),
       replaceProfile: document.getElementById("replace-profile"),
       replaceProfileName: document.getElementById("replace-profile-name"),
@@ -2970,6 +2972,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     }
     els.replacePreview.onclick = () => runSearchReplace("preview");
     els.replaceApply.onclick = () => runSearchReplace("apply");
+    els.btnProjectRenameAnalysis.onclick = () => vscode.postMessage({
+      type: "openProjectRenameAnalysis",
+      toolId: "codeRename",
+    });
     els.replaceToggle.onclick = () => {
       state.replace.collapsed = !state.replace.collapsed;
       saveReplaceState();

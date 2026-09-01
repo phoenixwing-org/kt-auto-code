@@ -140,6 +140,7 @@ export type WebviewInboundMessage =
   | { type: "analyzeIgnore" }
   | { type: "pickSearchReplaceDirectory"; toolId: "codeRename" }
   | { type: "rememberSearchReplaceDirectory"; toolId: "codeRename"; directory: string }
+  | { type: "openProjectRenameAnalysis"; toolId: "codeRename" }
   | { type: "saveSearchReplaceProfile"; toolId: "codeRename"; label: string; draft: KtcSearchReplaceProfileDraft }
   | { type: "loadSearchReplaceProfile"; toolId: "codeRename"; id: string }
   | {

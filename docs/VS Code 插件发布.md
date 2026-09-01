@@ -9,7 +9,7 @@
 - Marketplace 发布者 ID：`kuntai`
 - Marketplace 发布者名称：`Shanghai Kuntai`
 - 当前版本：以 [`package.json`](../package.json) 的 `version` 为准
-- Marketplace 当前公开版本为 KT Auto Code `0.7.3`，由 `kuntai` 发布；`0.7.4` 仍是本地测试候选。CAD 当前版本由 [KT Auto CAD 发布说明](https://gitee.com/PhoenixWing321/kt-auto-cad/blob/master/docs/发布.md)维护。
+- Marketplace 当前公开版本为 KT Auto Code `0.7.3`，由 `kuntai` 发布；当前本地候选为 `0.8.0`，先交付 Windows 用户点检。`0.7.4` 未单独发布，其修复已并入 `0.8.0`。CAD 当前版本由 [KT Auto CAD 发布说明](https://gitee.com/PhoenixWing321/kt-auto-cad/blob/master/docs/发布.md)维护。
 - 开源许可：[Apache License 2.0](../LICENSE)
 
 当前扩展标识由下列清单字段组成：
@@ -21,14 +21,23 @@
 }
 ```
 
-## 0.7.4 测试候选（2026-08-27）
+## 0.8.0 Windows 测试候选（2026-09-01）
 
-本轮 Auto 目标版本为 `kuntai.kt-auto-code@0.7.4`。Phoenix Wing Registry 依赖保持 0.7.3 已发布基线，不升级、不使用本地路径。
+本轮 Auto 目标版本为 `kuntai.kt-auto-code@0.8.0`。新增大型项目改名分析与受控执行工具，按仓库版本规则升级次版本；原 `0.7.4` 代码辅助修复一并进入本候选。
+
+- Phoenix Wing 根包按 npm Registry 最新 `0.7.2` 适配；Auto 不直接依赖根包，六个 scoped 依赖继续使用 Registry 实际最新的四个 `0.6.4` 与两个 `0.6.3`。
+- 用户已完成基本手工改名测试，但未完成详细矩阵；当前 VSIX 只交付 Windows 用户继续验证，不宣称 Marketplace 正式发布完成。
+- Windows 重点复核：六种派生规则、智能候选默认关闭、UTF-8/BOM/GBK、点目录、Git 脏状态/漂移/冲突门禁、非当前工作区根目录改名和结束任务门禁。
+- 正式发布前必须使用 Registry 构建重跑 `pnpm release:check` 并保存 `kt-auto-code-0.8.0.vsix` 与 SHA-256；AI 不执行 Marketplace 上传、push 或 tag。
+
+## 0.7.4 本地补丁候选（2026-08-27，未单独发布）
+
+本轮原目标版本为 `kuntai.kt-auto-code@0.7.4`。Phoenix Wing Registry 依赖保持当时已发布基线，不使用本地路径；该候选未单独发布，内容已并入 `0.8.0`。
 
 - 只修复代码辅助叶子动作路由、内部功能 Block 一致性、关闭清理和未知信号日志；不改变 Primary 三段式外壳、Git/Run 算法或公开命令。
 - 用户测试前执行并列 Wing 的 `pnpm ext:dev:prepare`；正式打包前再执行 Registry 构建、全量门禁、`pnpm package` 与 `pnpm ext:verify-artifact`。
 - 人工抽检头文件 ASCII、编码、UUID、CAA UI 与成员排序的入口、预检/扫描、成功/取消/错误日志、内部 Block 关闭和重新打开行为。
-- 只在人工功能点检通过后生成 `dist/vsix/kt-auto-code-0.7.4.vsix`；当前阶段不上传 Marketplace、不 push、不打 tag。
+- 历史候选制品不再作为发布输入；统一以 `0.8.0` Registry 候选和 Windows 用户点检结果为准。
 
 ## 0.7.3 已发布（2026-08-26）
 

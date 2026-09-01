@@ -176,6 +176,20 @@ const associatedRulePickerOptions = {
 };
 
 /** @type {import('esbuild').BuildOptions} */
+const projectRenameAnalysisOptions = {
+  entryPoints: ["src/tools/projectRename/viewEntry.ts"],
+  bundle: true,
+  outfile: "dist/project-rename-analysis.js",
+  platform: "browser",
+  format: "iife",
+  target: "es2022",
+  sourcemap: true,
+  logLevel: "info",
+  metafile: Boolean(localWing),
+  plugins: localWingPlugins,
+};
+
+/** @type {import('esbuild').BuildOptions} */
 const ribbonCustomizationMenuOptions = {
   entryPoints: ["src/sidebar/ribbonCustomizationMenuEntry.ts"],
   bundle: true,
@@ -217,6 +231,7 @@ const buildOptions = [
   uuidResultsPanelOptions,
   renameResultsPanelOptions,
   associatedRulePickerOptions,
+  projectRenameAnalysisOptions,
   ribbonCustomizationMenuOptions,
   extensionHostSmokeOptions,
 ];
@@ -233,10 +248,11 @@ if (watch) {
   const uuidResultsPanelContext = await esbuild.context(uuidResultsPanelOptions);
   const renameResultsPanelContext = await esbuild.context(renameResultsPanelOptions);
   const associatedRulePickerContext = await esbuild.context(associatedRulePickerOptions);
+  const projectRenameAnalysisContext = await esbuild.context(projectRenameAnalysisOptions);
   const ribbonCustomizationMenuContext = await esbuild.context(ribbonCustomizationMenuOptions);
   await Promise.all([
     extensionContext.watch(), tableContext.watch(), controlCatalogContext.watch(), primaryPanelContext.watch(), applyReportContext.watch(),
-    runPrimaryPanelContext.watch(), gitPrimaryPanelContext.watch(), reorderMembersPanelContext.watch(), uuidResultsPanelContext.watch(), renameResultsPanelContext.watch(), associatedRulePickerContext.watch(), ribbonCustomizationMenuContext.watch(),
+    runPrimaryPanelContext.watch(), gitPrimaryPanelContext.watch(), reorderMembersPanelContext.watch(), uuidResultsPanelContext.watch(), renameResultsPanelContext.watch(), associatedRulePickerContext.watch(), projectRenameAnalysisContext.watch(), ribbonCustomizationMenuContext.watch(),
   ]);
   console.log("watching extension…");
 } else {

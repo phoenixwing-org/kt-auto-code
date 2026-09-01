@@ -129,6 +129,12 @@ for (const artifact of artifacts) {
         || associatedRulePickerBundle.includes("existingRules")) {
       throw new Error("Code VSIX is missing the Host-neutral associated-rule picker custom element");
     }
+    const projectRenameAnalysisBundle = readText(zip, "extension/dist/project-rename-analysis.js");
+    if (!projectRenameAnalysisBundle.includes("upper-snake")
+        || !projectRenameAnalysisBundle.includes("loadMore")
+        || !projectRenameAnalysisBundle.includes("acquireVsCodeApi")) {
+      throw new Error("Code VSIX is missing the standalone project rename analysis Webview bundle");
+    }
     const codegenCommand = manifest.contributes?.commands?.find(
       (candidate) => candidate.command === "ktAutoCode.codegen.open",
     );
@@ -141,6 +147,10 @@ for (const artifact of artifacts) {
       (candidate) => candidate.command === "ktAutoCode.git.open",
     );
     if (!gitCommand) throw new Error("Code VSIX is missing the Git open command");
+    const projectRenameCommand = manifest.contributes?.commands?.find(
+      (candidate) => candidate.command === "ktAutoCode.projectRenameAnalysis.open",
+    );
+    if (!projectRenameCommand) throw new Error("Code VSIX is missing the project rename analysis command");
     if (manifest.dependencies?.["phoenix-wing"] !== undefined) {
       throw new Error("Code VSIX must not depend on the Vue/UI aggregate phoenix-wing package");
     }

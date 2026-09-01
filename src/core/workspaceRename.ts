@@ -38,6 +38,8 @@ export interface WorkspaceRenameOptions {
   includePaths?: readonly string[];
   includeIgnored?: boolean;
   ignorePatterns?: readonly string[];
+  /** Allow selected project workflows to include .github/.vscode style directories. */
+  includeDotDirectories?: boolean;
   apply?: boolean;
   /** Find matching text and names without calculating or writing replacements. */
   searchOnly?: boolean;
@@ -178,7 +180,7 @@ function collectEntries(opts: WorkspaceRenameOptions, root: string, start: strin
       const relativePath = normalizeRelativePath(relative(root, fullPath));
       if (!opts.includeIgnored && isIgnoredPath(relativePath, patterns)) continue;
       if (stat.isDirectory()) {
-        if (DEFAULT_SKIP_DIR_NAMES.has(name) || name.startsWith(".")) continue;
+        if (DEFAULT_SKIP_DIR_NAMES.has(name) || (!opts.includeDotDirectories && name.startsWith("."))) continue;
         out.push({ fullPath, relativePath, kind: "dir" });
         walk(fullPath);
       } else if (stat.isFile()) {
@@ -203,7 +205,7 @@ function collectEntries(opts: WorkspaceRenameOptions, root: string, start: strin
     : [...included].some((path) => path === entry.relativePath || path.startsWith(`${entry.relativePath}/`)));
 }
 
-function isProbablyText(fullPath: string, bytes: Buffer): boolean {
+export function ktcIsProbablyTextFile(fullPath: string, bytes: Buffer): boolean {
   if (BINARY_EXTENSIONS.has(extname(fullPath).toLowerCase())) return false;
   return !bytes.subarray(0, BINARY_PROBE_BYTES).includes(0);
 }
@@ -212,7 +214,7 @@ function asciiOnly(value: string): boolean {
   return /^[\x00-\x7f]*$/.test(value);
 }
 
-function linesForOffsets(bytes: Buffer, offsets: readonly number[]): number[] {
+export function ktcLinesForByteOffsets(bytes: Buffer, offsets: readonly number[]): number[] {
   const lines: number[] = [];
   let line = 1;
   let offsetIndex = 0;
@@ -248,7 +250,7 @@ function scanTextEntry(
   apply: boolean,
 ): WorkspaceRenameHit | undefined {
   const bytes = readFileSync(entry.fullPath);
-  if (!isProbablyText(entry.fullPath, bytes)) return undefined;
+  if (!ktcIsProbablyTextFile(entry.fullPath, bytes)) return undefined;
   const detected = detectFileEncoding(bytes).detected;
   const defaultEncoding = opts.defaultEncoding ?? "utf8";
   const ruleEncoding = textRuleEncoding(detected, rules, defaultEncoding);
@@ -279,7 +281,7 @@ function scanTextEntry(
     plannedFullPath: entry.fullPath,
     level: "text",
     occurrences: replaced.offsets.length,
-    lines: linesForOffsets(bytes, replaced.offsets),
+    lines: ktcLinesForByteOffsets(bytes, replaced.offsets),
     detectedEncoding: detected,
     status: apply ? "applied" : "preview",
     detail: opts.searchOnly
@@ -435,7 +437,7 @@ function pathHit(
   return hit;
 }
 
-function summarize(
+export function ktcSummarizeWorkspaceRenameHits(
   hits: readonly WorkspaceRenameHit[],
   ruleCount: number,
 ): WorkspaceRenameSummary {
@@ -467,7 +469,11 @@ function rebaseDescendantPath(fullPath: string, sourceDir: string, targetDir: st
   return join(targetDir, child);
 }
 
-function finalizePlannedPaths(root: string, hits: WorkspaceRenameHit[], applied: boolean): void {
+export function ktcFinalizeWorkspaceRenamePlannedPaths(
+  root: string,
+  hits: WorkspaceRenameHit[],
+  applied: boolean,
+): void {
   const directoryMappings = hits
     .filter((hit) => hit.level === "dir" && hit.status !== "error" && hit.status !== "skipped")
     .map((hit) => ({ source: hit.originalFullPath, target: hit.plannedFullPath }));
@@ -543,6 +549,12 @@ export function runWorkspaceRename(opts: WorkspaceRenameOptions): WorkspaceRenam
   }
 
   const ruleCount = opts.rules?.filter((rule) => rule.enabled !== false && rule.search).length ?? 1;
-  finalizePlannedPaths(root, hits, opts.apply ?? false);
-  return { root, applied: opts.apply ?? false, searchOnly: opts.searchOnly ?? false, hits, summary: summarize(hits, ruleCount) };
+  ktcFinalizeWorkspaceRenamePlannedPaths(root, hits, opts.apply ?? false);
+  return {
+    root,
+    applied: opts.apply ?? false,
+    searchOnly: opts.searchOnly ?? false,
+    hits,
+    summary: ktcSummarizeWorkspaceRenameHits(hits, ruleCount),
+  };
 }

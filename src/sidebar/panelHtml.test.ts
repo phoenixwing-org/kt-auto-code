@@ -449,7 +449,11 @@ describe("sidebar panel HTML", () => {
     expect(ktcSearchReplaceButtonState({ ...base, action: "search", running: true })).toEqual({ disabled: true, busy: true, message: "" });
 
     const source = readFileSync(new URL("./panelHtml.ts", import.meta.url), "utf8");
+    const codeRenameTool = readFileSync(new URL("../tools/codeRename/index.ts", import.meta.url), "utf8");
     expect(source).toContain('id="btn-replace-toggle"');
+    expect(source).toContain('id="btn-project-rename-analysis"');
+    expect(source).toContain('type: "openProjectRenameAnalysis"');
+    expect(codeRenameTool).toContain('executeCommand("ktAutoCode.projectRenameAnalysis.open", ctx.workspaceRoot)');
     expect(source).toContain('>搜索</button>');
     expect(source).toContain('class="replace-query-row replace-only"');
     expect(source).toContain('<div id="replace-details">');

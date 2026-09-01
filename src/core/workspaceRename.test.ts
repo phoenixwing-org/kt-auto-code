@@ -121,6 +121,21 @@ describe("workspaceRename", () => {
     expect(result.hits.map((hit) => hit.relativePath)).toEqual(["keep.cpp"]);
   });
 
+  it("大型项目流程可显式包含 Web 点目录，普通搜索替换仍跳过", () => {
+    const root = tempRoot();
+    mkdirSync(join(root, ".github"));
+    writeFileSync(join(root, ".github", "workflow.yml"), "Old\n");
+    expect(runWorkspaceRename({ root, oldName: "Old", newName: "New", levels: ["text"] }).hits).toHaveLength(0);
+    const report = runWorkspaceRename({
+      root,
+      oldName: "Old",
+      newName: "New",
+      levels: ["text"],
+      includeDotDirectories: true,
+    });
+    expect(report.hits.map((hit) => hit.relativePath)).toEqual([".github/workflow.yml"]);
+  });
+
   it("按工作集文件快照限制文本和路径替换", () => {
     const root = tempRoot();
     mkdirSync(join(root, "OldSelected"));

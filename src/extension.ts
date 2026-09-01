@@ -30,6 +30,7 @@ import { ktcMigrateLegacyDeskToolsSettings } from "./deskToolsSettingsMigration.
 import { ktcRegisterResultAccordion } from "./workbench/resultAccordion.js";
 import { ktcRegisterEditorMatchHighlight } from "./workbench/editorMatchHighlight.js";
 import { ktcRegisterRuntimeDiagnostics } from "./runtimeDiagnostics.js";
+import { ktcRegisterProjectRenameAnalysis } from "./tools/projectRename/index.js";
 import type { KtcAutoCodeShellApiV2 } from "./core/moduleShellContract.js";
 
 let sidebarProvider: SidebarViewProvider | undefined;
@@ -59,6 +60,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<KtcAut
   registerReorderMembersSupport(context);
   registerCodegenSupport(context);
   registerCodeAssistantSupport(context);
+  ktcRegisterProjectRenameAnalysis(context);
   registerTool(headerAsciiTool);
   registerTool(encodingFixTool);
   registerTool(ignoreSettingsTool);

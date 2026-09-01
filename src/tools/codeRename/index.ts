@@ -48,6 +48,11 @@ export const codeRenameTool: KtTool = {
   },
 
   async handleMessage(message: WebviewInboundMessage, ctx: ToolRunContext): Promise<void> {
+    if (message.type === "openProjectRenameAnalysis" && message.toolId === this.id) {
+      await vscode.commands.executeCommand("ktAutoCode.projectRenameAnalysis.open", ctx.workspaceRoot);
+      return;
+    }
+
     if (message.type === "requestAssociatedRuleCandidates" && message.toolId === this.id) {
       postAssociatedRulePicker(ctx, message);
       return;
