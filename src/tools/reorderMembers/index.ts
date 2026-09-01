@@ -42,6 +42,7 @@ export function registerReorderMembersSupport(context: vscode.ExtensionContext):
 export const reorderMembersTool: KtTool = {
   id: "reorderMembers", title: "C++ 成员排序", description: "扫描、预览、确认写回 C++ 成员排序。", icon: "media/tools/member-sort.svg",
   ribbonVisible: false,
+  runActions: ["scan"],
   getPanelModel(): ToolPanelModel {
     return {
       summary: {
@@ -65,6 +66,7 @@ export const reorderMembersTool: KtTool = {
     if (message.type === "clearReorderMembersSession" && message.toolId === this.id) clearReorderSession(ctx);
   },
   async runAction(action: string, ctx: ToolRunContext): Promise<void> { if (action === "preview" || action === "scan") await runPreview(ctx); },
+  clearSession(ctx: ToolRunContext): void { clearReorderSession(ctx); },
 };
 
 function clearReorderSession(ctx: ToolRunContext): void {

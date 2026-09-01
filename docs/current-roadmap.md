@@ -4,15 +4,15 @@
 
 Owner：KT Auto Code maintainers
 
-适用版本：0.7.x
+适用版本：0.8.x
 
-最后核验：2026-08-26
+最后核验：2026-09-01
 
 ## 已完成基线
 
 - Code、CAD 两个扩展可以独立 typecheck、打包为 VSIX，并由制品检查验证必要文件。
 - 自动测试覆盖纯核心、宿主 adapter、Codegen 文档模型、事务与回归场景；精确数量由 CI 结果维护，不作为源码断言。
-- Wing 依赖均锁定 Registry 0.5.0；manifest、override 与 lockfile 的本地路径回退已被 `verify:wing-dependencies` 阻止。Auto Code 直接消费 Registry 内的 Codegen、Git、Run、Workspace Schema 和纯能力契约 fixture，不再保留 Apply 契约副本。
+- Phoenix Wing 根包当前最新为 `0.7.2`；Auto 不直接依赖根聚合包，manifest 与 lockfile 精确消费 Registry 实际发布的 `code-core`、`git-core`、`git-node`、`kt-codegen` `0.6.4` 和 `run-core`、`run-node` `0.6.3`。本地路径、override 与 lockfile 回退继续由 `verify:wing-dependencies` 阻止。
 - 0.4 Block 工作流、Codegen 预检/Apply 与共享 workset 已进入稳定基线；旧实施清单保留为历史证据。
 
 ## 2026-07-22 Codegen 当前架构真源
@@ -24,7 +24,7 @@ Owner：KT Auto Code maintainers
 
 ## 当前优先级
 
-0. **[发布验证：0.7.3]** Auto 自身目标版本为 `0.7.3`。Phoenix Wing 根包 `0.7.1` 不进入 Auto manifest；继续精确消费已发布的 `code-core`、`git-core`、`git-node`、`kt-codegen` `0.6.4` 和 `run-core`、`run-node` `0.6.3`。本补丁集中验证 Git 跨当前分支连续区间的受控切换、必要日志、Run 滚动/CAA Problems 与头文件引用推导；Registry/VSIX 不得写入本地路径。
+0. **[Windows 测试候选：0.8.0]** 新增大型项目改名分析与受控执行工具，并包含 `0.7.4` 未单独发布的代码辅助修复。Phoenix Wing root 适配 npm Registry 最新 `0.7.2`，Auto scoped 依赖继续精确使用四个 `0.6.4` 与两个 `0.6.3`。本地基本手工改名已通过但未完成详细矩阵；先交付 Windows 用户测试，Registry/VSIX 不得写入本地路径。
 1. 将字符串型架构检查升级为 AST/import graph，固化 pure core、Extension Host 与 Webview 的依赖方向。
 2. 与 Wing、Desk 共享 Analyze/Apply/Schema golden fixtures，避免宿主用自己的样例解释同一协议。
 3. 真实 Extension Host 的打开、预览、冲突、Apply、保存复读和失败回滚已进入自动 smoke；继续补齐浅色、深色、高对比、取消和 VSIX 安装的人工视觉矩阵。

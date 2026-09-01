@@ -99,18 +99,22 @@ export async function runHeaderAsciiAction(
   ctx: ToolRunContext,
 ): Promise<void> {
   if (!ctx.workspaceRoot) {
+    const message = "请先打开包含 C/C++ 源码的工作区文件夹。";
+    ctx.log(`[头文件 ASCII 修正][${action === "fix" ? "修复" : "预检"}][ERROR] ${message}`);
     ctx.postState({
       status: "error",
-      message: "请先打开包含 C/C++ 源码的工作区文件夹。",
+      message,
     });
     return;
   }
 
   const scope = getFileScope();
   if (isScopeEmpty(scope, false)) {
+    const message = "请至少勾选「头文件」或「源文件」范围。";
+    ctx.log(`[头文件 ASCII 修正][${action === "fix" ? "修复" : "预检"}][ERROR] ${message}`);
     ctx.postState({
       status: "error",
-      message: "请至少勾选「头文件」或「源文件」范围。",
+      message,
     });
     return;
   }
@@ -139,6 +143,7 @@ export async function runHeaderAsciiAction(
     if (action === "fix") {
       const report = await fixHeaders(ctx.workspaceRoot, workspaceScope, ctx.pluginIgnoreEnabled);
       if (!report) {
+        ctx.log("[头文件 ASCII 修正][修复][INFO] 用户已取消，未写入文件。");
         ctx.postState({ status: "idle", message: "已取消修复。" });
         return;
       }

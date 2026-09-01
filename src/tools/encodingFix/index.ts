@@ -12,6 +12,7 @@ export const encodingFixTool: KtTool = {
     "按当前项目策略检测并无损转换 ASCII、UTF-8、GBK 与带 BOM 文件。",
   icon: "media/tools/encoding-convert.svg",
   ribbonVisible: false,
+  runActions: ["scan", "convert"],
 
   getPanelModel(): ToolPanelModel {
     return {
@@ -60,6 +61,9 @@ export const encodingFixTool: KtTool = {
 
   async runAction(action: string, ctx: ToolRunContext): Promise<void> {
     await runWithResults(action, ctx);
+  },
+  clearSession(ctx: ToolRunContext): void {
+    ctx.postState({ status: "idle", message: "", encodingResults: [], scanned: 0, issueFiles: 0 });
   },
 };
 

@@ -59,6 +59,7 @@ export const uuidReplaceTool: KtTool = {
   description: "扫描文本 UUID，按同值生成稳定映射；勾选映射后确认写盘。",
   icon: "media/tools/uuid-replace.svg",
   ribbonVisible: false,
+  runActions: ["scan", "fix"],
   getPanelModel(): ToolPanelModel { return { summary: { id: this.id, title: this.title, description: this.description, icon: this.icon, ribbonVisible: this.ribbonVisible } }; },
   registerCommands(context): void {
     const run = (action: "scan" | "apply") => async () => {
@@ -85,6 +86,10 @@ export const uuidReplaceTool: KtTool = {
   },
   async runAction(action: string, ctx: ToolRunContext): Promise<void> {
     await runUuidAction(action === "fix" ? "apply" : "scan", ctx);
+  },
+  clearSession(ctx: ToolRunContext): void {
+    session = undefined;
+    ctx.postState({ status: "idle", message: "", uuidResults: [], uuidSelectedUris: [] });
   },
 };
 

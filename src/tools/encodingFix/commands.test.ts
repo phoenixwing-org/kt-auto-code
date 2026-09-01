@@ -71,9 +71,10 @@ beforeEach(() => {
 
 describe("encoding fix Controller state", () => {
   it("reports a missing workspace without entering the running state", async () => {
-    const { ctx, states } = context(undefined);
+    const { ctx, states, logs } = context(undefined);
     await runEncodingFixAction("scan", ctx);
     expect(states).toEqual([{ status: "error", message: "请先打开工作区文件夹。" }]);
+    expect(logs).toEqual(["[编码修正][预检][ERROR] 请先打开工作区文件夹。"]);
   });
 
   it("ends the running state on conversion cancellation without posting empty result fields", async () => {
@@ -84,6 +85,6 @@ describe("encoding fix Controller state", () => {
     expect(states.at(-1)).toEqual({ status: "idle", message: "已取消转换。" });
     expect(host.runFileEncodingWalk).toHaveBeenCalledOnce();
     expect(host.showWarningMessage).toHaveBeenCalledOnce();
-    expect(logs).toEqual([]);
+    expect(logs).toEqual(["[编码修正][转换][INFO] 用户已取消，未写入文件。"]);
   });
 });

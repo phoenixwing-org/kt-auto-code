@@ -11,6 +11,7 @@ export const headerAsciiTool: KtTool = {
     "预检并修正头文件中的弯引号、GBK 注释和其他非 ASCII 内容。",
   icon: "media/tools/header-ascii.svg",
   ribbonVisible: false,
+  runActions: ["scan", "fix"],
 
   getPanelModel(): ToolPanelModel {
     return {
@@ -65,6 +66,10 @@ export const headerAsciiTool: KtTool = {
 
   async runAction(action: string, ctx: ToolRunContext): Promise<void> {
     await runWithResults(action, ctx);
+  },
+  clearSession(ctx: ToolRunContext): void {
+    latestHeaderResults = [];
+    ctx.postState({ status: "idle", message: "", results: [], scanned: 0, issueFiles: 0 });
   },
 };
 

@@ -1,9 +1,33 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { getPanelHtml, ktcGitPanelModel, ktcSearchReplaceButtonState } from "./panelHtml.js";
+import {
+  getPanelHtml,
+  ktcCodeAssistantFeatureBlock,
+  ktcGitPanelModel,
+  ktcSearchReplaceButtonState,
+} from "./panelHtml.js";
 import { ktcNextReorderSelection } from "./reorderMembersPanelState.js";
 
 describe("sidebar panel HTML", () => {
+  it("代码辅助内部功能统一由同一 Block 外壳生成", () => {
+    expect(ktcCodeAssistantFeatureBlock({
+      id: "feature",
+      title: "功能操作",
+      closeId: "close",
+      closeTitle: "关闭",
+      closeAriaLabel: "关闭功能",
+      body: "<button>执行</button>",
+    })).toContain('<details class="code-assistant-feature" id="feature" open>');
+    expect(ktcCodeAssistantFeatureBlock({
+      id: "feature",
+      title: "功能操作",
+      closeId: "close",
+      closeTitle: "关闭",
+      closeAriaLabel: "关闭功能",
+      body: "<button>执行</button>",
+    })).toContain('id="close"');
+  });
+
   it("Git 状态尚未到达时也渲染空状态按钮，并只请求一次刷新", () => {
     expect(ktcGitPanelModel(undefined, true)).toMatchObject({
       projects: [],
@@ -299,6 +323,16 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('头文件引用修正');
     expect(html).toContain('class="code-assistant-tree-chevron" viewBox="0 0 16 16"');
     expect(html).toContain('button.classList.toggle("selected", button.dataset.codeAssistantFeature === state.codeAssistantFeature)');
+    expect(html).toContain('function collapseCodeAssistantDirectory()');
+    expect(html).toContain('state.codeAssistantTreeUiState.treeExpanded = false');
+    expect(html).toContain('selectCodeAssistantFeature("encodingFix", { type: "selectTool", toolId: "encodingFix" })');
+    expect(html).toContain('toolId: currentContentToolId()');
+    expect(html).toContain('type: "closeCodeAssistantFeature"');
+    expect(html).toContain('id="code-assistant-generic-actions"');
+    expect(html).toContain('id="btn-code-assistant-generic-close"');
+    expect(html).toContain('state.codeAssistantFeature = "packageIncludes"');
+    expect(html).toContain('if (!treeUi.reorderActionsExpanded && !treeUi.reorderResultsExpanded)');
+    expect(html).toContain('els.codeAssistantGenericActions.open = true');
     expect(html).not.toContain('code-assistant-tree-group-count');
     expect(html).toContain('if (state.ribbonBlockCollapsed) {');
     expect(html).toContain('type: "toggleRibbonDensity"');
@@ -415,7 +449,11 @@ describe("sidebar panel HTML", () => {
     expect(ktcSearchReplaceButtonState({ ...base, action: "search", running: true })).toEqual({ disabled: true, busy: true, message: "" });
 
     const source = readFileSync(new URL("./panelHtml.ts", import.meta.url), "utf8");
+    const codeRenameTool = readFileSync(new URL("../tools/codeRename/index.ts", import.meta.url), "utf8");
     expect(source).toContain('id="btn-replace-toggle"');
+    expect(source).toContain('id="btn-project-rename-analysis"');
+    expect(source).toContain('type: "openProjectRenameAnalysis"');
+    expect(codeRenameTool).toContain('executeCommand("ktAutoCode.projectRenameAnalysis.open", ctx.workspaceRoot)');
     expect(source).toContain('>搜索</button>');
     expect(source).toContain('class="replace-query-row replace-only"');
     expect(source).toContain('<div id="replace-details">');

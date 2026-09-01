@@ -52,9 +52,10 @@ beforeEach(() => {
 
 describe("header ASCII Controller state", () => {
   it("reports a missing workspace without entering the running state", async () => {
-    const { ctx, states } = context(undefined);
+    const { ctx, states, logs } = context(undefined);
     await runHeaderAsciiAction("scan", ctx);
     expect(states).toEqual([{ status: "error", message: expect.stringContaining("请先打开") }]);
+    expect(logs).toEqual([expect.stringContaining("[头文件 ASCII 修正][预检][ERROR]")]);
   });
 
   it("ends the running state on modal cancellation without scanning or clearing result fields", async () => {
@@ -65,6 +66,6 @@ describe("header ASCII Controller state", () => {
     expect(states.at(-1)).toEqual({ status: "idle", message: "已取消修复。" });
     expect(host.showWarningMessage).toHaveBeenCalledOnce();
     expect(host.runWorkspaceEncodingScan).not.toHaveBeenCalled();
-    expect(logs).toEqual([]);
+    expect(logs).toEqual(["[头文件 ASCII 修正][修复][INFO] 用户已取消，未写入文件。"]);
   });
 });

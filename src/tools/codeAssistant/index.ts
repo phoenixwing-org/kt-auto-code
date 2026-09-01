@@ -15,6 +15,7 @@ export const codeAssistantTool: KtTool = {
   title: "代码辅助",
   description: "低频代码迁移和修正工具；选择功能后在右侧 View 中预览并写入。",
   icon: "media/tools/code-assistant.svg",
+  runActions: ["openPackageIncludes"],
 
   getPanelModel(): ToolPanelModel {
     return { summary: { id: this.id, title: this.title, description: this.description, icon: this.icon } };

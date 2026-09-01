@@ -1,9 +1,15 @@
 {
   "schemaVersion": 1,
   "owner": "KT Auto Code maintainers",
-  "lastVerified": "2026-08-21",
-  "appliesTo": "0.7.x",
+  "lastVerified": "2026-09-01",
+  "appliesTo": "0.8.x",
   "rules": [
+    {
+      "match": "^docs/0\\.7\\.4发布准备\\.md$",
+      "status": "superseded",
+      "sourceOfTruth": "docs/0.8.0发布准备.md",
+      "reason": "0.7.4 未单独发布，补丁内容并入 0.8.0 测试候选"
+    },
     {
       "match": "^docs/历史/(下一阶段实施计划|Codegen下一阶段实施计划|0\\.4\\.0-Block工作流改造计划)\\.md$",
       "status": "superseded",

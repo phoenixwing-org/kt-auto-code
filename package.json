@@ -3,7 +3,7 @@
   "displayName": "KT Auto Code",
   "description": "CAA / MSVC C++ 工具：编码修正、Ignore、搜索替换、成员排序与 Codegen 参数表",
   "author": "上海锟钛",
-  "version": "0.7.3",
+  "version": "0.8.0",
   "license": "Apache-2.0",
   "publisher": "kuntai",
   "private": true,
@@ -186,6 +186,12 @@
         "command": "ktAutoCode.searchReplace.preview",
         "title": "KT Auto Code：搜索替换预览",
         "icon": "$(search)"
+      },
+      {
+        "command": "ktAutoCode.projectRenameAnalysis.open",
+        "title": "KT Auto Code：大型项目改名分析",
+        "category": "KT Auto Code",
+        "icon": "$(project)"
       },
       {
         "command": "ktAutoCode.reorderMembers.preview",

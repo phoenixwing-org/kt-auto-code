@@ -26,6 +26,7 @@ export const codeRenameTool: KtTool = {
   title: "搜索替换",
   description: "搜索并替换指定目录中的文本、文件名和文件夹名。",
   icon: "media/tools/search-replace.svg",
+  runActions: ["open"],
 
   getPanelModel(): ToolPanelModel {
     return { summary: { id: this.id, title: this.title, description: this.description, icon: this.icon } };
@@ -47,6 +48,11 @@ export const codeRenameTool: KtTool = {
   },
 
   async handleMessage(message: WebviewInboundMessage, ctx: ToolRunContext): Promise<void> {
+    if (message.type === "openProjectRenameAnalysis" && message.toolId === this.id) {
+      await vscode.commands.executeCommand("ktAutoCode.projectRenameAnalysis.open", ctx.workspaceRoot);
+      return;
+    }
+
     if (message.type === "requestAssociatedRuleCandidates" && message.toolId === this.id) {
       postAssociatedRulePicker(ctx, message);
       return;

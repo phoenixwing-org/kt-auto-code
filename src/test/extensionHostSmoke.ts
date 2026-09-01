@@ -92,6 +92,7 @@ export async function run(): Promise<void> {
     "ktAutoCode.codegen.diagnostics",
     "ktAutoCode.module.activate",
     "ktAutoCode.uuidReplace.scan",
+    "ktAutoCode.projectRenameAnalysis.open",
     "ktAutoCode.git.open",
     "ktAutoCode.run.open",
   ]) {
@@ -228,6 +229,11 @@ export async function run(): Promise<void> {
   assert.equal(decoder.decode(await vscode.workspace.fs.readFile(rollbackA)), "before-a");
   assert.equal(decoder.decode(await vscode.workspace.fs.readFile(rollbackB)), "before-b");
 
+  // Exercise the real command and Webview construction. The second call carries a
+  // different root but must only reveal the already-open single-task View.
+  await vscode.commands.executeCommand("ktAutoCode.projectRenameAnalysis.open", workspace.uri.fsPath);
+  await vscode.commands.executeCommand("ktAutoCode.projectRenameAnalysis.open", `${workspace.uri.fsPath}-ignored`);
+
   const receipt = {
     kind: "kt.auto-code.extension-host-smoke",
     schemaVersion: 1,
@@ -249,6 +255,7 @@ export async function run(): Promise<void> {
       gitBlock: true,
       gitEmptyState: true,
       runBlock: true,
+      projectRenameAnalysis: true,
     },
     evidence: {
       candidateFileCount: preflight.candidateFileCount,
@@ -258,6 +265,7 @@ export async function run(): Promise<void> {
         "ktAutoCode.codegen.open",
         "ktAutoCode.module.activate",
         "ktAutoCode.uuidReplace.scan",
+        "ktAutoCode.projectRenameAnalysis.open",
         "ktAutoCode.git.open",
         "ktAutoCode.run.open",
       ],
