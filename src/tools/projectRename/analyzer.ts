@@ -1,6 +1,7 @@
 import { lstat, readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import iconv from "iconv-lite";
+import { createHash } from "node:crypto";
 import { isIgnoredPath, loadDotIgnore, shouldSkipDirName } from "../../core/dotIgnore.js";
 import { detectFileEncoding, type DetectedEncoding } from "../../core/fileEncoding.js";
 import {
@@ -319,6 +320,7 @@ async function ktcScanProjectRenameTextEntry(
       occurrences: replaced.offsets.length,
       lines: ktcLinesForByteOffsets(bytes, replaced.offsets),
       detectedEncoding: detected,
+      sourceHash: createHash("sha256").update(bytes).digest("hex"),
       status: "preview",
       detail: "只读项目改名分析；未修改文件内容",
       ruleMatches: replaced.matches,

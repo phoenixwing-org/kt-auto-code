@@ -8,6 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { createHash } from "node:crypto";
 import { isIgnoredPath, loadDotIgnore } from "./dotIgnore.js";
 import { detectFileEncoding, type DetectedEncoding } from "./fileEncoding.js";
 import { DEFAULT_SKIP_DIR_NAMES } from "./workspace/scanScope.js";
@@ -55,6 +56,8 @@ export interface WorkspaceRenameHit {
   occurrences: number;
   lines?: number[];
   detectedEncoding?: DetectedEncoding;
+  /** SHA-256 of the original bytes used to freeze a text preview. */
+  sourceHash?: string;
   newPath?: string;
   status: "preview" | "applied" | "skipped" | "error";
   detail?: string;
@@ -283,6 +286,7 @@ function scanTextEntry(
     occurrences: replaced.offsets.length,
     lines: ktcLinesForByteOffsets(bytes, replaced.offsets),
     detectedEncoding: detected,
+    sourceHash: createHash("sha256").update(bytes).digest("hex"),
     status: apply ? "applied" : "preview",
     detail: opts.searchOnly
       ? "只读搜索；未修改文件内容"

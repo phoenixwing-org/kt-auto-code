@@ -5,6 +5,7 @@ import {
   ktcCodeAssistantFeatureBlock,
   ktcGitPanelModel,
   ktcSearchReplaceButtonState,
+  ktcSimpleRenameRules,
 } from "./panelHtml.js";
 import { ktcNextReorderSelection } from "./reorderMembersPanelState.js";
 
@@ -56,7 +57,7 @@ describe("sidebar panel HTML", () => {
     expect(icon).not.toContain("M4 3h16");
   });
 
-  it("使用统一关联规则对话框而不是多套 Quick Pick 消息", () => {
+  it("Primary 保留简单变形，并把复杂规则入口交给项目改名", () => {
     const extensionUri = {
       path: "/extension",
       with(change: { path: string }) { return { ...this, ...change }; },
@@ -66,18 +67,37 @@ describe("sidebar panel HTML", () => {
       asWebviewUri(uri: { path: string }) { return `test-webview:${uri.path}`; },
     } as unknown as Parameters<typeof getPanelHtml>[0], extensionUri);
 
-    expect(html).toContain('<ktc-associated-rule-picker id="rule-picker"></ktc-associated-rule-picker>');
-    expect(html).toContain("test-webview:/extension/dist/associated-rule-picker.js");
-    expect(html).toContain('"ktc-associated-rule-picker-action"');
-    expect(html).toContain("els.rulePicker.openPicker(picker)");
+    expect(html).not.toContain('<ktc-associated-rule-picker id="rule-picker"></ktc-associated-rule-picker>');
+    expect(html).not.toContain("test-webview:/extension/dist/associated-rule-picker.js");
+    expect(html).not.toContain('"ktc-associated-rule-picker-action"');
+    expect(html).not.toContain("els.rulePicker.openPicker(picker)");
     expect(html).not.toContain('id="rule-picker-list"');
-    expect(html).toContain('type: "requestAssociatedRuleCandidates"');
-    expect(html).toContain('type: "appendAssociatedRules"');
+    expect(html).not.toContain('type: "requestAssociatedRuleCandidates"');
+    expect(html).not.toContain('type: "appendAssociatedRules"');
     expect(html).toContain('id="btn-pick-working-directory"');
     expect(html).not.toContain('>将结果文件加入工作集</button>');
     expect(html).not.toContain('把本次命中的文件作为精确规则加入已有工作集');
-    expect(html).toContain('id="replace-profile-name"');
-    expect(html).toContain('label,');
+    expect(html).not.toContain('id="replace-profile-name"');
+    expect(html).not.toContain('id="replace-source-prefix"');
+    expect(html).not.toContain('id="replace-target-prefix"');
+    expect(html).not.toContain('id="replace-preserve-case"');
+    expect(html).toContain('id="replace-history"');
+    expect(html).toContain('id="btn-delete-replace-history"');
+    expect(html).toContain('id="btn-clear-replace-history"');
+    expect(html).toContain('type: "deleteRenameHistoryPair"');
+    expect(html).toContain('type: "clearRenameHistoryPairs"');
+    expect(html).toContain("var(--vscode-dropdown-background");
+    expect(html).not.toContain('id="replace-variant-mode"');
+    expect(html).toContain('id="btn-replace-variants"');
+    expect(html).toContain('id="replace-variant-block"');
+    expect(html).toContain('id="replace-variant-list"');
+    expect(html).toContain('search.className = "replace-variant-input"');
+    expect(html).toContain('replace.className = "replace-variant-input"');
+    expect(html).toContain('up.textContent = "↑"');
+    expect(html).toContain('remove.textContent = "×"');
+    expect(html).toContain('class="primary-header-context-action" id="btn-project-rename-analysis"');
+    expect(html.indexOf('id="btn-project-rename-analysis"')).toBeLessThan(html.indexOf('id="btn-close-tool"'));
+    expect(html).toContain('hidden>项目改名</button>');
     expect(html).not.toContain('id="workspace-file-scope-select"');
     expect(html).not.toContain('type: "selectWorkspaceFileScope"');
     expect(html).not.toContain('type: "openWorkspaceWorksets"');
@@ -350,12 +370,8 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('.replace-query-shell { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 3px 5px; }');
     expect(html).toContain('id="replace-preview-tooltip"');
     expect(html).toContain('id="replace-apply-tooltip"');
-    expect(html).toContain('<input id="replace-preserve-case" type="checkbox" />同时匹配全大写');
-    expect(html).toContain('state.replace.preserveCase = !!state.replace.preserveCase');
-    expect(html).toContain('preserveCase: els.preserveCase.checked');
-    expect(html).toContain('preserveCase: state.replace.preserveCase');
-    expect(html).toContain('preserveCase: !!profile.options.preserveCase');
-    expect(html).toContain('els.replaceText, els.replaceFile, els.replaceDir, els.preserveCase');
+    expect(html).not.toContain('<input id="replace-preserve-case" type="checkbox" />同时匹配全大写');
+    expect(html).not.toContain('preserveCase: els.preserveCase.checked');
     expect(html).not.toContain('自动匹配大小写（待测试开放）');
     expect(html).toContain('els.replacePreviewTooltip.title = searchReason');
     expect(html).toContain('body.task-running button.action:disabled { cursor: progress; }');
@@ -433,11 +449,11 @@ describe("sidebar panel HTML", () => {
   });
 
   it("搜索不要求替换内容，替换必须填写目标内容", () => {
-    const base = { running: false, search: "", replace: "", text: true, file: false, dir: false, extraRules: [] };
+    const base = { running: false, search: "", replace: "", text: true, file: false, dir: false };
     expect(ktcSearchReplaceButtonState({ ...base, action: "search" })).toEqual({
       disabled: true,
       busy: false,
-      message: "请输入搜索内容，或添加一条已启用的关联规则。",
+      message: "请输入搜索内容。",
     });
     expect(ktcSearchReplaceButtonState({ ...base, action: "search", search: "Old", file: true })).toEqual({ disabled: false, busy: false, message: "" });
     expect(ktcSearchReplaceButtonState({ ...base, action: "replace", search: "Old" })).toEqual({
@@ -453,7 +469,11 @@ describe("sidebar panel HTML", () => {
     expect(source).toContain('id="btn-replace-toggle"');
     expect(source).toContain('id="btn-project-rename-analysis"');
     expect(source).toContain('type: "openProjectRenameAnalysis"');
-    expect(codeRenameTool).toContain('executeCommand("ktAutoCode.projectRenameAnalysis.open", ctx.workspaceRoot)');
+    expect(codeRenameTool).toContain('executeCommand("ktAutoCode.projectRenameAnalysis.open", {');
+    expect(codeRenameTool).toContain('ktcResolveSearchReplaceLocation(getWorkspaceRoot(), message.scope)');
+    expect(codeRenameTool).not.toContain('ktcResolveSearchReplaceLocation(ctx.workspaceRoot, message.scope)');
+    expect(codeRenameTool).toContain('sourceName: message.sourceName');
+    expect(codeRenameTool).toContain('targetName: message.targetName');
     expect(source).toContain('>搜索</button>');
     expect(source).toContain('class="replace-query-row replace-only"');
     expect(source).toContain('<div id="replace-details">');
@@ -461,6 +481,17 @@ describe("sidebar panel HTML", () => {
     expect(source).toContain('state.replace.collapsed = !state.replace.collapsed');
     expect(source).toContain('els.compactTools.hidden = !caaDialog');
     expect(source).not.toContain('els.compactTools.hidden = !(rename || uuid || caaDialog)');
+  });
+
+  it("Primary 常用变形显式派生大驼峰、小写、全大写、空格和 Web 分隔符", () => {
+    expect(ktcSimpleRenameRules("PhoenixOpenIssue", "PhoenixIssue")).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: "大驼峰", search: "PhoenixOpenIssue", replace: "PhoenixIssue" }),
+      expect.objectContaining({ label: "小写", search: "phoenixopenissue", replace: "phoenixissue" }),
+      expect.objectContaining({ label: "全大写", search: "PHOENIXOPENISSUE", replace: "PHOENIXISSUE" }),
+      expect.objectContaining({ label: "空格", search: "phoenix open issue", replace: "phoenix issue" }),
+      expect.objectContaining({ label: "短横线", search: "phoenix-open-issue", replace: "phoenix-issue" }),
+      expect.objectContaining({ label: "下划线", search: "phoenix_open_issue", replace: "phoenix_issue" }),
+    ]));
   });
 
   it("只贡献一个自动高度 View，并在内部提供三个 VS Code 风格 Block", () => {

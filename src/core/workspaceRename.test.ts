@@ -54,6 +54,7 @@ describe("workspaceRename", () => {
 
     const preview = runWorkspaceRename(base);
     expect(preview.summary.replacements).toBe(2);
+    expect(preview.hits[0]?.sourceHash).toMatch(/^[0-9a-f]{64}$/u);
     expect(readFileSync(file, "utf8")).toContain("OldName");
 
     const applied = runWorkspaceRename({ ...base, apply: true });

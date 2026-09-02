@@ -75,6 +75,7 @@ function ktcProjectRenamePlanIdentity(hit: WorkspaceRenameReport["hits"][number]
     hit.level,
     hit.relativePath,
     hit.occurrences,
+    hit.sourceHash ?? "",
     hit.newPath ?? "",
     hit.status === "error" ? "error" : hit.status === "skipped" ? "skipped" : "ready",
   ].join("\u0000");

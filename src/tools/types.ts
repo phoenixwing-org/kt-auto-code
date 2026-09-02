@@ -1,10 +1,5 @@
 import type * as vscode from "vscode";
 import type { KtcReplacementRuleDraft } from "../core/associatedReplacementRules.js";
-import type {
-  KtcSearchReplaceProfile,
-  KtcSearchReplaceProfileDraft,
-  KtcSearchReplaceProfileSummary,
-} from "../core/searchReplaceProfiles.js";
 import type { KtcSearchReplaceRequest } from "../core/searchReplaceContracts.js";
 import type { KtcRenameResultViewModel } from "../core/renameResultViewModel.js";
 import type { KtcIgnoreRecommendationReport } from "../ignoreRecommendationTypes.js";
@@ -13,6 +8,7 @@ import type { KtcModuleId, KtcModuleState } from "../modules/moduleState.js";
 import type { KtcRibbonLayoutV1 } from "../sidebar/ribbonLayout.js";
 import type { KtcModuleBlockContent } from "../core/moduleShellContract.js";
 import type { KtcSearchReplaceDirectoryOption } from "../searchReplaceDirectoryOptions.js";
+import type { KtcRenamePairHistoryEntry } from "../core/renameHistory.js";
 import type { KtcCodegenInboundMessage } from "./codegen/editorContracts.js";
 import type {
   KtcCodegenControlCatalogViewModel,
@@ -140,27 +136,16 @@ export type WebviewInboundMessage =
   | { type: "analyzeIgnore" }
   | { type: "pickSearchReplaceDirectory"; toolId: "codeRename" }
   | { type: "rememberSearchReplaceDirectory"; toolId: "codeRename"; directory: string }
-  | { type: "openProjectRenameAnalysis"; toolId: "codeRename" }
-  | { type: "saveSearchReplaceProfile"; toolId: "codeRename"; label: string; draft: KtcSearchReplaceProfileDraft }
-  | { type: "loadSearchReplaceProfile"; toolId: "codeRename"; id: string }
   | {
-      type: "requestAssociatedRuleCandidates";
+      type: "openProjectRenameAnalysis";
       toolId: "codeRename";
-      mode: KtcAssociatedRulePickerMode;
-      search: string;
-      replace: string;
-      sourcePrefix: string;
-      targetPrefix: string;
-      parentRule?: KtcReplacementRuleDraft;
-      existingRules: KtcReplacementRuleDraft[];
+      scope?: string;
+      sourceName: string;
+      targetName: string;
+      rules?: readonly KtcReplacementRuleDraft[];
     }
-  | {
-      type: "appendAssociatedRules";
-      toolId: "codeRename";
-      primarySearch: string;
-      rules: KtcReplacementRuleDraft[];
-      existingRules: KtcReplacementRuleDraft[];
-    }
+  | { type: "deleteRenameHistoryPair"; toolId: "codeRename"; source: string; target: string }
+  | { type: "clearRenameHistoryPairs"; toolId: "codeRename" }
   | {
       type: "searchReplace";
       toolId: "codeRename";
@@ -203,8 +188,6 @@ export type WebviewOutboundMessage =
       workingContext: KtcWorkingContext;
       presentation: "ribbon" | "detailBlock";
       recentWorkingDirectories: KtcRecentWorkingDirectories;
-      searchReplaceProfiles: readonly KtcSearchReplaceProfileSummary[];
-      searchReplaceProfileError?: string;
       workspaceFileScopes: readonly KtcWorkspaceFileScopeSummary[];
       selectedWorkspaceFileScopes: Record<string, string>;
       workspaceFileScopeError?: string;
@@ -235,12 +218,6 @@ export type WebviewOutboundMessage =
     }
   | { type: "requestSearchReplacePreview" }
   | { type: "recentWorkingDirectories"; directories: KtcRecentWorkingDirectories; selected?: string }
-  | {
-      type: "searchReplaceProfiles";
-      profiles: readonly KtcSearchReplaceProfileSummary[];
-      selectedProfile?: KtcSearchReplaceProfile;
-      error?: string;
-    }
   | { type: "state"; toolId: string; state: ToolUiState };
 
 export type KtcCodeAssistantFeatureId =
@@ -358,6 +335,7 @@ export interface ToolUiState {
   reorderScopeLabel?: string;
   reorderSelectedUris?: string[];
   codeRenameResults?: KtcRenameResultViewModel;
+  renameHistory?: readonly KtcRenamePairHistoryEntry[];
   caaDialogResults?: CaaDialogFileResultSummary[];
   caaSettingsText?: string;
   caaDeskConnection?: {

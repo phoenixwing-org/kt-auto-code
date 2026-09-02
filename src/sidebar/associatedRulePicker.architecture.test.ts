@@ -15,8 +15,9 @@ describe("associated rule picker architecture", () => {
     expect(component).not.toMatch(/acquireVsCodeApi|postMessage|primarySearch|existingRules|workspace\.fs|clipboard/);
   });
 
-  it("Panel、构建、架构门禁、Browser 夹具与 VSIX 制品门禁全部接线", () => {
+  it("项目改名 View、构建、架构门禁、Browser 夹具与 VSIX 制品门禁全部接线", () => {
     const panel = source("./panelHtml.ts");
+    const projectRenameView = source("../tools/projectRename/viewHtml.ts");
     const entry = source("./associatedRulePickerEntry.ts");
     const build = source("../../esbuild.mjs");
     const architecture = JSON.parse(source("../../architecture-boundaries.json")) as {
@@ -26,8 +27,10 @@ describe("associated rule picker architecture", () => {
     const fixture = source("../../tests/webview/associated-rule-picker.html");
     const vscodeIgnore = source("../../.vscodeignore");
 
-    expect(panel).toContain('<ktc-associated-rule-picker id="rule-picker"></ktc-associated-rule-picker>');
-    expect(panel).toContain("dist/associated-rule-picker.js");
+    expect(panel).not.toContain('<ktc-associated-rule-picker id="rule-picker"></ktc-associated-rule-picker>');
+    expect(panel).not.toContain("dist/associated-rule-picker.js");
+    expect(projectRenameView).toContain('<ktc-associated-rule-picker id="rule-picker"></ktc-associated-rule-picker>');
+    expect(projectRenameView).toContain('vscode.Uri.joinPath(extensionUri, "dist", "associated-rule-picker.js")');
     expect(entry).toContain("ktcDefineAssociatedRulePicker();");
     expect(build).toContain('entryPoints: ["src/sidebar/associatedRulePickerEntry.ts"]');
     expect(build).toContain('outfile: "dist/associated-rule-picker.js"');
