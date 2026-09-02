@@ -29,7 +29,6 @@ import { getFileScope, setFileScopeOption, type ScopeOptionKey } from "../scopeO
 import { getWorkspaceLabel, getWorkspaceRoot } from "../workspace.js";
 import { getPanelHtml, postToWebview } from "./panelHtml.js";
 import type { ToolOptionsState } from "../tools/types.js";
-import { KtcSearchReplaceProfileController } from "../searchReplaceProfileController.js";
 import {
   ktcDefaultIgnoreGroupIds,
   ktcIgnoreController,
@@ -170,7 +169,6 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   private codeAssistantTreeUiState: KtcCodeAssistantTreeUiState;
   private openToolIds: string[] = [];
   private toolStates = new Map<string, ToolUiState>();
-  private readonly searchReplaceProfiles = new KtcSearchReplaceProfileController();
   private readonly recentExternalDirectories: KtcRecentWorkingDirectoryStore;
   private readonly recentWorkspaceDirectories: KtcRecentWorkspaceDirectoryStore;
   private ribbonLayout?: KtcRibbonLayoutV1;
@@ -258,7 +256,6 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     this.postToViews({ type: "workspace", label: getWorkspaceLabel() });
     this.postWorkingContext();
     this.refreshIgnoreConfig();
-    this.refreshSearchReplaceProfiles();
   }
 
   refreshIgnoreConfig(): void {
@@ -300,13 +297,6 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   async requestSearchReplacePreview(): Promise<void> {
     await this.showTool("codeRename");
     postToWebview(this.moduleView, { type: "requestSearchReplacePreview" });
-  }
-
-  refreshSearchReplaceProfiles(): void {
-    this.postToViews({
-      type: "searchReplaceProfiles",
-      ...this.searchReplaceProfiles.snapshot(getWorkspaceRoot()),
-    });
   }
 
   /** Opens the tool interface block; results are rendered in the same block. */
@@ -526,7 +516,6 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       this.activeToolId = codeTools[0]!.id;
     }
 
-    const profileSnapshot = this.searchReplaceProfiles.snapshot(getWorkspaceRoot());
     const ribbonLayout = await this.getRibbonLayout(this.getRibbonLayoutTools());
     const workingContext = this.getWorkingContext();
     target.title = "工具栏";
@@ -546,8 +535,6 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       workingContext,
       presentation: "detailBlock",
       recentWorkingDirectories: this.getRecentWorkingDirectories(),
-      searchReplaceProfiles: profileSnapshot.profiles,
-      searchReplaceProfileError: profileSnapshot.error,
       workspaceFileScopes: [],
       selectedWorkspaceFileScopes: {},
       workspaceFileScopeError: "工作集已停用。",
@@ -750,37 +737,6 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
         });
       } else if (result.summary) {
         this.setToolState("ignoreSettings", { status: "done", message: result.summary.statusText });
-      }
-      return;
-    }
-
-    if (message.type === "saveSearchReplaceProfile" || message.type === "loadSearchReplaceProfile") {
-      const root = getWorkspaceRoot();
-      if (!root) {
-        this.setToolState("codeRename", { status: "error", message: "请先打开工作区文件夹。" });
-        return;
-      }
-      try {
-        const snapshot = message.type === "saveSearchReplaceProfile"
-          ? await this.searchReplaceProfiles.save(root, message.draft, message.label)
-          : this.searchReplaceProfiles.load(root, message.id);
-        if (snapshot) {
-          this.postToViews({ type: "searchReplaceProfiles", ...snapshot });
-          if (message.type === "saveSearchReplaceProfile" && snapshot.selectedProfile) {
-            this.setToolState("codeRename", {
-              status: "done",
-              message: `规则档案“${snapshot.selectedProfile.label}”已保存到当前工作区。`,
-            });
-          }
-        }
-      } catch (error) {
-        const text = error instanceof Error ? error.message : String(error);
-        this.setToolState("codeRename", { status: "error", message: text });
-        this.postToViews({
-          type: "searchReplaceProfiles",
-          profiles: this.searchReplaceProfiles.snapshot(root).profiles,
-          error: text,
-        });
       }
       return;
     }

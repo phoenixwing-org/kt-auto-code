@@ -2,7 +2,6 @@ import * as vscode from "vscode";
 import { basename, resolve } from "node:path";
 import { ktcSuggestNameReplacement } from "../../core/replacementRules.js";
 import {
-  ktcAppendAssociatedReplacementRuleDrafts,
   ktcMergeAssociatedReplacementRules,
 } from "../../core/associatedReplacementRules.js";
 import type { KtcSearchReplaceRequest } from "../../core/searchReplaceContracts.js";
@@ -10,16 +9,12 @@ import { ktcResolveWorkspaceWorkingDirectory } from "../../core/workspaceRename.
 import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
 import { KtcSearchReplaceController } from "../../searchReplaceController.js";
 import { getWorkspaceRoot } from "../../workspace.js";
-import { ktcCreateAssociatedRulePicker } from "./associatedRulePicker.js";
 import { ktcResolveSearchReplaceLocation } from "../../searchReplaceLocation.js";
+import { KtcRenameHistoryStore } from "../../core/renameHistory.js";
 
 let searchReplaceController: KtcSearchReplaceController | undefined;
 let runContextFactory: (() => ToolRunContext | undefined) | undefined;
-
-type AssociatedRuleCandidateRequest = Extract<
-  WebviewInboundMessage,
-  { type: "requestAssociatedRuleCandidates" }
->;
+let renameHistory: KtcRenameHistoryStore | undefined;
 
 export const codeRenameTool: KtTool = {
   id: "codeRename",
@@ -34,6 +29,7 @@ export const codeRenameTool: KtTool = {
 
   registerCommands(context: vscode.ExtensionContext): void {
     searchReplaceController = new KtcSearchReplaceController();
+    renameHistory = new KtcRenameHistoryStore(context.globalState);
     context.subscriptions.push(
       vscode.commands.registerCommand("ktAutoCode.codeRename.configure", async () => {
         await vscode.commands.executeCommand("ktAutoCode.tool.show", this.id);
@@ -47,31 +43,65 @@ export const codeRenameTool: KtTool = {
     );
   },
 
+  onDidShow(ctx: ToolRunContext): void {
+    ctx.postState({
+      status: "idle",
+      renameHistory: renameHistory?.snapshot().pairs ?? [],
+    });
+  },
+
   async handleMessage(message: WebviewInboundMessage, ctx: ToolRunContext): Promise<void> {
-    if (message.type === "openProjectRenameAnalysis" && message.toolId === this.id) {
-      await vscode.commands.executeCommand("ktAutoCode.projectRenameAnalysis.open", ctx.workspaceRoot);
-      return;
-    }
-
-    if (message.type === "requestAssociatedRuleCandidates" && message.toolId === this.id) {
-      postAssociatedRulePicker(ctx, message);
-      return;
-    }
-
-    if (message.type === "appendAssociatedRules" && message.toolId === this.id) {
-      const associatedRules = ktcAppendAssociatedReplacementRuleDrafts(
-        message.rules,
-        message.existingRules,
-        [message.primarySearch],
-      );
-      const addedCount = associatedRules.length - message.existingRules.length;
+    if (message.type === "deleteRenameHistoryPair" && message.toolId === this.id) {
+      if (!ktcValidRenameHistoryText(message.source) || !ktcValidRenameHistoryText(message.target)) return;
+      const history = await renameHistory?.forgetPair(message.source, message.target);
       ctx.postState({
-        status: addedCount > 0 ? "done" : "idle",
-        message: addedCount > 0
-          ? `已添加 ${addedCount} 条关联规则。`
-          : "所选规则已存在，未重复添加。",
-        associatedRules,
+        status: "idle",
+        message: "已删除所选本机最近改名记录。",
+        renameHistory: history?.pairs ?? [],
       });
+      return;
+    }
+
+    if (message.type === "clearRenameHistoryPairs" && message.toolId === this.id) {
+      const accepted = await vscode.window.showWarningMessage(
+        "清空本机最近改名记录？",
+        {
+          modal: true,
+          detail: "将删除 Primary 中保存的最近 50 组 Source / Target；项目共享规则档案和项目方案不受影响。删除后无法恢复。",
+        },
+        "清空最近记录",
+      );
+      if (accepted !== "清空最近记录") return;
+      const history = await renameHistory?.clearPairs();
+      ctx.postState({
+        status: "idle",
+        message: "已清空本机最近改名记录。",
+        renameHistory: history?.pairs ?? [],
+      });
+      return;
+    }
+
+    if (message.type === "openProjectRenameAnalysis" && message.toolId === this.id) {
+      try {
+        // Primary 的运行上下文已经指向所选工作目录，而 message.scope 仍是
+        // 相对真实 VS Code 工作区根目录保存的值。必须与搜索控制器使用同一
+        // 根目录解析，避免把子目录重复拼成 `<子目录>/<子目录>`。
+        const location = ktcResolveSearchReplaceLocation(getWorkspaceRoot(), message.scope);
+        const projectRoot = location.usesCurrentWorkspace
+          ? ktcResolveWorkspaceWorkingDirectory(location.root, location.scope)
+          : location.root;
+        await vscode.commands.executeCommand("ktAutoCode.projectRenameAnalysis.open", {
+          root: projectRoot,
+          sourceName: message.sourceName,
+          targetName: message.targetName,
+          rules: message.rules,
+        });
+      } catch (error) {
+        ctx.postState({
+          status: "error",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
       return;
     }
 
@@ -119,7 +149,6 @@ export const codeRenameTool: KtTool = {
       ctx.postState({
         status: "running",
         message: message.action === "apply" ? "正在执行替换…" : "正在搜索…",
-        associatedRules: payload.rules?.slice(1),
       });
       let scopedPayload: KtcSearchReplaceRequest;
       try { scopedPayload = await applyWorkspaceFileScope(payload, ctx); }
@@ -142,11 +171,15 @@ export const codeRenameTool: KtTool = {
       } else if (result === "error") {
         ctx.postState({ status: "error", message: "搜索替换失败，请检查当前 Block 结果。", rootRenameSuggestion, codeRenameResults });
       } else {
+        const history = result === "completed" && scopedPayload.oldName && scopedPayload.newName
+          ? await renameHistory?.rememberPair(scopedPayload.oldName, scopedPayload.newName)
+          : renameHistory?.snapshot();
         ctx.postState({
           status: "done",
           message: message.action === "apply" ? "替换完成，请检查 Git diff。" : "搜索结果已更新。",
           rootRenameSuggestion,
           codeRenameResults,
+          renameHistory: history?.pairs ?? [],
         });
       }
       return;
@@ -175,18 +208,6 @@ export function setCodeRenameRunContextFactory(factory: () => ToolRunContext | u
   runContextFactory = factory;
 }
 
-function postAssociatedRulePicker(
-  ctx: ToolRunContext,
-  request: AssociatedRuleCandidateRequest,
-): void {
-  const picker = ktcCreateAssociatedRulePicker(request);
-  ctx.postState({
-    status: "idle",
-    message: picker.candidates.length > 0 ? "请选择要添加的关联规则。" : "没有新的推荐，可填写自定义规则。",
-    associatedRulePicker: picker,
-  });
-}
-
 function normalizeSearchReplaceRules(
   payload: KtcSearchReplaceRequest,
 ): KtcSearchReplaceRequest {
@@ -196,6 +217,10 @@ function normalizeSearchReplaceRules(
     ...payload,
     rules: [primary, ...ktcMergeAssociatedReplacementRules([], associated, [])],
   };
+}
+
+function ktcValidRenameHistoryText(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0 && value.length <= 256;
 }
 
 function getRootRenameSuggestion(

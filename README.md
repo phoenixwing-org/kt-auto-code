@@ -6,7 +6,7 @@
 
 需要同时配置两个远端时，macOS/Linux 运行 `./addRemote.sh`，PowerShell 运行 `.\addRemote.ps1`。脚本可重复执行且默认保留已有 `origin`；仅显式使用 `--remove-origin` 或 `-RemoveOrigin` 时才删除它。
 
-当前插件提供 **头文件编码修正、文件转码、Ignore 设置、工作区搜索替换、大型项目改名分析与受控执行、C++ 成员排序、UUID 替换、CAA UI、工程环境管理与 Codegen 参数表原型**。大型项目改名入口位于 Primary 的 **搜索替换 → 大型项目改名分析…**，并以独立 Editor View 固定当前目录；重复点击只聚焦当前任务，关闭后才可为另一目录新建任务。该 View 先生成只读报告和冻结计划，只有通过冲突、漂移与 Git 状态门禁并再次确认后才执行写盘。成员排序、UUID、CAA 扫描和 Codegen 预检可共用 `.phoenix/worksets.json`；搜索替换当前使用独立目录选择，工作集入口待产品交互明确后再评估。工程环境 Block 直接维护操作系统用户环境变量，不使用 VS Code Settings 伪装系统值；其他插件配置仍使用 VS Code Settings。写盘前会检查冲突和文件快照，结果统一显示在单 Block 中；Codegen Apply 会自动预检、重验源码指纹并保持 UTF-8/BOM/GBK 原编码，批量写入失败时尝试回滚。
+当前插件提供 **头文件编码修正、文件转码、Ignore 设置、工作区搜索替换、项目改名与受控执行、C++ 成员排序、UUID 替换、CAA UI、工程环境管理与 Codegen 参数表原型**。Primary 的搜索替换保留精确规则和 Pascal、小写、全大写、空格、kebab、snake 等简单显式变形；CAA/C++ 前缀改名和复杂 Web 多变形使用 Header 中的 **项目改名**按钮打开独立 Editor View。打开时会带入 Primary 当前目录、名称和启用规则；一个 View 固定一个目录任务，重复点击只聚焦当前任务，关闭后才可为另一目录新建任务。该 View 先生成只读报告和冻结计划，写盘前可用 VS Code 原生 Diff 对比计划内容，只有通过冲突、文件指纹、编码、命中数和 Git 状态门禁并再次确认后才执行写盘。成员排序、UUID、CAA 扫描和 Codegen 预检可共用 `.phoenix/worksets.json`；搜索替换当前使用独立目录选择，工作集入口待产品交互明确后再评估。工程环境 Block 直接维护操作系统用户环境变量，不使用 VS Code Settings 伪装系统值；其他插件配置仍使用 VS Code Settings。写盘前会检查冲突和文件快照，结果统一显示在单 Block 中；Codegen Apply 会自动预检、重验源码指纹并保持 UTF-8/BOM/GBK 原编码，批量写入失败时尝试回滚。
 
 ## Code 与 CAD 功能关系
 

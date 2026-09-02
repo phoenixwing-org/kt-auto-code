@@ -6,7 +6,7 @@ Owner：KT Auto Code maintainers
 
 适用版本：0.8.x
 
-最后核验：2026-09-01
+最后核验：2026-09-02
 
 ## 已完成基线
 
@@ -24,7 +24,7 @@ Owner：KT Auto Code maintainers
 
 ## 当前优先级
 
-0. **[Windows 测试候选：0.8.0]** 新增大型项目改名分析与受控执行工具，并包含 `0.7.4` 未单独发布的代码辅助修复。Phoenix Wing root 适配 npm Registry 最新 `0.7.2`，Auto scoped 依赖继续精确使用四个 `0.6.4` 与两个 `0.6.3`。本地基本手工改名已通过但未完成详细矩阵；先交付 Windows 用户测试，Registry/VSIX 不得写入本地路径。
+0. **[Windows 测试候选：0.8.1]** `0.8.0` 在用户基本手工改名后继续整改为 **项目改名**：Primary 保留适合 CAA/C++/简单 Web 的精确替换和六种简单显式变形，复杂档案、前缀、候选与项目方案迁入独立 View，并增加写盘前 VS Code 原生 Diff。Phoenix Wing root 适配 npm Registry 最新 `0.7.2`，Auto scoped 依赖继续精确使用四个 `0.6.4` 与两个 `0.6.3`。当前仍先交付 Windows 用户详细测试，Registry/VSIX 不得写入本地路径。
 1. 将字符串型架构检查升级为 AST/import graph，固化 pure core、Extension Host 与 Webview 的依赖方向。
 2. 与 Wing、Desk 共享 Analyze/Apply/Schema golden fixtures，避免宿主用自己的样例解释同一协议。
 3. 真实 Extension Host 的打开、预览、冲突、Apply、保存复读和失败回滚已进入自动 smoke；继续补齐浅色、深色、高对比、取消和 VSIX 安装的人工视觉矩阵。

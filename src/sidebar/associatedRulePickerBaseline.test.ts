@@ -1,77 +1,55 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { KtcReplacementRuleDraft } from "../core/associatedReplacementRules.js";
-import {
-  getPanelHtml,
-  ktcAssociatedRulePickerAppendMessage,
-} from "./panelHtml.js";
+import { getPanelHtml } from "./panelHtml.js";
 
-function panelHtml(): string {
-  const extensionUri = {
+function webview() {
+  return {
+    cspSource: "test-webview",
+    asWebviewUri(uri: { path?: string; toString?(): string }) {
+      return `test-webview:${uri.path ?? uri.toString?.() ?? ""}`;
+    },
+  };
+}
+
+function extensionUri() {
+  return {
     path: "/extension",
     with(change: { path: string }) { return { ...this, ...change }; },
-  } as unknown as Parameters<typeof getPanelHtml>[1];
-  return getPanelHtml({
-    cspSource: "test-webview",
-    asWebviewUri(uri: { path: string }) { return `test-webview:${uri.path}`; },
-  } as unknown as Parameters<typeof getPanelHtml>[0], extensionUri);
+  };
 }
 
 describe("associated rule picker component adapter", () => {
-  it("Host 继续生成候选和去重，Sidebar 只把一次性模型交给组件", () => {
+  it("Host 继续生成候选，项目改名 View 接管一次性模型", () => {
     const sidebar = readFileSync(new URL("./panelHtml.ts", import.meta.url), "utf8");
-    const provider = readFileSync(new URL("./sidebarViewProvider.ts", import.meta.url), "utf8");
-    const tool = readFileSync(new URL("../tools/codeRename/index.ts", import.meta.url), "utf8");
+    const host = readFileSync(new URL("../projectRenameHost.ts", import.meta.url), "utf8");
+    const controller = readFileSync(new URL("../tools/projectRename/viewController.ts", import.meta.url), "utf8");
+    const entry = readFileSync(new URL("../tools/projectRename/viewEntry.ts", import.meta.url), "utf8");
 
-    expect(tool).toContain("const picker = ktcCreateAssociatedRulePicker(request);");
-    expect(tool).toContain("ktcAppendAssociatedReplacementRuleDrafts(");
-    expect(provider).toContain("associatedRulePicker");
-    expect(sidebar).toContain("if (associatedRulePicker) openRulePicker(associatedRulePicker);");
-    expect(sidebar).toContain("els.rulePicker.openPicker(picker);");
-    expect(sidebar).toContain('els.rulePicker.addEventListener("ktc-associated-rule-picker-action"');
-    expect(sidebar).not.toContain("function updateRulePickerConfirm()");
-    expect(sidebar).not.toContain('className = "rule-picker-row"');
-    expect(sidebar).not.toContain("activeRulePicker");
+    expect(host).toContain("return ktcCreateAssociatedRulePicker(options);");
+    expect(controller).toContain('message.type === "requestRulePicker"');
+    expect(controller).toContain("this.host.createRulePicker({");
+    expect(controller).toContain('{ type: "rulePicker", picker }');
+    expect(entry).toContain('rulePicker.addEventListener("ktc-associated-rule-picker-action"');
+    expect(entry).toContain("rulePicker.openPicker(message.picker)");
+    expect(sidebar).not.toContain("if (associatedRulePicker) openRulePicker(associatedRulePicker);");
+    expect(sidebar).not.toContain("els.rulePicker.openPicker(picker);");
+    expect(sidebar).not.toContain('els.rulePicker.addEventListener("ktc-associated-rule-picker-action"');
   });
 
-  it("适配器补齐 primarySearch 与 existingRules，但不改组件返回的 draft", () => {
-    const rules: readonly KtcReplacementRuleDraft[] = [{
-      id: "custom-1",
-      search: "  ManualSource  ",
-      replace: "ManualTarget",
-      enabled: true,
-      source: "user",
-      relationKind: "custom",
-    }];
-    const existingRules: readonly KtcReplacementRuleDraft[] = [{
-      id: "existing",
-      search: "Existing",
-      replace: "Kept",
-      enabled: true,
-    }];
+  it("Primary 不再承载高级规则，项目改名 View 加载共享组件 bundle", () => {
+    const sidebarHtml = getPanelHtml(
+      webview() as unknown as Parameters<typeof getPanelHtml>[0],
+      extensionUri() as unknown as Parameters<typeof getPanelHtml>[1],
+    );
+    const viewHtml = readFileSync(new URL("../tools/projectRename/viewHtml.ts", import.meta.url), "utf8");
 
-    expect(ktcAssociatedRulePickerAppendMessage({
-      primarySearch: "PrimarySource",
-      rules,
-      existingRules,
-    })).toEqual({
-      type: "appendAssociatedRules",
-      toolId: "codeRename",
-      primarySearch: "PrimarySource",
-      rules,
-      existingRules,
-    });
-  });
-
-  it("Sidebar HTML、独立 bundle 与单一 action 事件接线完整", () => {
-    const html = panelHtml();
-    expect(html).toContain('<ktc-associated-rule-picker id="rule-picker"></ktc-associated-rule-picker>');
-    expect(html).toContain("test-webview:/extension/dist/associated-rule-picker.js");
-    expect(html).toContain('event.detail?.kind !== "confirm"');
-    expect(html).toContain("primarySearch: state.replace.search");
-    expect(html).toContain("existingRules: state.replace.extraRules");
-    expect(html).not.toContain('id="rule-picker-list"');
-    expect(html).not.toContain("showModal()");
+    expect(sidebarHtml).not.toContain('<ktc-associated-rule-picker id="rule-picker"></ktc-associated-rule-picker>');
+    expect(sidebarHtml).not.toContain("associated-rule-picker.js");
+    expect(sidebarHtml).not.toContain('id="replace-profile-name"');
+    expect(viewHtml).toContain('<ktc-associated-rule-picker id="rule-picker"></ktc-associated-rule-picker>');
+    expect(viewHtml).toContain('vscode.Uri.joinPath(extensionUri, "dist", "associated-rule-picker.js")');
+    expect(viewHtml).not.toContain('id="rule-picker-list"');
+    expect(viewHtml).not.toContain("showModal()");
   });
 
   it("Browser 点检夹具加载真实 bundle 并覆盖 common、CAA、custom", () => {

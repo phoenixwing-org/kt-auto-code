@@ -1,14 +1,25 @@
 {
   "schemaVersion": 1,
   "owner": "KT Auto Code maintainers",
-  "lastVerified": "2026-09-01",
+  "lastVerified": "2026-09-02",
   "appliesTo": "0.8.x",
   "rules": [
     {
       "match": "^docs/0\\.7\\.4发布准备\\.md$",
       "status": "superseded",
-      "sourceOfTruth": "docs/0.8.0发布准备.md",
-      "reason": "0.7.4 未单独发布，补丁内容并入 0.8.0 测试候选"
+      "sourceOfTruth": "docs/0.8.1发布准备.md",
+      "reason": "0.7.4 未单独发布，补丁内容已进入 0.8.1 测试候选"
+    },
+    {
+      "match": "^docs/0\\.8\\.0发布准备\\.md$",
+      "status": "superseded",
+      "sourceOfTruth": "docs/0.8.1发布准备.md",
+      "reason": "0.8.0 初始候选已由完成职责迁移、历史恢复与写盘前 Diff 的 0.8.1 取代"
+    },
+    {
+      "match": "^docs/0\\.8\\.1发布准备\\.md$",
+      "status": "current",
+      "reason": "当前项目改名 Windows 测试候选与发布门禁真源"
     },
     {
       "match": "^docs/历史/(下一阶段实施计划|Codegen下一阶段实施计划|0\\.4\\.0-Block工作流改造计划)\\.md$",
@@ -39,6 +50,18 @@
       "status": "draft",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "尚未晋升为当前承诺的方案"
+    },
+    {
+      "match": "^docs/项目改名View整改方案\\.md$",
+      "status": "current",
+      "sourceOfTruth": "docs/搜索替换.md",
+      "reason": "0.8.1 已实现的项目改名职责迁移、布局和写盘前 Diff 设计证据"
+    },
+    {
+      "match": "^docs/项目改名第二阶段-结构化规则与正则可行性\\.md$",
+      "status": "draft",
+      "sourceOfTruth": "docs/搜索替换.md",
+      "reason": "结构化名称与正则写盘仍是后续阶段候选，不进入当前 0.8.1"
     },
     {
       "match": "^docs/代码辅助入口整合TODO\\.md$",

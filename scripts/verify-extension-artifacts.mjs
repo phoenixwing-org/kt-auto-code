@@ -132,6 +132,8 @@ for (const artifact of artifacts) {
     const projectRenameAnalysisBundle = readText(zip, "extension/dist/project-rename-analysis.js");
     if (!projectRenameAnalysisBundle.includes("upper-snake")
         || !projectRenameAnalysisBundle.includes("loadMore")
+        || !projectRenameAnalysisBundle.includes("previewFirstDiff")
+        || !projectRenameAnalysisBundle.includes("previewDiff")
         || !projectRenameAnalysisBundle.includes("acquireVsCodeApi")) {
       throw new Error("Code VSIX is missing the standalone project rename analysis Webview bundle");
     }

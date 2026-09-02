@@ -24,6 +24,18 @@ describe("project rename name variants", () => {
     });
   });
 
+  it("保留 camelCase 尾部的连续大写词段", () => {
+    expect(ktcProjectRenameNameVariants("bomAAA")).toEqual({
+      display: "Bom AAA",
+      kebab: "bom-aaa",
+      snake: "bom_aaa",
+      camel: "bomAAA",
+      pascal: "BomAAA",
+      "upper-snake": "BOM_AAA",
+    });
+    expect(ktcProjectRenameNameVariants("kevinBBB").camel).toBe("kevinBBB");
+  });
+
   it("不猜测短前缀，仅创建固定的 6 条形态规则", () => {
     const rules = ktcDeriveProjectRenameRules("Phoenix Dev Hub", "Phoenix Hub");
     expect(rules).toHaveLength(6);

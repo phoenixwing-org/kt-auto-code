@@ -24,6 +24,12 @@ describe("project rename execution gate", () => {
     expect(ktcProjectRenamePreviewDrift(report, workspace([hit("file", "old.ts", 2, "new.ts")]))).toContain("已变化");
   });
 
+  it("命中次数相同但原文件指纹变化时仍阻止执行", () => {
+    const report = analysis([{ ...hit("text", "src/a.ts", 1), sourceHash: "a".repeat(64) }]);
+    const preview = workspace([{ ...hit("text", "src/a.ts", 1), sourceHash: "b".repeat(64) }]);
+    expect(ktcProjectRenamePreviewDrift(report, preview)).toContain("已变化");
+  });
+
   it("重新扫描无剩余命中时达到目标门禁", () => {
     const preview = workspace([hit("text", "src/a.ts", 2)]);
     const appliedHit = { ...hit("text", "src/a.ts", 2), status: "applied" as const };

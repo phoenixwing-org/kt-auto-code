@@ -2,10 +2,8 @@ import type * as vscode from "vscode";
 import type {
   ToolSummary,
   ToolUiState,
-  WebviewInboundMessage,
   WebviewOutboundMessage,
 } from "../tools/types.js";
-import type { KtcReplacementRuleDraft } from "../core/associatedReplacementRules.js";
 import { ktcGitRepositoryOptionLabels, type KtcGitViewModel } from "../core/git/KtcGitModel.js";
 import { ktcCreateWebviewSecurity } from "../webviewSupport.js";
 import { KtcCompactManagerLabelStyle } from "../ui/KtcCompactManagerLabel.js";
@@ -18,37 +16,54 @@ export function ktcSearchReplaceButtonState(input: {
   readonly text: boolean;
   readonly file: boolean;
   readonly dir: boolean;
-  readonly extraRules: readonly { search: string; replace: string; enabled?: boolean }[];
 }): { disabled: boolean; busy: boolean; message: string } {
   if (input.running) return { disabled: true, busy: true, message: "" };
   if (!input.text && !input.file && !input.dir) {
     return { disabled: true, busy: false, message: "请至少选择文本、文件名或文件夹名中的一项。" };
   }
-  const activeRules = [
-    { search: input.search, replace: input.replace, enabled: true },
-    ...input.extraRules,
-  ].filter((rule) => rule.enabled !== false && rule.search.length > 0);
-  if (activeRules.length === 0) {
-    return { disabled: true, busy: false, message: "请输入搜索内容，或添加一条已启用的关联规则。" };
+  if (input.search.length === 0) {
+    return { disabled: true, busy: false, message: "请输入搜索内容。" };
   }
-  if (input.action === "replace" && activeRules.some((rule) => rule.replace.length === 0)) {
+  if (input.action === "replace" && input.replace.length === 0) {
     return { disabled: true, busy: false, message: "请输入替换内容后再替换。" };
   }
   return { disabled: false, busy: false, message: "" };
 }
 
-export function ktcAssociatedRulePickerAppendMessage(input: {
-  readonly primarySearch: string;
-  readonly rules: readonly KtcReplacementRuleDraft[];
-  readonly existingRules: readonly KtcReplacementRuleDraft[];
-}): Extract<WebviewInboundMessage, { type: "appendAssociatedRules" }> {
-  return {
-    type: "appendAssociatedRules",
-    toolId: "codeRename",
-    primarySearch: input.primarySearch,
-    rules: [...input.rules],
-    existingRules: [...input.existingRules],
-  };
+/** Primary 的轻量常用变形；复杂前缀、CAA 规则与规则档案只在项目改名 View 中编辑。 */
+export function ktcSimpleRenameRules(sourceName: string, targetName: string): readonly {
+  id: string;
+  label: string;
+  search: string;
+  replace: string;
+  enabled: true;
+}[] {
+  const tokens = (value: string): string[] => value.trim()
+    .replace(/([a-z0-9])([A-Z])/gu, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/gu, "$1 $2")
+    .split(/[\s._-]+/gu)
+    .filter(Boolean)
+    .map((token) => token.toLocaleLowerCase("en-US"));
+  const source = tokens(sourceName);
+  const target = tokens(targetName);
+  if (source.length === 0 || target.length === 0) return [];
+  const pascal = (items: readonly string[]) => items
+    .map((token) => `${token.slice(0, 1).toLocaleUpperCase("en-US")}${token.slice(1)}`)
+    .join("");
+  const candidates = [
+    { id: "simple-pascal", label: "大驼峰", search: pascal(source), replace: pascal(target) },
+    { id: "simple-lower", label: "小写", search: source.join(""), replace: target.join("") },
+    { id: "simple-upper", label: "全大写", search: source.join("").toLocaleUpperCase("en-US"), replace: target.join("").toLocaleUpperCase("en-US") },
+    { id: "simple-space", label: "空格", search: source.join(" "), replace: target.join(" ") },
+    { id: "simple-kebab", label: "短横线", search: source.join("-"), replace: target.join("-") },
+    { id: "simple-snake", label: "下划线", search: source.join("_"), replace: target.join("_") },
+  ];
+  const seen = new Set<string>();
+  return candidates.flatMap((rule) => {
+    if (!rule.search || !rule.replace || rule.search === rule.replace || seen.has(rule.search)) return [];
+    seen.add(rule.search);
+    return [{ ...rule, enabled: true as const }];
+  });
 }
 
 /**
@@ -115,9 +130,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
   const renameResultsPanelUri = webview.asWebviewUri(
     extensionUri.with({ path: `${basePath}/dist/rename-results-panel.js` }),
   );
-  const associatedRulePickerUri = webview.asWebviewUri(
-    extensionUri.with({ path: `${basePath}/dist/associated-rule-picker.js` }),
-  );
   const ribbonCustomizationMenuUri = webview.asWebviewUri(
     extensionUri.with({ path: `${basePath}/dist/ribbon-customization-menu.js` }),
   );
@@ -150,6 +162,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       padding: 0;
       margin: 0;
     }
+    body.vscode-light,
+    body.vscode-high-contrast-light { color-scheme: light; }
+    body.vscode-dark,
+    body.vscode-high-contrast { color-scheme: dark; }
     body.vscode-high-contrast,
     body.vscode-high-contrast-light {
       --ktc-ui-border: var(--vscode-contrastBorder, var(--vscode-focusBorder));
@@ -183,6 +199,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     /* 当前工具统一采用满宽紧凑内容边界；每个功能在自身行内保留必要内边距。 */
     #primary-body { min-height: 0; flex: 1 1 auto; padding-inline: 0; overflow-x: hidden; overflow-y: auto; }
     .primary-block-header-title { min-width: 0; flex: 1 1 auto; overflow: hidden; font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    .primary-header-context-action { min-width: 0; height: 21px; max-width: 92px; overflow: hidden; padding: 0 7px; border: 1px solid var(--vscode-button-secondaryBackground, var(--vscode-panel-border)); border-radius: 9px; color: var(--vscode-textLink-foreground); background: var(--vscode-button-secondaryBackground, transparent); cursor: pointer; font: inherit; font-size: 10px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    .primary-header-context-action:hover { border-color: var(--ktc-ui-active-border, var(--vscode-focusBorder)); background: var(--vscode-button-secondaryHoverBackground, var(--vscode-toolbar-hoverBackground)); }
+    .primary-header-context-action:disabled { opacity: .45; cursor: default; }
     ktc-codegen-primary-panel,
     ktc-git-primary-panel,
     ktc-run-primary-panel { display: block; width: 100%; min-width: 0; max-width: 100%; overflow-x: hidden; }
@@ -542,6 +561,61 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .replace-block.collapsed .replace-only { display: none; }
     .replace-options { display: flex; flex-wrap: wrap; gap: 5px 12px; margin: 6px 0; }
     .replace-options label { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; }
+    .replace-helpers { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; margin-top: 6px; }
+    .replace-history-control { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) 23px auto; gap: 3px; }
+    .replace-history-control select {
+      width: 100%;
+      min-width: 0;
+      height: 26px;
+      padding: 2px 6px;
+      border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border));
+      border-radius: 2px;
+      outline: 0;
+      color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
+      background: var(--vscode-dropdown-background, var(--vscode-input-background));
+    }
+    .replace-history-control select:focus { border-color: var(--vscode-focusBorder); }
+    .replace-history-action {
+      min-width: 23px;
+      height: 26px;
+      padding: 0 5px;
+      border: 1px solid var(--ktc-ui-border, var(--vscode-panel-border));
+      border-radius: 2px;
+      color: var(--vscode-foreground);
+      background: transparent;
+      cursor: pointer;
+      font: inherit;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+    .replace-history-action:hover:not(:disabled) { border-color: var(--ktc-ui-active-border, var(--vscode-focusBorder)); background: var(--vscode-toolbar-hoverBackground); }
+    .replace-history-action:disabled { color: var(--vscode-disabledForeground, var(--vscode-descriptionForeground)); opacity: .5; cursor: default; }
+    .replace-variant-toggle {
+      min-height: 26px;
+      padding: 2px 8px;
+      border: 1px solid var(--vscode-button-secondaryBackground, var(--vscode-panel-border));
+      border-radius: 2px;
+      color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+      background: var(--vscode-button-secondaryBackground, transparent);
+      cursor: pointer;
+      font: inherit;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+    .replace-variant-toggle:hover,
+    .replace-variant-toggle[aria-expanded="true"] { border-color: var(--ktc-ui-active-border, var(--vscode-focusBorder)); background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground)); }
+    .replace-variant-toggle:disabled { opacity: .45; cursor: default; }
+    .replace-variant-block { margin-top: 5px; border: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
+    .replace-variant-block-header { padding: 3px 5px; border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); color: var(--vscode-descriptionForeground); background: var(--vscode-sideBarSectionHeader-background, transparent); font-size: 10px; }
+    .replace-variant-list { padding: 2px 4px; }
+    .replace-variant-row { display: grid; min-width: 0; grid-template-columns: 18px minmax(0, 1fr) minmax(0, 1fr) 18px 18px 18px; align-items: center; gap: 3px; min-height: 27px; }
+    .replace-variant-check { margin: 0; }
+    .replace-variant-input { width: 100%; min-width: 0; height: 22px; padding: 1px 4px; border: 1px solid var(--vscode-input-border, var(--vscode-panel-border)); border-radius: 2px; outline: 0; color: var(--vscode-input-foreground); background: var(--vscode-input-background); font-family: var(--vscode-editor-font-family); font-size: 10px; }
+    .replace-variant-input:focus { border-color: var(--vscode-focusBorder); }
+    .replace-variant-action { display: inline-flex; width: 18px; height: 22px; align-items: center; justify-content: center; padding: 0; border: 1px solid transparent; border-radius: 2px; color: var(--vscode-descriptionForeground); background: transparent; cursor: pointer; font-size: 13px; }
+    .replace-variant-action:hover { color: var(--vscode-foreground); background: var(--vscode-toolbar-hoverBackground); }
+    .replace-variant-action:disabled { opacity: .3; cursor: default; }
+    .replace-variant-empty { margin: 0; padding: 6px; color: var(--vscode-descriptionForeground); font-size: 10px; }
     .replace-scope { margin: 0 0 6px; }
     .working-directory { grid-template-columns: minmax(0, 1fr) 30px; }
     .working-directory input { min-width: 0; }
@@ -562,60 +636,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .folder-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     .action-tooltip { display: block; min-width: 0; }
     .action-tooltip .action { width: 100%; height: 100%; }
-    .root-rename-hint {
-      margin: 7px 0 0;
-      padding: 5px 7px;
-      border-left: 2px solid var(--vscode-editorWarning-foreground);
-      color: var(--vscode-descriptionForeground);
-      background: var(--vscode-textBlockQuote-background);
-      font-size: 11px;
-      line-height: 1.4;
-    }
-    .root-rename-hint .text-button { margin-left: 5px; }
-    .replace-more-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 7px; }
     .text-button { border: 0; padding: 2px 0; color: var(--vscode-textLink-foreground); background: transparent; cursor: pointer; font-size: 11px; }
     .text-button:disabled { opacity: 0.45; cursor: default; }
-    .multi-rules { margin-top: 7px; padding-top: 8px; border-top: 1px solid var(--vscode-panel-border); }
-    .multi-rules > label { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; margin-bottom: 7px; }
-    .profile-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; margin-bottom: 7px; }
-    .profile-row select {
-      min-width: 0;
-      height: 28px;
-      padding: 2px 6px;
-      border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border));
-      border-radius: 2px;
-      color: var(--vscode-dropdown-foreground);
-      background: var(--vscode-dropdown-background);
-    }
-    .profile-row button { white-space: nowrap; }
-    .profile-save-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; margin-bottom: 7px; }
-    .profile-save-row input {
-      min-width: 0;
-      height: 28px;
-      padding: 3px 7px;
-      border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
-      border-radius: 2px;
-      color: var(--vscode-input-foreground);
-      background: var(--vscode-input-background);
-    }
-    .profile-save-row button { white-space: nowrap; }
-    .prefix-fields { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; }
-    .prefix-arrow { color: var(--vscode-descriptionForeground); font-size: 11px; }
-    .rule-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) minmax(0, 1fr) 82px; gap: 4px; align-items: center; margin-bottom: 5px; }
-    .rule-row input { min-width: 0; height: 27px; padding: 3px 6px; border: 1px solid var(--vscode-input-border, var(--vscode-panel-border)); border-radius: 2px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); font-family: var(--vscode-editor-font-family); }
-    .rule-actions { display: flex; }
-    .rule-row button { width: 20px; padding: 0; border: 1px solid var(--ktc-ui-border, transparent); color: var(--vscode-foreground); background: transparent; cursor: pointer; font-size: 13px; }
-    .rule-row button:hover { background: var(--vscode-list-hoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, transparent)); }
-    .rule-row button:disabled { opacity: 0.45; cursor: default; }
-    .rule-tools { display: flex; flex-wrap: wrap; gap: 5px 12px; margin-top: 6px; }
     @media (max-width: 320px) {
-      .profile-row, .prefix-fields { grid-template-columns: minmax(0, 1fr); }
-      .profile-row button { justify-self: start; }
-      .prefix-arrow { display: none; }
-      .rule-row { grid-template-columns: 18px minmax(0, 1fr) 82px; }
-      .rule-row > input[type="checkbox"] { grid-row: 1 / span 2; }
-      .rule-row > input:not([type="checkbox"]) { grid-column: 2; }
-      .rule-actions { grid-column: 3; grid-row: 1 / span 2; }
       body .preset-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
       body .preset-row select { grid-column: 1 / -1; }
     }
@@ -872,6 +895,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     <section class="shell-block" id="primary-shell">
       <header class="shell-block-header">
         <button class="shell-block-toggle" id="btn-toggle-primary-block" type="button" aria-expanded="true" aria-controls="primary-body"><svg class="shell-block-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg><span class="primary-block-header-title" id="tool-title">当前工具</span></button>
+        <button class="primary-header-context-action" id="btn-project-rename-analysis" type="button" title="把当前目录、名称和启用的常用变形带入项目改名 View" aria-label="打开项目改名并带入当前名称与规则" hidden>项目改名</button>
         <button class="shell-block-action" id="btn-close-tool" type="button" title="关闭当前工具" aria-label="关闭当前工具">×</button>
       </header>
       <div class="shell-block-body" id="primary-body">
@@ -1073,6 +1097,14 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         </div>
       </div>
       <div id="replace-details">
+      <div class="replace-helpers">
+        <div class="replace-history-control"><select id="replace-history" aria-label="最近改名记录" title="本机最近 50 组源名称与目标名称"><option value="">最近改名…</option></select><button class="replace-history-action" id="btn-delete-replace-history" type="button" title="删除所选最近记录" aria-label="删除所选最近改名记录" disabled>×</button><button class="replace-history-action" id="btn-clear-replace-history" type="button" title="清空本机最近改名记录" disabled>清空</button></div>
+        <button class="replace-variant-toggle" id="btn-replace-variants" type="button" aria-expanded="false" aria-controls="replace-variant-block">常用变形</button>
+      </div>
+      <section class="replace-variant-block" id="replace-variant-block" aria-label="常用变形规则" hidden>
+        <div class="replace-variant-block-header">勾选并编辑本次使用的显式规则；从上到下显示优先级</div>
+        <div class="replace-variant-list" id="replace-variant-list"></div>
+      </section>
       <div class="replace-options">
         <label><input id="replace-text" type="checkbox" checked />文本</label>
         <label><input id="replace-file" type="checkbox" />文件名</label>
@@ -1084,39 +1116,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
             <option value="gbk">GBK（本地）</option>
           </select>
         </label>
-        <label title="同时派生搜索词和替换词的全大写规则">
-          <input id="replace-preserve-case" type="checkbox" />同时匹配全大写
-        </label>
       </div>
-      <div class="replace-more-bar">
-        <button class="text-button" id="btn-expand-rules" type="button">展开关联规则</button>
-        <button class="text-button" id="btn-project-rename-analysis" type="button" title="以当前目录创建独立的大型项目改名任务；先分析，确认后受控执行；重复点击只聚焦现有 View">大型项目改名分析…</button>
-      </div>
-      <div class="multi-rules" id="multi-rules" hidden>
-        <div class="profile-row">
-          <select id="replace-profile" aria-label="工作区规则档案">
-            <option value="">规则档案…</option>
-          </select>
-        </div>
-        <div class="profile-save-row">
-          <input id="replace-profile-name" type="text" spellcheck="false" placeholder="规则档案名称" aria-label="规则档案名称" />
-          <button class="text-button" id="btn-save-profile" type="button" title="保存到当前工作区；同名时直接更新">保存规则</button>
-        </div>
-        <div class="replace-fields prefix-fields" style="margin-bottom:7px">
-          <input id="replace-source-prefix" type="text" spellcheck="false" placeholder="源前缀，如 KTC" aria-label="源名称前缀" />
-          <span class="prefix-arrow">→</span>
-          <input id="replace-target-prefix" type="text" spellcheck="false" placeholder="目标前缀，如 KTM" aria-label="目标名称前缀" />
-        </div>
-        <div id="extra-rules"></div>
-        <div class="rule-tools">
-          <button class="text-button" id="btn-add-rule" type="button">+ 自定义规则</button>
-          <button class="text-button" id="btn-common-rules" type="button">常用规则</button>
-          <button class="text-button" id="btn-caa-rules" type="button">CAA 规则</button>
-        </div>
-      </div>
-      <p class="root-rename-hint" id="root-rename-hint" hidden>
-        <span id="root-rename-message"></span><button class="text-button" id="btn-create-root-todo" type="button">创建 TODO</button>
-      </p>
       </div>
     </section>
     <ktc-uuid-results-panel id="uuid-results-panel" hidden></ktc-uuid-results-panel>
@@ -1178,20 +1178,17 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       </div>
     </section>
   </div>
-  <ktc-associated-rule-picker id="rule-picker"></ktc-associated-rule-picker>
   <script nonce="${nonce}" src="${codegenPrimaryPanelUri}"></script>
   <script nonce="${nonce}" src="${runPrimaryPanelUri}"></script>
   <script nonce="${nonce}" src="${gitPrimaryPanelUri}"></script>
   <script nonce="${nonce}" src="${reorderMembersPanelUri}"></script>
   <script nonce="${nonce}" src="${uuidResultsPanelUri}"></script>
   <script nonce="${nonce}" src="${renameResultsPanelUri}"></script>
-  <script nonce="${nonce}" src="${associatedRulePickerUri}"></script>
   <script nonce="${nonce}" src="${ribbonCustomizationMenuUri}"></script>
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
     const saved = vscode.getState() || {};
     const savedReplace = saved.replace || {};
-    const legacyPrefix = savedReplace.prefix || "";
     let state = {
       tools: [],
       activeToolId: "",
@@ -1207,8 +1204,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       sidebarStyle: "ribbon",
       presentation: "ribbon",
       recentWorkingDirectories: { workspace: [], external: [], options: [] },
-      searchReplaceProfiles: [],
-      searchReplaceProfileError: "",
       moduleState: { installed: ["code"], enabled: ["code"], visible: ["code"], known: ["code"], active: "code" },
       moduleBlock: null,
       codeAssistantFeature: "",
@@ -1224,17 +1219,17 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       ribbonLayout: { pinnedToolIds: [], toolOrder: [] },
       workingContext: { selectedDirectory: "", label: "未打开目录", pluginIgnoreEnabled: true, gitIgnoreExists: false },
       uuidStrategy: saved.uuidStrategy === "fresh_per_hit" ? "fresh_per_hit" : "map_per_value",
-      replace: Object.assign({ search: "", with: "", text: true, file: false, dir: false, ignored: false, scope: "", collapsed: false, expanded: false, sourcePrefix: legacyPrefix, targetPrefix: legacyPrefix, defaultEncoding: "utf8", preserveCase: false, extraRules: [], profileId: "", profileLabel: "" }, savedReplace),
+      replace: Object.assign({ search: "", with: "", text: true, file: false, dir: false, ignored: false, scope: "", collapsed: false, defaultEncoding: "utf8", variantMode: "exact", variantBasis: "", variantRules: [] }, savedReplace),
     };
-    state.replace.extraRules = (state.replace.extraRules || []).filter((rule) => (
-      (rule.search || "").trim() || (rule.replace || "").trim()
-    ));
     state.replace.defaultEncoding = state.replace.defaultEncoding === "gbk" ? "gbk" : "utf8";
-    state.replace.preserveCase = !!state.replace.preserveCase;
+    state.replace.variantMode = state.replace.variantMode === "common" ? "common" : "exact";
+    state.replace.variantRules = Array.isArray(state.replace.variantRules) ? state.replace.variantRules : [];
+    state.replace.variantBasis = typeof state.replace.variantBasis === "string" ? state.replace.variantBasis : "";
     const toolScrollPositions = new Map();
     let openModuleMenuId = "";
     let focusRibbonMenuRequested = false;
     let initialized = false;
+    let selectedRenameHistoryKey = "";
     const gitPanelModel = ${ktcGitPanelModel.toString()};
     const gitRepositoryOptionLabels = ${ktcGitRepositoryOptionLabels.toString()};
     let gitRefreshRequested = false;
@@ -1354,6 +1349,12 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       renameResultsPanel: document.getElementById("rename-results-panel"),
       replaceSearch: document.getElementById("replace-search"),
       replaceWith: document.getElementById("replace-with"),
+      replaceHistory: document.getElementById("replace-history"),
+      btnDeleteReplaceHistory: document.getElementById("btn-delete-replace-history"),
+      btnClearReplaceHistory: document.getElementById("btn-clear-replace-history"),
+      btnReplaceVariants: document.getElementById("btn-replace-variants"),
+      replaceVariantBlock: document.getElementById("replace-variant-block"),
+      replaceVariantList: document.getElementById("replace-variant-list"),
       replaceText: document.getElementById("replace-text"),
       replaceFile: document.getElementById("replace-file"),
       replaceDir: document.getElementById("replace-dir"),
@@ -1364,28 +1365,12 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       ignoreRecommendations: document.getElementById("ignore-recommendations"),
       btnPickWorkingDirectory: document.getElementById("btn-pick-working-directory"),
       btnOpenSettings: document.getElementById("btn-open-settings"),
-      btnExpandRules: document.getElementById("btn-expand-rules"),
       btnProjectRenameAnalysis: document.getElementById("btn-project-rename-analysis"),
-      multiRules: document.getElementById("multi-rules"),
-      replaceProfile: document.getElementById("replace-profile"),
-      replaceProfileName: document.getElementById("replace-profile-name"),
-      btnSaveProfile: document.getElementById("btn-save-profile"),
-      replaceSourcePrefix: document.getElementById("replace-source-prefix"),
-      replaceTargetPrefix: document.getElementById("replace-target-prefix"),
       defaultEncoding: document.getElementById("replace-default-encoding"),
-      preserveCase: document.getElementById("replace-preserve-case"),
-      extraRules: document.getElementById("extra-rules"),
-      btnAddRule: document.getElementById("btn-add-rule"),
-      btnCommonRules: document.getElementById("btn-common-rules"),
-      btnCaaRules: document.getElementById("btn-caa-rules"),
-      rulePicker: document.getElementById("rule-picker"),
       replacePreview: document.getElementById("btn-replace-preview"),
       replaceApply: document.getElementById("btn-replace-apply"),
       replacePreviewTooltip: document.getElementById("replace-preview-tooltip"),
       replaceApplyTooltip: document.getElementById("replace-apply-tooltip"),
-      rootRenameHint: document.getElementById("root-rename-hint"),
-      rootRenameMessage: document.getElementById("root-rename-message"),
-      btnCreateRootTodo: document.getElementById("btn-create-root-todo"),
       generalActions: document.getElementById("general-actions"),
       codegenPanel: document.getElementById("codegen-panel"),
       runPanel: document.getElementById("run-panel"),
@@ -2034,6 +2019,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     }
 
     const searchReplaceButtonState = ${ktcSearchReplaceButtonState.toString()};
+    const simpleRenameRules = ${ktcSimpleRenameRules.toString()};
     function renderIgnoreConfig() {
       const cfg = state.ignoreConfig;
       if (!cfg) {
@@ -2059,92 +2045,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.gitIgnoreStatus.textContent = context.gitIgnoreExists ? "Git Ignore · 生效" : "Git Ignore · 无规则";
       els.pluginIgnoreEnabled.checked = context.pluginIgnoreEnabled !== false;
       renderRecentWorkingDirectories();
-    }
-
-    const associatedRulePickerAppendMessage = ${ktcAssociatedRulePickerAppendMessage.toString()};
-    function openRulePicker(picker) {
-      els.rulePicker.openPicker(picker);
-    }
-
-    function renderExtraRules() {
-      els.multiRules.hidden = !state.replace.expanded;
-      els.btnExpandRules.textContent = state.replace.expanded ? "收起关联规则" : "展开关联规则";
-      els.replaceSourcePrefix.value = state.replace.sourcePrefix || "";
-      els.replaceTargetPrefix.value = state.replace.targetPrefix || "";
-      els.defaultEncoding.value = state.replace.defaultEncoding;
-      els.preserveCase.checked = !!state.replace.preserveCase;
-      renderSearchReplaceProfiles();
-      els.extraRules.innerHTML = "";
-      state.replace.extraRules.forEach((rule, index) => {
-        const row = document.createElement("div");
-        row.className = "rule-row";
-        const search = document.createElement("input");
-        search.placeholder = "搜索";
-        search.value = rule.search;
-        search.title = rule.source === "generated" ? "自动生成；修改后转为自定义规则" : "自定义规则";
-        const replace = document.createElement("input");
-        replace.placeholder = "替换";
-        replace.value = rule.replace;
-        const enabled = document.createElement("input");
-        enabled.type = "checkbox";
-        enabled.checked = rule.enabled !== false;
-        enabled.title = "启用规则";
-        const actions = document.createElement("div");
-        actions.className = "rule-actions";
-        const up = document.createElement("button");
-        up.type = "button";
-        up.textContent = "↑";
-        up.title = "上移";
-        up.disabled = index === 0;
-        const down = document.createElement("button");
-        down.type = "button";
-        down.textContent = "↓";
-        down.title = "下移";
-        down.disabled = index === state.replace.extraRules.length - 1;
-        const remove = document.createElement("button");
-        remove.type = "button";
-        remove.textContent = "×";
-        remove.title = "删除规则";
-        const addRelation = document.createElement("button");
-        addRelation.type = "button";
-        addRelation.textContent = "▾";
-        addRelation.title = "添加一种关联规则";
-        addRelation.setAttribute("aria-label", "添加一种关联规则");
-        search.oninput = () => { rule.search = search.value; rule.source = "user"; rule.relationKind = "custom"; saveReplaceState(); };
-        replace.oninput = () => { rule.replace = replace.value; rule.source = "user"; rule.relationKind = "custom"; saveReplaceState(); };
-        search.onkeydown = stopTextInputEnter;
-        replace.onkeydown = stopTextInputEnter;
-        enabled.onchange = () => { rule.enabled = enabled.checked; saveReplaceState(); };
-        up.onclick = () => { state.replace.extraRules.splice(index - 1, 0, state.replace.extraRules.splice(index, 1)[0]); saveReplaceState(); renderExtraRules(); };
-        down.onclick = () => { state.replace.extraRules.splice(index + 1, 0, state.replace.extraRules.splice(index, 1)[0]); saveReplaceState(); renderExtraRules(); };
-        remove.onclick = () => { state.replace.extraRules.splice(index, 1); saveReplaceState(); renderExtraRules(); };
-        addRelation.onclick = () => requestAssociatedRulePicker("row", { ...rule });
-        actions.append(up, down, remove, addRelation);
-        row.append(enabled, search, replace, actions);
-        els.extraRules.appendChild(row);
-      });
-    }
-
-    function renderSearchReplaceProfiles() {
-      const selectedId = state.replace.profileId || "";
-      els.replaceProfile.innerHTML = "";
-      const placeholder = document.createElement("option");
-      placeholder.value = "";
-      placeholder.textContent = state.searchReplaceProfileError ? "规则档案不可用" : "规则档案…";
-      els.replaceProfile.appendChild(placeholder);
-      for (const profile of state.searchReplaceProfiles) {
-        const option = document.createElement("option");
-        option.value = profile.id;
-        option.textContent = profile.label;
-        els.replaceProfile.appendChild(option);
-      }
-      els.replaceProfile.value = state.searchReplaceProfiles.some((profile) => profile.id === selectedId)
-        ? selectedId
-        : "";
-      els.replaceProfileName.value = state.replace.profileLabel || "";
-      els.replaceProfile.disabled = !!state.searchReplaceProfileError || state.searchReplaceProfiles.length === 0;
-      els.replaceProfile.title = state.searchReplaceProfileError || "填入已保存的工作区规则";
-      els.btnSaveProfile.disabled = !!state.searchReplaceProfileError || !String(state.replace.profileLabel || "").trim();
     }
 
     function renderRecentWorkingDirectories() {
@@ -2379,6 +2279,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         els.title.textContent = "插件概览";
         els.desc.textContent = "";
       }
+      els.btnProjectRenameAnalysis.hidden = welcomeMode || tool?.id !== "codeRename";
       els.tabs.innerHTML = "";
       for (const staleMenu of document.querySelectorAll(".module-more-global")) staleMenu.remove();
       els.tabs.className = "tabs " + state.sidebarStyle;
@@ -2571,6 +2472,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       const uuid = isUuidTool();
       const caaDialog = isCaaDialogTool();
       const environment = isEnvironmentTool();
+      els.btnProjectRenameAnalysis.disabled = running;
       const codeAssistantGenericFeature = codeAssistant && (enc || header || uuid || caaDialog);
       const codeAssistantTreeOnly = codeAssistant && !codeAssistantGenericFeature;
       renderGitRepositoryContext(ts, running, git);
@@ -2638,18 +2540,11 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         els.replaceToggle.textContent = state.replace.collapsed ? "›" : "⌄";
         els.replaceToggle.title = state.replace.collapsed ? "展开替换行" : "收起替换行";
         els.replaceToggle.setAttribute("aria-expanded", state.replace.collapsed ? "false" : "true");
-        renderExtraRules();
+        els.defaultEncoding.value = state.replace.defaultEncoding;
+        renderRenameHelpers(ts, running);
         els.replacePreview.disabled = running;
         els.replaceApply.disabled = running;
         updateReplaceButtons();
-        const suggestion = ts.rootRenameSuggestion;
-        els.rootRenameHint.hidden = !suggestion;
-        if (suggestion) {
-          els.rootRenameMessage.textContent = "工作区根目录不自动改名。请自行将“"
-            + suggestion.currentName + "”改为“" + suggestion.suggestedName + "”。";
-        }
-      } else {
-        els.rootRenameHint.hidden = true;
       }
 
       els.scopeHeaders.checked = !!state.scope.includeHeaders;
@@ -2902,7 +2797,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     els.btnEnvironmentSystem.onclick = () => vscode.postMessage({ type: "environmentAction", toolId: "environmentSettings", action: "openSystemSettings" });
     els.btnEnvironmentPluginSettings.onclick = () => vscode.postMessage({ type: "environmentAction", toolId: "environmentSettings", action: "openPluginSettings" });
     function saveReplaceState() {
-      els.rootRenameHint.hidden = true;
       state.replace = {
         search: els.replaceSearch.value,
         with: els.replaceWith.value,
@@ -2912,17 +2806,48 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         ignored: false,
         scope: els.replaceScope.value,
         collapsed: !!state.replace.collapsed,
-        expanded: state.replace.expanded,
-        sourcePrefix: els.replaceSourcePrefix.value,
-        targetPrefix: els.replaceTargetPrefix.value,
         defaultEncoding: els.defaultEncoding.value === "gbk" ? "gbk" : "utf8",
-        preserveCase: els.preserveCase.checked,
-        extraRules: state.replace.extraRules,
-        profileId: state.replace.profileId || "",
-        profileLabel: els.replaceProfileName.value,
+        variantMode: state.replace.variantMode === "common" ? "common" : "exact",
+        variantBasis: state.replace.variantBasis || "",
+        variantRules: Array.isArray(state.replace.variantRules) ? state.replace.variantRules : [],
       };
       persistUiState();
       updateReplaceButtons();
+    }
+
+    function refreshSimpleRenameRules(force) {
+      const source = els.replaceSearch.value;
+      const target = els.replaceWith.value;
+      const basis = source + String.fromCharCode(0) + target;
+      if (!force && state.replace.variantBasis === basis) return;
+      state.replace.variantBasis = basis;
+      state.replace.variantRules = simpleRenameRules(source, target).map((rule) => ({ ...rule }));
+    }
+
+    function updateSimpleRenameRule(index, field, value) {
+      const current = state.replace.variantRules[index];
+      if (!current) return;
+      state.replace.variantRules[index] = { ...current, [field]: value };
+      saveReplaceState();
+    }
+
+    function moveSimpleRenameRule(index, offset) {
+      const target = index + offset;
+      if (target < 0 || target >= state.replace.variantRules.length) return;
+      const rules = [...state.replace.variantRules];
+      [rules[index], rules[target]] = [rules[target], rules[index]];
+      state.replace.variantRules = rules;
+      saveReplaceState();
+      renderRenameHelpers(toolState(), toolState().status === "running");
+    }
+
+    function removeSimpleRenameRule(index) {
+      state.replace.variantRules = state.replace.variantRules.filter((_, ruleIndex) => ruleIndex !== index);
+      saveReplaceState();
+      renderRenameHelpers(toolState(), toolState().status === "running");
+    }
+    function renameHistoryKey(entry) {
+      return entry.source + String.fromCharCode(1) + entry.target;
     }
     function updateReplaceButtons() {
       const input = {
@@ -2932,7 +2857,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         text: els.replaceText.checked,
         file: els.replaceFile.checked,
         dir: els.replaceDir.checked,
-        extraRules: state.replace.extraRules,
       };
       const searchValidation = searchReplaceButtonState({ ...input, action: "search" });
       const replaceValidation = searchReplaceButtonState({ ...input, action: "replace" });
@@ -2945,14 +2869,108 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.replacePreview.setAttribute("aria-label", searchReason ? "搜索：" + searchReason : "搜索当前目录");
       els.replaceApply.setAttribute("aria-label", replaceReason ? "替换：" + replaceReason : "执行搜索替换");
     }
+    function renderRenameHelpers(ts, running) {
+      const history = ts.renameHistory || [];
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = history.length ? "最近改名…" : "暂无最近记录";
+      const options = history.map((entry, index) => {
+        const option = document.createElement("option");
+        option.value = String(index);
+        option.textContent = entry.source + " → " + entry.target;
+        option.title = entry.updatedAt || option.textContent;
+        return option;
+      });
+      els.replaceHistory.replaceChildren(placeholder, ...options);
+      const selectedIndex = history.findIndex((entry) => renameHistoryKey(entry) === selectedRenameHistoryKey);
+      els.replaceHistory.value = selectedIndex >= 0 ? String(selectedIndex) : "";
+      if (selectedIndex < 0) selectedRenameHistoryKey = "";
+      els.replaceHistory.disabled = running || history.length === 0;
+      els.btnDeleteReplaceHistory.disabled = running || selectedIndex < 0;
+      els.btnClearReplaceHistory.disabled = running || history.length === 0;
+      const common = state.replace.variantMode === "common";
+      els.btnReplaceVariants.disabled = running;
+      els.btnReplaceVariants.setAttribute("aria-expanded", common ? "true" : "false");
+      els.replaceVariantBlock.hidden = !common;
+      if (!common) {
+        els.replaceVariantList.replaceChildren();
+        return;
+      }
+      refreshSimpleRenameRules(false);
+      const rows = state.replace.variantRules.map((rule, index) => {
+        const row = document.createElement("div");
+        row.className = "replace-variant-row";
+        row.title = rule.label + "变形";
+        const enabled = document.createElement("input");
+        enabled.type = "checkbox";
+        enabled.className = "replace-variant-check";
+        enabled.checked = rule.enabled !== false;
+        enabled.disabled = running;
+        enabled.setAttribute("aria-label", "启用" + rule.label + "变形");
+        enabled.onchange = () => updateSimpleRenameRule(index, "enabled", enabled.checked);
+        const search = document.createElement("input");
+        search.className = "replace-variant-input";
+        search.type = "text";
+        search.value = rule.search;
+        search.disabled = running;
+        search.setAttribute("aria-label", rule.label + "源名称");
+        search.oninput = () => updateSimpleRenameRule(index, "search", search.value);
+        search.onkeydown = stopTextInputEnter;
+        const replace = document.createElement("input");
+        replace.className = "replace-variant-input";
+        replace.type = "text";
+        replace.value = rule.replace;
+        replace.disabled = running;
+        replace.setAttribute("aria-label", rule.label + "目标名称");
+        replace.oninput = () => updateSimpleRenameRule(index, "replace", replace.value);
+        replace.onkeydown = stopTextInputEnter;
+        const up = document.createElement("button");
+        up.className = "replace-variant-action";
+        up.type = "button";
+        up.textContent = "↑";
+        up.title = "上移";
+        up.setAttribute("aria-label", "上移" + rule.label + "规则");
+        up.disabled = running || index === 0;
+        up.onclick = () => moveSimpleRenameRule(index, -1);
+        const down = document.createElement("button");
+        down.className = "replace-variant-action";
+        down.type = "button";
+        down.textContent = "↓";
+        down.title = "下移";
+        down.setAttribute("aria-label", "下移" + rule.label + "规则");
+        down.disabled = running || index === state.replace.variantRules.length - 1;
+        down.onclick = () => moveSimpleRenameRule(index, 1);
+        const remove = document.createElement("button");
+        remove.className = "replace-variant-action";
+        remove.type = "button";
+        remove.textContent = "×";
+        remove.title = "删除";
+        remove.setAttribute("aria-label", "删除" + rule.label + "规则");
+        remove.disabled = running;
+        remove.onclick = () => removeSimpleRenameRule(index);
+        row.append(enabled, search, replace, up, down, remove);
+        return row;
+      });
+      if (rows.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "replace-variant-empty";
+        empty.textContent = "请输入可拆分的源名称和目标名称。";
+        rows.push(empty);
+      }
+      els.replaceVariantList.replaceChildren(...rows);
+    }
     function runSearchReplace(action) {
       saveReplaceState();
       const levels = [];
       if (state.replace.text) levels.push("text");
       if (state.replace.file) levels.push("file");
       if (state.replace.dir) levels.push("dir");
-      const rules = [{ id: "primary", search: state.replace.search, replace: state.replace.with, enabled: true }, ...state.replace.extraRules]
-        .filter((rule) => rule.enabled !== false && rule.search.length > 0);
+      if (state.replace.variantMode === "common") refreshSimpleRenameRules(false);
+      const simpleRules = state.replace.variantMode === "common"
+        ? state.replace.variantRules.filter((rule) => rule.enabled !== false && rule.search && rule.replace)
+        : [];
+      const rules = [{ id: "primary", search: state.replace.search, replace: state.replace.with, enabled: true }, ...simpleRules]
+        .filter((rule) => rule.search.length > 0);
       vscode.postMessage({
         type: "searchReplace",
         toolId: "codeRename",
@@ -2961,7 +2979,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
           oldName: state.replace.search,
           newName: state.replace.with,
           rules,
-          preserveCase: state.replace.preserveCase,
           defaultEncoding: state.replace.defaultEncoding,
           levels,
           scope: state.workingContext.selectedDirectory || "",
@@ -2972,108 +2989,73 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     }
     els.replacePreview.onclick = () => runSearchReplace("preview");
     els.replaceApply.onclick = () => runSearchReplace("apply");
-    els.btnProjectRenameAnalysis.onclick = () => vscode.postMessage({
-      type: "openProjectRenameAnalysis",
-      toolId: "codeRename",
-    });
+    els.btnProjectRenameAnalysis.onclick = () => {
+      saveReplaceState();
+      if (state.replace.variantMode === "common") refreshSimpleRenameRules(false);
+      const rules = state.replace.variantMode === "common"
+        ? state.replace.variantRules.filter((rule) => rule.enabled !== false && rule.search && rule.replace)
+        : [];
+      vscode.postMessage({
+        type: "openProjectRenameAnalysis",
+        toolId: "codeRename",
+        scope: state.workingContext.selectedDirectory || "",
+        sourceName: state.replace.search,
+        targetName: state.replace.with,
+        rules,
+      });
+    };
     els.replaceToggle.onclick = () => {
       state.replace.collapsed = !state.replace.collapsed;
       saveReplaceState();
       render();
     };
-    els.btnCreateRootTodo.onclick = () => {
-      const suggestion = toolState().rootRenameSuggestion;
-      if (!suggestion) return;
+    els.replaceHistory.onchange = () => {
+      const index = Number(els.replaceHistory.value);
+      const entry = Number.isSafeInteger(index) ? toolState().renameHistory?.[index] : undefined;
+      if (!entry) return;
+      selectedRenameHistoryKey = renameHistoryKey(entry);
+      els.replaceSearch.value = entry.source;
+      els.replaceWith.value = entry.target;
+      saveReplaceState();
+      render();
+    };
+    els.btnDeleteReplaceHistory.onclick = () => {
+      const entry = (toolState().renameHistory || []).find((candidate) => renameHistoryKey(candidate) === selectedRenameHistoryKey);
+      if (!entry) return;
+      selectedRenameHistoryKey = "";
       vscode.postMessage({
-        type: "createRootRenameTodo",
+        type: "deleteRenameHistoryPair",
         toolId: "codeRename",
-        currentName: suggestion.currentName,
-        suggestedName: suggestion.suggestedName,
+        source: entry.source,
+        target: entry.target,
       });
     };
-    els.btnExpandRules.onclick = () => {
-      state.replace.expanded = !state.replace.expanded;
+    els.btnClearReplaceHistory.onclick = () => {
+      selectedRenameHistoryKey = "";
+      vscode.postMessage({ type: "clearRenameHistoryPairs", toolId: "codeRename" });
+    };
+    els.btnReplaceVariants.onclick = () => {
+      state.replace.variantMode = state.replace.variantMode === "common" ? "exact" : "common";
+      if (state.replace.variantMode === "common") refreshSimpleRenameRules(true);
       saveReplaceState();
-      renderExtraRules();
+      render();
     };
     els.defaultEncoding.onchange = saveReplaceState;
-    function requestAssociatedRulePicker(mode, parentRule) {
-      saveReplaceState();
-      vscode.postMessage({
-        type: "requestAssociatedRuleCandidates",
-        toolId: "codeRename",
-        mode,
-        search: state.replace.search,
-        replace: state.replace.with,
-        sourcePrefix: state.replace.sourcePrefix,
-        targetPrefix: state.replace.targetPrefix,
-        parentRule,
-        existingRules: state.replace.extraRules,
-      });
-    }
-    els.btnAddRule.onclick = () => requestAssociatedRulePicker("custom");
     els.btnPickWorkingDirectory.onclick = () => vscode.postMessage({ type: "pickWorkingDirectory" });
     els.btnOpenSettings.onclick = () => vscode.postMessage({ type: "selectTool", toolId: "environmentSettings" });
-    els.replaceProfile.onchange = () => {
-      if (!els.replaceProfile.value) return;
-      vscode.postMessage({
-        type: "loadSearchReplaceProfile",
-        toolId: "codeRename",
-        id: els.replaceProfile.value,
-      });
-    };
-    els.replaceProfileName.oninput = saveReplaceState;
-    els.btnSaveProfile.onclick = () => {
-      saveReplaceState();
-      const label = state.replace.profileLabel.trim();
-      if (!label) return;
-      vscode.postMessage({
-        type: "saveSearchReplaceProfile",
-        toolId: "codeRename",
-        label,
-        draft: {
-          search: state.replace.search,
-          replace: state.replace.with,
-          sourcePrefix: state.replace.sourcePrefix,
-          targetPrefix: state.replace.targetPrefix,
-          associatedRules: state.replace.extraRules,
-          options: {
-            preserveCase: state.replace.preserveCase,
-            text: state.replace.text,
-            file: state.replace.file,
-            dir: state.replace.dir,
-            includeIgnored: false,
-            scope: state.workingContext.selectedDirectory || "",
-          },
-        },
-      });
-    };
-    els.btnCommonRules.onclick = () => requestAssociatedRulePicker("common");
-    els.btnCaaRules.onclick = () => requestAssociatedRulePicker("caa");
-    els.rulePicker.addEventListener("ktc-associated-rule-picker-action", (event) => {
-      if (event.detail?.kind !== "confirm") return;
-      vscode.postMessage(associatedRulePickerAppendMessage({
-        primarySearch: state.replace.search,
-        rules: event.detail.rules,
-        existingRules: state.replace.extraRules,
-      }));
-    });
-    function clearGeneratedRulesAndSave() {
-      const retained = state.replace.extraRules.filter((rule) => rule.source !== "generated");
-      const changed = retained.length !== state.replace.extraRules.length;
-      state.replace.extraRules = retained;
-      saveReplaceState();
-      if (changed) renderExtraRules();
-    }
     function stopTextInputEnter(event) {
       if (event.key !== "Enter") return;
       event.preventDefault();
       event.stopPropagation();
     }
-    els.replaceSearch.oninput = clearGeneratedRulesAndSave;
-    els.replaceWith.oninput = clearGeneratedRulesAndSave;
-    els.replaceSourcePrefix.oninput = clearGeneratedRulesAndSave;
-    els.replaceTargetPrefix.oninput = clearGeneratedRulesAndSave;
+    function onPrimaryRenameInput() {
+      selectedRenameHistoryKey = "";
+      refreshSimpleRenameRules(true);
+      saveReplaceState();
+      if (state.replace.variantMode === "common") renderRenameHelpers(toolState(), toolState().status === "running");
+    }
+    els.replaceSearch.oninput = onPrimaryRenameInput;
+    els.replaceWith.oninput = onPrimaryRenameInput;
     els.replaceScope.onchange = () => {
       els.replaceScope.title = els.replaceScope.value || "当前目录";
       vscode.postMessage({ type: "selectWorkingDirectory", directory: els.replaceScope.value });
@@ -3081,10 +3063,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     els.pluginIgnoreEnabled.onchange = () => vscode.postMessage({
       type: "setPluginIgnoreEnabled", enabled: els.pluginIgnoreEnabled.checked,
     });
-    for (const input of [els.replaceText, els.replaceFile, els.replaceDir, els.preserveCase]) {
+    for (const input of [els.replaceText, els.replaceFile, els.replaceDir]) {
       input.onchange = saveReplaceState;
     }
-    for (const input of [els.replaceSearch, els.replaceWith, els.replaceSourcePrefix, els.replaceTargetPrefix]) {
+    for (const input of [els.replaceSearch, els.replaceWith]) {
       input.onkeydown = stopTextInputEnter;
     }
     els.scopeHeaders.onchange = () => vscode.postMessage({
@@ -3200,8 +3182,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         state.workingContext = msg.workingContext || state.workingContext;
         state.presentation = msg.presentation === "detailBlock" ? "detailBlock" : "ribbon";
         state.recentWorkingDirectories = msg.recentWorkingDirectories || { workspace: [], external: [], options: [] };
-        state.searchReplaceProfiles = msg.searchReplaceProfiles || [];
-        state.searchReplaceProfileError = msg.searchReplaceProfileError || "";
         state.moduleState = msg.moduleState || state.moduleState;
         state.extensionInstallations = msg.extensionInstallations || [];
         els.workspace.textContent = msg.workspaceLabel;
@@ -3262,43 +3242,13 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
           renderRecentWorkingDirectories();
           saveReplaceState();
         }
-      } else if (msg.type === "searchReplaceProfiles") {
-        state.searchReplaceProfiles = msg.profiles || [];
-        state.searchReplaceProfileError = msg.error || "";
-        if (msg.selectedProfile) {
-          const profile = msg.selectedProfile;
-          state.replace = {
-            ...state.replace,
-            search: profile.search,
-            with: profile.replace,
-            sourcePrefix: profile.sourcePrefix,
-            targetPrefix: profile.targetPrefix,
-            preserveCase: !!profile.options.preserveCase,
-            text: profile.options.text,
-            file: profile.options.file,
-            dir: profile.options.dir,
-            ignored: false,
-            extraRules: profile.associatedRules.map((rule) => ({ ...rule })),
-            expanded: true,
-            profileId: profile.id,
-            profileLabel: profile.label,
-          };
-          persistUiState();
-        }
-        render();
       } else if (msg.type === "state") {
-        const associatedRulePicker = msg.toolId === "codeRename" ? msg.state.associatedRulePicker : null;
-        if (msg.toolId === "codeRename" && msg.state.associatedRules) {
-          state.replace.extraRules = [...msg.state.associatedRules];
-          persistUiState();
-        }
         state.toolStates[msg.toolId] = msg.state;
         if (msg.toolId === "uuidReplace" && msg.state.uuidStrategy) {
           state.uuidStrategy = msg.state.uuidStrategy;
           persistUiState();
         }
         render();
-        if (associatedRulePicker) openRulePicker(associatedRulePicker);
       }
     });
 
