@@ -41,6 +41,12 @@ export interface KtcIgnoreRuleMutationResult {
   readonly invalidRules: readonly string[];
 }
 
+export interface KtcIgnoreDocumentDedupeResult {
+  readonly text: string;
+  /** One normalized value for every duplicate rule line removed, in document order. */
+  readonly removedRules: readonly string[];
+}
+
 /**
  * Normalizes only the subset shared by Phoenix scanners and the manager UI.
  * It deliberately does not attempt to claim full Git Ignore semantics.
@@ -60,6 +66,30 @@ export function ktcNormalizeIgnoreRule(input: string): KtcNormalizedIgnoreRule |
 
 export function ktcDedupeIgnoreRules(rules: readonly string[]): readonly string[] {
   return normalizeRequestedRules(rules).rules.map((rule) => rule.value);
+}
+
+/**
+ * Removes repeated exact write identities while preserving the first rule line
+ * byte-for-byte. Comments, blank lines, rule order and retained line endings are
+ * left untouched; directory intent and case remain part of the identity.
+ */
+export function ktcDedupeIgnoreDocument(text: string): KtcIgnoreDocumentDedupeResult {
+  const seen = new Set<string>();
+  const removedRules: string[] = [];
+  const parts = text.split(/(\r\n|\n|\r)/);
+  let result = "";
+  for (let index = 0; index < parts.length; index += 2) {
+    const line = parts[index] ?? "";
+    const newline = parts[index + 1] ?? "";
+    const normalized = ktcNormalizeIgnoreRule(line);
+    if (normalized && seen.has(normalized.identity)) {
+      removedRules.push(normalized.value);
+      continue;
+    }
+    if (normalized) seen.add(normalized.identity);
+    result += line + newline;
+  }
+  return { text: removedRules.length > 0 ? result : text, removedRules };
 }
 
 /**

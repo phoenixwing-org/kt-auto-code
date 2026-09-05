@@ -131,11 +131,11 @@ function config(): IgnoreConfigSummary {
     targets: [
       {
         target: "git", label: "Git .gitignore", relativePath: ".gitignore", fullPath: "/repo/.gitignore",
-        exists: true, available: true, dirty: false, patternCount: 1,
+        exists: true, available: true, dirty: false, patternCount: 1, duplicateCount: 0,
       },
       {
         target: "phoenix", label: "Phoenix .ignore", relativePath: ".phoenix/.ignore", fullPath: "/repo/.phoenix/.ignore",
-        exists: true, available: true, dirty: true, patternCount: 1,
+        exists: true, available: true, dirty: true, patternCount: 1, duplicateCount: 0,
       },
     ],
     mergedRules: [{
@@ -237,6 +237,57 @@ describe("Ignore Primary panel Web Component", () => {
     expect(open.title).toContain("尚不存在");
     open.onclick?.();
     expect(element.events).toEqual([]);
+  });
+
+  it("offers target-level draft dedupe and an explicit save for the selected target", async () => {
+    installFakeDom();
+    const browser = await import("./KtcIgnorePrimaryPanel.js");
+    const element = new browser.KtcIgnorePrimaryPanel() as unknown as FakeElement & {
+      model: KtcIgnorePrimaryPanelModel;
+    };
+    element.model = model();
+
+    const toolbar = findNodes(element.shadow, (node) => node.className === "toolbar")[0]!;
+    expect(toolbar.children.map(textOf)).toEqual(["打开目标文件", "修正（0）", "保存", "分析当前目录"]);
+
+    const disabledDedupe = findNodes(
+      element.shadow,
+      (node) => node.tagName === "button" && node.textContent === "修正（0）",
+    )[0]!;
+    const disabledSave = findNodes(
+      element.shadow,
+      (node) => node.tagName === "button" && node.textContent === "保存",
+    )[0]!;
+    expect(disabledDedupe.disabled).toBe(true);
+    expect(disabledDedupe.title).toContain("无需修正");
+    expect(disabledSave.disabled).toBe(true);
+
+    const actionable = config();
+    actionable.targets = actionable.targets.map((target) => target.target === "git"
+      ? { ...target, dirty: true, duplicateCount: 2 }
+      : target);
+    element.model = { config: actionable };
+
+    const dedupe = findNodes(
+      element.shadow,
+      (node) => node.tagName === "button" && node.textContent === "修正（2）",
+    )[0]!;
+    const save = findNodes(
+      element.shadow,
+      (node) => node.tagName === "button" && node.textContent === "保存",
+    )[0]!;
+    expect(dedupe.disabled).toBe(false);
+    expect(dedupe.title).toContain("修正 .gitignore 中的 2 条重复规则");
+    expect(dedupe.title).toContain("只修改草稿，不会保存到磁盘");
+    expect(save.disabled).toBe(false);
+    expect(save.title).toContain("全部未保存编辑到磁盘");
+
+    dedupe.onclick?.();
+    save.onclick?.();
+    expect(element.events.map((event) => event.detail)).toEqual([
+      { action: "dedupeTarget", target: "git" },
+      { action: "saveTarget", target: "git" },
+    ]);
   });
 
   it("emits only typed composed actions for source, target, open, and analyze", async () => {

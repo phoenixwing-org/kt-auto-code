@@ -428,6 +428,7 @@ function targetSummary(config: IgnoreConfigSummary | undefined, target: KtcIgnor
     available: target === "phoenix" && !!config,
     dirty: false,
     patternCount: 0,
+    duplicateCount: 0,
   };
 }
 

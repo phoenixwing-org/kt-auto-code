@@ -3097,6 +3097,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         });
       } else if (detail.action === "openTarget") {
         vscode.postMessage({ type: "openIgnoreTarget", target: detail.target });
+      } else if (detail.action === "dedupeTarget") {
+        vscode.postMessage({ type: "dedupeIgnoreTarget", target: detail.target });
+      } else if (detail.action === "saveTarget") {
+        vscode.postMessage({ type: "saveIgnoreTarget", target: detail.target });
       } else if (detail.action === "analyze") {
         vscode.postMessage({ type: "analyzeIgnore" });
       } else if (detail.action === "applyRules") {

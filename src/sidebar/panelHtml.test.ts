@@ -122,6 +122,8 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('"ktc-ignore-primary-action"');
     expect(html).toContain('els.ignorePanel.model = {');
     expect(html).toContain('type: "openIgnoreTarget", target: detail.target');
+    expect(html).toContain('type: "dedupeIgnoreTarget", target: detail.target');
+    expect(html).toContain('type: "saveIgnoreTarget", target: detail.target');
     expect(html).toContain('type: "applyIgnoreRules"');
     expect(html).toContain('type: "applyIgnoreRecommendations"');
     expect(html).not.toContain('id="ignore-manager"');
