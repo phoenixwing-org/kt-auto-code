@@ -1,18 +1,15 @@
 import * as vscode from "vscode";
-import {
-  ktcDefaultIgnoreGroupIds,
-  ktcIgnoreController,
-  type KtcIgnoreMessage,
-} from "../../ignoreController.js";
+import type { KtcIgnoreMessage } from "../../ignoreController.js";
 import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
-import { getWorkspaceRoot } from "../../workspace.js";
 
-let runContextFactory: (() => ToolRunContext | undefined) | undefined;
+type KtcIgnoreSettingsCommandRunner = (message: KtcIgnoreMessage) => Promise<void>;
+
+let commandRunner: KtcIgnoreSettingsCommandRunner | undefined;
 
 export const ignoreSettingsTool: KtTool = {
   id: "ignoreSettings",
   title: "忽略设置",
-  description: "管理工作区 .phoenix/.ignore；编码扫描、转码和搜索替换共用这些规则。",
+  description: "管理插件、Git 与项目自定义 Ignore；递归文件工具共用这些规则。",
   icon: "media/tools/ignore-settings.svg",
 
   getPanelModel(): ToolPanelModel {
@@ -35,31 +32,19 @@ export const ignoreSettingsTool: KtTool = {
     const message: KtcIgnoreMessage = action === "sync"
       ? { type: "syncIgnoreFromGit" }
       : { type: "openIgnoreFile" };
-    const result = await ktcIgnoreController.handle(message, ctx.workspaceRoot);
-    if (result.error) ctx.postState({ status: "error", message: result.error });
-    else ctx.postState({ status: "done", message: result.summary?.statusText ?? "已打开 .phoenix/.ignore。" });
+    if (!commandRunner) {
+      ctx.postState({ status: "error", message: "Ignore Host 尚未初始化。" });
+      return;
+    }
+    await commandRunner(message);
   },
 };
 
-export function setIgnoreSettingsRunContextFactory(factory: () => ToolRunContext | undefined): void {
-  runContextFactory = factory;
+export function setIgnoreSettingsCommandRunner(runner: KtcIgnoreSettingsCommandRunner | undefined): void {
+  commandRunner = runner;
 }
 
 async function runIgnoreCommand(message: KtcIgnoreMessage): Promise<void> {
   await vscode.commands.executeCommand("ktAutoCode.tool.show", "ignoreSettings");
-  const ctx = runContextFactory?.();
-  if (!ctx) return;
-  const result = await ktcIgnoreController.handle(message, getWorkspaceRoot());
-  if (result.error) {
-    ctx.postState({ status: "error", message: result.error });
-  } else if (result.recommendations) {
-    ctx.postState({
-      status: "done",
-      message: result.message,
-      ignoreRecommendations: result.recommendations,
-      ignoreSelectedGroupIds: ktcDefaultIgnoreGroupIds(result.recommendations.recommendations),
-    });
-  } else {
-    ctx.postState({ status: "done", message: result.summary?.statusText ?? "Ignore 设置已更新。" });
-  }
+  await commandRunner?.(message);
 }

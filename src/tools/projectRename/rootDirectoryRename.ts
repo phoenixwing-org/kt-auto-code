@@ -1,4 +1,5 @@
-import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { ktcRenamePathSegmentProblem } from "../../core/renamePathSegment.js";
 
 export interface KtcProjectRenameRootRenamePlan {
   readonly allowed: boolean;
@@ -18,7 +19,9 @@ export function ktcPlanProjectRenameRootDirectory(
 ): KtcProjectRenameRootRenamePlan {
   const sourcePath = resolve(root);
   const normalizedName = suggestedName.trim();
-  if (!normalizedName || normalizedName === "." || normalizedName === ".." || basename(normalizedName) !== normalizedName) {
+  if (normalizedName !== suggestedName
+    || ktcRenamePathSegmentProblem(normalizedName)
+    || basename(normalizedName) !== normalizedName) {
     return { allowed: false, sourcePath, reason: "建议名称不是安全的单层目录名。" };
   }
   if (basename(sourcePath) === normalizedName) {
@@ -43,5 +46,5 @@ export function ktcPlanProjectRenameRootDirectory(
 
 function ktcPathContains(parent: string, candidate: string): boolean {
   const child = relative(parent, candidate);
-  return child === "" || (!child.startsWith("..") && !isAbsolute(child));
+  return child === "" || (child !== ".." && !child.startsWith(`..${sep}`) && !isAbsolute(child));
 }

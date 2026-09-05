@@ -9,6 +9,11 @@ import type { KtcRibbonLayoutV1 } from "../sidebar/ribbonLayout.js";
 import type { KtcModuleBlockContent } from "../core/moduleShellContract.js";
 import type { KtcSearchReplaceDirectoryOption } from "../searchReplaceDirectoryOptions.js";
 import type { KtcRenamePairHistoryEntry } from "../core/renameHistory.js";
+import type {
+  KtcIgnoreRuleAction,
+  KtcIgnoreWriteTarget,
+  KtcMergedIgnoreRule,
+} from "../core/ignoreManagerModel.js";
 import type { KtcCodegenInboundMessage } from "./codegen/editorContracts.js";
 import type {
   KtcCodegenControlCatalogViewModel,
@@ -101,13 +106,14 @@ export type WebviewInboundMessage =
   | { type: "selectWorkspaceFileScope"; toolId: string; scopeId: string }
   | { type: "openWorkspaceWorksets" }
   | { type: "toggleRibbonModule"; moduleId: KtcModuleId }
-  | { type: "toggleRibbonDensity" }
+  | { type: "setRibbonStyle"; style: "ribbon" | "compact" }
   | { type: "toggleRibbonToolPin"; toolId: string }
   | { type: "resetCodeRibbonLayout" }
   | { type: "moveRibbonTool"; toolId: string; targetToolId: string; placement: "before" | "after" }
   | { type: "selectWorkingDirectory"; directory: string }
   | { type: "pickWorkingDirectory" }
   | { type: "setPluginIgnoreEnabled"; enabled: boolean }
+  | { type: "setIgnoreSourceEnabled"; source: "builtIn" | "git" | "custom"; enabled: boolean }
   | {
       type: "run";
       toolId: string;
@@ -131,8 +137,17 @@ export type WebviewInboundMessage =
   | { type: "setEncodingDefaultTarget"; toolId: "encodingFix"; target: "utf8" | "gbk" }
   | { type: "openEncodingSettings"; toolId: "encodingFix" }
   | { type: "openIgnoreFile" }
+  | { type: "openIgnoreTarget"; target: KtcIgnoreWriteTarget }
+  | { type: "savePrimaryCustomIgnore"; patterns: string[] }
   | { type: "syncIgnoreFromGit" }
-  | { type: "applyIgnorePreset"; presetId: "caa" | "cpp" | "web"; action: "append" | "remove" }
+  | {
+      type: "applyIgnorePreset";
+      presetId: "caa" | "cpp" | "web";
+      action: KtcIgnoreRuleAction;
+      /** Omitted only by legacy Webviews; new callers choose the target explicitly. */
+      target?: KtcIgnoreWriteTarget;
+    }
+  | { type: "applyIgnoreRules"; target: KtcIgnoreWriteTarget; action: KtcIgnoreRuleAction; rules: string[] }
   | { type: "analyzeIgnore" }
   | { type: "pickSearchReplaceDirectory"; toolId: "codeRename" }
   | { type: "rememberSearchReplaceDirectory"; toolId: "codeRename"; directory: string }
@@ -143,6 +158,7 @@ export type WebviewInboundMessage =
       sourceName: string;
       targetName: string;
       rules?: readonly KtcReplacementRuleDraft[];
+      ignoreSources?: Pick<KtcWorkingContext, "builtInIgnoreEnabled" | "gitIgnoreEnabled" | "customIgnoreEnabled">;
     }
   | { type: "deleteRenameHistoryPair"; toolId: "codeRename"; source: string; target: string }
   | { type: "clearRenameHistoryPairs"; toolId: "codeRename" }
@@ -164,6 +180,12 @@ export type WebviewInboundMessage =
   | { type: "uuidSelection"; toolId: "uuidReplace"; uris: string[] }
   | { type: "ignoreSelection"; toolId: "ignoreSettings"; groupIds: string[] }
   | { type: "applyIgnoreRecommendations"; groupIds: string[] }
+  | {
+      type: "applyIgnoreRecommendations";
+      target: KtcIgnoreWriteTarget;
+      action: KtcIgnoreRuleAction;
+      ruleValues: string[];
+    }
   | { type: "environmentAction"; toolId: "environmentSettings"; action: "refresh" | "openSystemSettings" | "openPluginSettings" }
   | { type: "environmentAction"; toolId: "environmentSettings"; action: "set"; key: ProjectEnvironmentValueSummary["key"]; value: string }
   | { type: "environmentAction"; toolId: "environmentSettings"; action: "clear"; key: ProjectEnvironmentValueSummary["key"] }
@@ -255,7 +277,28 @@ export interface IgnoreConfigSummary {
   patternCount: number;
   gitIgnoreExists: boolean;
   statusText: string;
+  primaryCustomPatterns: readonly string[];
+  builtInPatternCount: number;
+  /** Case-insensitive directory rules shipped by the plugin, for read-only UI inspection. */
+  builtInPatterns: readonly string[];
+  /** Writable rule files in stable Git → Phoenix display order. */
+  targets: readonly IgnoreTargetSummary[];
+  /** Root Git and selected-directory Phoenix rules, de-duplicated by exact write identity. */
+  mergedRules: readonly IgnoreMergedRuleSummary[];
 }
+
+export interface IgnoreTargetSummary {
+  target: KtcIgnoreWriteTarget;
+  label: string;
+  relativePath: ".gitignore" | ".phoenix/.ignore";
+  fullPath?: string;
+  exists: boolean;
+  available: boolean;
+  dirty: boolean;
+  patternCount: number;
+}
+
+export type IgnoreMergedRuleSummary = KtcMergedIgnoreRule;
 
 export interface ToolSummary {
   id: string;
@@ -282,6 +325,9 @@ export interface KtcWorkingContext {
   resolvedDirectory?: string;
   label: string;
   pluginIgnoreEnabled: boolean;
+  builtInIgnoreEnabled?: boolean;
+  gitIgnoreEnabled?: boolean;
+  customIgnoreEnabled?: boolean;
   gitIgnoreExists: boolean;
 }
 
@@ -419,6 +465,9 @@ export interface ToolRunContext {
   workspaceLabel: string;
   workspaceFileScopeId: string;
   pluginIgnoreEnabled: boolean;
+  builtInIgnoreEnabled?: boolean;
+  gitIgnoreEnabled?: boolean;
+  customIgnoreEnabled?: boolean;
   postState: (state: ToolUiState) => void;
   log: (text: string) => void;
 }

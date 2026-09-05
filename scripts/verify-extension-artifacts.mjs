@@ -1,8 +1,14 @@
-import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { inflateRawSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
+import {
+  createArtifactVerificationEvidence,
+  readBuildProvenance,
+  readVerifiedSha256Sidecar,
+  serializeArtifactVerificationEvidence,
+  sha256Bytes,
+} from "./release-artifact-provenance.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const codePackage = readPackage(path.join(root, "package.json"));
@@ -17,8 +23,18 @@ const artifacts = [
 ];
 
 for (const artifact of artifacts) {
-  verifySha256Sidecar(artifact.file);
-  const zip = readZip(artifact.file);
+  const archive = fs.readFileSync(artifact.file);
+  const bytes = archive.byteLength;
+  const sha256 = sha256Bytes(archive);
+  const artifactPath = path.relative(root, artifact.file).split(path.sep).join("/");
+  readVerifiedSha256Sidecar(artifact.file, sha256);
+  const provenance = readBuildProvenance(artifact.file, {
+    artifact: artifactPath,
+    version: artifact.expectedPackage.version,
+    sha256,
+    bytes,
+  });
+  const zip = readZip(archive, artifact.file);
   const names = [...zip.keys()].sort();
   for (const name of names) {
     if (/(?:^|\/)(?:\.obsidian|node_modules|src|target)(?:\/|$)/u.test(name)
@@ -98,6 +114,14 @@ for (const artifact of artifacts) {
         || gitPrimaryPanelBundle.includes("acquireVsCodeApi")) {
       throw new Error("Code VSIX is missing the Host-neutral Git Primary panel custom element");
     }
+    const ignorePrimaryPanelBundle = readText(zip, "extension/dist/ktc-ignore-primary-panel.js");
+    if (!ignorePrimaryPanelBundle.includes("ktc-ignore-primary-panel")
+        || !ignorePrimaryPanelBundle.includes("ktc-ignore-primary-action")
+        || ignorePrimaryPanelBundle.includes("acquireVsCodeApi")
+        || ignorePrimaryPanelBundle.includes("postMessage")
+        || ignorePrimaryPanelBundle.includes("workspace.fs")) {
+      throw new Error("Code VSIX is missing the Host-neutral Ignore Primary panel custom element");
+    }
     const reorderMembersPanelBundle = readText(zip, "extension/dist/reorder-members-panel.js");
     if (!reorderMembersPanelBundle.includes("ktc-reorder-members-panel")
         || !reorderMembersPanelBundle.includes("pnw-code-reorder-members-action")
@@ -157,6 +181,14 @@ for (const artifact of artifacts) {
       throw new Error("Code VSIX must not depend on the Vue/UI aggregate phoenix-wing package");
     }
     const titleCommands = manifest.contributes?.menus?.["view/title"] ?? [];
+    const expectedTitleCommands = [
+      ["ktAutoCode.ignore.openAdvanced", "navigation@10"],
+      ["ktAutoCode.environment.open", "navigation@20"],
+    ];
+    const actualTitleCommands = titleCommands.map((candidate) => [candidate.command, candidate.group]);
+    if (JSON.stringify(actualTitleCommands) !== JSON.stringify(expectedTitleCommands)) {
+      throw new Error("Code VSIX View Header must contain exactly Ignore then Settings");
+    }
     if (titleCommands.some((candidate) => [
       "ktAutoCode.module.code.show",
       "ktAutoCode.module.code.hide",
@@ -172,25 +204,24 @@ for (const artifact of artifacts) {
   if (names.includes("extension/media/tools/cad-provider.svg")) {
     throw new Error("Code VSIX must not retain the removed standalone CAD provider icon");
   }
-  process.stdout.write(`[verify] ${artifact.kind} VSIX: ${names.length} files, ${fs.statSync(artifact.file).size} bytes passed\n`);
-}
-
-function verifySha256Sidecar(file) {
-  const sidecar = `${file}.sha256`;
-  const content = fs.readFileSync(sidecar, "utf8").trim();
-  const match = /^([0-9a-f]{64})  ([^\r\n]+)$/u.exec(content);
-  if (!match) throw new Error(`Invalid SHA-256 sidecar format: ${sidecar}`);
-  assertEqual(match[2], path.basename(file), "SHA-256 sidecar artifact name");
-  const actual = createHash("sha256").update(fs.readFileSync(file)).digest("hex");
-  assertEqual(match[1], actual, "VSIX SHA-256");
+  const evidence = createArtifactVerificationEvidence({
+    artifactKind: artifact.kind,
+    artifact: artifactPath,
+    version: artifact.expectedPackage.version,
+    fileCount: names.length,
+    bytes,
+    sha256,
+    provenance,
+  });
+  process.stdout.write(`[verify] ${artifact.kind} VSIX: ${names.length} files, ${bytes} bytes passed\n`);
+  process.stdout.write(serializeArtifactVerificationEvidence(evidence));
 }
 
 function readPackage(filename) {
   return JSON.parse(fs.readFileSync(filename, "utf8"));
 }
 
-function readZip(filename) {
-  const archive = fs.readFileSync(filename);
+function readZip(archive, filename) {
   const eocd = findEndOfCentralDirectory(archive);
   const count = archive.readUInt16LE(eocd + 10);
   let offset = archive.readUInt32LE(eocd + 16);

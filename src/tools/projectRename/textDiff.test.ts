@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import iconv from "iconv-lite";
 import { afterEach, describe, expect, it } from "vitest";
+import type { DetectedEncoding } from "../../core/fileEncoding.js";
 import type { KtcProjectRenameAnalysisReport } from "./contracts.js";
 import { ktcBuildProjectRenameTextDiff } from "./textDiff.js";
 
@@ -26,6 +28,35 @@ describe("project rename text diff", () => {
     expect(diff.relativePath).toBe("src.ts");
   });
 
+  it.each([
+    [
+      "UTF-8 BOM",
+      Buffer.concat([
+        Buffer.from([0xef, 0xbb, 0xbf]),
+        Buffer.from("export const label = '中文 PhoenixOpenIssue';\r\n", "utf8"),
+      ]),
+      "utf8-bom" as const,
+    ],
+    [
+      "GBK",
+      iconv.encode("export const label = '中文 PhoenixOpenIssue';\r\n", "gbk"),
+      "gbk" as const,
+    ],
+  ])("用冻结的 %s 字节生成差异且不修改磁盘", async (_label, bytes, detectedEncoding) => {
+    const root = await mkdtemp(join(tmpdir(), "ktc-project-diff-"));
+    roots.push(root);
+    const file = join(root, "encoded.ts");
+    await writeFile(file, bytes);
+
+    const diff = await ktcBuildProjectRenameTextDiff(
+      report(root, file, bytes, detectedEncoding, "text:encoded.ts", "encoded.ts"),
+      "text:encoded.ts",
+    );
+    expect(diff.originalText).toBe("export const label = '中文 PhoenixOpenIssue';\r\n");
+    expect(diff.targetText).toBe("export const label = '中文 PhoenixIssue';\r\n");
+    expect(await readFile(file)).toEqual(bytes);
+  });
+
   it("磁盘内容漂移后拒绝伪造新的计划差异", async () => {
     const root = await mkdtemp(join(tmpdir(), "ktc-project-diff-"));
     roots.push(root);
@@ -39,7 +70,14 @@ describe("project rename text diff", () => {
   });
 });
 
-function report(root: string, file: string, bytes: Buffer): KtcProjectRenameAnalysisReport {
+function report(
+  root: string,
+  file: string,
+  bytes: Buffer,
+  detectedEncoding: DetectedEncoding = "ascii",
+  id = "text:src.ts",
+  relativePath = "src.ts",
+): KtcProjectRenameAnalysisReport {
   return {
     reportId: 7,
     root,
@@ -52,18 +90,20 @@ function report(root: string, file: string, bytes: Buffer): KtcProjectRenameAnal
       replace: "PhoenixIssue",
       enabled: true,
     }],
+    ignorePatterns: [],
+    useBuiltInIgnore: true,
     workspaceReport: {
       root,
       applied: false,
       hits: [{
-        id: "text:src.ts",
-        relativePath: "src.ts",
+        id,
+        relativePath,
         fullPath: file,
         originalFullPath: file,
         plannedFullPath: file,
         level: "text",
         occurrences: 1,
-        detectedEncoding: "ascii",
+        detectedEncoding,
         sourceHash: createHash("sha256").update(bytes).digest("hex"),
         status: "preview",
       }],

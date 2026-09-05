@@ -6,7 +6,7 @@
 
 需要同时配置两个远端时，macOS/Linux 运行 `./addRemote.sh`，PowerShell 运行 `.\addRemote.ps1`。脚本可重复执行且默认保留已有 `origin`；仅显式使用 `--remove-origin` 或 `-RemoveOrigin` 时才删除它。
 
-当前插件提供 **头文件编码修正、文件转码、Ignore 设置、工作区搜索替换、项目改名与受控执行、C++ 成员排序、UUID 替换、CAA UI、工程环境管理与 Codegen 参数表原型**。Primary 的搜索替换保留精确规则和 Pascal、小写、全大写、空格、kebab、snake 等简单显式变形；CAA/C++ 前缀改名和复杂 Web 多变形使用 Header 中的 **项目改名**按钮打开独立 Editor View。打开时会带入 Primary 当前目录、名称和启用规则；一个 View 固定一个目录任务，重复点击只聚焦当前任务，关闭后才可为另一目录新建任务。该 View 先生成只读报告和冻结计划，写盘前可用 VS Code 原生 Diff 对比计划内容，只有通过冲突、文件指纹、编码、命中数和 Git 状态门禁并再次确认后才执行写盘。成员排序、UUID、CAA 扫描和 Codegen 预检可共用 `.phoenix/worksets.json`；搜索替换当前使用独立目录选择，工作集入口待产品交互明确后再评估。工程环境 Block 直接维护操作系统用户环境变量，不使用 VS Code Settings 伪装系统值；其他插件配置仍使用 VS Code Settings。写盘前会检查冲突和文件快照，结果统一显示在单 Block 中；Codegen Apply 会自动预检、重验源码指纹并保持 UTF-8/BOM/GBK 原编码，批量写入失败时尝试回滚。
+当前插件提供 **头文件编码修正、文件转码、Ignore 设置、工作区搜索替换、项目改名与受控执行、C++ 成员排序、UUID 替换、CAA UI、工程环境管理与 Codegen 参数表原型**。Primary 的 Ignore 使用“插件内置 / Git / 自定义”三个独立来源：默认启用内置与 Git，自定义非空保存时才创建 `.phoenix/.ignore`；原生 View Header 的 Ignore 图标打开独立 Ignore 工具，旁边的 Settings 图标打开设置工具。Ignore 管理单独展示插件内置规则，并以 radio 在最近 Git 根 `.gitignore` 与当前目录 `.phoenix/.ignore` 间选择写入目标：默认读写 Git，只有用户主动切换或 Git 不可用时才使用 Phoenix；来源合并、智能去重和逐条增删会保护注释与无关规则。Primary 的搜索替换保留精确规则和 Pascal、小写、全大写、空格、kebab、snake 等简单显式变形；Web/CAA/C++ 通用前缀和复杂 Web 多变形使用 Header 中的 **项目改名**按钮打开独立 Editor View。打开时会带入 Primary 当前目录、名称、启用规则和 Ignore 来源；一个 View 固定一个目录任务，重复点击只聚焦当前任务，关闭后才可为另一目录新建任务。该 View 先生成只读报告和冻结计划，写盘前可用 VS Code 原生 Diff 对比计划内容，只有通过冲突、文件指纹、编码、命中数和 Git 状态门禁并再次确认后才执行写盘。成员排序、UUID、CAA 扫描和 Codegen 预检可共用 `.phoenix/worksets.json`；搜索替换当前使用独立目录选择，工作集入口待产品交互明确后再评估。工程环境 Block 直接维护操作系统用户环境变量，不使用 VS Code Settings 伪装系统值；其他插件配置仍使用 VS Code Settings。写盘前会检查冲突和文件快照，结果统一显示在单 Block 中；Codegen Apply 会自动预检、重验源码指纹并保持 UTF-8/BOM/GBK 原编码，批量写入失败时尝试回滚。
 
 ## Code 与 CAD 功能关系
 
@@ -36,7 +36,7 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 
 ## 发布
 
-正式 VSIX 建议从 `../.worktrees/kt-auto-code-release` 的 detached worktree 构建，切到明确 tag 或 commit 后执行 `pnpm install --frozen-lockfile && pnpm verify:ci`；不要把 `pnpm dev` 的本地 Wing 联调产物用于发布。Auto 的完整 worktree 更新、制品位置、人工安装与 Marketplace 点检见[VS Code 插件发布](docs/VS%20Code%20插件发布.md)；CAD 发布由 [KT Auto CAD 仓库](https://gitee.com/PhoenixWing321/kt-auto-cad)独立维护。
+正式 VSIX 建议从 `../worktrees/kt-auto-code-release` 的 detached worktree 构建，切到明确 tag 或 commit 后执行 `pnpm install --frozen-lockfile && pnpm verify:ci`；不要把 `pnpm dev` 的本地 Wing 联调产物用于发布。Auto 的完整 worktree 更新、制品位置、人工安装与 Marketplace 点检见[VS Code 插件发布](docs/VS%20Code%20插件发布.md)；CAD 发布由 [KT Auto CAD 仓库](https://gitee.com/PhoenixWing321/kt-auto-cad)独立维护。
 
 ## 文档
 

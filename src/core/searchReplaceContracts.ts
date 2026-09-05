@@ -14,6 +14,9 @@ export interface KtcSearchReplaceRequest {
   scopeLabel?: string;
   includeIgnored?: boolean;
   pluginIgnoreEnabled?: boolean;
+  builtInIgnoreEnabled?: boolean;
+  gitIgnoreEnabled?: boolean;
+  customIgnoreEnabled?: boolean;
 }
 
 export type KtcSearchReplaceRunResult = "completed" | "cancelled" | "blocked" | "error";

@@ -21,7 +21,7 @@ import { setCodeRenameRunContextFactory } from "../tools/codeRename/index.js";
 import { setUuidReplaceRunContextFactory } from "../tools/uuidReplace/index.js";
 import { setCaaDialogRunContextFactory } from "../tools/caaDialog/index.js";
 import { setReorderMembersRunContextFactory } from "../tools/reorderMembers/index.js";
-import { setIgnoreSettingsRunContextFactory } from "../tools/ignoreSettings/index.js";
+import { setIgnoreSettingsCommandRunner } from "../tools/ignoreSettings/index.js";
 import { setCodegenRunContextFactory } from "../tools/codegen/index.js";
 import { setCodeAssistantRunContextFactory } from "../tools/codeAssistant/index.js";
 import { getPreserveGbk, getStripBom } from "../tools/headerAscii/options.js";
@@ -33,6 +33,7 @@ import {
   ktcDefaultIgnoreGroupIds,
   ktcIgnoreController,
   ktcIsIgnoreMessage,
+  type KtcIgnoreMessage,
 } from "../ignoreController.js";
 import { findNearestGitIgnore } from "../ignoreConfig.js";
 import {
@@ -77,7 +78,11 @@ const MODULE_STATE_KEY = "ktAutoCode.modules.v1";
 const RIBBON_LAYOUT_STATE_KEY = "ktAutoCode.ribbonLayout.v1";
 const CODE_ASSISTANT_TREE_UI_STATE_KEY = "ktAutoCode.codeAssistant.treeUi.v1";
 const WORKING_DIRECTORY_STATE_KEY = "ktAutoCode.workingContext.directory.v1";
+const BUILT_IN_IGNORE_STATE_KEY = "ktAutoCode.workingContext.builtInIgnoreEnabled.v1";
+const GIT_IGNORE_STATE_KEY = "ktAutoCode.workingContext.gitIgnoreEnabled.v1";
+const CUSTOM_IGNORE_STATE_KEY = "ktAutoCode.workingContext.customIgnoreEnabled.v1";
 const PLUGIN_IGNORE_STATE_KEY = "ktAutoCode.workingContext.pluginIgnoreEnabled.v1";
+const MODULE_VIEW_TITLE = "KT Auto Code";
 const DEFAULT_CODE_ASSISTANT_TREE_UI_STATE: KtcCodeAssistantTreeUiState = Object.freeze({
   treeExpanded: true,
   cppOrganizeExpanded: true,
@@ -176,6 +181,8 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   private moduleState: KtcModuleState;
   private moduleStateSyncQueue: Promise<void> = Promise.resolve();
   private modulePanelContextSyncQueue: Promise<void> = Promise.resolve();
+  private ignoreOperationQueue: Promise<void> = Promise.resolve();
+  private ignoreContextRoot: string | undefined;
   private readonly moduleBlockProviders = new Map<KtcModuleId, KtcModuleBlockProvider>();
 
   constructor(
@@ -193,13 +200,14 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     );
     this.recentExternalDirectories = new KtcRecentWorkingDirectoryStore(globalState);
     this.recentWorkspaceDirectories = new KtcRecentWorkspaceDirectoryStore(workspaceState);
+    this.ignoreContextRoot = this.getWorkingContext().resolvedDirectory;
     setHeaderAsciiRunContextFactory(() => this.createRunContext("headerAscii"));
     setEncodingFixRunContextFactory(() => this.createRunContext("encodingFix"));
     setCodeRenameRunContextFactory(() => this.createRunContext("codeRename"));
     setUuidReplaceRunContextFactory(() => this.createRunContext("uuidReplace"));
     setCaaDialogRunContextFactory(() => this.createRunContext("caaDialog"));
     setReorderMembersRunContextFactory(() => this.createRunContext("reorderMembers"));
-    setIgnoreSettingsRunContextFactory(() => this.createRunContext("ignoreSettings"));
+    setIgnoreSettingsCommandRunner((message) => this.enqueueIgnoreMessage(message));
     setCodegenRunContextFactory(() => this.createRunContext("codegen"));
     setCodeAssistantRunContextFactory(() => this.createRunContext("codeAssistant"));
   }
@@ -302,8 +310,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
   /** Opens the tool interface block; results are rendered in the same block. */
   async showTool(toolId: string): Promise<void> {
-    // Ignore 管理已成为统一“设置”的首个内部区；保留旧命令/消息入口的兼容路由。
-    const requestedToolId = toolId === "ignoreSettings" ? "environmentSettings" : toolId;
+    const requestedToolId = toolId;
     const requestedTool = getTool(requestedToolId);
     if (!requestedTool) return;
     const codeAssistantFeatureId = isCodeAssistantFeatureId(requestedToolId) ? requestedToolId : undefined;
@@ -332,7 +339,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     await this.setModulePanelContext(true, visibleToolId);
     await vscode.commands.executeCommand("workbench.view.extension.kt-auto-code");
     if (this.moduleView) {
-      this.moduleView.title = "工具栏";
+      this.moduleView.title = MODULE_VIEW_TITLE;
       await this.sendInit(this.moduleView);
       if (!this.moduleView.visible) this.moduleView.show(false);
     } else {
@@ -362,7 +369,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     await this.setModulePanelContext(true, toolId);
     await vscode.commands.executeCommand("workbench.view.extension.kt-auto-code");
     if (this.moduleView) {
-      this.moduleView.title = "工具栏";
+      this.moduleView.title = MODULE_VIEW_TITLE;
       await this.sendInit(this.moduleView);
       if (!this.moduleView.visible) this.moduleView.show(false);
     } else {
@@ -390,7 +397,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       return this.getToolBlockState();
     }
     await this.setModulePanelContext(false);
-    if (this.moduleView) this.moduleView.title = "工具栏";
+    if (this.moduleView) this.moduleView.title = MODULE_VIEW_TITLE;
     this.postToViews({ type: "openTools", activeToolId: this.activeToolId, openToolIds: [] });
     return this.getToolBlockState();
   }
@@ -415,9 +422,10 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   }
 
   private getSidebarStyle(): "ribbon" | "compact" {
-    return vscode.workspace
+    const configured = vscode.workspace
       .getConfiguration("ktAutoCode")
-      .get<"ribbon" | "compact">("sidebar.toolPickerStyle", "ribbon");
+      .get<unknown>("sidebar.toolPickerStyle", "ribbon");
+    return configured === "compact" ? "compact" : "ribbon";
   }
 
   private getToolOptions(toolId: string): ToolOptionsState {
@@ -450,6 +458,9 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       workspaceLabel: workingContext.label,
       workspaceFileScopeId: "workspace",
       pluginIgnoreEnabled: workingContext.pluginIgnoreEnabled,
+      builtInIgnoreEnabled: workingContext.builtInIgnoreEnabled,
+      gitIgnoreEnabled: workingContext.gitIgnoreEnabled,
+      customIgnoreEnabled: workingContext.customIgnoreEnabled,
       postState: (state) => this.setToolState(toolId, state, transientTarget),
       log: (text) => logOutput(text),
     };
@@ -519,7 +530,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
     const ribbonLayout = await this.getRibbonLayout(this.getRibbonLayoutTools());
     const workingContext = this.getWorkingContext();
-    target.title = "工具栏";
+    target.title = MODULE_VIEW_TITLE;
     postToWebview(target, {
       type: "init",
       tools,
@@ -554,7 +565,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
   private async onMessage(message: WebviewInboundMessage, source: vscode.WebviewView): Promise<void> {
     if (message.type === "ready") {
-      source.title = "工具栏";
+      source.title = MODULE_VIEW_TITLE;
       await this.sendInit(source);
       return;
     }
@@ -644,8 +655,13 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    if (message.type === "toggleRibbonDensity") {
-      await vscode.commands.executeCommand("ktAutoCode.sidebar.toggleStyle");
+    if (message.type === "setRibbonStyle") {
+      if (message.style !== "ribbon" && message.style !== "compact") return;
+      await vscode.workspace.getConfiguration("ktAutoCode").update(
+        "sidebar.toolPickerStyle",
+        message.style,
+        vscode.ConfigurationTarget.Global,
+      );
       return;
     }
 
@@ -694,6 +710,16 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
     if (message.type === "setPluginIgnoreEnabled") {
       await this.workspaceState.update(PLUGIN_IGNORE_STATE_KEY, message.enabled);
+      await this.workspaceState.update(CUSTOM_IGNORE_STATE_KEY, message.enabled);
+      this.postWorkingContext();
+      return;
+    }
+
+    if (message.type === "setIgnoreSourceEnabled") {
+      const key = message.source === "builtIn"
+        ? BUILT_IN_IGNORE_STATE_KEY
+        : message.source === "git" ? GIT_IGNORE_STATE_KEY : CUSTOM_IGNORE_STATE_KEY;
+      await this.workspaceState.update(key, message.enabled);
       this.postWorkingContext();
       return;
     }
@@ -718,27 +744,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     }
 
     if (ktcIsIgnoreMessage(message)) {
-      const result = await ktcIgnoreController.handle(message, this.getWorkingContext().resolvedDirectory, (summary) => {
-        this.postToViews({ type: "ignoreConfig", ignoreConfig: summary });
-      });
-      if (result.error) {
-        this.setToolState("ignoreSettings", { status: "error", message: result.error });
-      } else if (result.recommendations) {
-        const previous = this.toolStates.get("ignoreSettings")?.ignoreSelectedGroupIds ?? [];
-        const selectable = new Set(result.recommendations.recommendations
-          .filter((group) => group.suggestedRules.length > 0)
-          .map((group) => group.groupId));
-        this.setToolState("ignoreSettings", {
-          status: "done",
-          message: result.message,
-          ignoreRecommendations: result.recommendations,
-          ignoreSelectedGroupIds: message.type === "analyzeIgnore"
-            ? ktcDefaultIgnoreGroupIds(result.recommendations.recommendations)
-            : previous.filter((groupId) => selectable.has(groupId)),
-        });
-      } else if (result.summary) {
-        this.setToolState("ignoreSettings", { status: "done", message: result.summary.statusText });
-      }
+      await this.enqueueIgnoreMessage(message);
       return;
     }
 
@@ -809,6 +815,63 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     } catch (error) {
       this.postUnhandledToolError(message.toolId, error);
     }
+  }
+
+  private async handleIgnoreMessage(
+    message: KtcIgnoreMessage,
+    requestedRoot: string | undefined,
+  ): Promise<void> {
+    if (this.getWorkingContext().resolvedDirectory !== requestedRoot) return;
+    const previousState = this.toolStates.get("ignoreSettings");
+    const analyzing = message.type === "analyzeIgnore";
+    this.setToolState("ignoreSettings", {
+      status: "running",
+      message: analyzing ? "正在分析当前目录的 Ignore 建议…" : "正在更新 Ignore…",
+      ignoreRecommendations: analyzing ? undefined : previousState?.ignoreRecommendations,
+      ignoreSelectedGroupIds: analyzing ? [] : previousState?.ignoreSelectedGroupIds,
+    });
+
+    const result = await ktcIgnoreController.handle(message, requestedRoot, (summary) => {
+      if (this.getWorkingContext().resolvedDirectory === requestedRoot) {
+        this.postToViews({ type: "ignoreConfig", ignoreConfig: summary });
+      }
+    });
+    if (this.getWorkingContext().resolvedDirectory !== requestedRoot) return;
+
+    if (result.error) {
+      this.setToolState("ignoreSettings", { status: "error", message: result.error });
+      return;
+    }
+    if (result.recommendations) {
+      const previous = previousState?.ignoreSelectedGroupIds ?? [];
+      const selectable = new Set(result.recommendations.recommendations
+        .filter((group) => group.suggestedRules.length > 0)
+        .map((group) => group.groupId));
+      this.setToolState("ignoreSettings", {
+        status: "done",
+        message: result.message,
+        ignoreRecommendations: result.recommendations,
+        ignoreSelectedGroupIds: analyzing
+          ? ktcDefaultIgnoreGroupIds(result.recommendations.recommendations)
+          : previous.filter((groupId) => selectable.has(groupId)),
+      });
+      return;
+    }
+    if (result.summary) {
+      this.setToolState("ignoreSettings", {
+        status: "done",
+        message: result.message ?? result.summary.statusText,
+      });
+      return;
+    }
+    this.setToolState("ignoreSettings", { status: "done", message: result.message ?? "Ignore 操作完成。" });
+  }
+
+  private async enqueueIgnoreMessage(message: KtcIgnoreMessage): Promise<void> {
+    const requestedRoot = this.getWorkingContext().resolvedDirectory;
+    const operation = this.ignoreOperationQueue.then(() => this.handleIgnoreMessage(message, requestedRoot));
+    this.ignoreOperationQueue = operation.catch(() => undefined);
+    await operation;
   }
 
   getModuleState(): KtcModuleState {
@@ -932,7 +995,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     }
     try {
       const content = await provider.render(this.activeToolId);
-      target.title = "工具栏";
+      target.title = MODULE_VIEW_TITLE;
       postToWebview(target, { type: "moduleBlock", moduleId, content });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -1010,18 +1073,40 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     const entry = requested ? ktcClassifyWorkingDirectory(workspaceRoot, requested) : undefined;
     const resolvedDirectory = entry && existsSync(entry.directory) ? entry.directory : workspaceRoot;
     const selectedDirectory = entry && resolvedDirectory === entry.directory ? entry.inputValue : "";
-    const pluginIgnoreEnabled = this.workspaceState.get<boolean>(PLUGIN_IGNORE_STATE_KEY, true);
+    const builtInIgnoreEnabled = this.workspaceState.get<boolean>(BUILT_IN_IGNORE_STATE_KEY, true);
+    const gitIgnoreEnabled = this.workspaceState.get<boolean>(GIT_IGNORE_STATE_KEY, true);
+    const legacyCustomIgnoreEnabled = this.workspaceState.get<boolean>(PLUGIN_IGNORE_STATE_KEY);
+    const customIgnoreEnabled = this.workspaceState.get<boolean>(
+      CUSTOM_IGNORE_STATE_KEY,
+      legacyCustomIgnoreEnabled ?? false,
+    );
     return {
       selectedDirectory,
       resolvedDirectory,
       label: resolvedDirectory ? basename(resolvedDirectory) : "未打开目录",
-      pluginIgnoreEnabled,
+      pluginIgnoreEnabled: customIgnoreEnabled,
+      builtInIgnoreEnabled,
+      gitIgnoreEnabled,
+      customIgnoreEnabled,
       gitIgnoreExists: !!resolvedDirectory && !!findNearestGitIgnore(resolvedDirectory),
     };
   }
 
   private postWorkingContext(): void {
     const context = this.getWorkingContext();
+    const changed = this.ignoreContextRoot !== context.resolvedDirectory;
+    this.ignoreContextRoot = context.resolvedDirectory;
+    if (changed) {
+      ktcIgnoreController.invalidateRecommendations();
+      if (this.toolStates.has("ignoreSettings")) {
+        this.setToolState("ignoreSettings", {
+          status: "idle",
+          message: "目录已切换，请重新分析 Ignore 建议。",
+          ignoreRecommendations: undefined,
+          ignoreSelectedGroupIds: [],
+        });
+      }
+    }
     this.postToViews({ type: "workingContext", context, directories: this.getRecentWorkingDirectories() });
     this.postToViews({ type: "ignoreConfig", ignoreConfig: ktcIgnoreController.snapshot(context.resolvedDirectory) });
   }

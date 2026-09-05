@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import * as vscode from "vscode";
 import {
   KtCodegenController,
@@ -10,6 +11,13 @@ import { ktcProjectCodegenApply } from "../tools/codegen/sourceApply.js";
 import { ktcCommitCodegenApplyWrites } from "../tools/codegen/sourceApplyTransaction.js";
 import { ktcDecodeCodegenSource, ktcEncodeCodegenSource } from "../tools/codegen/sourceCodec.js";
 import { KtcGitTool } from "../tools/git/KtcGitTool.js";
+import { KtcProjectRenameHost } from "../projectRenameHost.js";
+import type {
+  KtcProjectRenameAnalysisReport,
+  KtcProjectRenameViewInboundMessage,
+  KtcProjectRenameViewState,
+} from "../tools/projectRename/contracts.js";
+import { KtcProjectRenameViewController } from "../tools/projectRename/viewController.js";
 import type { ToolUiState } from "../tools/types.js";
 
 interface ExtensionApi {
@@ -21,6 +29,160 @@ interface ExtensionApi {
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
+
+interface KtcProjectRenameSmokeDriver {
+  state: KtcProjectRenameViewState;
+  abortController?: AbortController;
+  report?: KtcProjectRenameAnalysisReport;
+  handleMessage(message: KtcProjectRenameViewInboundMessage): Promise<void>;
+}
+
+interface KtcProjectRenameCancelEvidence {
+  readonly scannedFilesBeforeCancel: number;
+  readonly signalAborted: boolean;
+  readonly cancelledWithoutReport: boolean;
+  readonly restartReportId: number;
+  readonly fixtureFileCount: number;
+  readonly fixtureUnchanged: boolean;
+}
+
+async function ktcProjectRenameFixtureFingerprint(root: vscode.Uri): Promise<{
+  readonly fileCount: number;
+  readonly sha256: string;
+}> {
+  const entries = (await vscode.workspace.fs.readDirectory(root))
+    .sort(([left], [right]) => left.localeCompare(right));
+  const hash = createHash("sha256");
+  for (const [name, type] of entries) {
+    hash.update(name, "utf8");
+    hash.update("\0", "utf8");
+    hash.update(String(type), "utf8");
+    hash.update("\0", "utf8");
+    if (type === vscode.FileType.File) {
+      hash.update(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(root, name)));
+    }
+    hash.update("\0", "utf8");
+  }
+  return { fileCount: entries.length, sha256: hash.digest("hex") };
+}
+
+async function ktcWaitFor(
+  predicate: () => boolean,
+  failureMessage: () => string,
+  timeoutMs = 15_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error(failureMessage());
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+}
+
+async function ktcWithTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function ktcRunProjectRenameCancelSmoke(
+  workspace: vscode.WorkspaceFolder,
+  extensionUri: vscode.Uri,
+): Promise<KtcProjectRenameCancelEvidence> {
+  const fixture = vscode.Uri.joinPath(workspace.uri, "project-rename-cancel-probe");
+  await vscode.workspace.fs.createDirectory(fixture);
+  const payload = encoder.encode("export const OldProject = 'OldProject';\n".repeat(32));
+  const fileCount = 360;
+  const writeBatchSize = 36;
+  for (let offset = 0; offset < fileCount; offset += writeBatchSize) {
+    await Promise.all(Array.from({ length: Math.min(writeBatchSize, fileCount - offset) }, async (_value, index) => {
+      const ordinal = String(offset + index).padStart(4, "0");
+      await vscode.workspace.fs.writeFile(
+        vscode.Uri.joinPath(fixture, `OldProject-${ordinal}.ts`),
+        payload,
+      );
+    }));
+  }
+  const fixtureBefore = await ktcProjectRenameFixtureFingerprint(fixture);
+  const controller = new KtcProjectRenameViewController(extensionUri, new KtcProjectRenameHost());
+  // VS Code exposes no Extension Test API for injecting a click into a
+  // WebviewPanel. This structural cast is confined to the excluded test bundle
+  // and drives the same Controller branch reached after the Webview parser.
+  const driver = controller as unknown as KtcProjectRenameSmokeDriver;
+  const request: KtcProjectRenameViewInboundMessage = {
+    type: "analyze",
+    sourceName: "OldProject",
+    targetName: "NewProject",
+    sourcePrefix: "",
+    targetPrefix: "",
+    rules: [{
+      id: "display",
+      style: "display",
+      search: "OldProject",
+      replace: "NewProject",
+      enabled: true,
+    }],
+  };
+
+  try {
+    controller.show(fixture.fsPath);
+    const firstAnalysis = driver.handleMessage(request);
+    await ktcWaitFor(
+      () => driver.state.status === "running" && (driver.state.progress?.scannedFiles ?? 0) > 0,
+      () => `项目改名取消烟测未进入可取消扫描阶段：${driver.state.status}/${driver.state.progress?.scannedFiles ?? 0}`,
+    );
+    const scannedFilesBeforeCancel = driver.state.progress?.scannedFiles ?? 0;
+    const firstSignal = driver.abortController?.signal;
+    assert.ok(firstSignal, "project rename analysis must own an AbortSignal before cancellation");
+
+    // Start the replacement without awaiting cancellation. This proves that the
+    // task slot is released immediately and a late first result cannot win.
+    const cancellation = driver.handleMessage({ type: "cancel" });
+    assert.equal(firstSignal.aborted, true);
+    assert.equal(driver.state.status, "cancelled");
+    assert.equal(driver.report, undefined);
+    assert.equal(driver.state.report, undefined);
+    const cancelledWithoutReport = driver.state.status === "cancelled"
+      && driver.report === undefined
+      && driver.state.report === undefined;
+
+    const secondAnalysis = driver.handleMessage(request);
+    assert.equal(driver.state.status, "running", "cancelled task slot must be reusable immediately");
+    await ktcWithTimeout(
+      Promise.all([firstAnalysis, cancellation, secondAnalysis]),
+      30_000,
+      "项目改名取消后的分析任务未在 30 秒内收口",
+    );
+    assert.equal(driver.state.status, "done");
+    // Read through closures so TypeScript does not retain the intentional
+    // pre-restart `undefined` narrowing across the asynchronous Controller run.
+    const restartReport = ((): KtcProjectRenameAnalysisReport | undefined => driver.report)();
+    const restartViewReport = ((): KtcProjectRenameViewState["report"] => driver.state.report)();
+    assert.ok(restartReport, "replacement analysis must publish a report");
+    assert.equal(restartReport.reportId, 2, "the cancelled report must not overwrite the replacement report");
+    assert.equal(restartViewReport?.reportId, 2);
+    const fixtureAfter = await ktcProjectRenameFixtureFingerprint(fixture);
+    assert.deepEqual(fixtureAfter, fixtureBefore, "read-only cancellation smoke must not change fixture names or bytes");
+
+    return {
+      scannedFilesBeforeCancel,
+      signalAborted: firstSignal.aborted,
+      cancelledWithoutReport,
+      restartReportId: restartReport.reportId,
+      fixtureFileCount: fixtureAfter.fileCount,
+      fixtureUnchanged: true,
+    };
+  } finally {
+    controller.dispose();
+  }
+}
 
 export async function run(): Promise<void> {
   assert.equal(process.env.KTC_EXTENSION_HOST_SMOKE, "1", "smoke must run through the isolated launcher");
@@ -93,6 +255,8 @@ export async function run(): Promise<void> {
     "ktAutoCode.module.activate",
     "ktAutoCode.uuidReplace.scan",
     "ktAutoCode.projectRenameAnalysis.open",
+    "ktAutoCode.ignore.openAdvanced",
+    "ktAutoCode.environment.open",
     "ktAutoCode.git.open",
     "ktAutoCode.run.open",
   ]) {
@@ -229,6 +393,11 @@ export async function run(): Promise<void> {
   assert.equal(decoder.decode(await vscode.workspace.fs.readFile(rollbackA)), "before-a");
   assert.equal(decoder.decode(await vscode.workspace.fs.readFile(rollbackB)), "before-b");
 
+  const projectRenameCancel = await ktcRunProjectRenameCancelSmoke(
+    workspace,
+    vscode.Uri.file(extension.extensionPath),
+  );
+
   // Exercise the real command and Webview construction. The second call carries a
   // different root but must only reveal the already-open single-task View.
   await vscode.commands.executeCommand("ktAutoCode.projectRenameAnalysis.open", workspace.uri.fsPath);
@@ -256,11 +425,13 @@ export async function run(): Promise<void> {
       gitEmptyState: true,
       runBlock: true,
       projectRenameAnalysis: true,
+      projectRenameCancel: true,
     },
     evidence: {
       candidateFileCount: preflight.candidateFileCount,
       markerRegionCount: preflight.plan.markerRegions.length,
       changedFileCount: applyWrites.length,
+      projectRenameCancel,
       commands: [
         "ktAutoCode.codegen.open",
         "ktAutoCode.module.activate",

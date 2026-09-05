@@ -5,6 +5,7 @@ import {
   type KtcIgnoreRuleCatalogDocument,
   type KtcIgnoreRuleDefinition,
 } from "./ignoreRuleCatalog.js";
+import { ktcNormalizeIgnoreRule } from "./ignoreManagerModel.js";
 
 export type KtcIgnoreRecommendationConfidence = "high" | "medium" | "low";
 
@@ -118,11 +119,14 @@ function ruleMatchesPaths(rule: KtcIgnoreRuleDefinition, paths: readonly string[
 }
 
 function hasEquivalentExistingPattern(rule: KtcIgnoreRuleDefinition, patterns: ReadonlySet<string>): boolean {
-  const value = normalizePath(rule.value);
-  if (patterns.has(value)) return true;
-  if (rule.kind !== "directory") return false;
-  const withoutSlash = value.replace(/\/$/, "");
-  return patterns.has(withoutSlash) || patterns.has(`${withoutSlash}/`);
+  const normalized = ktcNormalizeIgnoreRule(rule.value);
+  return !!normalized && patterns.has(normalized.identity);
+}
+
+function ignoreRuleIdentities(values: readonly string[]): Set<string> {
+  return new Set(values
+    .map((value) => ktcNormalizeIgnoreRule(value)?.identity)
+    .filter((value): value is string => !!value));
 }
 
 function topLevelProcessDirectory(path: string): string | undefined {
@@ -143,14 +147,15 @@ function buildProcessDirectoryRecommendation(
   snapshot: KtcIgnoreWorkspaceSnapshot,
   catalog: KtcIgnoreRuleCatalogDocument,
 ): KtcIgnoreGroupRecommendation | undefined {
-  const existingPatterns = new Set(snapshot.existingPatterns.map((pattern) => normalizePath(pattern.trim())).filter(Boolean));
-  const catalogValues = new Set(catalog.rules.map((rule) => normalizePath(rule.value)));
+  const existingPatterns = ignoreRuleIdentities(snapshot.existingPatterns);
+  const catalogValues = ignoreRuleIdentities(catalog.rules.map((rule) => rule.value));
   const pathsByPattern = new Map<string, string[]>();
   for (const path of snapshot.paths) {
     const name = topLevelProcessDirectory(path);
     if (!name || isIgnoredPath(path, [...snapshot.existingPatterns])) continue;
     const pattern = processDirectoryPattern(name);
-    if (catalogValues.has(normalizePath(pattern))) continue;
+    const patternIdentity = ktcNormalizeIgnoreRule(pattern)?.identity;
+    if (patternIdentity && catalogValues.has(patternIdentity)) continue;
     const paths = pathsByPattern.get(pattern) ?? [];
     paths.push(path);
     pathsByPattern.set(pattern, paths);
@@ -194,7 +199,7 @@ export function ktcAnalyzeIgnoreRecommendations(
   catalog: KtcIgnoreRuleCatalogDocument = ktcGetBuiltinIgnoreRuleCatalog(),
 ): readonly KtcIgnoreGroupRecommendation[] {
   const seedsByGroup = seedSignatureEvidence(snapshot);
-  const existingPatterns = new Set(snapshot.existingPatterns.map((pattern) => normalizePath(pattern.trim())).filter(Boolean));
+  const existingPatterns = ignoreRuleIdentities(snapshot.existingPatterns);
 
   for (const group of catalog.groups) {
     const rules = ktcResolveIgnoreGroupRules(group.id, catalog);

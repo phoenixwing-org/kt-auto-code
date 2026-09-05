@@ -5,6 +5,9 @@ const {
   createWebviewPanel,
   uriJoinPath,
   workspaceFs,
+  withProgress,
+  analyzeProjectRename,
+  ProjectRenameCancelledError,
   showInformationMessage,
   showWarningMessage,
   FakeFileSystemError,
@@ -14,6 +17,12 @@ const {
       super(message);
     }
   }
+  class HoistedProjectRenameCancelledError extends Error {
+    constructor() {
+      super("项目改名分析已取消");
+      this.name = "KtcProjectRenameCancelledError";
+    }
+  }
   return {
     createWebviewPanel: vi.fn(),
     uriJoinPath: vi.fn((_base: unknown, ...parts: string[]) => ({
@@ -21,11 +30,19 @@ const {
       toString: () => `file:///extension/${parts.join("/")}`,
     })),
     workspaceFs: { stat: vi.fn(), rename: vi.fn() },
+    withProgress: vi.fn(),
+    analyzeProjectRename: vi.fn(),
+    ProjectRenameCancelledError: HoistedProjectRenameCancelledError,
     showInformationMessage: vi.fn(),
     showWarningMessage: vi.fn(),
     FakeFileSystemError: HoistedFileSystemError,
   };
 });
+
+vi.mock("./analyzer.js", () => ({
+  ktcAnalyzeProjectRename: analyzeProjectRename,
+  KtcProjectRenameCancelledError: ProjectRenameCancelledError,
+}));
 
 vi.mock("vscode", () => ({
   ViewColumn: { Active: 1 },
@@ -43,6 +60,7 @@ vi.mock("vscode", () => ({
   },
   window: {
     createWebviewPanel,
+    withProgress,
     showErrorMessage: vi.fn(),
     showInformationMessage,
     showWarningMessage,
@@ -81,6 +99,8 @@ describe("project rename analysis View", () => {
     createWebviewPanel.mockReset();
     workspaceFs.stat.mockReset();
     workspaceFs.rename.mockReset();
+    withProgress.mockReset();
+    analyzeProjectRename.mockReset();
     showInformationMessage.mockReset();
     showWarningMessage.mockReset();
   });
@@ -105,7 +125,17 @@ describe("project rename analysis View", () => {
     expect(panel.webview.html).toContain("Content-Security-Policy");
     expect(panel.webview.html).toContain("project-rename-analysis.js");
     expect(panel.webview.html).toContain("command-header");
-    expect(panel.webview.html).toContain("position: sticky");
+    expect(panel.webview.html).toMatch(/\.command-header\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0;/u);
+    expect(panel.webview.html).toMatch(/th\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0;/u);
+    expect(panel.webview.html).toMatch(/\.col-action\s*\{[^}]*position:\s*sticky;[^}]*right:\s*0;/u);
+    expect(panel.webview.html).toMatch(/\.results\s*\{[^}]*max-height:\s*min\(60vh,\s*720px\);[^}]*overflow:\s*auto;/u);
+    expect(panel.webview.html).toMatch(/@media \(max-width:\s*760px\)[\s\S]*?\.header-actions\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;[^}]*flex-wrap:\s*wrap;/u);
+    expect(panel.webview.html).toContain(".results:focus-visible");
+    expect(panel.webview.html).toContain('class="results" role="region" aria-label="项目改名命中结果" tabindex="0"');
+    expect(panel.webview.html).toContain("var(--vscode-button-border, var(--vscode-contrastBorder, transparent))");
+    expect(panel.webview.html).toContain("box-shadow: -1px 0 var(--vscode-contrastBorder, var(--vscode-panel-border, transparent))");
+    expect(panel.webview.html).toMatch(/th,td \{[^}]*--vscode-contrastBorder/u);
+    expect(panel.webview.html).toMatch(/\.section \{[^}]*--vscode-contrastBorder/u);
     expect(panel.webview.html).toContain("分析目录");
     expect(panel.webview.html).toContain("执行改名");
     expect(panel.webview.html).toContain("预览差异…");
@@ -135,7 +165,8 @@ describe("project rename analysis View", () => {
     expect(panel.webview.html).toContain('aria-label="选择 CAA 规则">CAA</button>');
     expect(panel.webview.html).toContain("项目规则档案");
     expect(panel.webview.html).toContain('title="保存到当前项目 .phoenix/search-replace.json">保存</button>');
-    expect(panel.webview.html).toContain("CAA / C++ 源前缀（可选）");
+    expect(panel.webview.html).toContain("源前缀（可选）");
+    expect(panel.webview.html).toContain("例如 Pnx / KTC");
     expect(panel.webview.html).toContain('id="rule-picker"');
     expect(panel.webview.html).toContain('class="col-action"');
   });
@@ -171,6 +202,128 @@ describe("project rename analysis View", () => {
       state: expect.objectContaining({ root: "/workspace/project-b", sourceName: "project-b" }),
     })));
     expect(createWebviewPanel).toHaveBeenCalledTimes(2);
+  });
+
+  it("取消异步历史保存中的分析，并为下一次分析换用新的 AbortSignal", async () => {
+    const panel = fakePanel();
+    createWebviewPanel.mockReturnValue(panel);
+    const cancellationDispose = vi.fn();
+    withProgress.mockImplementation(async (_options, task) => task(
+      { report: vi.fn() },
+      { onCancellationRequested: vi.fn(() => ({ dispose: cancellationDispose })) },
+    ));
+    const signals: AbortSignal[] = [];
+    analyzeProjectRename.mockImplementation(async (options) => {
+      signals.push(options.signal as AbortSignal);
+      return {
+        ...fakeReport(options.root, options.sourceName, options.targetName),
+        reportId: options.reportId,
+        rules: options.rules,
+      };
+    });
+    let releaseHistory = (): void => undefined;
+    const historyPending = new Promise<void>((resolve) => { releaseHistory = resolve; });
+    const host = new KtcProjectRenameHost();
+    const rememberProjectPlan = vi.spyOn(host, "rememberProjectPlan")
+      .mockImplementationOnce(async () => {
+        await historyPending;
+        return { pairs: [], projectPlans: [] };
+      })
+      .mockResolvedValue({ pairs: [], projectPlans: [] });
+    const controller = new KtcProjectRenameViewController(
+      { fsPath: "/extension" } as vscode.Uri,
+      host,
+    );
+    controller.show("/workspace/project-a");
+    const receiver = vi.mocked(panel.webview.onDidReceiveMessage).mock.calls[0]![0];
+    const request = {
+      type: "analyze",
+      sourceName: "Old Project",
+      targetName: "New Project",
+      sourcePrefix: "",
+      targetPrefix: "",
+      rules: [{ id: "display", style: "display", search: "Old Project", replace: "New Project", enabled: true }],
+    } as const;
+
+    receiver(request);
+    await vi.waitFor(() => expect(rememberProjectPlan).toHaveBeenCalledTimes(1));
+    expect(signals[0]?.aborted).toBe(false);
+    receiver({ type: "cancel" });
+    expect(signals[0]?.aborted).toBe(true);
+
+    await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "state",
+      state: expect.objectContaining({ status: "cancelled", report: undefined }),
+    })));
+    expect((controller as unknown as { abortController?: AbortController }).abortController).toBeUndefined();
+    expect((controller as unknown as { report?: KtcProjectRenameAnalysisReport }).report).toBeUndefined();
+
+    // The first history write is still pending: cancellation must already have
+    // released the task slot so a fresh analysis can complete independently.
+    receiver(request);
+    await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "state",
+      state: expect.objectContaining({ status: "done" }),
+    })));
+    expect(signals).toHaveLength(2);
+    expect(signals[1]).not.toBe(signals[0]);
+    expect(signals[1]?.aborted).toBe(false);
+    releaseHistory();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect((controller as unknown as { report?: KtcProjectRenameAnalysisReport }).report?.reportId).toBe(2);
+    expect(cancellationDispose).toHaveBeenCalledTimes(2);
+  });
+
+  it("VS Code 进度通知可立即取消挂起分析并释放任务槽", async () => {
+    const panel = fakePanel();
+    createWebviewPanel.mockReturnValue(panel);
+    let cancelFromProgress: (() => void) | undefined;
+    const cancellationDispose = vi.fn();
+    withProgress.mockImplementation(async (_options, task) => task(
+      { report: vi.fn() },
+      {
+        onCancellationRequested: vi.fn((listener) => {
+          cancelFromProgress = listener;
+          return { dispose: cancellationDispose };
+        }),
+      },
+    ));
+    let signal: AbortSignal | undefined;
+    let finishPendingAnalysis = (_report: KtcProjectRenameAnalysisReport): void => undefined;
+    analyzeProjectRename.mockImplementationOnce((options) => {
+      signal = options.signal;
+      return new Promise<KtcProjectRenameAnalysisReport>((resolve) => {
+        finishPendingAnalysis = resolve;
+      });
+    });
+    const controller = new KtcProjectRenameViewController(
+      { fsPath: "/extension" } as vscode.Uri,
+      new KtcProjectRenameHost(),
+    );
+    controller.show("/workspace/project-a");
+    const receiver = vi.mocked(panel.webview.onDidReceiveMessage).mock.calls[0]![0];
+    receiver({
+      type: "analyze",
+      sourceName: "Old Project",
+      targetName: "New Project",
+      sourcePrefix: "",
+      targetPrefix: "",
+      rules: [{ id: "display", style: "display", search: "Old Project", replace: "New Project", enabled: true }],
+    });
+
+    await vi.waitFor(() => expect(cancelFromProgress).toBeTypeOf("function"));
+    cancelFromProgress?.();
+    expect(signal?.aborted).toBe(true);
+    await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "state",
+      state: expect.objectContaining({ status: "cancelled" }),
+    })));
+    expect((controller as unknown as { abortController?: AbortController }).abortController).toBeUndefined();
+    // The analyzer has deliberately ignored AbortSignal and is still pending;
+    // cancellation must nevertheless have made the View available immediately.
+    expect(cancellationDispose).not.toHaveBeenCalled();
+    finishPendingAnalysis(fakeReport("/workspace/project-a", "Old Project", "New Project"));
+    await vi.waitFor(() => expect(cancellationDispose).toHaveBeenCalledOnce());
   });
 
   it("从 Primary 打开时带入已填写名称与启用的简单规则，但不自动分析", async () => {
@@ -403,6 +556,8 @@ function fakeReport(
     sourceName: currentName,
     targetName: suggestedName,
     rules: [],
+    ignorePatterns: [],
+    useBuiltInIgnore: true,
     rootSuggestion: { currentName, suggestedName },
     workspaceReport: {
       root,

@@ -4,12 +4,12 @@ const autoBuildVsCode = acquireVsCodeApi();
 (window as unknown as { acquireVsCodeApi: typeof acquireVsCodeApi }).acquireVsCodeApi = () => autoBuildVsCode;
 
 window.addEventListener("DOMContentLoaded", () => {
-  for (const legacy of Array.from(document.querySelectorAll("pnw-collapsible-block"))) {
+  document.querySelectorAll("pnw-collapsible-block").forEach((legacy) => {
     const details = document.createElement("details"); details.className = "auto-build-block"; details.open = true;
     const summary = document.createElement("summary"); summary.textContent = legacy.getAttribute("title") || "";
     const body = document.createElement("div"); body.className = "auto-build-block-body"; while (legacy.firstChild) body.append(legacy.firstChild);
     details.append(summary, body); legacy.replaceWith(details);
-  }
+  });
   const createBlock = (title: string) => { const details = document.createElement("details"); details.className = "auto-build-block"; details.open = true; const summary = document.createElement("summary"); summary.textContent = title; const body = document.createElement("div"); body.className = "auto-build-block-body"; details.append(summary, body); return { details, body }; };
   let repositorySnapshot: { capturedAt: string; repositories: Array<{ role: string; path: string; branch: string; commit: string; origin: string; hasChanges?: boolean; error?: string }> } | undefined;
   type ProjectRow = { id: string; enabled: boolean; name: string; path: string; branch: string; operations: { update: boolean; cmake: boolean; caa: boolean; linkCaa: boolean }; probe?: { commit: string; origin: string; status: string; message?: string } };
@@ -52,7 +52,7 @@ window.addEventListener("DOMContentLoaded", () => {
   const executionBlock = status?.closest(".auto-build-block"); if (executionBlock) executionBlock.querySelector(":scope > summary")!.textContent = "执行";
   const rootInput = document.getElementById("root") as HTMLInputElement | null;
   const rootRow = rootInput?.closest(".repo");
-  if (rootRow) {
+  if (rootInput && rootRow) {
     rootRow.querySelector("strong")!.textContent = "当前 ROOT_DIR";
     rootInput.readOnly = true; rootInput.title = "从当前工程环境探测，只读"; rootInput.style.opacity = "0.82";
     const workingRow = document.createElement("div");

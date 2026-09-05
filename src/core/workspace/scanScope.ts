@@ -18,22 +18,55 @@ export const SOURCE_EXTENSIONS = new Set([
   ...CPP_SOURCE_EXTENSIONS,
 ]);
 
-export const DEFAULT_SKIP_DIR_NAMES = new Set([
+/** SCM metadata and Phoenix's own state are traversal safety boundaries, not optional Ignore rules. */
+export const SCAN_SAFETY_SKIP_ENTRY_NAMES = new Set([
   ".git",
+  ".hg",
+  ".svn",
+  ".phoenix",
+]);
+
+export const DEFAULT_SKIP_DIR_NAMES = new Set([
+  ".vs",
+  ".cache",
+  ".next",
+  ".nuxt",
+  ".turbo",
+  ".pnpm-store",
   "node_modules",
   "__pycache__",
   "dist",
   "build",
-  "Build",
-  "Debug",
-  "Release",
+  "debug",
+  "release",
+  "coverage",
+  "target",
   "out",
   "bin",
   "obj",
   ".venv",
   ".cursor",
-  ".phoenix",
+  "install_config_win_b64",
+  "win_b64",
+  "intel_a",
+  "toolsdata",
+  "catenv",
+  "importedinterfaces",
+  "various",
+  "protectedgenerated",
+  "localgenerated",
+  "objects",
 ]);
+
+/** Common generated/cache directories are matched case-insensitively on every host. */
+export function shouldSkipDefaultDirectoryName(name: string): boolean {
+  return DEFAULT_SKIP_DIR_NAMES.has(name.toLocaleLowerCase("en-US"));
+}
+
+/** Never traverse source-control metadata or Phoenix's own generated state. */
+export function shouldSkipScanSafetyEntryName(name: string): boolean {
+  return SCAN_SAFETY_SKIP_ENTRY_NAMES.has(name.toLocaleLowerCase("en-US"));
+}
 
 export interface FileScopeOptions {
   includeHeaders: boolean;
@@ -78,13 +111,14 @@ export interface CollectScopedFilesOptions {
   extensions: Set<string>;
   ignorePatterns?: string[];
   skipDirNames?: Set<string>;
+  useBuiltInIgnore?: boolean;
 }
 
 /** 按扩展名 + `.phoenix/.ignore` 递归收集文件 */
 export function collectScopedFiles(opts: CollectScopedFilesOptions): string[] {
   const absRoot = resolve(opts.root);
   const ignorePatterns = opts.ignorePatterns ?? [];
-  const skipDirs = opts.skipDirNames ?? DEFAULT_SKIP_DIR_NAMES;
+  const skipDirs = opts.skipDirNames;
   const out: string[] = [];
 
   function walk(dir: string): void {
@@ -103,7 +137,11 @@ export function collectScopedFiles(opts: CollectScopedFilesOptions): string[] {
         continue;
       }
       if (st.isDirectory()) {
-        if (skipDirs.has(name) || name.startsWith(".")) continue;
+        const skippedByDirectoryName = shouldSkipScanSafetyEntryName(name) || (skipDirs
+          ? skipDirs.has(name)
+          : opts.useBuiltInIgnore !== false
+            && shouldSkipDefaultDirectoryName(name));
+        if (skippedByDirectoryName) continue;
         if (shouldSkipDirName(name, ignorePatterns)) continue;
         const relDir = relative(absRoot, full).replace(/\\/g, "/");
         if (isIgnoredPath(`${relDir}/`, ignorePatterns)) continue;

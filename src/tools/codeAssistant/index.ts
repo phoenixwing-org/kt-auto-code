@@ -31,7 +31,8 @@ export const codeAssistantTool: KtTool = {
         void vscode.commands.executeCommand("ktAutoCode.tool.show", "codeAssistant");
       }),
       vscode.commands.registerCommand("ktAutoCode.codeAssistant.packageIncludes", async () => {
-        await openPackageIncludes(runContextFactory?.()?.workspaceRoot);
+        const ctx = runContextFactory?.();
+        await openPackageIncludes(ctx?.workspaceRoot, ctx);
       }),
       vscode.commands.registerCommand("ktAutoCode.codeAssistant.autoBuild", async () => {
         await autoBuildView?.show(runContextFactory?.()?.workspaceRoot);
@@ -48,17 +49,21 @@ export const codeAssistantTool: KtTool = {
       ctx.postState({ status: "error", message: `未知代码辅助功能：${action}` });
       return;
     }
-    await openPackageIncludes(ctx.workspaceRoot);
+    await openPackageIncludes(ctx.workspaceRoot, ctx);
     ctx.postState({ status: "done", message: "已打开头文件引用修正 View。" });
   },
 };
 
-async function openPackageIncludes(defaultTargetDirectory?: string): Promise<void> {
+async function openPackageIncludes(defaultTargetDirectory?: string, ctx?: ToolRunContext): Promise<void> {
   if (!packageIncludeView) {
     void vscode.window.showErrorMessage("代码辅助尚未初始化，请重新加载 VS Code 窗口。");
     return;
   }
-  await packageIncludeView.show(defaultTargetDirectory);
+  await packageIncludeView.show(defaultTargetDirectory, ctx ? {
+    builtInIgnoreEnabled: ctx.builtInIgnoreEnabled ?? true,
+    gitIgnoreEnabled: ctx.gitIgnoreEnabled ?? true,
+    customIgnoreEnabled: ctx.customIgnoreEnabled ?? ctx.pluginIgnoreEnabled,
+  } : undefined);
 }
 
 export function setCodeAssistantRunContextFactory(factory: () => ToolRunContext | undefined): void {
