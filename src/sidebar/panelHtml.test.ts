@@ -329,8 +329,10 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('底部不得负边距，避免当前功能操作区与 Tree 最后一行重叠。');
     expect(html).toContain('.code-assistant-tree-section { margin: 0 0 4px; padding: 0; border: 1px solid');
     expect(html).toContain('.code-assistant-tree-section[open] > summary { border-bottom: 1px solid');
-    expect(html).toContain('class="code-assistant-tree-section-count">（6）</span>');
-    expect(html).toContain('class="code-assistant-tree-count">（3）</span>');
+    expect(html).toContain('class="code-assistant-tree-section-count">（7）</span>');
+    expect(html).toContain('data-code-assistant-feature="autoBuild"');
+    expect(html).toContain('type: "openCodeAssistantFeature", feature: "autoBuild"');
+    expect(html).toContain('class="code-assistant-tree-count">（4）</span>');
     expect(html).toContain('class="code-assistant-tree-count">（2）</span>');
     expect(html).toContain('class="code-assistant-tree-count">（1）</span>');
     expect(html).toContain('els.primaryBody.insertBefore(els.codeAssistantBlock, els.primaryBody.firstElementChild)');

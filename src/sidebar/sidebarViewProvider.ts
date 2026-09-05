@@ -142,6 +142,7 @@ function normalizeCodeAssistantTreeUiState(value: unknown): KtcCodeAssistantTree
 
 function isCodeAssistantFeatureId(value: string): value is KtcCodeAssistantFeatureId {
   return value === "packageIncludes"
+    || value === "autoBuild"
     || value === "reorderMembers"
     || value === "headerAscii"
     || value === "encodingFix"
@@ -748,9 +749,12 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
     if (message.type === "openCodeAssistantFeature") {
       this.codeAssistantFeatureId = message.feature;
-      this.createRunContext("codeAssistant").log(`[代码辅助][入口][INFO] 已打开：头文件引用修正；目录 ${this.getWorkingContext().label}。`);
+      const featureTitle = message.feature === "autoBuild" ? "编译工具" : "头文件引用修正";
+      this.createRunContext("codeAssistant").log(`[代码辅助][入口][INFO] 已打开：${featureTitle}；目录 ${this.getWorkingContext().label}。`);
       await this.sendInit(source);
-      await vscode.commands.executeCommand("ktAutoCode.codeAssistant.packageIncludes");
+      await vscode.commands.executeCommand(message.feature === "autoBuild"
+        ? "ktAutoCode.codeAssistant.autoBuild"
+        : "ktAutoCode.codeAssistant.packageIncludes");
       return;
     }
 

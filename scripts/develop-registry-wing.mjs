@@ -13,7 +13,10 @@ const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 function run(command, args) {
   console.log("> " + command + " " + args.join(" "));
-  const result = spawnSync(command, args, { cwd: repoRoot, env: environment, stdio: "inherit" });
+  const useWindowsCommandShell = process.platform === "win32" && command.toLowerCase().endsWith(".cmd");
+  const executable = useWindowsCommandShell ? (process.env.ComSpec || "cmd.exe") : command;
+  const executableArgs = useWindowsCommandShell ? ["/d", "/s", "/c", command, ...args] : args;
+  const result = spawnSync(executable, executableArgs, { cwd: repoRoot, env: environment, stdio: "inherit" });
   if (result.error) throw result.error;
   if (result.status !== 0) process.exit(result.status ?? 1);
 }

@@ -46,6 +46,10 @@ describe("Run Primary panel", () => {
     expect(source).not.toContain('document.createElement("details")');
     expect(source).toContain('"ktc-run-primary-action"');
     expect(source).toContain('action: "runTarget"');
+    expect(source).toContain('label: "清理"');
+    expect(source).toContain('"删除 build 目录"');
+    expect(source).toContain('"删除 objects 目录"');
+    expect(source).toContain('"删除 *.obj"');
     expect(source).toContain('action: "dryRunTarget"');
     expect(source).toContain('action: "stopRun"');
     expect(source).toContain('action: "setCaaVersion"');

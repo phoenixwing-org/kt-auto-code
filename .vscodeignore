@@ -9,10 +9,13 @@
 .gitignore
 .nvmrc
 node_modules/**
+extension/**
 src/**
 scripts/**
+!scripts/auto-build/**
 tests/**
 docs/**
+!docs/编译工具/**
 esbuild.mjs
 tsconfig.json
 pnpm-lock.yaml

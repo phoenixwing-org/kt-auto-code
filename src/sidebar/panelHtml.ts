@@ -930,15 +930,18 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     </p>
     <section class="code-assistant-block" id="code-assistant-block" hidden aria-label="代码辅助功能">
       <details class="code-assistant-tree-section" id="code-assistant-tree-section" open>
-        <summary><svg class="code-assistant-tree-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg><span>功能目录</span><span class="code-assistant-tree-section-count">（6）</span></summary>
+        <summary><svg class="code-assistant-tree-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg><span>功能目录</span><span class="code-assistant-tree-section-count">（7）</span></summary>
       <div class="code-assistant-tree" aria-label="代码辅助功能树">
         <details class="code-assistant-tree-group" id="code-assistant-cpp-group" open>
           <summary>
             <svg class="code-assistant-tree-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg>
-            <svg class="code-assistant-tree-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3h8M4 6h8M4 9h8M4 12h8M3 3h.1M3 6h.1M3 9h.1M3 12h.1"/></svg>
-            <span>C++ 整理</span><span class="code-assistant-tree-count">（3）</span>
+            <span>C++ 整理</span><span class="code-assistant-tree-count">（4）</span>
           </summary>
           <div class="code-assistant-tree-children">
+            <button id="btn-code-assistant-auto-build" data-code-assistant-feature="autoBuild" type="button" aria-label="打开编译工具">
+              <svg class="code-assistant-tree-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12v8H2zM4 6h4M4 9h7"/></svg>
+              <span class="code-assistant-tree-copy"><strong>编译工具</strong><span>配置、预检并监控批量构建</span></span>
+            </button>
             <button id="btn-code-assistant-package-includes" data-code-assistant-feature="packageIncludes" type="button" aria-label="打开头文件引用修正">
               <svg class="code-assistant-tree-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h6l3 3v6H3zM9 3.5v3h3M5 9h5M5 11h4"/></svg>
               <span class="code-assistant-tree-copy"><strong>头文件引用修正</strong><span>平铺 include → &lt;KtCore/...&gt;</span></span>
@@ -956,7 +959,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         <details class="code-assistant-tree-group" id="code-assistant-file-tools-group" open>
           <summary>
             <svg class="code-assistant-tree-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg>
-            <svg class="code-assistant-tree-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h6l3 3v6H3zM9 3.5v3h3M5 9h5M5 11h4"/></svg>
             <span>文件工具</span><span class="code-assistant-tree-count">（2）</span>
           </summary>
           <div class="code-assistant-tree-children">
@@ -973,7 +975,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         <details class="code-assistant-tree-group" id="code-assistant-caa-group" open>
           <summary>
             <svg class="code-assistant-tree-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg>
-            <svg class="code-assistant-tree-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3h8M4 6h8M4 9h8M4 12h8M3 3h.1M3 6h.1M3 9h.1M3 12h.1"/></svg>
             <span>CAA</span><span class="code-assistant-tree-count">（1）</span>
           </summary>
           <div class="code-assistant-tree-children">
@@ -1327,6 +1328,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       codeAssistantFileToolsGroup: document.getElementById("code-assistant-file-tools-group"),
       codeAssistantCaaGroup: document.getElementById("code-assistant-caa-group"),
       btnCodeAssistantPackageIncludes: document.getElementById("btn-code-assistant-package-includes"),
+      btnCodeAssistantAutoBuild: document.getElementById("btn-code-assistant-auto-build"),
       btnCodeAssistantReorderMembers: document.getElementById("btn-code-assistant-reorder-members"),
       btnCodeAssistantHeaderAscii: document.getElementById("btn-code-assistant-header-ascii"),
       btnCodeAssistantEncodingFix: document.getElementById("btn-code-assistant-encoding-fix"),
@@ -2647,6 +2649,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       // expanded so opening the View never leaves an apparently empty Primary.
       state.codeAssistantFeature = "packageIncludes";
       vscode.postMessage({ type: "openCodeAssistantFeature", feature: "packageIncludes" });
+    };
+    els.btnCodeAssistantAutoBuild.onclick = () => {
+      state.codeAssistantFeature = "autoBuild";
+      vscode.postMessage({ type: "openCodeAssistantFeature", feature: "autoBuild" });
     };
     els.btnCodeAssistantReorderMembers.onclick = () => {
       selectCodeAssistantFeature("reorderMembers", { type: "selectTool", toolId: "reorderMembers" });

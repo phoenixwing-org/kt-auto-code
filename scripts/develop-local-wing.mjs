@@ -31,7 +31,10 @@ const before = new Map(protectedFiles.map((path) => [path, readFileSync(path, "u
 
 function run(command, args, options = {}) {
   console.log("> " + command + " " + args.join(" "));
-  const result = spawnSync(command, args, {
+  const useWindowsCommandShell = process.platform === "win32" && command.toLowerCase().endsWith(".cmd");
+  const executable = useWindowsCommandShell ? (process.env.ComSpec || "cmd.exe") : command;
+  const executableArgs = useWindowsCommandShell ? ["/d", "/s", "/c", command, ...args] : args;
+  const result = spawnSync(executable, executableArgs, {
     cwd: options.cwd ?? repoRoot,
     env: options.env ?? process.env,
     stdio: "inherit",

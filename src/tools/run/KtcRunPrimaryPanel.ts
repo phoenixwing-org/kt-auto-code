@@ -8,7 +8,7 @@ import { KtcCompactManagerLabelStyle } from "../../ui/KtcCompactManagerLabel.js"
 export const KtcRunPrimaryPanelTag = "ktc-run-primary-panel";
 
 export type KtcRunPrimaryActionDetail =
-  | { readonly action: "refresh" | "openOutput" | "openProblems" | "openTerminal" }
+  | { readonly action: "refresh" | "openOutput" | "openProblems" | "openTerminal" | "cleanBuild" | "cleanObjects" | "cleanObj" }
   | { readonly action: "runTarget" | "dryRunTarget" | "openSource"; readonly targetId: string }
   | { readonly action: "stopRun"; readonly runId: string }
   | { readonly action: "selectCaaRelated" | "addCaaRelatedFolder"; readonly projectId: string }
@@ -37,7 +37,7 @@ type KtcNavigationTreeAction =
   | { readonly kind: "select" | "activate"; readonly nodeId: string }
   | { readonly kind: "toggle"; readonly nodeId: string; readonly expanded: boolean };
 
-type KtcRunUtilityAction = "openTerminal" | "openProblems" | "openOutput";
+type KtcRunUtilityAction = "openTerminal" | "openProblems" | "openOutput" | "cleanBuild" | "cleanObjects" | "cleanObj";
 
 interface KtcNavigationTreeElement extends HTMLElement {
   model: KtcNavigationTreeModel | undefined;
@@ -161,7 +161,7 @@ export class KtcRunPrimaryPanel extends HTMLElement {
     const tree = document.createElement("pnw-navigation-tree") as KtcNavigationTreeElement;
     tree.className = "run-tree";
     tree.colorScheme = "system";
-    const nodes = [this.utilityNode(), ...model.projects.map((project, index) => this.projectNode(project, index))];
+    const nodes = [this.cleanupNode(), this.utilityNode(), ...model.projects.map((project, index) => this.projectNode(project, index))];
     const allNodeIds = new Set(this.projectByNodeId.keys());
     for (const targetId of this.targetByNodeId.keys()) allNodeIds.add(targetId);
     for (const actionId of this.utilityActionByNodeId.keys()) allNodeIds.add(actionId);
@@ -199,6 +199,17 @@ export class KtcRunPrimaryPanel extends HTMLElement {
         description: action === "openTerminal" ? "VS Code Terminal" : action === "openProblems" ? "编译与运行问题" : "KT Auto Code 输出",
       })),
     };
+  }
+
+  private cleanupNode(): KtcNavigationTreeNode {
+    const children: readonly [string, string, KtcRunUtilityAction][] = [
+      ["run-clean-build", "删除 build 目录", "cleanBuild"],
+      ["run-clean-objects", "删除 objects 目录", "cleanObjects"],
+      ["run-clean-obj", "删除 *.obj", "cleanObj"],
+    ];
+    for (const [id, , action] of children) this.utilityActionByNodeId.set(id, action);
+    if (this.expandedNodeIds.size === 0) this.expandedNodeIds.add("run-cleanup");
+    return { id: "run-cleanup", label: "清理", description: "当前工作目录 · 点击即执行", children: children.map(([id, label]) => ({ id, label, iconKey: "file", description: "跳过 .git，不询问" })) };
   }
 
   private projectNode(project: KtcRunProject, index: number): KtcNavigationTreeNode {

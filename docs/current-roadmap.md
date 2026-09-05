@@ -38,6 +38,8 @@ Owner：KT Auto Code maintainers
 
 ## 2026-07-20 简单 TODO 收口
 
+- **编译工具统一项目表（下一阶段）**：以单一表格替换 CMake、CAA 和更新仓库多行文本框；支持 VS Code 原生多选目录、当前目录自动探测、启用状态、Git 快照及每行组合操作。路径优先相对当前工作目录保存，无法稳定相对表达时保留绝对路径。插件内置编排脚本为执行基准，Root 脚本只做一致性检查和用户显式同步，禁止静默覆盖。完整约束见[编译工具 README](编译工具/README.md#下一阶段统一项目表)。
+
 - **[工程配置与隐藏状态存储规则](工程配置与隐藏状态存储规则.md) / 后续审计 TODO**：工程级 `ktAutoCode.*` 配置统一写入当前 Workspace Folder 的 `.vscode/settings.json`，路径优先保存为工作区相对路径并在每次运行前基于当前 project root 重新解析为绝对路径；本机 Desk Tools 配置和默认 CAA 版本继续使用 machine-scoped 用户设置。每个工程当前选择的 CAA 版本属于可切换运行状态，可进 `workspaceState`；团队多版本矩阵以后必须用显式 target/profile 表达。0.6.0 已迁移 Run 的 `caaRelatedProjects`；其余既有 key 在后续独立审计中统一。
 - 旧 CAA external editor 与 Auto CAD provider 设置会在基础扩展激活时安全迁入 `ktAutoCode.deskTools.*`：只读取用户明确配置的值，新设置始终优先，默认值不迁移，失败时继续走兼容读取。
 - CAA UI 当前交接契约已改用 `service.v1.json` 动态端口，新增 Windows/macOS 联合人工验收清单，并明确区分运行中的桌面服务与无需启动窗口的 CAD 深度读取器。
@@ -230,3 +232,10 @@ Owner：KT Auto Code maintainers
 - Desk/Tauri 壳层和原生 CAD provider 不复制进入 Auto Code。
 - 用户已于 2026-07-18 接受联合成熟度 **92.00** 作为停止线；Windows 发布态回执保留为用户手工后续项。大型 UI 拆分目标已在完成若干小切口后暂停，恢复前仍禁止向大文件加入新的领域算法或文件真相。
 - 测试数量、bundle 大小和版本关系由 CI/manifest 产生，不在当前路线复制易漂移数字。
+# 编译工具深度清理 TODO
+
+- 重新确认“当前 ROOT_DIR”“构建输出 ROOT_DIR”“工具 Root”三者的长期职责与命名。
+- 在确认不再需要独立构建 Root 后，从 View、schema、保存/加载、脚本导出与测试中一次性移除，提供明确的旧 JSON 迁移策略，避免隐藏字段继续生效。
+- 移除编译工具 HTML 中已被项目表替代的旧 CMake/CAA textarea、schema 1 内联脚本和兼容事件拦截，保留单一 schema 2 渲染与消息入口。
+- 评估 `scripts/auto-build` 中继续固化 link、export、清理等通用脚本的边界，项目专属 `mk.ps1` 仍由项目自身维护。
+- 深度清理应单独实施并完成 UI、JSON 往返、导出 PS1、内置脚本打包和旧配置迁移回归，不与日常功能修复混合。

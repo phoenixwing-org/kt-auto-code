@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   registerCommand: vi.fn(),
   showPackageIncludes: vi.fn(),
+  showAutoBuild: vi.fn(),
   showErrorMessage: vi.fn(),
 }));
 
@@ -19,6 +20,13 @@ vi.mock("vscode", () => ({
 vi.mock("./packageIncludeViewController.js", () => ({
   KtcPackageIncludeViewController: class {
     show = mocks.showPackageIncludes;
+    dispose(): void {}
+  },
+}));
+
+vi.mock("./autoBuildViewController.js", () => ({
+  KtcAutoBuildViewController: class {
+    show = mocks.showAutoBuild;
     dispose(): void {}
   },
 }));
@@ -46,6 +54,7 @@ describe("代码辅助命令上下文", () => {
   beforeEach(() => {
     mocks.registerCommand.mockReset();
     mocks.showPackageIncludes.mockReset();
+    mocks.showAutoBuild.mockReset();
     mocks.showErrorMessage.mockReset();
     mocks.registerCommand.mockImplementation((_name, _handler) => ({ dispose: vi.fn() }));
   });

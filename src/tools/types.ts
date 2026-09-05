@@ -59,7 +59,7 @@ export type WebviewInboundMessage =
   | { type: "runModuleTool"; moduleId: KtcModuleId; command: string }
   | { type: "moduleBlockAction"; actionId: string }
   | { type: "selectTool"; toolId: string }
-  | { type: "openCodeAssistantFeature"; feature: "packageIncludes" }
+  | { type: "openCodeAssistantFeature"; feature: "packageIncludes" | "autoBuild" }
   | { type: "setCodeAssistantTreeUiState"; state: KtcCodeAssistantTreeUiState }
   | { type: "closeToolBlock" }
   | {
@@ -222,6 +222,7 @@ export type WebviewOutboundMessage =
 
 export type KtcCodeAssistantFeatureId =
   | "packageIncludes"
+  | "autoBuild"
   | "reorderMembers"
   | "headerAscii"
   | "encodingFix"
