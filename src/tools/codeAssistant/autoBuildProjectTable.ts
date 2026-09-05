@@ -144,3 +144,15 @@ export function ktcCreateAutoBuildProjectRow(path: string, workingDirectory: str
     operations: { update: false, cmake: false, caa: false, linkCaa: false },
   };
 }
+
+export function ktcDeduplicateAutoBuildProjectsByOrigin(rows: readonly KtcAutoBuildProjectRow[]): KtcAutoBuildProjectRow[] {
+  const origins = new Set<string>();
+  return rows.filter((row) => {
+    const origin = row.probe?.origin?.trim();
+    if (!origin || origin === "(无 origin)") return true;
+    const key = origin.toLocaleLowerCase();
+    if (origins.has(key)) return false;
+    origins.add(key);
+    return true;
+  });
+}

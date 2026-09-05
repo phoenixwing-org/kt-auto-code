@@ -1,5 +1,9 @@
-import { readdir, realpath, rm } from "node:fs/promises";
+import { access, readdir, realpath, rm } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import path from "node:path";
+
+const execFileAsync = promisify(execFile);
 
 export type KtcQuickCleanupKind = "build" | "objects" | "obj";
 
@@ -7,6 +11,8 @@ export interface KtcCleanupResult {
   readonly root: string;
   readonly deleted: readonly string[];
 }
+export interface KtcGitCleanupRepositoryResult { readonly repository: string; readonly deleted: readonly string[]; readonly error?: string; }
+export interface KtcGitCleanupResult { readonly root: string; readonly repositories: readonly KtcGitCleanupRepositoryResult[]; }
 export async function KtcCleanWorkspace(root: string, kind: KtcQuickCleanupKind): Promise<KtcCleanupResult> {
   const resolvedRoot = await KtcResolveSafeCleanupRoot(root), deleted: string[] = [];
   await KtcWalkCleanup(resolvedRoot, async (entryPath, name, directory) => {
@@ -26,6 +32,29 @@ export async function KtcCleanRootArtifacts(root: string, prefix: string): Promi
     && name.toLocaleLowerCase().startsWith(normalizedPrefix)
     && extensions.has(path.extname(name).toLocaleLowerCase()), deleted);
   return { root: resolvedRoot, deleted };
+}
+
+export async function KtcCleanGitUntrackedRepositories(root: string): Promise<KtcGitCleanupResult> {
+  const resolvedRoot = await KtcResolveSafeCleanupRoot(root), repositories: string[] = [];
+  await KtcFindGitRepositories(resolvedRoot, repositories);
+  const results: KtcGitCleanupRepositoryResult[] = [];
+  for (const repository of repositories) {
+    try {
+      const preview = await execFileAsync("git", ["-C", repository, "clean", "-ndfx"], { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
+      const deleted = preview.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+      await execFileAsync("git", ["-C", repository, "clean", "-dfx"], { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
+      results.push({ repository, deleted });
+    } catch (error) { results.push({ repository, deleted: [], error: error instanceof Error ? error.message : String(error) }); }
+  }
+  return { root: resolvedRoot, repositories: results };
+}
+
+async function KtcFindGitRepositories(directory: string, repositories: string[]): Promise<void> {
+  try { await access(path.join(directory, ".git")); repositories.push(directory); return; } catch { /* descend */ }
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.isSymbolicLink() || entry.name.toLocaleLowerCase() === ".git") continue;
+    await KtcFindGitRepositories(path.join(directory, entry.name), repositories);
+  }
 }
 
 async function KtcResolveSafeCleanupRoot(root: string): Promise<string> {

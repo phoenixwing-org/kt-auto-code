@@ -7,7 +7,7 @@ import * as vscode from "vscode";
 import { getOutputChannel } from "../../output.js";
 import { ktcReadProjectEnvironment } from "../../projectEnvironment.js";
 import { ktcCreateWebviewSecurity } from "../../webviewSupport.js";
-import { ktcCanAccessAutoBuildPathOnHost, ktcCreateAutoBuildProjectRow, ktcIsAutoBuildFilesystemRoot, ktcJoinAutoBuildPath, ktcResolveAutoBuildPath, ktcStoreAutoBuildPath, type KtcAutoBuildProjectRow } from "./autoBuildProjectTable.js";
+import { ktcCanAccessAutoBuildPathOnHost, ktcCreateAutoBuildProjectRow, ktcDeduplicateAutoBuildProjectsByOrigin, ktcIsAutoBuildFilesystemRoot, ktcJoinAutoBuildPath, ktcResolveAutoBuildPath, ktcStoreAutoBuildPath, type KtcAutoBuildProjectRow } from "./autoBuildProjectTable.js";
 import { KtcCleanRootArtifacts } from "../run/KtcManualCleanup.js";
 import { ktcCreateAutoBuildLauncher } from "./autoBuildLauncher.js";
 import { ktcCreateRepositoryCheckoutScript } from "./autoBuildCheckoutScript.js";
@@ -69,19 +69,19 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
         const temporary = `${target}.tmp-${process.pid}-${Date.now()}`;
         await writeFile(temporary, source, "utf8"); await rename(temporary, target);
         await this.post({ type: "repositorySnapshot", snapshot: message.configuration.repositorySnapshot });
-        this.log(`已${mode === "merge" ? "追加或更新" : "覆盖"}版本归档：${target}`, true);
+        this.log(`已${mode === "merge" ? "追加或更新" : "覆盖"}版本归档：${vscode.Uri.file(target).toString()}`, true);
         await this.status("done", `已写入：${target}`); await this.post({ type: "scriptWritten", path: target }); return;
       }
       const target = ktcJoinAutoBuildPath(directory, name);
       await writeFile(target, `\uFEFF${source}`, "utf8");
-      this.log(`已写入脚本：${target}`, true);
+      this.log(`已写入脚本：${vscode.Uri.file(target).toString()}`, true);
       await this.status("done", `已写入：${target}`);
       await this.post({ type: "scriptWritten", path: target });
       return;
     }
     const configuration = message.configuration!;
     if (message.type === "pickProjectDirectories") { const working = configuration.workingDirectory?.trim() || ""; const defaultUri = working && ktcCanAccessAutoBuildPathOnHost(working, process.platform) ? vscode.Uri.file(working) : undefined; const uris = await vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: true, defaultUri, title: "选择一个或多个仓库/构建目录" }); if (uris?.length) await this.addProjectDirectories(configuration, uris.map((uri) => uri.fsPath)); return; }
-    if (message.type === "discoverProjectDirectories") { const root = configuration.workingDirectory?.trim(); if (!root) throw new Error("请先填写工作目录。"); if (!ktcCanAccessAutoBuildPathOnHost(root, process.platform)) throw new Error("当前工作目录不是本机原生绝对路径，未执行目录扫描。"); await this.addProjectDirectories(configuration, await this.discoverGitDirectories(root)); return; }
+    if (message.type === "discoverProjectDirectories") { const root = configuration.workingDirectory?.trim(); if (!root) throw new Error("请先填写工作目录。"); if (!ktcCanAccessAutoBuildPathOnHost(root, process.platform)) throw new Error("当前工作目录不是本机原生绝对路径，未执行目录扫描。"); await this.addProjectDirectories(configuration, await this.discoverGitDirectories(root), true); return; }
     if (message.type === "probeProject") { const index = configuration.projects.findIndex((project) => project.id === message.projectId); if (index < 0) throw new Error("项目行已变化，请重新探测。"); configuration.projects[index] = await this.probeProjectRow(configuration.projects[index]!, configuration.workingDirectory || ""); await this.workspaceState.update(STATE_KEY, configuration); await this.post({ type: "projects", projects: configuration.projects }); return; }
     if (message.type === "runProject") { await this.runProject(configuration, message.projectId); return; }
     if (message.type === "save" || message.type === "saveAs") { await this.save(configuration, message.type === "saveAs"); return; }
@@ -117,8 +117,9 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
     const failed = this.tasks.filter((task) => task.status === "error");
     await this.status(this.stopped || failed.length ? "error" : "done", this.stopped ? "已停止。" : failed.length ? `执行完成：${failed.length} 个任务失败，请查看 Output。` : "全部完成。");
   }
-  private async addProjectDirectories(configuration: KtcAutoBuildConfiguration, paths: string[]): Promise<void> {
+  private async addProjectDirectories(configuration: KtcAutoBuildConfiguration, paths: string[], deduplicateOrigin = false): Promise<void> {
     const working = configuration.workingDirectory || "", rows = [...configuration.projects], known = new Set(rows.map((row) => ktcResolveAutoBuildPath(row.path, working).toLocaleLowerCase()));
+    const probedPaths = new Set(paths.map((path) => path.toLocaleLowerCase()));
     for (const path of paths) {
       let isGit = true; try { await execFileAsync("git", ["-C", path, "rev-parse", "--show-toplevel"], { encoding: "utf8" }); } catch { isGit = false; }
       const key = path.toLocaleLowerCase(); if (known.has(key)) continue; known.add(key);
@@ -126,7 +127,12 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
       const hasMk = await has("mk.ps1"), hasCmake = await has("CMakeLists.txt"), isCaa = hasMk && !hasCmake, hasLink = await has("linkCAA.ps1"), hasLinkOut = await has("linkOut") || await has("linkOut.ps1");
       row.operations = { update: isGit, cmake: hasCmake, caa: isCaa, linkCaa: isCaa || hasLink || hasLinkOut }; rows.push(row);
     }
-    configuration.projects = await Promise.all(rows.map((row) => this.probeProjectRow(row, working)));
+    const probed = await Promise.all(rows.map(async (row) => {
+      if (!probedPaths.has(ktcResolveAutoBuildPath(row.path, working).toLocaleLowerCase())) return row;
+      const refreshed = await this.probeProjectRow(row, working), detectedBranch = refreshed.probe?.branch;
+      return detectedBranch && detectedBranch !== "(detached)" ? { ...refreshed, branch: detectedBranch } : refreshed;
+    }));
+    configuration.projects = deduplicateOrigin ? ktcDeduplicateAutoBuildProjectsByOrigin(probed) : probed;
     await this.workspaceState.update(STATE_KEY, configuration); await this.post({ type: "projects", projects: configuration.projects }); await this.status("done", `项目表已更新：${configuration.projects.length} 行。`);
   }
   private async probeProjectRow(row: KtcAutoBuildProjectRow, working: string): Promise<KtcAutoBuildProjectRow> {

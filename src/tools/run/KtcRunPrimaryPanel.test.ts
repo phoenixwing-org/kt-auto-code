@@ -51,6 +51,7 @@ describe("Run Primary panel", () => {
     expect(source).toContain('"删除 build 目录"');
     expect(source).toContain('"删除 objects 目录"');
     expect(source).toContain('"删除 *.obj"');
+    expect(source).toContain('"清理 Git 未跟踪文件"');
     expect(source).toContain('action: "dryRunTarget"');
     expect(source).toContain('action: "stopRun"');
     expect(source).toContain('action: "setCaaVersion"');

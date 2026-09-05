@@ -150,6 +150,9 @@ Git 更新包含 `fetch/pull --ff-only`、递归子模块和可用时的 Git LFS
 - 每次固定记录 Root 与 3rdParty，并只加入本次启用且勾选 CMake/CAA 编译的项目；仅更新但未参与编译的仓库不写入。
 - “覆盖保存”使用本次集合重写文件；“追加或更新”保留已有仓库，相同 Origin 更新分支与完整 Commit，新 Origin 追加。
 - 仓库最终按 Origin 字母顺序稳定排序；无 Origin 时按角色和名称排序，以减少版本控制中的无意义顺序变化。
+- `role` 使用固定枚举：Root 为 `root`，3rdParty 为 `thirdParty`，普通构建仓库为 `project`；不写入“更新的库”等界面显示名称。
+- `buildKinds` 只用于 `project`，可选值固定为 `cmake`、`caa`，同时存在时按 `cmake`、`caa` 的顺序写入。Root 与 3rdParty 不包含该字段。
+- 旧角色值和旧格式不兼容读取；发现无效枚举或乱序、重复的 `buildKinds` 时直接报告配置错误。
 - 输出不包含任务明细、并行模式、构建编号或开始时间。
 - 写入采用同目录临时文件后重命名替换，避免留下不完整 JSON。
 

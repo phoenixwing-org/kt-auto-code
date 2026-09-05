@@ -8,7 +8,7 @@ import { KtcCompactManagerLabelStyle } from "../../ui/KtcCompactManagerLabel.js"
 export const KtcRunPrimaryPanelTag = "ktc-run-primary-panel";
 
 export type KtcRunPrimaryActionDetail =
-  | { readonly action: "refresh" | "openOutput" | "openProblems" | "openTerminal" | "cleanBuild" | "cleanObjects" | "cleanObj" }
+  | { readonly action: "refresh" | "openOutput" | "openProblems" | "openTerminal" | "cleanBuild" | "cleanObjects" | "cleanObj" | "cleanGitUntracked" }
   | { readonly action: "runTarget" | "dryRunTarget" | "openSource"; readonly targetId: string }
   | { readonly action: "stopRun"; readonly runId: string }
   | { readonly action: "selectCaaRelated" | "addCaaRelatedFolder"; readonly projectId: string }
@@ -37,7 +37,7 @@ type KtcNavigationTreeAction =
   | { readonly kind: "select" | "activate"; readonly nodeId: string }
   | { readonly kind: "toggle"; readonly nodeId: string; readonly expanded: boolean };
 
-type KtcRunUtilityAction = "openTerminal" | "openProblems" | "openOutput" | "cleanBuild" | "cleanObjects" | "cleanObj";
+type KtcRunUtilityAction = "openTerminal" | "openProblems" | "openOutput" | "cleanBuild" | "cleanObjects" | "cleanObj" | "cleanGitUntracked";
 
 interface KtcNavigationTreeElement extends HTMLElement {
   model: KtcNavigationTreeModel | undefined;
@@ -206,6 +206,7 @@ export class KtcRunPrimaryPanel extends HTMLElement {
       ["run-clean-build", "删除 build 目录", "cleanBuild"],
       ["run-clean-objects", "删除 objects 目录", "cleanObjects"],
       ["run-clean-obj", "删除 *.obj", "cleanObj"],
+      ["run-clean-git-untracked", "清理 Git 未跟踪文件", "cleanGitUntracked"],
     ];
     for (const [id, , action] of children) this.utilityActionByNodeId.set(id, action);
     if (this.expandedNodeIds.size === 0) this.expandedNodeIds.add("run-cleanup");

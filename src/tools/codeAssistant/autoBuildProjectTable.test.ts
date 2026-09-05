@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { ktcCanAccessAutoBuildPathOnHost, ktcCreateAutoBuildProjectRow, ktcIsAbsoluteAutoBuildPath, ktcIsAutoBuildFilesystemRoot, ktcJoinAutoBuildPath, ktcResolveAutoBuildPath, ktcStoreAutoBuildPath } from "./autoBuildProjectTable.js";
+import { ktcCanAccessAutoBuildPathOnHost, ktcCreateAutoBuildProjectRow, ktcDeduplicateAutoBuildProjectsByOrigin, ktcIsAbsoluteAutoBuildPath, ktcIsAutoBuildFilesystemRoot, ktcJoinAutoBuildPath, ktcResolveAutoBuildPath, ktcStoreAutoBuildPath } from "./autoBuildProjectTable.js";
 
 describe("Auto Build project table paths", () => {
+  it("keeps the first project when automatic discovery sees the same Origin twice", () => {
+    const row = (id: string, origin: string) => ({ id, enabled: true, name: id, path: id, branch: "develop", operations: { update: true, cmake: true, caa: false, linkCaa: false }, probe: { capturedAt: "now", branch: "develop", commit: id, origin, status: "clean" as const } });
+    expect(ktcDeduplicateAutoBuildProjectsByOrigin([row("source", "git@example/a.git"), row("clone", "GIT@EXAMPLE/A.GIT"), row("other", "git@example/b.git")]).map((item) => item.id)).toEqual(["source", "other"]);
+  });
   it("stores descendants relative to the working directory", () => {
     expect(ktcStoreAutoBuildPath("E:/codeMaster/XyCore", "E:/codeMaster")).toBe("XyCore");
     expect(ktcResolveAutoBuildPath("XyCore", "E:/codeMaster")).toMatch(/E:[\\/]codeMaster[\\/]XyCore$/i);
