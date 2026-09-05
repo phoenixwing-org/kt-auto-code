@@ -1,0 +1,10 @@
+import { describe, expect, it } from "vitest";
+import { ktcCreateBuildManifest, ktcParseBuildManifest } from "./autoBuildManifest.js";
+
+const configuration = (commit: string) => ({ schemaVersion: 2 as const, rootDirectory: "E:/Root", thirdPartyDirectory: "E:/Third", workingDirectory: "E:/work", rootBranch: "develop", branch: "master", cmakeBranch: "master", projects: [{ id: "a", enabled: true, name: "A", path: "A", branch: "develop", operations: { update: false, cmake: true, caa: false, linkCaa: false } }], clean: false, repositorySnapshot: { capturedAt: "now", repositories: [{ role: "ROOT_DIR", path: "E:/Root", branch: "develop", commit, origin: "git@example/root.git", hasChanges: false }, { role: "ROOT_DIR_3rdParty", path: "E:/Third", branch: "master", commit, origin: "git@example/third.git", hasChanges: false }, { role: "CMake", path: "E:/work/A", branch: "develop", commit, origin: "git@example/a.git", hasChanges: false }, { role: "更新的库", path: "E:/work/not-built", branch: "develop", commit, origin: "git@example/not-built.git", hasChanges: false }] } });
+
+describe("Auto Build manifest", () => {
+  it("writes roots and compiled repositories only in stable Git order", () => { const value = ktcCreateBuildManifest(configuration("a".repeat(40))); expect(value.repositories.map((item) => item.name)).toEqual(["A", "Root", "Third"]); expect(value).not.toHaveProperty("tasks"); expect(value).not.toHaveProperty("buildId"); expect(value).not.toHaveProperty("startedAt"); });
+  it("updates matching repositories without creating build records", () => { const first = ktcCreateBuildManifest(configuration("a".repeat(40))); const next = ktcCreateBuildManifest(configuration("b".repeat(40)), first); expect(next.repositories).toHaveLength(3); expect(next.repositories.every((item) => item.commit === "b".repeat(40))).toBe(true); expect(next).not.toHaveProperty("builds"); });
+  it("rejects unknown schemas", () => expect(() => ktcParseBuildManifest('{"schemaVersion":2,"repositories":[]}')).toThrow("schemaVersion 1"));
+});

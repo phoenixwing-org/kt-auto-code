@@ -1,4 +1,4 @@
-import { readFile, writeFile, readdir, copyFile, access } from "node:fs/promises";
+import { readFile, writeFile, readdir, copyFile, access, rename } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { promisify } from "node:util";
@@ -11,11 +11,12 @@ import { ktcCanAccessAutoBuildPathOnHost, ktcCreateAutoBuildProjectRow, ktcIsAut
 import { KtcCleanRootArtifacts } from "../run/KtcManualCleanup.js";
 import { ktcCreateAutoBuildLauncher } from "./autoBuildLauncher.js";
 import { ktcCreateRepositoryCheckoutScript } from "./autoBuildCheckoutScript.js";
+import { ktcCreateBuildManifest, ktcParseBuildManifest, type KtcBuildManifestMode } from "./autoBuildManifest.js";
 import { ktcAutoBuildRepositoryArguments, ktcExportArguments, ktcLinkCaaArguments, ktcMkArguments, ktcPlanAutoBuildTasks, ktcSelectAutoBuildProjects, ktcValidateAutoBuildConfiguration, type KtcAutoBuildConfiguration, type KtcAutoBuildTask } from "./autoBuildContracts.js";
 
 const STATE_KEY = "ktAutoCode.codeAssistant.autoBuild.configuration", PATH_KEY = "ktAutoCode.codeAssistant.autoBuild.lastPath", RECENT_KEY = "ktAutoCode.codeAssistant.autoBuild.recentPaths";
 const execFileAsync = promisify(execFile);
-type Message = { type: "ready" | "stop" | "open" | "save" | "saveAs" | "selectRecent"; path?: string; configuration?: KtcAutoBuildConfiguration } | { type: "preflight" | "start" | "runTask"; configuration: KtcAutoBuildConfiguration; taskId?: string } | { type: "pickProjectDirectories" | "discoverProjectDirectories"; configuration: KtcAutoBuildConfiguration } | { type: "probeProject" | "runProject"; configuration: KtcAutoBuildConfiguration; projectId: string } | { type: "exportLauncher"; configuration: KtcAutoBuildConfiguration } | { type: "writeScript"; configuration: KtcAutoBuildConfiguration; scriptKind: "build" | "checkout"; targetDirectory: string; checkoutOptions?: { includeRoots?: boolean; includeBranch?: boolean; includeCommit?: boolean } } | { type: "pickScriptTargetDirectory"; targetDirectory?: string } | { type: "cleanRootArtifacts"; prefix: string } | { type: "syncRootScript" };
+type Message = { type: "ready" | "stop" | "open" | "save" | "saveAs" | "selectRecent"; path?: string; configuration?: KtcAutoBuildConfiguration } | { type: "preflight" | "start" | "runTask"; configuration: KtcAutoBuildConfiguration; taskId?: string } | { type: "pickProjectDirectories" | "discoverProjectDirectories"; configuration: KtcAutoBuildConfiguration } | { type: "probeProject" | "runProject"; configuration: KtcAutoBuildConfiguration; projectId: string } | { type: "exportLauncher"; configuration: KtcAutoBuildConfiguration } | { type: "writeScript"; configuration: KtcAutoBuildConfiguration; scriptKind: "build" | "checkout" | "manifest"; targetDirectory: string; manifestMode?: KtcBuildManifestMode; manifestTarget?: "root" | "working"; checkoutOptions?: { includeRoots?: boolean; includeBranch?: boolean; includeCommit?: boolean } } | { type: "pickScriptTargetDirectory"; targetDirectory?: string } | { type: "cleanRootArtifacts"; prefix: string } | { type: "syncRootScript" };
 const defaults = (rootDirectory = "", thirdPartyDirectory = "", workingDirectory = ""): KtcAutoBuildConfiguration => ({ schemaVersion: 2, rootDirectory, thirdPartyDirectory, updateRoot: false, updateThirdParty: false, workingDirectory, buildExecutionMode: "sequential", rootBranch: "develop", branch: "develop", cmakeBranch: "master", projects: [], clean: false });
 
 export class KtcAutoBuildViewController implements vscode.Disposable {
@@ -45,19 +46,31 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
     if (message.type === "exportLauncher") { const configuration = message.configuration, errors = ktcValidateAutoBuildConfiguration(configuration); if (errors.length) throw new Error(errors.join("\n")); const working = configuration.workingDirectory?.trim(); if (!working) throw new Error("请先填写当前工作目录。"); let target = ktcJoinAutoBuildPath(working, "Invoke-AutoBuild.local.ps1"); if (!ktcCanAccessAutoBuildPathOnHost(target, process.platform)) { if (process.platform === "win32") throw new Error("当前工作目录不是 Windows 盘符或 UNC 共享根路径，未导出脚本。"); const selected = await vscode.window.showSaveDialog({ title: "当前配置使用 Windows 路径，请选择本机 PS1 保存位置", saveLabel: "保存 PS1", filters: { "PowerShell": ["ps1"] } }); if (!selected) { await this.status("idle", "已取消导出，未写入文件。"); return; } target = selected.fsPath; } const toolRoot = ktcCanAccessAutoBuildPathOnHost(this.detectedRootDirectory, "win32") ? this.detectedRootDirectory : configuration.rootDirectory; await writeFile(target, `\uFEFF${ktcCreateAutoBuildLauncher(configuration, toolRoot)}`, "utf8"); this.log(`已导出脱离 UI 的构建脚本：${target}`, true); await this.status("done", `已导出：${target}${this.nonWindowsScriptNote()}`); return; }
     if (message.type === "pickScriptTargetDirectory") { const uri = (await vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri: message.targetDirectory?.trim() ? vscode.Uri.file(message.targetDirectory.trim()) : undefined, title: "选择脚本输出目录" }))?.[0]; if (uri) await this.post({ type: "scriptTargetDirectory", value: uri.fsPath }); return; }
     if (message.type === "writeScript") {
-      const directory = message.targetDirectory.trim() || message.configuration.workingDirectory?.trim() || "";
+      const directory = message.scriptKind === "manifest" ? (message.manifestTarget === "root" ? message.configuration.rootDirectory.trim() : message.configuration.workingDirectory?.trim() || "") : message.targetDirectory.trim() || message.configuration.workingDirectory?.trim() || "";
       if (!directory) throw new Error("请填写脚本输出目录。");
       if (!ktcCanAccessAutoBuildPathOnHost(directory, process.platform)) throw new Error("脚本输出目录不是当前系统可访问的绝对路径。");
       let source: string, name: string;
       if (message.scriptKind === "build") {
         source = ktcCreateAutoBuildLauncher(message.configuration, this.detectedRootDirectory);
         name = "Invoke-AutoBuild.local.ps1";
-      } else {
+      } else if (message.scriptKind === "checkout") {
         message.configuration.repositorySnapshot = await this.probeRepositories(message.configuration);
         if (!message.configuration.repositorySnapshot.repositories.some((item) => !item.error && item.origin && item.origin !== "(无 origin)")) throw new Error("没有探测到可写入检出脚本的 Git 仓库。");
         source = ktcCreateRepositoryCheckoutScript(message.configuration, message.checkoutOptions);
         name = "Checkout-AutoBuildRepositories.ps1";
         await this.post({ type: "repositorySnapshot", snapshot: message.configuration.repositorySnapshot });
+      } else {
+        message.configuration.repositorySnapshot = await this.probeRepositories(message.configuration);
+        name = "BUILD_MANIFEST.json";
+        const target = ktcJoinAutoBuildPath(directory, name), mode = message.manifestMode || "overwrite";
+        let previous;
+        if (mode === "merge") { try { previous = ktcParseBuildManifest(await readFile(target, "utf8")); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; } }
+        source = JSON.stringify(ktcCreateBuildManifest(message.configuration, previous), null, 2) + "\n";
+        const temporary = `${target}.tmp-${process.pid}-${Date.now()}`;
+        await writeFile(temporary, source, "utf8"); await rename(temporary, target);
+        await this.post({ type: "repositorySnapshot", snapshot: message.configuration.repositorySnapshot });
+        this.log(`已${mode === "merge" ? "追加或更新" : "覆盖"}版本归档：${target}`, true);
+        await this.status("done", `已写入：${target}`); await this.post({ type: "scriptWritten", path: target }); return;
       }
       const target = ktcJoinAutoBuildPath(directory, name);
       await writeFile(target, `\uFEFF${source}`, "utf8");
@@ -151,7 +164,7 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
     const flush = (kind: "stdout" | "stderr") => { const stream = streams[kind]; stream.pending += stream.decoder.end(); if (stream.pending) this.output.appendLine(`[Auto Build][${logTag}][${kind}] ${stream.pending}`); stream.pending = ""; };
     child.stdout.on("data", (value: Buffer) => write("stdout", value)); child.stderr.on("data", (value: Buffer) => write("stderr", value)); child.on("error", (error) => { this.processes.delete(child); this.log(`spawn error: ${error.message}`); resolve(-1); }); child.on("close", (code) => { flush("stdout"); flush("stderr"); this.processes.delete(child); this.log(`任务 ${task.name} exit code: ${code ?? "unknown"}`); resolve(code ?? -1); }); }); }
   private async probeRepositories(configuration: KtcAutoBuildConfiguration): Promise<NonNullable<KtcAutoBuildConfiguration["repositorySnapshot"]>> {
-    const selected = ktcSelectAutoBuildProjects(configuration); const candidates = [{ role: "ROOT_DIR", path: configuration.rootDirectory }, { role: "ROOT_DIR_3rdParty", path: configuration.thirdPartyDirectory }, ...selected.additionalRepositoryPaths.map((path) => ({ role: "更新的库", path })), ...selected.cmakeProjectPaths.map((path) => ({ role: "CMake", path }))];
+    const selected = ktcSelectAutoBuildProjects(configuration); const candidates = [{ role: "ROOT_DIR", path: configuration.rootDirectory }, { role: "ROOT_DIR_3rdParty", path: configuration.thirdPartyDirectory }, ...selected.additionalRepositoryPaths.map((path) => ({ role: "更新的库", path })), ...selected.cmakeProjectPaths.map((path) => ({ role: "CMake", path })), ...selected.caaProjectPaths.map((path) => ({ role: "CAA", path }))];
     const repositories: NonNullable<KtcAutoBuildConfiguration["repositorySnapshot"]>["repositories"] = [], seen = new Set<string>();
     for (const candidate of candidates) {
       try {

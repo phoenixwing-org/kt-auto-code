@@ -209,7 +209,12 @@ export class KtcRunPrimaryPanel extends HTMLElement {
     ];
     for (const [id, , action] of children) this.utilityActionByNodeId.set(id, action);
     if (this.expandedNodeIds.size === 0) this.expandedNodeIds.add("run-cleanup");
-    return { id: "run-cleanup", label: "清理", description: "当前工作目录 · 点击即执行", children: children.map(([id, label]) => ({ id, label, iconKey: "file", description: "跳过 .git，不询问" })) };
+    return {
+      id: "run-cleanup",
+      label: "清理",
+      description: "当前工作目录 · 跳过 .git · 点击即执行，不询问",
+      children: children.map(([id, label]) => ({ id, label, iconKey: "file" })),
+    };
   }
 
   private projectNode(project: KtcRunProject, index: number): KtcNavigationTreeNode {
