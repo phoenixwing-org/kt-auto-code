@@ -938,9 +938,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
             <span>C++ 整理</span><span class="code-assistant-tree-count">（4）</span>
           </summary>
           <div class="code-assistant-tree-children">
-            <button id="btn-code-assistant-auto-build" data-code-assistant-feature="autoBuild" type="button" aria-label="打开编译工具">
+            <button id="btn-code-assistant-auto-build" data-code-assistant-feature="autoBuild" type="button" aria-label="打开 Windows 编译工具（PowerShell 5.1）">
               <svg class="code-assistant-tree-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12v8H2zM4 6h4M4 9h7"/></svg>
-              <span class="code-assistant-tree-copy"><strong>编译工具</strong><span>配置、预检并监控批量构建</span></span>
+              <span class="code-assistant-tree-copy"><strong>编译工具</strong><span>Windows PowerShell 5.1 · CAA/MSVC 批量构建</span></span>
             </button>
             <button id="btn-code-assistant-package-includes" data-code-assistant-feature="packageIncludes" type="button" aria-label="打开头文件引用修正">
               <svg class="code-assistant-tree-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h6l3 3v6H3zM9 3.5v3h3M5 9h5M5 11h4"/></svg>

@@ -1,4 +1,4 @@
-import { readdir, rm } from "node:fs/promises";
+import { readdir, realpath, rm } from "node:fs/promises";
 import path from "node:path";
 
 export type KtcQuickCleanupKind = "build" | "objects" | "obj";
@@ -8,7 +8,7 @@ export interface KtcCleanupResult {
   readonly deleted: readonly string[];
 }
 export async function KtcCleanWorkspace(root: string, kind: KtcQuickCleanupKind): Promise<KtcCleanupResult> {
-  const resolvedRoot = path.resolve(root), deleted: string[] = [];
+  const resolvedRoot = await KtcResolveSafeCleanupRoot(root), deleted: string[] = [];
   await KtcWalkCleanup(resolvedRoot, async (entryPath, name, directory) => {
     const lower = name.toLocaleLowerCase();
     if (directory && ((kind === "build" && lower === "build") || (kind === "objects" && lower === "objects"))) return true;
@@ -19,13 +19,26 @@ export async function KtcCleanWorkspace(root: string, kind: KtcQuickCleanupKind)
 }
 
 export async function KtcCleanRootArtifacts(root: string, prefix: string): Promise<KtcCleanupResult> {
-  const resolvedRoot = path.resolve(root), normalizedPrefix = prefix.trim().toLocaleLowerCase(), deleted: string[] = [];
+  const resolvedRoot = await KtcResolveSafeCleanupRoot(root), normalizedPrefix = prefix.trim().toLocaleLowerCase(), deleted: string[] = [];
   if (!normalizedPrefix) throw new Error("请输入要清理的文件名前缀。");
   const extensions = new Set([".h", ".hh", ".hpp", ".hxx", ".dll", ".lib"]);
   await KtcWalkCleanup(resolvedRoot, async (_entryPath, name, directory) => !directory
     && name.toLocaleLowerCase().startsWith(normalizedPrefix)
     && extensions.has(path.extname(name).toLocaleLowerCase()), deleted);
   return { root: resolvedRoot, deleted };
+}
+
+async function KtcResolveSafeCleanupRoot(root: string): Promise<string> {
+  const resolved = await realpath(path.resolve(root));
+  if (KtcIsCleanupFilesystemRoot(resolved)) throw new Error("不允许在文件系统根目录执行清理。");
+  return resolved;
+}
+
+export function KtcIsCleanupFilesystemRoot(value: string): boolean {
+  const pathApi = /^[A-Za-z]:[\\/]/u.test(value) || /^\\\\/u.test(value) ? path.win32 : path.posix;
+  const normalized = pathApi.resolve(value);
+  if (/^\\\\\?\\UNC\\[^\\]+\\[^\\]+\\?$/iu.test(normalized)) return true;
+  return normalized.toLocaleLowerCase() === pathApi.parse(normalized).root.toLocaleLowerCase();
 }
 
 async function KtcWalkCleanup(

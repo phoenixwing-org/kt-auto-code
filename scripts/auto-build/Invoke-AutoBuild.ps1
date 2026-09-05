@@ -42,22 +42,123 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+$pathSeparators = [char[]]@([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+
+function Test-IsFullyQualifiedWindowsPath {
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
+    if ($Path -match '^\\\\\?\\') {
+        return $Path -match '^\\\\\?\\(?:[A-Za-z]:[\\/]|UNC\\[^\\/]+[\\/][^\\/]+(?:[\\/]|$))'
+    }
+    if ($Path -match '^\\\\\.\\') { return $false }
+    return $Path -match '^[A-Za-z]:[\\/]' -or
+        $Path -match '^[\\/]{2}[^?.\\/][^\\/]*[\\/][^\\/]+(?:[\\/]|$)'
+}
 
 function Resolve-ExistingDirectory {
     param([string]$Path, [string]$Description)
+    if (-not (Test-IsFullyQualifiedWindowsPath $Path)) {
+        throw "$Description 必须使用带盘符或 UNC 共享根的绝对路径：$Path"
+    }
     if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
         throw "$Description 不存在：$Path"
     }
-    return (Resolve-Path -LiteralPath $Path).Path
+    return (Resolve-Path -LiteralPath $Path).ProviderPath
 }
 
 function Test-IsPathInsideDirectory {
     param([string]$Path, [string]$Directory)
-    $resolvedPath = [System.IO.Path]::GetFullPath($Path).TrimEnd('\', '/')
-    $resolvedDirectory = [System.IO.Path]::GetFullPath($Directory).TrimEnd('\', '/')
+    $resolvedPath = [System.IO.Path]::GetFullPath($Path).TrimEnd($pathSeparators)
+    $resolvedDirectory = [System.IO.Path]::GetFullPath($Directory).TrimEnd($pathSeparators)
     return $resolvedPath.Equals($resolvedDirectory, [System.StringComparison]::OrdinalIgnoreCase) -or
         $resolvedPath.StartsWith("$resolvedDirectory\", [System.StringComparison]::OrdinalIgnoreCase) -or
         $resolvedPath.StartsWith("$resolvedDirectory/", [System.StringComparison]::OrdinalIgnoreCase)
+}
+
+function Test-IsReparsePoint {
+    param([System.IO.FileSystemInfo]$Item)
+    return (($null -ne $Item) -and
+        (($Item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0))
+}
+
+function Get-FirstReparsePointInPathChain {
+    param([string]$Path)
+
+    $currentPath = [System.IO.Path]::GetFullPath($Path)
+    $filesystemRoot = [System.IO.Path]::GetPathRoot($currentPath)
+    $separatorCharacters = [char[]]@('\', '/')
+    while (-not (Test-Path -LiteralPath $currentPath -ErrorAction Stop)) {
+        $parentPath = Split-Path -LiteralPath $currentPath -Parent
+        if ([string]::IsNullOrWhiteSpace($parentPath) -or
+            $parentPath.Equals($currentPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $null
+        }
+        $currentPath = $parentPath
+    }
+
+    while (-not [string]::IsNullOrWhiteSpace($currentPath)) {
+        $item = Get-Item -LiteralPath $currentPath -Force -ErrorAction Stop
+        if (Test-IsReparsePoint $item) { return [string]$item.FullName }
+        if ($currentPath.TrimEnd($separatorCharacters).Equals(
+                $filesystemRoot.TrimEnd($separatorCharacters),
+                [System.StringComparison]::OrdinalIgnoreCase)) {
+            break
+        }
+        $parentPath = Split-Path -LiteralPath $currentPath -Parent
+        if ([string]::IsNullOrWhiteSpace($parentPath) -or
+            $parentPath.Equals($currentPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+            break
+        }
+        $currentPath = $parentPath
+    }
+    return $null
+}
+
+function Get-FirstReparsePointInTree {
+    param([string]$Path, [switch]$SkipGitDirectory)
+
+    if (-not (Test-Path -LiteralPath $Path -ErrorAction Stop)) { return $null }
+    $rootItem = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+    if (Test-IsReparsePoint $rootItem) { return [string]$rootItem.FullName }
+    if (-not $rootItem.PSIsContainer) { return $null }
+
+    # PowerShell 5.1 的 Remove-Item 与 Git for Windows 都可能穿过 reparse point。
+    # 因此只做显式栈遍历，并且发现 reparse point 后绝不把它压栈。
+    $pending = New-Object 'System.Collections.Generic.Stack[string]'
+    [void]$pending.Push([string]$rootItem.FullName)
+    while ($pending.Count -gt 0) {
+        $currentDirectory = $pending.Pop()
+        $isRootDirectory = $currentDirectory.Equals(
+            [string]$rootItem.FullName,
+            [System.StringComparison]::OrdinalIgnoreCase)
+        foreach ($child in @(Get-ChildItem -LiteralPath $currentDirectory -Force -ErrorAction Stop)) {
+            if (Test-IsReparsePoint $child) { return [string]$child.FullName }
+            # 只跳过当前待清理仓库自己的普通 .git；嵌套仓库可能被 git clean -ffdx 删除，仍须完整扫描。
+            if ($SkipGitDirectory -and $isRootDirectory -and $child.PSIsContainer -and $child.Name -ieq '.git') { continue }
+            if ($child.PSIsContainer) { [void]$pending.Push([string]$child.FullName) }
+        }
+    }
+    return $null
+}
+
+function Assert-CleanupPathHasNoReparsePoint {
+    param(
+        [string]$Path,
+        [string]$Description,
+        [switch]$CheckTree,
+        [switch]$SkipGitDirectory
+    )
+
+    $pathReparsePoint = Get-FirstReparsePointInPathChain $Path
+    if (-not [string]::IsNullOrWhiteSpace($pathReparsePoint)) {
+        throw "$Description 的路径链包含 junction、符号链接或其他 reparse point，拒绝清理：$pathReparsePoint"
+    }
+    if ($CheckTree) {
+        $treeReparsePoint = Get-FirstReparsePointInTree $Path -SkipGitDirectory:$SkipGitDirectory
+        if (-not [string]::IsNullOrWhiteSpace($treeReparsePoint)) {
+            throw "$Description 内包含 junction、符号链接或其他 reparse point，拒绝清理：$treeReparsePoint"
+        }
+    }
 }
 
 function Get-CMakeCleanTargets {
@@ -74,6 +175,8 @@ function Get-CMakeCleanTargets {
 function Clear-CMakeBuildTargets {
     param([object[]]$CleanTargets)
     foreach ($target in $CleanTargets) {
+        # 初始总预检之后再做一次紧邻删除的防御性检查，缩小竞态窗口。
+        Assert-CleanupPathHasNoReparsePoint $target.Path "CMake 构建目录" -CheckTree
         if ($target.PreserveRoot) {
             if ($PSCmdlet.ShouldProcess($target.Path, "清空并保留 CMake 统一 build 目录")) {
                 Write-Host "- 清空并保留 CMake build：$($target.Path)" -ForegroundColor Cyan
@@ -146,6 +249,8 @@ function Update-Repository {
 
     Write-Host "`n==> 更新 $RepositoryPath" -ForegroundColor Cyan
     if ($ShouldClean) {
+        # git clean -ffdx 也可能遍历未跟踪/忽略的 NTFS junction。
+        Assert-CleanupPathHasNoReparsePoint $RepositoryPath "Git 清理仓库" -CheckTree -SkipGitDirectory
         Invoke-GitCommand $RepositoryPath @("reset", "--hard", "HEAD") | Out-Null
         Invoke-GitCommand $RepositoryPath @("clean", "-ffdx") | Out-Null
     }
@@ -200,18 +305,27 @@ function Start-MkJob {
     Write-Host "启动 $Kind 编译：$resolvedPath" -ForegroundColor Cyan
     return Start-Job -Name "$Kind-$safeName" -ScriptBlock {
         param($ScriptPath, $WorkingDirectory, $BuildArguments, $OutputLog, $BuildKind)
+        $ErrorActionPreference = "Stop"
+        $locationPushed = $false
         try {
-            Push-Location $WorkingDirectory
-            & $ScriptPath @BuildArguments *>&1 | Tee-Object -FilePath $OutputLog
+            Push-Location -LiteralPath $WorkingDirectory -ErrorAction Stop
+            $locationPushed = $true
+            if (-not (Test-Path -LiteralPath $ScriptPath -PathType Leaf -ErrorAction Stop)) {
+                throw "$BuildKind 编译脚本不存在：$ScriptPath"
+            }
+            & $ScriptPath @BuildArguments *>&1 | Tee-Object -FilePath $OutputLog -ErrorAction Stop
             $code = $LASTEXITCODE
             if ($null -eq $code) { $code = 0 }
-            [pscustomobject]@{ Kind = $BuildKind; Project = $WorkingDirectory; ExitCode = $code; Log = $OutputLog }
+            [pscustomobject]@{ KtcAutoBuildResult = $true; Kind = $BuildKind; Project = $WorkingDirectory; ExitCode = $code; Log = $OutputLog }
         }
         catch {
-            $_ | Out-String | Add-Content -LiteralPath $OutputLog
-            [pscustomobject]@{ Kind = $BuildKind; Project = $WorkingDirectory; ExitCode = 1; Log = $OutputLog }
+            $errorText = $_ | Out-String
+            $errorText | Add-Content -LiteralPath $OutputLog -ErrorAction SilentlyContinue
+            [pscustomobject]@{ KtcAutoBuildResult = $true; Kind = $BuildKind; Project = $WorkingDirectory; ExitCode = 1; Log = $OutputLog; Error = $errorText.Trim() }
         }
-        finally { Pop-Location }
+        finally {
+            if ($locationPushed) { Pop-Location -ErrorAction SilentlyContinue }
+        }
     } -ArgumentList $mkScript, $resolvedPath, $Arguments, $logPath, $Kind
 }
 
@@ -219,11 +333,16 @@ function Receive-BuildJobs {
     param([System.Management.Automation.Job[]]$Jobs)
 
     $results = [System.Collections.Generic.List[object]]::new()
+    $resultCounts = @{}
+    foreach ($job in $Jobs) { $resultCounts[[string]$job.Id] = 0 }
     do {
         foreach ($job in $Jobs) {
             $items = @(Receive-Job -Job $job -ErrorAction Continue)
             foreach ($item in $items) {
-                if ($item -and $item.PSObject.Properties.Name -contains "ExitCode") {
+                if ($item -and
+                    $item.PSObject.Properties.Name -contains "KtcAutoBuildResult" -and
+                    $item.KtcAutoBuildResult -eq $true) {
+                    $resultCounts[[string]$job.Id] = [int]$resultCounts[[string]$job.Id] + 1
                     $results.Add($item)
                 }
                 elseif ($null -ne $item) {
@@ -238,12 +357,37 @@ function Receive-BuildJobs {
     # Drain output written between the last poll and the terminal job state.
     foreach ($job in $Jobs) {
         foreach ($item in @(Receive-Job -Job $job -ErrorAction Continue)) {
-            if ($item -and $item.PSObject.Properties.Name -contains "ExitCode") {
+            if ($item -and
+                $item.PSObject.Properties.Name -contains "KtcAutoBuildResult" -and
+                $item.KtcAutoBuildResult -eq $true) {
+                $resultCounts[[string]$job.Id] = [int]$resultCounts[[string]$job.Id] + 1
                 $results.Add($item)
             }
             elseif ($null -ne $item) {
                 Write-Host ("[{0}] {1}" -f $job.Name, ("$item").TrimEnd())
             }
+        }
+    }
+
+    foreach ($job in $Jobs) {
+        $state = [string]$job.State
+        $resultCount = [int]$resultCounts[[string]$job.Id]
+        if ($state -ne "Completed" -or $resultCount -ne 1) {
+            $reason = if ($state -ne "Completed") {
+                "后台任务终态为 $state"
+            }
+            else {
+                "预期恰好 1 个结果，实际收到 $resultCount 个"
+            }
+            Write-Warning "编译后台任务基础设施失败：$($job.Name)；$reason。"
+            $results.Add([pscustomobject]@{
+                KtcAutoBuildResult = $true
+                Kind = "Infrastructure"
+                Project = $job.Name
+                ExitCode = 1
+                Log = ""
+                Error = $reason
+            })
         }
     }
     return @($results)
@@ -252,12 +396,18 @@ function Receive-BuildJobs {
 function Invoke-BuildPhase {
     param([string]$Kind, [string[]]$BuildPaths, [string[]]$Arguments, [string]$BatchLogDirectory)
     if ($BuildPaths.Count -eq 0) { return @() }
-    $jobs = @($BuildPaths | Select-Object -Unique | ForEach-Object {
-        Start-MkJob $Kind $_ $Arguments $BatchLogDirectory
-    })
-    $results = @(Receive-BuildJobs $jobs)
-    $jobs | Remove-Job -Force
-    return $results
+    $jobs = @()
+    try {
+        foreach ($buildPath in @($BuildPaths | Select-Object -Unique)) {
+            $jobs += Start-MkJob $Kind $buildPath $Arguments $BatchLogDirectory
+        }
+        return @(Receive-BuildJobs $jobs)
+    }
+    finally {
+        if ($jobs.Count -gt 0) {
+            $jobs | Remove-Job -Force -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw "未找到 git，请先安装 Git 并加入 PATH。" }
@@ -265,6 +415,12 @@ $rootRepository = Resolve-ExistingDirectory $RootDirectory "ROOT_DIR 仓库目�
 $thirdPartyRepository = Resolve-ExistingDirectory $ThirdPartyDirectory "ROOT_DIR_3rdParty 仓库目录"
 if ([string]::IsNullOrWhiteSpace($LogDirectory)) {
     $LogDirectory = Join-Path $rootRepository "logs"
+}
+elseif (-not (Test-IsFullyQualifiedWindowsPath $LogDirectory)) {
+    throw "日志目录必须使用带盘符或 UNC 共享根的绝对路径：$LogDirectory"
+}
+else {
+    $LogDirectory = [System.IO.Path]::GetFullPath($LogDirectory)
 }
 $additionalRepositories = @($AdditionalRepositoryPaths | ForEach-Object {
     Resolve-ExistingDirectory $_ "附加 Git 仓库目录"
@@ -282,17 +438,35 @@ if (-not [string]::IsNullOrWhiteSpace($RepositorySpecsJson)) {
 $resolvedCmakeProjectPaths = @($CmakeProjectPaths | ForEach-Object {
     Resolve-ExistingDirectory $_ "CMake 项目目录"
 } | Select-Object -Unique)
+$resolvedCaaProjectPaths = @($CaaProjectPaths | ForEach-Object {
+    Resolve-ExistingDirectory $_ "CAA 编译目录"
+} | Select-Object -Unique)
 $cmakeRepositories = @($resolvedCmakeProjectPaths | ForEach-Object {
     Resolve-GitTopLevel $_ "CMake 项目"
 } | Select-Object -Unique)
 $cleanRepositories = @(@($rootRepository, $thirdPartyRepository) + $(if ($Clean) { $cmakeRepositories } else { @() }) | Select-Object -Unique)
 $repositories = @(@($cleanRepositories + $additionalRepositories) | Select-Object -Unique)
+$cmakeCleanTargets = @($(if ($Clean) { Get-CMakeCleanTargets $resolvedCmakeProjectPaths } else { @() }))
 
 if ($Clean) {
+    $scriptPathReparsePoint = Get-FirstReparsePointInPathChain $PSCommandPath
+    if (-not [string]::IsNullOrWhiteSpace($scriptPathReparsePoint)) {
+        throw "自动构建脚本的路径链包含 junction、符号链接或其他 reparse point，拒绝清理：$scriptPathReparsePoint"
+    }
     foreach ($cleanRepository in $cleanRepositories) {
+        $filesystemRoot = [System.IO.Path]::GetPathRoot($cleanRepository)
+        $normalizedCleanRepository = $cleanRepository.TrimEnd($pathSeparators)
+        $isExtendedUncRoot = $normalizedCleanRepository -match '^\\\\\?\\UNC\\[^\\]+\\[^\\]+$'
+        if ($isExtendedUncRoot -or $normalizedCleanRepository.Equals($filesystemRoot.TrimEnd($pathSeparators), [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "拒绝清理文件系统根目录：$cleanRepository"
+        }
         if (Test-IsPathInsideDirectory $PSCommandPath $cleanRepository) {
             throw "拒绝清理脚本自身所在仓库：$cleanRepository。请从独立工具目录运行 Invoke-AutoBuild.ps1，并把可清理检出放在单独目录。"
         }
+        Assert-CleanupPathHasNoReparsePoint $cleanRepository "Git 清理仓库" -CheckTree -SkipGitDirectory
+    }
+    foreach ($cleanTarget in $cmakeCleanTargets) {
+        Assert-CleanupPathHasNoReparsePoint $cleanTarget.Path "CMake 构建目录" -CheckTree
     }
 }
 
@@ -315,7 +489,6 @@ $repositoryPlans = @(
         }
     }
 )
-$cmakeCleanTargets = @(Get-CMakeCleanTargets $resolvedCmakeProjectPaths)
 
 Write-Host ""
 Write-Host "| 目录 | Git 地址 | 分支 | 清理 |"
@@ -344,36 +517,78 @@ if ($Clean) {
     Clear-CMakeBuildTargets $cmakeCleanTargets
 }
 
-$repositoryJobs = @()
 $initialization = [scriptblock]::Create(
     "function Invoke-GitCommand { $(${function:Invoke-GitCommand}.ToString()) }`n" +
+    "function Test-IsReparsePoint { $(${function:Test-IsReparsePoint}.ToString()) }`n" +
+    "function Get-FirstReparsePointInPathChain { $(${function:Get-FirstReparsePointInPathChain}.ToString()) }`n" +
+    "function Get-FirstReparsePointInTree { $(${function:Get-FirstReparsePointInTree}.ToString()) }`n" +
+    "function Assert-CleanupPathHasNoReparsePoint { $(${function:Assert-CleanupPathHasNoReparsePoint}.ToString()) }`n" +
     "function Update-Repository { $(${function:Update-Repository}.ToString()) }"
 )
-foreach ($plan in $repositoryPlans) {
-    $target = "$($plan.RemoteName)/$($plan.TargetBranch)"
-    if ($PSCmdlet.ShouldProcess($plan.RepositoryPath, "并行更新到 $target（Clean=$($plan.ShouldClean)）")) {
-        $repositoryJobs += Start-Job -InitializationScript $initialization -ScriptBlock {
-            param($RepositoryPath, $RemoteName, $TargetBranch, $ShouldClean, $HasChanges)
-            try { Update-Repository $RepositoryPath $RemoteName $TargetBranch $ShouldClean $HasChanges; [pscustomobject]@{ Path = $RepositoryPath; ExitCode = 0 } }
-            catch { Write-Error $_; [pscustomobject]@{ Path = $RepositoryPath; ExitCode = 1 } }
-        } -ArgumentList $plan.RepositoryPath, $plan.RemoteName, $plan.TargetBranch, $plan.ShouldClean, $plan.HasChanges
+$repositoryJobs = @()
+$repositoryResults = [System.Collections.Generic.List[object]]::new()
+try {
+    foreach ($plan in $repositoryPlans) {
+        $target = "$($plan.RemoteName)/$($plan.TargetBranch)"
+        if ($PSCmdlet.ShouldProcess($plan.RepositoryPath, "并行更新到 $target（Clean=$($plan.ShouldClean)）")) {
+            $repositoryJobs += Start-Job -InitializationScript $initialization -ScriptBlock {
+                param($RepositoryPath, $RemoteName, $TargetBranch, $ShouldClean, $HasChanges)
+                try {
+                    Update-Repository $RepositoryPath $RemoteName $TargetBranch $ShouldClean $HasChanges
+                    [pscustomobject]@{ KtcAutoBuildRepositoryResult = $true; Path = $RepositoryPath; ExitCode = 0 }
+                }
+                catch {
+                    Write-Error $_ -ErrorAction Continue
+                    [pscustomobject]@{ KtcAutoBuildRepositoryResult = $true; Path = $RepositoryPath; ExitCode = 1; Error = $_.Exception.Message }
+                }
+            } -ArgumentList $plan.RepositoryPath, $plan.RemoteName, $plan.TargetBranch, $plan.ShouldClean, $plan.HasChanges
+        }
+    }
+    if ($repositoryJobs.Count -gt 0) {
+        $repositoryJobs | Wait-Job | Out-Null
+        foreach ($job in $repositoryJobs) {
+            # Git writes normal status messages such as "Already on ..." to stderr.
+            # Do not let the parent script's ErrorActionPreference=Stop abort result collection.
+            $items = @($job | Receive-Job -Wait -ErrorAction Continue)
+            $markedResults = @($items | Where-Object {
+                $_ -and
+                $_.PSObject.Properties.Name -contains 'KtcAutoBuildRepositoryResult' -and
+                $_.KtcAutoBuildRepositoryResult -eq $true
+            })
+            foreach ($result in $markedResults) { $repositoryResults.Add($result) }
+
+            $state = [string]$job.State
+            if ($state -ne 'Completed' -or $markedResults.Count -ne 1) {
+                $reason = if ($state -ne 'Completed') {
+                    "后台任务终态为 $state"
+                }
+                else {
+                    "预期恰好 1 个结果，实际收到 $($markedResults.Count) 个"
+                }
+                Write-Warning "仓库后台任务基础设施失败：$($job.Name)；$reason。"
+                $repositoryResults.Add([pscustomobject]@{
+                    KtcAutoBuildRepositoryResult = $true
+                    Path = $job.Name
+                    ExitCode = 1
+                    Error = $reason
+                })
+            }
+        }
     }
 }
-if ($repositoryJobs.Count -gt 0) {
-    $repositoryJobs | Wait-Job | Out-Null
-    # Git writes normal status messages such as "Already on ..." to stderr.
-    # Do not let the parent script's ErrorActionPreference=Stop abort result collection.
-    $repositoryResults = @($repositoryJobs | Receive-Job -Wait -ErrorAction Continue)
-    $repositoryJobs | Remove-Job -Force
-    $failedRepositories = @($repositoryResults | Where-Object { $_.PSObject.Properties.Name -contains 'ExitCode' -and $_.ExitCode -ne 0 })
-    if ($failedRepositories.Count -gt 0) { throw "$($failedRepositories.Count) 个仓库更新失败。" }
+finally {
+    if ($repositoryJobs.Count -gt 0) {
+        $repositoryJobs | Remove-Job -Force -ErrorAction SilentlyContinue
+    }
 }
+$failedRepositories = @($repositoryResults | Where-Object { $_.ExitCode -ne 0 })
+if ($failedRepositories.Count -gt 0) { throw "$($failedRepositories.Count) 个仓库更新失败。" }
 
 if ($SkipBuild -or $WhatIfPreference) {
     Write-Host "仓库更新阶段完成；已跳过编译。" -ForegroundColor Green
     return
 }
-if ($CmakeProjectPaths.Count -eq 0 -and $CaaProjectPaths.Count -eq 0) {
+if ($resolvedCmakeProjectPaths.Count -eq 0 -and $resolvedCaaProjectPaths.Count -eq 0) {
     throw "未指定编译目录。请传 -CmakeProjectPaths、-CaaProjectPaths，或使用 -SkipBuild。"
 }
 
@@ -381,10 +596,10 @@ $batchLogDirectory = Join-Path $LogDirectory (Get-Date -Format "yyyyMMdd-HHmmss"
 New-Item -ItemType Directory -Path $batchLogDirectory -Force | Out-Null
 
 # 固定默认编排：CMake 阶段完成后才进入 CAA；各阶段内部并行。
-$results = @(Invoke-BuildPhase "CMake" $CmakeProjectPaths $MkArguments $batchLogDirectory)
+$results = @(Invoke-BuildPhase "CMake" $resolvedCmakeProjectPaths $MkArguments $batchLogDirectory)
 $cmakeFailed = @($results | Where-Object { $_.ExitCode -ne 0 })
 if ($cmakeFailed.Count -eq 0) {
-    $results += @(Invoke-BuildPhase "CAA" $CaaProjectPaths $MkArguments $batchLogDirectory)
+    $results += @(Invoke-BuildPhase "CAA" $resolvedCaaProjectPaths $MkArguments $batchLogDirectory)
 }
 else {
     Write-Warning "CMake 阶段失败，未启动 CAA 阶段。"
