@@ -134,6 +134,13 @@
       "reason": "当前项目改名 Windows 测试候选与发布门禁真源"
     },
     {
+      "path": "docs/0.8.2-本地编译工具归档.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.8.x",
+      "lastVerified": "2026-09-02"
+    },
+    {
       "path": "docs/2026-07-20-功能修复人工点检表.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
@@ -156,6 +163,13 @@
     },
     {
       "path": "docs/编码修正.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.8.x",
+      "lastVerified": "2026-09-02"
+    },
+    {
+      "path": "docs/编译工具/README.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
@@ -667,6 +681,13 @@
     },
     {
       "path": "README.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.8.x",
+      "lastVerified": "2026-09-02"
+    },
+    {
+      "path": "scripts/auto-build/README.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",

@@ -2,6 +2,12 @@
 
 所有显著变更会记录在本文件中。
 
+## 0.8.4（脚本生成）
+
+- 编译工具增加“写脚本”内容块和可移动的非模态浮动窗口。
+- 支持输出当前自动构建脚本，以及根据仓库探测结果生成固定分支与 Commit 的检出脚本。
+- Root 与 3rdParty 的检出流程额外处理 Git LFS 和递归子模块。
+
 ## 0.8.2（编译工具）
 
 - 代码辅助增加编译工具 View，使用原生 `<details>/<summary>` 内容块和 schema 2 项目表管理仓库、分支与构建操作。
@@ -11,6 +17,11 @@
 - 项目 `mk.ps1` 从自身目录无参数运行；日志使用项目目录名，PowerShell 输出兼容 Windows PowerShell 5.1 与 UTF-8。
 - 插件固化自动构建编排脚本，可显式同步到 Root，并可导出工作目录下的可编辑 PS1 脱离 UI 执行。
 - Run 增加 build、objects、`*.obj` 快捷清理；编译 View 增加跳过 `.git` 的 Root 前缀头文件、DLL 和 LIB 清理。
+- 明确 CAA 实际编译仅支持 Windows；macOS/Linux 可在开发 Host 中打开 View，完成配置、目录/Git 探测、预检与脚本生成，并在运行或写脚本时显示平台提示。
+- 修复非 Windows 宿主解析 Windows 盘符、UNC 和相对项目路径时错误拼入当前仓库的问题，同时保持 POSIX 路径可用于开发检查。
+- 非 Windows 打开 Windows 配置时，导出 PS1 改由用户选择本机位置，Root 同步对 Windows/UNC 目标安全拒绝，避免在 Extension Host 当前目录误写伪路径文件。
+- Root、3rdParty、工作目录与 PowerShell 脚本统一校验完整绝对路径和文件类型；清理拒绝文件系统根、UNC 共享根以及路径链或待删除树内的 junction/符号链接。
+- 构建与仓库后台任务逐项校验终态和唯一结果；Job 崩溃、停止或结果缺失时按失败处理，不再误报成功。
 
 ## 0.8.1（Windows 测试候选）
 

@@ -331,6 +331,8 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('.code-assistant-tree-section[open] > summary { border-bottom: 1px solid');
     expect(html).toContain('class="code-assistant-tree-section-count">（7）</span>');
     expect(html).toContain('data-code-assistant-feature="autoBuild"');
+    expect(html).toContain('aria-label="打开 Windows 编译工具（PowerShell 5.1）"');
+    expect(html).toContain('Windows PowerShell 5.1 · CAA/MSVC 批量构建');
     expect(html).toContain('type: "openCodeAssistantFeature", feature: "autoBuild"');
     expect(html).toContain('class="code-assistant-tree-count">（4）</span>');
     expect(html).toContain('class="code-assistant-tree-count">（2）</span>');
@@ -513,6 +515,7 @@ describe("sidebar panel HTML", () => {
     expect(manifest.contributes.viewsContainers?.activitybar?.[0]?.id).toBe("kt-auto-code");
     expect(manifest.contributes.views["kt-auto-code"]?.[0]?.when).toBeUndefined();
     expect(manifest.contributes.menus["view/item/context"]).toBeUndefined();
+    expect(manifest.contributes.commands.find((command) => command.command === "ktAutoCode.codeAssistant.autoBuild")?.title).toBe("KT Auto Code：编译工具（Windows PowerShell 5.1）");
     expect(manifest.contributes.commands.filter((command) => [
       "ktAutoCode.codegen.open",
       "ktAutoCode.codegen.importCsv",

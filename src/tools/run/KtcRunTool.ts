@@ -41,7 +41,7 @@ export function KtcParseRunAction(message: unknown): KtcRunActionMessage | undef
   if (!message || typeof message !== "object") return undefined;
   const candidate = message as Record<string, unknown>;
   if (candidate.type !== "runAction" || candidate.toolId !== "run" || typeof candidate.action !== "string") return undefined;
-  if (["refresh", "openOutput", "openProblems", "openTerminal", "cleanBuild", "cleanObjects", "cleanObj"].includes(candidate.action)) {
+  if (["refresh", "openOutput", "openProblems", "openTerminal", "cleanBuild", "cleanObjects", "cleanObj", "cleanGitUntracked"].includes(candidate.action)) {
     return candidate as unknown as KtcRunActionMessage;
   }
   if ((candidate.action === "runTarget" || candidate.action === "dryRunTarget" || candidate.action === "openSource")

@@ -4,6 +4,15 @@
 
 插件内置的主编排脚本位于 [`scripts/auto-build/Invoke-AutoBuild.ps1`](../../scripts/auto-build/Invoke-AutoBuild.ps1)。插件始终运行这份随版本发布的脚本；用户可以在界面中显式同步到 `ROOT_DIR\tools\Invoke-AutoBuild.ps1`，作为脱离 UI 的命令行入口。
 
+## 平台边界
+
+- **Windows 是实际构建平台**：编排入口以 Windows PowerShell 5.1、MSVC 和 Windows 版 CAA 为基线；CAA 编译只能在 Windows 环境完成。
+- **macOS/Linux 可用于开发检查**：View 可以正常打开，支持配置编辑、本机 POSIX 目录与 Git 探测、预检、JSON 保存以及 PS1 生成，便于不安装扩展的 Extension Development Host 盲开发。载入 Windows 盘符或 UNC 配置时只保留计划，不访问本机文件系统；Root 不直接同步，“导出 PS1”会要求选择本机保存位置。
+- 非 Windows 环境不会隐藏“运行”入口；点击后会显示平台提示并尝试现有执行链路，但结果不作为 CAA 实际编译通过的证据。写入或同步 PS1 后也会明确提示应转到 Windows 执行。
+- 开发测试使用 Extension Development Host，不通过安装 VSIX 覆盖正式插件；VSIX 只用于最终制品验收与发布。
+- 所有 Root、3rdParty 和工作目录必须是完整绝对路径且实为目录；相对路径只允许用于项目行，并以绝对工作目录为基准。Windows 实际执行只接受盘符绝对路径或完整 UNC 共享路径。清理入口在任何 Git/CMake 副作用前拒绝盘根、共享根、POSIX 根，以及路径链或待删除树内的 junction/符号链接。
+- “导出 PS1”先执行同一配置校验；生成的独立脚本还会在任何文件或 Git 操作前重新校验 Root、3rdParty 与全部项目路径，用户后续手工改成相对路径也会安全停止。
+
 脚本先处理 Git 仓库，再执行构建：
 
 1. 所有 CMake 项目先完成各自已有的 `export.ps1`，提前输出供其他项目使用的头文件；
@@ -132,6 +141,20 @@ Git 更新包含 `fetch/pull --ff-only`、递归子模块和可用时的 Git LFS
 - 同步造成的 Git 修改必须进入仓库状态，不得隐藏。
 
 项目自己的 `mk.ps1` 始终在项目目录中无参数运行；若它是 `$env:ROOT_DIR/tools/mk.ps1` 代理而当前 Root 缺少该脚本，项目表显示“脚本不一致”。后续复杂顺序仍用阶段或 DAG 表达重试和断点续跑，不用表格行位置暗示依赖。
+
+### 编译版本归档
+
+“脚本”浮动窗口提供“版本归档”页签，将当前探测结果写入一个 `BUILD_MANIFEST.json`。用户可选择保存到当前 `ROOT_DIR` 或配置中的工作目录。
+
+- 文件只维护一份顶层仓库列表，不按构建次数创建 `tasks`、`builds` 或其他历史数组。
+- 每次固定记录 Root 与 3rdParty，并只加入本次启用且勾选 CMake/CAA 编译的项目；仅更新但未参与编译的仓库不写入。
+- “覆盖保存”使用本次集合重写文件；“追加或更新”保留已有仓库，相同 Origin 更新分支与完整 Commit，新 Origin 追加。
+- 仓库最终按 Origin 字母顺序稳定排序；无 Origin 时按角色和名称排序，以减少版本控制中的无意义顺序变化。
+- `role` 使用固定枚举：Root 为 `root`，3rdParty 为 `thirdParty`，普通构建仓库为 `project`；不写入“更新的库”等界面显示名称。
+- `buildKinds` 只用于 `project`，可选值固定为 `cmake`、`caa`，同时存在时按 `cmake`、`caa` 的顺序写入。Root 与 3rdParty 不包含该字段。
+- 旧角色值和旧格式不兼容读取；发现无效枚举或乱序、重复的 `buildKinds` 时直接报告配置错误。
+- 输出不包含任务明细、并行模式、构建编号或开始时间。
+- 写入采用同目录临时文件后重命名替换，避免留下不完整 JSON。
 
 ### 并行与失败策略
 

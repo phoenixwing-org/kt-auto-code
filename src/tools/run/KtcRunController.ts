@@ -26,10 +26,10 @@ import {
   KtcResolveCaaInstallation,
 } from "./KtcCaaInstallation.js";
 import { KtcSelectRunDisplayTargets, KtcSelectRunExecutionProvider } from "./KtcRunDisplayTargets.js";
-import { KtcCleanWorkspace, type KtcQuickCleanupKind } from "./KtcManualCleanup.js";
+import { KtcCleanGitUntrackedRepositories, KtcCleanWorkspace, type KtcQuickCleanupKind } from "./KtcManualCleanup.js";
 
 export type KtcRunActionMessage =
-  | { readonly action: "refresh" | "openOutput" | "openProblems" | "openTerminal" | "cleanBuild" | "cleanObjects" | "cleanObj" }
+  | { readonly action: "refresh" | "openOutput" | "openProblems" | "openTerminal" | "cleanBuild" | "cleanObjects" | "cleanObj" | "cleanGitUntracked" }
   | { readonly action: "runTarget" | "dryRunTarget"; readonly targetId: string }
   | { readonly action: "stopRun"; readonly runId: string }
   | { readonly action: "selectCaaRelated" | "addCaaRelatedFolder"; readonly projectId: string }
@@ -151,6 +151,12 @@ export class KtcRunController {
       const result = await KtcCleanWorkspace(ctx.workspaceRoot, kind);
       ctx.log(`[Run][清理][OK] ${ctx.workspaceRoot}：删除 ${result.deleted.length} 项（${kind}），已跳过 .git。`);
       this.KtcPostState(ctx); return;
+    }
+    if (action.action === "cleanGitUntracked") {
+      if (!ctx.workspaceRoot) throw new Error("当前没有可清理的工作目录。");
+      const result = await KtcCleanGitUntrackedRepositories(ctx.workspaceRoot); let deleted = 0, failed = 0;
+      for (const repository of result.repositories) { deleted += repository.deleted.length; if (repository.error) { failed++; ctx.log(`[Run][Git 清理][ERROR] ${repository.repository}：${repository.error}`); continue; } ctx.log(`[Run][Git 清理][OK] ${repository.repository}：删除 ${repository.deleted.length} 项。`); for (const item of repository.deleted.slice(0, 10)) ctx.log(`[Run][Git 清理][删除] ${item}`); if (repository.deleted.length > 10) ctx.log(`[Run][Git 清理] 其余 ${repository.deleted.length - 10} 项未逐项列出。`); }
+      ctx.log(`[Run][Git 清理][汇总] 发现 ${result.repositories.length} 个仓库；删除 ${deleted} 项；失败 ${failed} 个；非 Git 目录未处理。`); this.KtcPostState(ctx); return;
     }
     if (action.action === "setCaaVersion") {
       await this.KtcSetCaaVersion(action.projectId, action.value, ctx);

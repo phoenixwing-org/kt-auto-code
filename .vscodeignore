@@ -3,6 +3,7 @@
 .github/**
 .agents/**
 .codex/**
+.worktrees/**
 .obsidian/**
 .phoenix/**
 .pnpm-store/**
