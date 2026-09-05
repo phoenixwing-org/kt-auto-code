@@ -1,13 +1,17 @@
 import * as vscode from "vscode";
 import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
 import { KtcPackageIncludeViewController } from "./packageIncludeViewController.js";
+import { KtcAutoBuildViewController } from "./autoBuildViewController.js";
 
 let packageIncludeView: KtcPackageIncludeViewController | undefined;
+let autoBuildView: KtcAutoBuildViewController | undefined;
 let runContextFactory: (() => ToolRunContext | undefined) | undefined;
 
 export function registerCodeAssistantSupport(context: vscode.ExtensionContext): void {
   packageIncludeView = new KtcPackageIncludeViewController(context.workspaceState);
+  autoBuildView = new KtcAutoBuildViewController(context.extensionUri, context.workspaceState);
   context.subscriptions.push({ dispose: () => packageIncludeView?.dispose() });
+  context.subscriptions.push({ dispose: () => autoBuildView?.dispose() });
 }
 
 export const codeAssistantTool: KtTool = {
@@ -28,6 +32,9 @@ export const codeAssistantTool: KtTool = {
       }),
       vscode.commands.registerCommand("ktAutoCode.codeAssistant.packageIncludes", async () => {
         await openPackageIncludes(runContextFactory?.()?.workspaceRoot);
+      }),
+      vscode.commands.registerCommand("ktAutoCode.codeAssistant.autoBuild", async () => {
+        await autoBuildView?.show(runContextFactory?.()?.workspaceRoot);
       }),
     );
   },

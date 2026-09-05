@@ -26,9 +26,10 @@ import {
   KtcResolveCaaInstallation,
 } from "./KtcCaaInstallation.js";
 import { KtcSelectRunDisplayTargets, KtcSelectRunExecutionProvider } from "./KtcRunDisplayTargets.js";
+import { KtcCleanWorkspace, type KtcQuickCleanupKind } from "./KtcManualCleanup.js";
 
 export type KtcRunActionMessage =
-  | { readonly action: "refresh" | "openOutput" | "openProblems" | "openTerminal" }
+  | { readonly action: "refresh" | "openOutput" | "openProblems" | "openTerminal" | "cleanBuild" | "cleanObjects" | "cleanObj" }
   | { readonly action: "runTarget" | "dryRunTarget"; readonly targetId: string }
   | { readonly action: "stopRun"; readonly runId: string }
   | { readonly action: "selectCaaRelated" | "addCaaRelatedFolder"; readonly projectId: string }
@@ -143,6 +144,13 @@ export class KtcRunController {
     if (action.action === "openTerminal") {
       await vscode.commands.executeCommand("workbench.action.terminal.focus");
       return;
+    }
+    if (action.action === "cleanBuild" || action.action === "cleanObjects" || action.action === "cleanObj") {
+      if (!ctx.workspaceRoot) throw new Error("当前没有可清理的工作目录。");
+      const kind: KtcQuickCleanupKind = action.action === "cleanBuild" ? "build" : action.action === "cleanObjects" ? "objects" : "obj";
+      const result = await KtcCleanWorkspace(ctx.workspaceRoot, kind);
+      ctx.log(`[Run][清理][OK] ${ctx.workspaceRoot}：删除 ${result.deleted.length} 项（${kind}），已跳过 .git。`);
+      this.KtcPostState(ctx); return;
     }
     if (action.action === "setCaaVersion") {
       await this.KtcSetCaaVersion(action.projectId, action.value, ctx);

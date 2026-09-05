@@ -104,7 +104,27 @@ const args = [
 ];
 if (workspacePath) args.push(workspacePath);
 const macCode = "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code";
-const command = process.platform === "darwin" && existsSync(macCode) ? macCode : "code";
+const windowsCodeCandidates = process.platform === "win32"
+  ? [
+      process.env.VSCODE_EXECUTABLE_PATH,
+      process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, "Programs", "Microsoft VS Code", "Code.exe"),
+      process.env.ProgramFiles && join(process.env.ProgramFiles, "Microsoft VS Code", "Code.exe"),
+      process.env["ProgramFiles(x86)"] && join(process.env["ProgramFiles(x86)"], "Microsoft VS Code", "Code.exe"),
+    ].filter(Boolean)
+  : [];
+const windowsCode = windowsCodeCandidates.find((candidate) => existsSync(candidate));
+const command = process.platform === "win32"
+  ? windowsCode
+  : process.platform === "darwin" && existsSync(macCode)
+    ? macCode
+    : "code";
+
+if (!command) {
+  console.error(
+    "未找到 VS Code Code.exe。请安装 VS Code，或通过 VSCODE_EXECUTABLE_PATH 指定 Code.exe 的完整路径。",
+  );
+  process.exit(1);
+}
 
 console.log(prepareOnly ? "准备 Codegen 手工验收工作区 …" : "启动 VS Code Extension Development Host …");
 for (const extensionPath of extensionPaths) console.log(`  插件: ${extensionPath}`);

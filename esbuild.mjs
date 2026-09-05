@@ -175,6 +175,12 @@ const associatedRulePickerOptions = {
   plugins: localWingPlugins,
 };
 
+const autoBuildViewOptions = {
+  entryPoints: ["src/tools/codeAssistant/autoBuildViewEntry.ts"], bundle: true,
+  outfile: "dist/auto-build-view.js", platform: "browser", format: "iife", target: "es2022",
+  sourcemap: true, logLevel: "info", metafile: Boolean(localWing), plugins: localWingPlugins,
+};
+
 /** @type {import('esbuild').BuildOptions} */
 const projectRenameAnalysisOptions = {
   entryPoints: ["src/tools/projectRename/viewEntry.ts"],
@@ -231,6 +237,7 @@ const buildOptions = [
   uuidResultsPanelOptions,
   renameResultsPanelOptions,
   associatedRulePickerOptions,
+  autoBuildViewOptions,
   projectRenameAnalysisOptions,
   ribbonCustomizationMenuOptions,
   extensionHostSmokeOptions,
@@ -248,11 +255,12 @@ if (watch) {
   const uuidResultsPanelContext = await esbuild.context(uuidResultsPanelOptions);
   const renameResultsPanelContext = await esbuild.context(renameResultsPanelOptions);
   const associatedRulePickerContext = await esbuild.context(associatedRulePickerOptions);
+  const autoBuildViewContext = await esbuild.context(autoBuildViewOptions);
   const projectRenameAnalysisContext = await esbuild.context(projectRenameAnalysisOptions);
   const ribbonCustomizationMenuContext = await esbuild.context(ribbonCustomizationMenuOptions);
   await Promise.all([
     extensionContext.watch(), tableContext.watch(), controlCatalogContext.watch(), primaryPanelContext.watch(), applyReportContext.watch(),
-    runPrimaryPanelContext.watch(), gitPrimaryPanelContext.watch(), reorderMembersPanelContext.watch(), uuidResultsPanelContext.watch(), renameResultsPanelContext.watch(), associatedRulePickerContext.watch(), projectRenameAnalysisContext.watch(), ribbonCustomizationMenuContext.watch(),
+    runPrimaryPanelContext.watch(), gitPrimaryPanelContext.watch(), reorderMembersPanelContext.watch(), uuidResultsPanelContext.watch(), renameResultsPanelContext.watch(), associatedRulePickerContext.watch(), autoBuildViewContext.watch(), projectRenameAnalysisContext.watch(), ribbonCustomizationMenuContext.watch(),
   ]);
   console.log("watching extension…");
 } else {

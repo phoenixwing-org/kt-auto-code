@@ -2,6 +2,16 @@
 
 所有显著变更会记录在本文件中。
 
+## 0.8.2（编译工具）
+
+- 代码辅助增加编译工具 View，使用原生 `<details>/<summary>` 内容块和 schema 2 项目表管理仓库、分支与构建操作。
+- 支持多选目录、当前目录探测、相对路径保存、逐行探测/运行/移除，以及 Git、CMake、CAA、linkCAA/linkOut 操作自动识别。
+- Root、3rdParty 与项目仓库可独立更新到指定分支；显示 Commit、Origin 和工作区状态，有本地修改时保留现场并跳过更新。
+- 仓库更新与 Export 内部并行；支持 CMake → CAA 分阶段执行或全部并行，单项失败不阻断其他任务并在最后汇总。
+- 项目 `mk.ps1` 从自身目录无参数运行；日志使用项目目录名，PowerShell 输出兼容 Windows PowerShell 5.1 与 UTF-8。
+- 插件固化自动构建编排脚本，可显式同步到 Root，并可导出工作目录下的可编辑 PS1 脱离 UI 执行。
+- Run 增加 build、objects、`*.obj` 快捷清理；编译 View 增加跳过 `.git` 的 Root 前缀头文件、DLL 和 LIB 清理。
+
 ## 0.8.1（Windows 测试候选）
 
 - 对外名称统一为 **项目改名**。入口位于 Primary 当前工具 Header，并把当前目录、名称和启用规则带入 View 草稿。Primary 的“搜索替换”保留精确搜索替换、最近 50 组 Source/Target 与可选的 Pascal、小写、全大写、空格、kebab、snake 六种简单显式变形；项目共享档案、前缀、CAA/常用/自定义规则和智能候选只由独立 Editor View 管理。
