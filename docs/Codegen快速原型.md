@@ -83,7 +83,7 @@
 - `pnpm ext:verify:codegen -- <临时工作区>` 在 Apply 前检查源码 sha256 基线；完成真实 Apply 后用 `--checkpoint-e` 核对源码确有变化、Start/End 仍配对以及两层缓存类型。
 - 每个临时工作区自带 `.phoenix/codegen-qa-report.json`；验证器只回写机器检查字段，A–F 的人工状态继续保持 pending，便于分晚、分 checkpoint 接续测试。
 - `pnpm ext:report:codegen -- <临时工作区>` 显示当前进度和下一项；记录人工 passed/failed 时会强制 A/C/E verifier、A 诊断复制和 F 深浅主题门禁，不需要手改报告 JSON。
-- 工具界面右上角 `…` 原生菜单按 Primary 工具条顺序提供“打开 JSON / 导入 CSV / 全部应用 / 刷新列表 / 扫描候选源码”，最后一项“复制运行诊断”导出发现、CSV、会话、revision、冲突、缓存和运行中任务摘要；不导出表格单元格及源码内容。Primary 工具条不再重复显示含义不清的诊断图标。
+- “打开 JSON / 导入 CSV / 全部应用 / 刷新列表 / 扫描候选源码 / 复制运行诊断”由 Codegen 当前工具 Block 与命令面板提供；不占用原生 View Header，也不复用 Toolbar Strip 仅用于 Ribbon 定制的唯一 `…`。诊断导出发现、CSV、会话、revision、冲突、缓存和运行中任务摘要，不导出表格单元格及源码内容。
 - 每次用户 single Apply 写一份 single 报告；一次“全部应用”只写一份包含 N 项的 batch 报告。报告使用规则文件名和相对路径原子写入 `.phoenix/reports/codegen/`，Primary“应用报告”列表可在 View 关闭后重新打开。
 - 报告以“正常/有警告/有错误”和“已更新/内容一致/部分更新/未应用”双轴显示；正常零写入是 `正常 · 内容一致`。动态 View 的 Combo 可选全部或单个 JSON，JSON 链接进入 Codegen View，问题链接定位源码。批量执行默认只建立后台 session，不批量创建 JSON Panel。
 - 分阶段人工步骤见 [Codegen 手工验收](codegen-plan/Codegen手工验收.md)。

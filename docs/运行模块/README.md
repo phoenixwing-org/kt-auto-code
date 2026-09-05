@@ -45,8 +45,8 @@ Owner：KT Auto Code maintainers
 - **复现样本**：已发现 9 个项目、70 个目标，多个项目和“内置”分组同时展开。
 - **根因**：Wing Navigation Tree 自带 `overflow:auto` 和 `overscroll-behavior:contain`，嵌入 Current Tool 后形成第二个纵向滚动边界并截获滚轮。
 - **期望行为**：鼠标位于 Run 内容区任意位置时，滚轮或触控板均能连续滚动 Current Tool Block；到达边界后不出现卡住或必须移到滚动条的情况。
-- **修复约束**：不得改变已锁定的“工具栏、目录、当前工具”三 Block 结构，不得恢复 Primary 页面整体纵向滚动。优先保持 Current Tool 为唯一纵向滚动边界；如 Tree 必须保留局部滚动，则必须实现明确的边界事件交接。
-- **修复**：仅在 Run 的 Host 样式中关闭 Tree 自身纵向 overflow/overscroll，继续由 Current Tool 作为唯一滚动边界；不修改 Wing 通用组件，也不改变三 Block 外壳。
+- **修复约束**：不得改变已锁定的“Toolbar Strip、目录行、Current Tool”三个一级区域，不得恢复 Primary 页面整体纵向滚动。优先保持 Current Tool 为唯一纵向滚动边界；如 Tree 必须保留局部滚动，则必须实现明确的边界事件交接。
+- **修复**：仅在 Run 的 Host 样式中关闭 Tree 自身纵向 overflow/overscroll，继续由 Current Tool 作为唯一滚动边界；不修改 Wing 通用组件，也不改变三个一级区域的外壳。
 - **验收范围**：长 Tree、展开/折叠、宽/窄侧栏、鼠标滚轮、触控板、键盘导航，以及深色、浅色和高对比模式。
 
 ## 参考基线

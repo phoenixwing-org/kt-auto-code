@@ -3,7 +3,7 @@
   "displayName": "KT Auto Code",
   "description": "CAA / MSVC C++ 工具：编码修正、Ignore、搜索替换、成员排序与 Codegen 参数表",
   "author": "上海锟钛",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "license": "Apache-2.0",
   "publisher": "kuntai",
   "private": true,
@@ -59,7 +59,7 @@
         {
           "type": "webview",
           "id": "ktAutoCode.modulePanel",
-          "name": "工具栏",
+          "name": "KT Auto Code",
           "visibility": "visible"
         }
       ]
@@ -112,8 +112,8 @@
       },
       {
         "command": "ktAutoCode.ignore.openAdvanced",
-        "title": "KT Auto Code：打开高级 Ignore 配置",
-        "icon": "$(settings-gear)"
+        "title": "KT Auto Code：忽略范围",
+        "icon": "$(exclude)"
       },
       {
         "command": "ktAutoCode.searchReplace.open",
@@ -282,50 +282,17 @@
         "icon": "$(close)"
       }
     ],
-    "submenus": [
-      {
-        "id": "ktAutoCode.modulePanel.more",
-        "label": "更多",
-        "icon": "$(ellipsis)"
-      }
-    ],
     "menus": {
       "view/title": [
         {
-          "command": "ktAutoCode.searchReplace.preview",
+          "command": "ktAutoCode.ignore.openAdvanced",
+          "when": "view == ktAutoCode.modulePanel",
+          "group": "navigation@10"
+        },
+        {
+          "command": "ktAutoCode.environment.open",
           "when": "view == ktAutoCode.modulePanel",
           "group": "navigation@20"
-        },
-        {
-          "submenu": "ktAutoCode.modulePanel.more",
-          "when": "view == ktAutoCode.modulePanel && ktAutoCode.modulePanel.activeTool == codegen",
-          "group": "navigation@8"
-        }
-      ],
-      "ktAutoCode.modulePanel.more": [
-        {
-          "command": "ktAutoCode.codegen.open",
-          "group": "navigation@1"
-        },
-        {
-          "command": "ktAutoCode.codegen.importCsv",
-          "group": "navigation@2"
-        },
-        {
-          "command": "ktAutoCode.codegen.applyAll",
-          "group": "navigation@3"
-        },
-        {
-          "command": "ktAutoCode.codegen.refresh",
-          "group": "navigation@4"
-        },
-        {
-          "command": "ktAutoCode.codegen.scanCandidates",
-          "group": "navigation@5"
-        },
-        {
-          "command": "ktAutoCode.codegen.diagnostics",
-          "group": "navigation@6"
         }
       ]
     },
@@ -567,7 +534,7 @@
             "只显示紧凑图标，悬停查看名称"
           ],
           "default": "ribbon",
-          "description": "Side Bar 顶部工具入口的显示密度。"
+          "description": "Side Bar 顶部工具条的展开方式；左侧箭头可直接切换图标与文字或仅图标。"
         },
         "ktAutoCode.sidebar.blockExpansionMode": {
           "type": "string",
@@ -686,6 +653,8 @@
     "ext:package:local-wing": "node scripts/package-local-wing-vsix.mjs",
     "ext:verify-artifact": "node scripts/verify-extension-artifacts.mjs",
     "ext:release-candidate": "pnpm test && pnpm typecheck && pnpm ext:package && pnpm ext:verify-artifact",
+    "release:preflight": "node scripts/verify-release-target.mjs",
+    "release:receipt": "node scripts/generate-release-receipt.mjs",
     "release:check": "pnpm verify:ci",
     "verify:wing-dependencies": "node scripts/verify-wing-dependencies.mjs",
     "docs:manifest": "node scripts/generate-doc-manifest.mjs",

@@ -7,6 +7,12 @@ import type { KtcIgnoreWorkspaceSnapshot } from "./ignoreRecommendation.js";
 export interface KtcIgnoreWorkspaceSnapshotOptions {
   maxDepth?: number;
   maxEntries?: number;
+  /**
+   * 完整的现有 Ignore 规则快照。传入后不得再从磁盘读取 Git 或 Phoenix Ignore，
+   * 以便 Host 能保留未保存编辑，并统一采用其已解析的 Git 根范围。
+   */
+  existingPatterns?: readonly string[];
+  /** @deprecated 仅覆盖 Phoenix Ignore；新调用方应传入 existingPatterns。 */
   phoenixIgnorePatterns?: readonly string[];
 }
 
@@ -85,13 +91,14 @@ export function ktcCollectIgnoreWorkspaceSnapshot(
   }
 
   walk(root, 1);
-  const phoenixPatterns = options.phoenixIgnorePatterns
-    ? [...options.phoenixIgnorePatterns]
-    : readIgnorePatterns(phoenixIgnoreFile(root));
-  const existingPatterns = [...new Set([
-    ...readIgnorePatterns(gitIgnoreFile(root)),
-    ...phoenixPatterns,
-  ])];
+  const existingPatterns = options.existingPatterns !== undefined
+    ? [...new Set(options.existingPatterns)]
+    : [...new Set([
+      ...readIgnorePatterns(gitIgnoreFile(root)),
+      ...(options.phoenixIgnorePatterns
+        ? [...options.phoenixIgnorePatterns]
+        : readIgnorePatterns(phoenixIgnoreFile(root))),
+    ])];
   return {
     paths,
     trackedPaths: ktcCollectGitTrackedPaths(root),

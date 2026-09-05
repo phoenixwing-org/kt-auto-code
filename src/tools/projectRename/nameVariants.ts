@@ -1,9 +1,11 @@
-import { ktcSplitNameTokens } from "../../core/associatedReplacementRules.js";
 import {
   KTC_PROJECT_RENAME_VARIANT_STYLES,
   type KtcProjectRenameRule,
   type KtcProjectRenameVariantStyle,
 } from "./contracts.js";
+import { ktcProjectRenameNameTokens } from "./nameTokenization.js";
+
+export { ktcProjectRenameNameTokens } from "./nameTokenization.js";
 
 const KTC_PROJECT_RENAME_STYLE_LABELS: Readonly<Record<KtcProjectRenameVariantStyle, string>> = {
   display: "Display",
@@ -35,13 +37,6 @@ export function ktcProjectRenameNameVariants(
     pascal: pascalTokens.join(""),
     "upper-snake": normalized.join("_").toLocaleUpperCase("en-US"),
   };
-}
-
-export function ktcProjectRenameNameTokens(value: string): readonly string[] {
-  return value.trim()
-    .split(/[\s._-]+/u)
-    .flatMap((part) => ktcSplitNameTokens(part))
-    .filter((token) => token.trim() !== "");
 }
 
 export function ktcDeriveProjectRenameRules(

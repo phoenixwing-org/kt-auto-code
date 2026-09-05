@@ -9,11 +9,12 @@ import {
   type KtcCmakePackageHeaderCollision,
   type KtcCmakePackageIncludeMatch,
 } from "../../core/cmakePackageIncludes.js";
+import { isIgnoredPath, shouldSkipDirName } from "../../core/dotIgnore.js";
+import {
+  shouldSkipDefaultDirectoryName,
+  shouldSkipScanSafetyEntryName,
+} from "../../core/workspace/scanScope.js";
 import { ktcDecodeSourceText, ktcEncodeSourceText, type KtcDecodedSourceText } from "../../core/sourceTextCodec.js";
-
-const IGNORED_DIRECTORY_NAMES = new Set([
-  ".git", ".hg", ".svn", ".pnpm-store", "node_modules", "build", "dist", "out",
-]);
 
 export interface KtcPackageIncludePreviewRow {
   readonly id: string;
@@ -31,6 +32,7 @@ export interface KtcPackageIncludePreview {
   readonly targetDirectory: string;
   readonly headerCount: number;
   readonly scannedFileCount: number;
+  readonly ignoredDirectoryCount: number;
   readonly unsupportedFileCount: number;
   readonly skippedHeaderCount: number;
   readonly skippedHeaders: readonly string[];
@@ -90,44 +92,81 @@ async function checkedDirectory(value: string, label: string): Promise<string> {
   return absolute;
 }
 
-async function walkFiles(root: string, extensions: ReadonlySet<string>, signal?: AbortSignal): Promise<string[]> {
+interface KtcPackageIncludeWalkResult {
+  readonly files: readonly string[];
+  readonly ignoredDirectoryCount: number;
+}
+
+async function walkFiles(
+  root: string,
+  extensions: ReadonlySet<string>,
+  ignorePatterns: readonly string[],
+  useBuiltInIgnore: boolean,
+  signal?: AbortSignal,
+): Promise<KtcPackageIncludeWalkResult> {
   const directories = [root];
   const files: string[] = [];
+  let ignoredDirectoryCount = 0;
   while (directories.length > 0) {
     if (signal?.aborted) throw new Error("已停止扫描。");
     const current = directories.pop()!;
     const entries = await readdir(current, { withFileTypes: true });
     for (const entry of entries) {
       if (signal?.aborted) throw new Error("已停止扫描。");
+      if (shouldSkipScanSafetyEntryName(entry.name)) {
+        if (entry.isDirectory()) ignoredDirectoryCount += 1;
+        continue;
+      }
       const filePath = join(current, entry.name);
       if (entry.isDirectory()) {
-        if (!IGNORED_DIRECTORY_NAMES.has(entry.name.toLocaleLowerCase("en-US"))) directories.push(filePath);
+        const relativePath = relative(root, filePath).replace(/\\/g, "/");
+        const ignored = (useBuiltInIgnore && shouldSkipDefaultDirectoryName(entry.name))
+          || shouldSkipDirName(entry.name, [...ignorePatterns])
+          || isIgnoredPath(`${relativePath}/`, [...ignorePatterns]);
+        if (ignored) ignoredDirectoryCount += 1;
+        else directories.push(filePath);
       } else if (entry.isFile() && extensions.has(extname(entry.name).toLocaleLowerCase("en-US"))) {
-        files.push(filePath);
+        const relativePath = relative(root, filePath).replace(/\\/g, "/");
+        if (!isIgnoredPath(relativePath, [...ignorePatterns])) files.push(filePath);
       }
     }
   }
-  return files.sort((a, b) => a.localeCompare(b));
+  return { files: files.sort((a, b) => a.localeCompare(b)), ignoredDirectoryCount };
 }
 
 export async function ktcPreviewPackageIncludes(options: {
   readonly coreIncludeDirectory: string;
   readonly targetDirectory: string;
+  readonly coreIgnorePatterns?: readonly string[];
+  readonly targetIgnorePatterns?: readonly string[];
+  readonly useBuiltInIgnore?: boolean;
   readonly signal?: AbortSignal;
 }): Promise<KtcPackageIncludePreviewSession> {
   const coreIncludeDirectory = await checkedDirectory(options.coreIncludeDirectory, "CORE include 目录");
   const targetDirectory = await checkedDirectory(options.targetDirectory, "目标目录");
-  const coreHeaders = await walkFiles(coreIncludeDirectory, KTC_CMAKE_PACKAGE_HEADER_EXTENSIONS, options.signal);
-  if (coreHeaders.length === 0) {
+  const coreWalk = await walkFiles(
+    coreIncludeDirectory,
+    KTC_CMAKE_PACKAGE_HEADER_EXTENSIONS,
+    options.coreIgnorePatterns ?? [],
+    options.useBuiltInIgnore ?? true,
+    options.signal,
+  );
+  if (coreWalk.files.length === 0) {
     throw new Error("CORE include 中未找到 .h 或 .hpp 文件。");
   }
-  const map = ktcBuildCmakePackageHeaderMap(coreHeaders.map((filePath) => relative(coreIncludeDirectory, filePath)));
+  const map = ktcBuildCmakePackageHeaderMap(coreWalk.files.map((filePath) => relative(coreIncludeDirectory, filePath)));
 
-  const targetFiles = await walkFiles(targetDirectory, KTC_CMAKE_PACKAGE_TARGET_EXTENSIONS, options.signal);
+  const targetWalk = await walkFiles(
+    targetDirectory,
+    KTC_CMAKE_PACKAGE_TARGET_EXTENSIONS,
+    options.targetIgnorePatterns ?? [],
+    options.useBuiltInIgnore ?? true,
+    options.signal,
+  );
   const rows: KtcPackageIncludePreviewRow[] = [];
   const files: KtcPackageIncludeSessionFile[] = [];
   let unsupportedFileCount = 0;
-  for (const filePath of targetFiles) {
+  for (const filePath of targetWalk.files) {
     if (options.signal?.aborted) throw new Error("已停止扫描。");
     const decoded = ktcDecodeSourceText(await readFile(filePath));
     if (!decoded) {
@@ -157,7 +196,8 @@ export async function ktcPreviewPackageIncludes(options: {
       coreIncludeDirectory,
       targetDirectory,
       headerCount: map.mappings.size,
-      scannedFileCount: targetFiles.length,
+      scannedFileCount: targetWalk.files.length,
+      ignoredDirectoryCount: coreWalk.ignoredDirectoryCount + targetWalk.ignoredDirectoryCount,
       unsupportedFileCount,
       skippedHeaderCount: map.skippedUnqualifiedHeaders.length,
       skippedHeaders: map.skippedUnqualifiedHeaders,

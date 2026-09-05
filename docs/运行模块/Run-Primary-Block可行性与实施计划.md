@@ -807,7 +807,7 @@ Navigation Tree 每行使用 `label · description`：目标行的 description �
 
 ### 13.4 2026-08-21 Tree 化人工点检
 
-本轮仅改 Current Tool 内部；外层“工具栏 → 目录 → 当前工具”三 Block 不变。目录为固定单行，Ignore 位于统一设置工具。使用 `pnpm dev` 启动本地 sibling Wing 模式后，点检：
+本轮仅改 Current Tool 内部；外层三段当时保持不变。当前契约以[前端开发规则](../前端开发规则.md)为准：首段为展开/紧凑两态 Toolbar Strip，目录为固定单行，Ignore 由原生 Header 打开独立逻辑工具 View。使用 `pnpm dev` 启动本地 sibling Wing 模式后，点检：
 
 1. 打开 Run：顶部只显示刷新和“仅当前系统”，`Terminal`、`Problems`、`日志`位于“运行辅助”树分组；
 2. 首个项目及其首个有目标分组默认展开；展开/收起任意项目或分组后，刷新模型不应恢复为全部展开；

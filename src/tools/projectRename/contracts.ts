@@ -11,6 +11,11 @@ import type {
   KtcRenamePairHistoryEntry,
 } from "../../core/renameHistory.js";
 
+export type {
+  KtcProjectRenameStructuredCandidate,
+  KtcProjectRenameStructuredDiscovery,
+} from "./structuredDiscoveryContracts.js";
+
 export const KTC_PROJECT_RENAME_VARIANT_STYLES = [
   "display",
   "kebab",
@@ -91,6 +96,10 @@ export interface KtcProjectRenameAnalysisReport {
   readonly sourceName: string;
   readonly targetName: string;
   readonly rules: readonly KtcProjectRenameRule[];
+  /** Ignore patterns frozen when this report was analyzed. */
+  readonly ignorePatterns: readonly string[];
+  /** Whether the frozen report included Phoenix Auto's built-in directory catalog. */
+  readonly useBuiltInIgnore: boolean;
   readonly rootSuggestion?: { readonly currentName: string; readonly suggestedName: string };
   readonly workspaceReport: WorkspaceRenameReport;
   readonly assessments: Readonly<Record<string, KtcProjectRenameHitAssessment>>;

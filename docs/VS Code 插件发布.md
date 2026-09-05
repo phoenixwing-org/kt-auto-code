@@ -9,7 +9,7 @@
 - Marketplace 发布者 ID：`kuntai`
 - Marketplace 发布者名称：`Shanghai Kuntai`
 - 当前版本：以 [`package.json`](../package.json) 的 `version` 为准
-- Marketplace 当前公开版本为 KT Auto Code `0.7.3`，由 `kuntai` 发布；当前本地候选为 `0.8.1`，先交付 Windows 用户点检。`0.7.4` 未单独发布，`0.8.0` 初始候选也已由 `0.8.1` 取代。CAD 当前版本由 [KT Auto CAD 发布说明](https://gitee.com/PhoenixWing321/kt-auto-cad/blob/master/docs/发布.md)维护。
+- 本仓发布记录中最近已发布的 KT Auto Code 版本为 `0.8.1`，由 `kuntai` 发布；`0.7.4` 未单独发布，`0.8.0` 初始候选也已由 `0.8.1` 取代。下一目标 `0.8.3` 必须先整体合入正式 `0.8.2`，不能把当前开发分支冒充最终候选。CAD 当前版本由 [KT Auto CAD 发布说明](https://gitee.com/PhoenixWing321/kt-auto-cad/blob/master/docs/发布.md)维护。
 - 开源许可：[Apache License 2.0](../LICENSE)
 
 当前扩展标识由下列清单字段组成：
@@ -21,14 +21,14 @@
 }
 ```
 
-## 0.8.1 Windows 测试候选（2026-09-02）
+## 0.8.1 已发布（2026-09-04）
 
 本轮 Auto 目标版本为 `kuntai.kt-auto-code@0.8.1`。它承接 `0.8.0` 的项目改名核心，并完成 Primary / Editor View 职责拆分、输入与方案历史、紧凑布局和写盘前原生 Diff；`0.8.0` 不再作为安装或发布输入。
 
 - Primary 保留适合 CAA、C++ 和简单 Web 项目的精确替换与六种简单显式变形；复杂规则档案、前缀、CAA/常用/自定义规则和智能候选进入 **项目改名** View。
 - 写盘前使用冻结报告生成 VS Code 原生只读 Diff，并复验文件 SHA-256、编码与命中数；写盘后的 Git 对比继续使用原生 SCM。
 - Phoenix Wing 根包按 npm Registry 最新 `0.7.2` 适配；Auto 六个 scoped 依赖继续精确使用四个 `0.6.4` 与两个 `0.6.3`。
-- 正式上传前以 [0.8.1 发布准备](./0.8.1发布准备.md)中的 Windows 矩阵和本地制品哈希为准；AI 不执行 Marketplace 上传、push 或 tag。
+- 发布身份、Windows 后续质量矩阵和本地制品哈希见 [0.8.1 发布准备](./0.8.1发布准备.md)；Marketplace 上传由用户完成，AI 未执行 push、tag 或远端发布。
 
 ## 0.8.0 Windows 测试候选（2026-09-01，已由 0.8.1 取代）
 
@@ -178,39 +178,48 @@ Marketplace 机器回执已确认发布完成：`kuntai.kt-auto-code@0.5.1` 的�
 日常 `pnpm dev` 与 `pnpm ext:dev:prepare` 用于消费并列本地 Wing 的开发联调，不作为正式发布来源。正式候选使用固定且可复用的 detached worktree；目录名不携带版本，版本身份由切入的 tag 或完整 commit 决定：
 
 ```text
-phoenix/.worktrees/
+phoenix/worktrees/
 └── kt-auto-code-release/
 ```
 
 首次建立：
 
 ```bash
-git worktree add --detach ../.worktrees/kt-auto-code-release <tag或commit>
+git worktree add --detach ../worktrees/kt-auto-code-release <tag或commit>
 ```
 
 后续发布不需要重建目录，只需把 Auto worktree 切到本轮已经点检的 tag 或 commit，并确认 tracked 工作区为空：
 
 ```bash
-git -C ../.worktrees/kt-auto-code-release switch --detach <tag或commit>
-git -C ../.worktrees/kt-auto-code-release status --short
+git -C ../worktrees/kt-auto-code-release switch --detach <tag或commit>
+git -C ../worktrees/kt-auto-code-release status --short
 ```
 
 Auto Code 正式候选：
 
 ```bash
-cd ../.worktrees/kt-auto-code-release
+cd ../worktrees/kt-auto-code-release
 pnpm install --frozen-lockfile
+pnpm release:preflight --expected-version 0.8.3 --expected-commit FULL_COMMIT_OID
 env -u PHOENIX_WING_ROOT -u PHOENIX_WING_DEV_MODE pnpm release:check
+pnpm release:receipt --expected-version 0.8.3 --expected-commit FULL_COMMIT_OID
 ```
 
-制品位于仓库根 `dist/vsix/kt-auto-code-<version>.vsix`，相邻 `.vsix.sha256` 由打包入口生成并由制品门禁复核。根 `dist/` 已被 Git 忽略；`dist/*.js` 保存扩展运行 bundle，`dist/vsix/` 保存发布制品。`pnpm package` 等价于 Auto 内部的 `pnpm ext:package`。发布 worktree 可以重复使用；若需要长期保留某次发布现场，再另外建立带版本号的只读 worktree。
+`release:preflight` 必须显式接收已确认的版本号和完整 commit OID，不会自动从当前分支推断发布目标。它要求 `package.json` 版本与 CHANGELOG 首个版本标题都等于显式目标，且首项不能仍标记为“开发中”；当前 HEAD 必须精确等于该 OID、处于 detached 状态且工作树干净，并且当前进程使用 Node 22 和 `packageManager` 锁定的 pnpm 版本。普通分支工作树即使 clean 也会被拒绝，避免日常开发目录被误当成最终发布现场。`PHOENIX_WING_ROOT` 或 `PHOENIX_WING_DEV_MODE` 即使是空值也会被视为本地 Wing 环境泄漏并拒绝继续；先清理 shell 环境，再重跑目标门禁。
+
+该命令只负责锁定“本次到底在发哪个版本、哪个 commit”，不替代 `pnpm install --frozen-lockfile` 或 `pnpm release:check`。因为目标参数必须由发布人确认，它也不会以无参数形式嵌入通用 CI 或现有 `release:check`。最终 `0.8.3` 候选需先完成版本号与 CHANGELOG 收口、提交并记录完整 OID，再把上述 `FULL_COMMIT_OID` 替换为该值。
+
+制品位于仓库根 `dist/vsix/kt-auto-code-<version>.vsix`。Registry 打包入口在 VSIX、`.vsix.sha256` 之外生成 `.vsix.build-provenance.json`：它记录打包前后观察到的完整 Git OID 和工作树状态摘要，并与制品 SHA-256 绑定；普通脏工作树仍可打测试包，但来源会明确标成 `sourceCleanAndStable=false`。这个字段只证明必要的源码现场条件，不单独宣称制品可发布。最后执行 `release:receipt` 时仍须显式传入相同的版本和完整 commit；它先复用 `release:preflight`，再真实运行现有 VSIX verifier，只有 verifier 成功、构建来源 clean/stable，且机器证据中的 SHA、字节数、旁路文件与当前磁盘内容仍一致时，才原子写入 `dist/vsix/kt-auto-code-<version>.release-receipt.json`。回执记录版本、完整 commit、VSIX 内文件数、字节数与 SHA-256，不打包、不改版本，也不执行 push、tag、Marketplace 上传或发布。
+
+根 `dist/` 已被 Git 忽略；`dist/*.js` 保存扩展运行 bundle，`dist/vsix/` 保存发布制品和本地回执。`pnpm package` 等价于 Auto 内部的 `pnpm ext:package`。发布 worktree 可以重复使用；若需要长期保留某次发布现场，再另外建立带版本号的只读 worktree。
 
 KT Auto CAD 的 worktree、`release:check` 和制品规则由 [CAD 仓发布说明](https://gitee.com/PhoenixWing321/kt-auto-cad/blob/master/docs/发布.md)独立维护，本文不再复制。
 
 ### TODO：发布入口收敛
 
-- [ ] 增加受控发布脚本：接收 tag/commit，检查 release worktree、Node/pnpm、clean 状态和 frozen lockfile，并执行正式门禁。
-- [ ] 在现有 `.vsix.sha256` 基础上，自动生成包含 commit、版本、文件数与字节数的本地发布回执；脚本不得自动 push、创建 tag 或上传 Marketplace。
+- [x] 增加独立发布目标预检：显式接收版本和完整 commit OID，检查 manifest/CHANGELOG、HEAD、clean 状态、Node/pnpm 与本地 Wing 环境泄漏。
+- [ ] 若后续需要单一发布编排入口，再评审由它建立/切换 release worktree、执行 frozen lockfile 安装与正式门禁的边界；当前 `release:preflight` 不执行这些操作。
+- [x] 在现有 `.vsix.sha256` 和 VSIX verifier 基础上增加打包前后 Git 来源回执，并生成包含版本、完整 commit、文件数、字节数与 SHA-256 的本地发布回执；脏或不稳定来源不能成为正式回执，脚本不打包、不改版本，也不执行 push、创建 tag 或上传 Marketplace。
 
 ## 本地构建、验证与发布
 

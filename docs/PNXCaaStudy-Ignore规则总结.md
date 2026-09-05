@@ -8,7 +8,7 @@
 | 来源 | 特征 | 结论 |
 | --- | --- | --- |
 | 根 `.gitignore` | CAA 平台目录、CMake build、用户本地工具配置 | 项目级组合规则 |
-| 根 `.phoenix/.ignore` | 与根 `.gitignore` 内容相同 | 同步镜像，不是第二套规则源 |
+| 根 `.phoenix/.ignore` | 历史内容与根 `.gitignore` 相同 | 旧同步镜像；0.8.3 起定义为独立“自定义忽略”，新文件不再自动复制 Git 规则 |
 | `PNXBomAnalysisWsp`、`PNXCurveDivisionWsp`、`PNXV5V6AdapterWsp` | 相同的原生编译产物和 CAA mkmk 目录 | 可提炼为稳定的 CAA/native-build 基线 |
 | `PNXTemplateBaseWsp` | 标准 Wsp 规则外增加 `*.bat`、`.vscode` | 模板项目特例，存在误忽略风险 |
 | `PNXCombinedCurveWsp` | 只含 5 条 CAA 目录/文件规则 | 最小 CAA 基线样例 |
@@ -69,6 +69,8 @@ Objects/
 
 ## 5. 产品落点
 
+- 0.8.3 的默认“插件忽略”直接覆盖上述稳定 CAA 生成目录，并按大小写无关匹配；这能阻止头文件引用修正扫描编译后生成的 `ImportedInterfaces`。
+- Git Ignore 与自定义 `.phoenix/.ignore` 是两个独立可勾选来源；空自定义不创建文件，统一定义见 [Phoenix Auto 统一 Ignore 方案](./Phoenix-Auto统一Ignore方案.md)。
 - `CAA`、`C++`、`Web` 继续作为安全快捷预设。
 - JSON 目录支持多标签查询和工作区扩展；分析 View 已按证据推荐独立小组，所有小组默认未选。
 - `review-required` 分类必须由用户显式选择，并在追加前显示规则摘要。

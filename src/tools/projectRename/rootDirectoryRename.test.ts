@@ -26,6 +26,11 @@ describe("project rename root directory plan", () => {
       "renamed-workspace-parent",
       ["/workspace/phoenix-open-issue"],
     ).allowed).toBe(false);
+    expect(ktcPlanProjectRenameRootDirectory(
+      "/workspace",
+      "renamed-workspace-parent",
+      ["/workspace/..project"],
+    ).allowed).toBe(false);
   });
 
   it("允许改名工作区中的普通子目录", () => {
@@ -38,6 +43,20 @@ describe("project rename root directory plan", () => {
 
   it("拒绝路径穿越和无变化名称", () => {
     expect(ktcPlanProjectRenameRootDirectory("/repos/old", "../new", []).allowed).toBe(false);
+    expect(ktcPlanProjectRenameRootDirectory("/repos/old", "..\\new", []).allowed).toBe(false);
+    expect(ktcPlanProjectRenameRootDirectory("/repos/old", "nested\\new", []).allowed).toBe(false);
     expect(ktcPlanProjectRenameRootDirectory("/repos/old", "old", []).allowed).toBe(false);
+  });
+
+  it.each([
+    "CON",
+    "NUL.txt",
+    "new:name",
+    "new.",
+    "new ",
+    "n".repeat(256),
+    "中".repeat(86),
+  ])("拒绝跨平台非法的仓库根目录名称：%s", (name) => {
+    expect(ktcPlanProjectRenameRootDirectory("/repos/old", name, []).allowed).toBe(false);
   });
 });

@@ -110,15 +110,22 @@ describe("sidebar panel HTML", () => {
     expect(html.indexOf('id="replace-scope"')).toBeLessThan(html.indexOf('id="replace-search"'));
     expect(html).toContain('type: "pickWorkingDirectory"');
     expect(html).toContain('type: "selectWorkingDirectory"');
-    expect(html).toContain('type: "setPluginIgnoreEnabled"');
     expect(html).toContain('id="working-context"');
+    expect(html).toContain('.working-context-main { display: grid; grid-template-columns: minmax(0, 1fr) 30px;');
     expect(html).toContain('class="working-context-label">目录</span>');
-    expect(html).toContain('class="working-context-context-icon" viewBox="0 0 24 24" aria-hidden="true"');
-    expect(html).toContain('id="btn-open-settings"');
+    expect(html).toContain('.working-context-label { flex: 0 0 auto; margin-left: 18px;');
+    expect(html).not.toContain('working-context-context-icon');
+    expect(html).not.toContain('id="btn-open-settings"');
     expect(html).toContain('toolId: "environmentSettings"');
-    expect(html).toContain('id="plugin-ignore-enabled"');
-    expect(html).toContain('<summary><svg class="ignore-manager-chevron"');
-    expect(html).toContain('<span>Ignore 管理</span></summary>');
+    expect(html).toContain('<ktc-ignore-primary-panel id="ignore-panel" hidden>');
+    expect(html).toContain('test-webview:/extension/dist/ktc-ignore-primary-panel.js');
+    expect(html).toContain('"ktc-ignore-primary-action"');
+    expect(html).toContain('els.ignorePanel.model = {');
+    expect(html).toContain('type: "openIgnoreTarget", target: detail.target');
+    expect(html).toContain('type: "applyIgnoreRules"');
+    expect(html).toContain('type: "applyIgnoreRecommendations"');
+    expect(html).not.toContain('id="ignore-manager"');
+    expect(html).not.toContain('id="plugin-ignore-enabled"');
     expect(html).toContain('class="settings-section-chevron"');
     expect(html).toContain('.settings-section[open] .settings-section-chevron { transform: rotate(0deg); }');
     expect(html).toContain('<span>工程环境</span></summary>');
@@ -128,10 +135,7 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('id="plugin-setting-values" aria-label="CAA 插件设置当前值"');
     expect(html).toContain('item.label + " · " + item.value + " · " + item.source');
     expect(html).toContain('role="treeitem" title="打开 KT Auto Code 的 VS Code 设置"');
-    expect(html.indexOf('class="ignore-manager-status"')).toBeGreaterThan(html.indexOf('id="ignore-manager"'));
-    expect(html.indexOf('id="plugin-ignore-enabled"')).toBeGreaterThan(html.indexOf('class="ignore-manager-status"'));
-    expect(html.indexOf('id="ignore-manager"')).toBeGreaterThan(html.indexOf('id="environment-block"'));
-    expect(html).toContain('.ignore-manager[open] .ignore-manager-chevron { transform: rotate(0deg); }');
+    expect(html.indexOf('id="ignore-panel"')).toBeLessThan(html.indexOf('id="environment-block"'));
     expect(html).not.toContain('id="replace-ignored"');
     expect(html).toContain('"最近 · " + directory');
     expect(html).toContain('"外部 · " + directory');
@@ -201,7 +205,7 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('syncRenameResultsPanel(ts)');
     expect(html).toContain('"pnw-code-rename-results-action"');
     expect(html).not.toContain('renderCodeRenameResults(ts)');
-    expect(html).toContain('renderIgnoreResults(ts)');
+    expect(html).toContain('syncIgnorePrimaryPanel(state.toolStates.ignoreSettings || { status: "idle" })');
     expect(html).toContain('<ktc-uuid-results-panel id="uuid-results-panel" hidden>');
     expect(html).toContain("test-webview:/extension/dist/uuid-results-panel.js");
     expect(html).toContain('syncUuidResultsPanel(ts)');
@@ -266,7 +270,7 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('action: "pick"');
     expect(html).toContain('action: "set"');
     expect(html).toContain('action: "clear"');
-    expect(html).toContain('id="btn-apply-ignore-recommendations"');
+    expect(html).not.toContain('id="btn-apply-ignore-recommendations"');
     expect(html).toContain('type: "uuidAction"');
     expect(html).toContain('id="uuid-options"');
     expect(html).toContain('id="uuid-strategy"');
@@ -308,19 +312,47 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('id="ribbon-shell"');
     expect(html).toContain('id="working-context-shell"');
     expect(html).toContain('id="primary-shell"');
-    expect(html).toContain('id="btn-toggle-ribbon-block"');
+    expect(html).toContain('id="btn-toggle-ribbon-mode"');
+    expect(html).not.toContain('id="btn-toggle-ribbon-block"');
     expect(html).toContain('id="btn-toggle-primary-block"');
     expect(html).not.toContain('id="btn-toggle-working-context"');
     expect(html.match(/<svg class="shell-block-chevron" viewBox="0 0 16 16" aria-hidden="true">/gu)).toHaveLength(2);
     expect(html.match(/M7\.976 10\.072l4\.357-4\.357\.62\.618L7\.976 11\.31 3 6\.333l\.62-\.618 4\.356 4\.357z/gu)).toHaveLength(9);
+    expect(html).toContain('id="replace-ignore-summary"');
+    expect(html).toContain('id="replace-ignore-builtin" type="checkbox" checked');
+    expect(html).toContain('id="replace-ignore-git" type="checkbox" checked');
+    expect(html).toContain('id="replace-ignore-custom-enabled" type="checkbox"');
+    expect(html).toContain('id="replace-ignore-custom-patterns"');
+    expect(html).toContain('type: "savePrimaryCustomIgnore", patterns');
+    expect(html).toContain('type: "setIgnoreSourceEnabled", source: "builtIn"');
+    expect(html).toContain('自定义规则非空时才保存到当前项目 .phoenix/.ignore');
     expect(html).toContain('.shell-block.collapsed .shell-block-chevron { transform: rotate(-90deg); }');
     expect(html).toContain('.shell-block-header { display: flex; min-height: 24px; align-items: center; gap: 2px; padding: 0 4px;');
     expect(html).toContain('font-size: var(--vscode-font-size); font-weight: 600;');
-    expect(html).toContain('#ribbon-body { padding: 6px 14px 4px; }');
+    expect(html).toContain('#ribbon-body { padding: 0; }');
     expect(html).toContain('#ribbon-body .tabs { margin: 0; border-bottom: 0; padding-bottom: 0; }');
+    expect(html).toContain('.ribbon-strip { display: grid; min-width: 0; grid-template-columns: 24px minmax(0, 1fr) 24px;');
+    expect(html).toContain('.ribbon-shell.compact .ribbon-track { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }');
+    expect(html).toContain('width: max-content;');
+    expect(html).toContain('flex-wrap: nowrap;');
+    expect(html).toContain('.tabs.compact .module-group-label { display: none; }');
+    expect(html).toContain('group.setAttribute("role", "group")');
+    expect(html).toContain('group.setAttribute("aria-label", (moduleTools[0].moduleTitle || moduleId) + " 模块")');
+    expect(html).toContain('icon.className = "tool-icon-fallback"');
+    expect(html).toContain('Array.from(String(t.shortTitle || t.title || "?").trim())[0] || "?"');
+    expect(html).toContain('icon.setAttribute("aria-hidden", "true")');
+    expect(html).toContain('aria-pressed="false"');
+    expect(html).toContain('aria-label="仅显示工具图标"');
+    expect(html).not.toContain('aria-controls="ribbon-body"');
+    expect(html).not.toContain('setAttribute("aria-expanded", compact ? "false" : "true")');
     expect(html).not.toContain('class="shell-block-chevron">⌄</span>');
     expect(html).toContain('id="btn-ribbon-customize"');
-    expect(html).toContain('id="btn-ribbon-density"');
+    expect(html).not.toContain('id="btn-ribbon-ignore"');
+    expect(html).not.toContain('id="btn-ribbon-density"');
+    expect(html.match(/id="btn-ribbon-customize"/gu)).toHaveLength(1);
+    expect(html).toContain('els.ignorePanel.hidden = !ignore');
+    expect(html).toContain('els.environmentBlock.hidden = !environment');
+    expect(html).not.toContain('els.btnRibbonIgnore.onclick');
     expect(html).toContain('id="code-assistant-block"');
     expect(html).toContain('id="code-assistant-tree-section"');
     expect(html).toContain('<span>功能目录</span>');
@@ -356,10 +388,14 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('if (!treeUi.reorderActionsExpanded && !treeUi.reorderResultsExpanded)');
     expect(html).toContain('els.codeAssistantGenericActions.open = true');
     expect(html).not.toContain('code-assistant-tree-group-count');
-    expect(html).toContain('if (state.ribbonBlockCollapsed) {');
-    expect(html).toContain('type: "toggleRibbonDensity"');
+    expect(html).toContain('pendingRibbonCollapseMigration = saved.ribbonBlockCollapsed === true');
+    expect(html).toContain('type: "setRibbonStyle", style: state.sidebarStyle');
+    expect(html).toContain('type: "setRibbonStyle", style: "compact"');
     expect(html).toContain('id="btn-close-tool"');
-    expect(html).toContain('state.ribbonBlockCollapsed = !state.ribbonBlockCollapsed');
+    expect(html).not.toContain('state.ribbonBlockCollapsed = !state.ribbonBlockCollapsed');
+    expect(html).toContain('state.sidebarStyle = state.sidebarStyle === "compact" ? "ribbon" : "compact"');
+    expect(html).toContain('setAttribute("aria-pressed", compact ? "true" : "false")');
+    expect(html).toContain('setAttribute("aria-label", "仅显示工具图标")');
     expect(html).not.toContain('state.workingContextCollapsed = !state.workingContextCollapsed');
     expect(html).toContain('state.primaryBlockCollapsed = !state.primaryBlockCollapsed');
     expect(html).toContain('if (initialized && activeToolChanged) state.primaryBlockCollapsed = false');
@@ -499,8 +535,8 @@ describe("sidebar panel HTML", () => {
   it("只贡献一个自动高度 View，并在内部提供三个 VS Code 风格 Block", () => {
     const manifest = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as {
       contributes: {
-        viewsContainers?: { activitybar?: Array<{ id: string }> };
-        views: Record<string, Array<{ id: string; initialSize?: number; when?: string }>>;
+        viewsContainers?: { activitybar?: Array<{ id: string; title?: string }> };
+        views: Record<string, Array<{ id: string; name?: string; type?: string; initialSize?: number; when?: string }>>;
         commands: Array<{ command: string; title: string; category?: string; icon?: string }>;
         submenus: Array<{ id: string; label: string; icon?: string }>;
         menus: Record<string, Array<{ command?: string; submenu?: string; group?: string; when?: string }>>;
@@ -511,6 +547,12 @@ describe("sidebar panel HTML", () => {
     expect(manifest.contributes.views["kt-auto-code"]?.map((view) => view.initialSize)).toEqual([undefined]);
     expect(manifest.contributes.viewsContainers?.activitybar).toHaveLength(1);
     expect(manifest.contributes.viewsContainers?.activitybar?.[0]?.id).toBe("kt-auto-code");
+    expect(manifest.contributes.viewsContainers?.activitybar?.[0]?.title).toBe("KT Auto Code");
+    expect(manifest.contributes.views["kt-auto-code"]?.[0]).toMatchObject({
+      id: "ktAutoCode.modulePanel",
+      name: "KT Auto Code",
+      type: "webview",
+    });
     expect(manifest.contributes.views["kt-auto-code"]?.[0]?.when).toBeUndefined();
     expect(manifest.contributes.menus["view/item/context"]).toBeUndefined();
     expect(manifest.contributes.commands.filter((command) => [
@@ -528,11 +570,7 @@ describe("sidebar panel HTML", () => {
       { command: "ktAutoCode.codegen.scanCandidates", title: "扫描候选源码", category: "KT Auto Code", icon: "$(search)" },
       { command: "ktAutoCode.codegen.diagnostics", title: "复制运行诊断", category: "KT Auto Code", icon: "$(pulse)" },
     ]);
-    expect(manifest.contributes.submenus).toContainEqual({
-      id: "ktAutoCode.modulePanel.more",
-      label: "更多",
-      icon: "$(ellipsis)",
-    });
+    expect(manifest.contributes.submenus).toBeUndefined();
     expect(manifest.contributes.menus["view/title"]).not.toContainEqual(expect.objectContaining({
       command: "ktAutoCode.ribbon.customize",
     }));
@@ -541,22 +579,25 @@ describe("sidebar panel HTML", () => {
       expect.objectContaining({ command: "ktAutoCode.module.code.hide" }),
       expect.objectContaining({ command: "ktAutoCode.sidebar.toggleStyle" }),
     ]));
-    expect(manifest.contributes.menus["view/title"]).toContainEqual({
-      submenu: "ktAutoCode.modulePanel.more",
-      when: "view == ktAutoCode.modulePanel && ktAutoCode.modulePanel.activeTool == codegen",
-      group: "navigation@8",
-    });
+    expect(manifest.contributes.menus["view/title"]).toEqual([
+      {
+        command: "ktAutoCode.ignore.openAdvanced",
+        when: "view == ktAutoCode.modulePanel",
+        group: "navigation@10",
+      },
+      {
+        command: "ktAutoCode.environment.open",
+        when: "view == ktAutoCode.modulePanel",
+        group: "navigation@20",
+      },
+    ]);
+    expect(manifest.contributes.menus["view/title"]).not.toContainEqual(expect.objectContaining({
+      command: "ktAutoCode.searchReplace.preview",
+    }));
     expect(manifest.contributes.menus["view/title"]).not.toContainEqual(expect.objectContaining({
       command: "ktAutoCode.modulePanel.close",
     }));
-    expect(manifest.contributes.menus["ktAutoCode.modulePanel.more"]).toEqual([
-      { command: "ktAutoCode.codegen.open", group: "navigation@1" },
-      { command: "ktAutoCode.codegen.importCsv", group: "navigation@2" },
-      { command: "ktAutoCode.codegen.applyAll", group: "navigation@3" },
-      { command: "ktAutoCode.codegen.refresh", group: "navigation@4" },
-      { command: "ktAutoCode.codegen.scanCandidates", group: "navigation@5" },
-      { command: "ktAutoCode.codegen.diagnostics", group: "navigation@6" },
-    ]);
+    expect(manifest.contributes.menus["ktAutoCode.modulePanel.more"]).toBeUndefined();
     expect(Object.keys(manifest.contributes.configuration.properties)).not.toEqual(expect.arrayContaining([
       "ktAutoCode.environment.rootDir",
       "ktAutoCode.environment.rootDir3rdParty",

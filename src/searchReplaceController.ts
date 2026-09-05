@@ -60,7 +60,12 @@ export class KtcSearchReplaceController {
         scope: location.scope,
         includePaths: request.includePaths,
         includeIgnored: request.includeIgnored ?? false,
-        ignorePatterns: resolveWorkspaceIgnorePatterns(location.root, request.pluginIgnoreEnabled ?? true),
+        ignorePatterns: resolveWorkspaceIgnorePatterns(location.root, {
+          builtInIgnoreEnabled: request.builtInIgnoreEnabled ?? true,
+          gitIgnoreEnabled: request.gitIgnoreEnabled ?? true,
+          customIgnoreEnabled: request.customIgnoreEnabled ?? request.pluginIgnoreEnabled ?? false,
+        }),
+        useBuiltInIgnore: request.builtInIgnoreEnabled ?? true,
         apply: false,
         searchOnly: !apply,
       };

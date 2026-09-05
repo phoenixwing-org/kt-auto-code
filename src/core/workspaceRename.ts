@@ -2,6 +2,7 @@ import {
   existsSync,
   lstatSync,
   readFileSync,
+  realpathSync,
   readdirSync,
   renameSync,
   statSync,
@@ -11,8 +12,12 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } 
 import { createHash } from "node:crypto";
 import { isIgnoredPath, loadDotIgnore } from "./dotIgnore.js";
 import { detectFileEncoding, type DetectedEncoding } from "./fileEncoding.js";
-import { DEFAULT_SKIP_DIR_NAMES } from "./workspace/scanScope.js";
+import {
+  shouldSkipDefaultDirectoryName,
+  shouldSkipScanSafetyEntryName,
+} from "./workspace/scanScope.js";
 import { ktcIsPathInsideWorkspace } from "./workspace/workspacePath.js";
+import { ktcRenamePathSegmentProblem, ktcRenamePathsReferToSameEntry } from "./renamePathSegment.js";
 import {
   replaceBufferByRules,
   replaceStringByRules,
@@ -39,7 +44,9 @@ export interface WorkspaceRenameOptions {
   includePaths?: readonly string[];
   includeIgnored?: boolean;
   ignorePatterns?: readonly string[];
-  /** Allow selected project workflows to include .github/.vscode style directories. */
+  /** Apply the Phoenix Auto built-in generated/cache directory catalog. */
+  useBuiltInIgnore?: boolean;
+  /** @deprecated Ordinary dot directories now follow explicit Ignore rules. */
   includeDotDirectories?: boolean;
   apply?: boolean;
   /** Find matching text and names without calculating or writing replacements. */
@@ -93,7 +100,7 @@ interface WalkEntry {
 // then rename files, and finally rename directories.
 const LEVEL_ORDER: readonly RenameLevel[] = ["text", "file", "dir"];
 const BINARY_PROBE_BYTES = 8192;
-const TEMP_RENAME_SUFFIX = ".__kt_rename_tmp__";
+const TEMP_RENAME_BASENAME = ".__kt_rename_tmp__";
 const BINARY_EXTENSIONS = new Set([
   ".7z", ".a", ".bmp", ".bz2", ".class", ".dll", ".dylib", ".eot", ".exe",
   ".fcstd", ".gif", ".gz", ".icns", ".ico", ".jpeg", ".jpg", ".o", ".otf",
@@ -131,7 +138,7 @@ function validateOptions(opts: WorkspaceRenameOptions, rules: readonly ResolvedR
   }
   if (opts.levels.some((level) => level !== "text")) {
     for (const value of rules.flatMap((rule) => [rule.search, rule.replace])) {
-      if (basename(value) !== value || value === "." || value === "..") {
+      if (/[/\\\0]/u.test(value) || basename(value) !== value || value === "." || value === "..") {
         throw new Error("目录/文件改名只接受名称，不允许路径分隔符");
       }
     }
@@ -181,9 +188,10 @@ function collectEntries(opts: WorkspaceRenameOptions, root: string, start: strin
         continue;
       }
       const relativePath = normalizeRelativePath(relative(root, fullPath));
+      if (shouldSkipScanSafetyEntryName(name)) continue;
       if (!opts.includeIgnored && isIgnoredPath(relativePath, patterns)) continue;
       if (stat.isDirectory()) {
-        if (DEFAULT_SKIP_DIR_NAMES.has(name) || (!opts.includeDotDirectories && name.startsWith("."))) continue;
+        if (opts.useBuiltInIgnore !== false && shouldSkipDefaultDirectoryName(name)) continue;
         out.push({ fullPath, relativePath, kind: "dir" });
         walk(fullPath);
       } else if (stat.isFile()) {
@@ -329,13 +337,38 @@ function pathIdentity(fullPath: string): string {
     : fullPath;
 }
 
+function pathEntryExists(fullPath: string): boolean {
+  try {
+    lstatSync(fullPath);
+    return true;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    // Unexpected lookup failures are treated as occupied. A later rename must
+    // never overwrite a path merely because its metadata was unreadable.
+    return code !== "ENOENT" && code !== "ENOTDIR";
+  }
+}
+
 function isSameFileSystemEntry(source: string, destination: string): boolean {
   if (source === destination) return true;
-  if (!existsSync(destination)) return false;
+  // A hard link is the same inode but still a distinct occupied path. Only a
+  // case-insensitive alias of the source may be treated as the same entry.
+  if (pathIdentity(source) !== pathIdentity(destination)) return false;
+  if (!pathEntryExists(destination)) return false;
   try {
-    const sourceStat = statSync(source);
-    const destinationStat = statSync(destination);
-    return sourceStat.dev === destinationStat.dev && sourceStat.ino === destinationStat.ino;
+    // realpath preserves the distinct directory entry on a case-sensitive
+    // volume, so same-inode hard links cannot masquerade as a case alias.
+    const sourceStat = lstatSync(source);
+    const destinationStat = lstatSync(destination);
+    // A destination symlink is an independently occupied directory entry even
+    // when it resolves to the source; renaming over it would destroy the link.
+    if (sourceStat.isSymbolicLink() || destinationStat.isSymbolicLink()) return false;
+    return ktcRenamePathsReferToSameEntry(
+      realpathSync.native(source),
+      realpathSync.native(destination),
+      sourceStat,
+      destinationStat,
+    );
   } catch {
     return false;
   }
@@ -349,6 +382,11 @@ function pathConflictDetails(
   const byDestination = new Map<string, Array<{ entry: WalkEntry; relativePath: string }>>();
 
   for (const entry of entries) {
+    const segmentProblem = ktcRenamePathSegmentProblem(replacedBaseName(entry, rules));
+    if (segmentProblem) {
+      conflicts.set(entry.fullPath, segmentProblem);
+      continue;
+    }
     const destination = destinationFor(entry, rules);
     const key = pathIdentity(destination.fullPath);
     const group = byDestination.get(key) ?? [];
@@ -365,7 +403,7 @@ function pathConflictDetails(
   for (const entry of entries) {
     if (conflicts.has(entry.fullPath)) continue;
     const destination = destinationFor(entry, rules);
-    if (existsSync(destination.fullPath)
+    if (pathEntryExists(destination.fullPath)
       && !isSameFileSystemEntry(entry.fullPath, destination.fullPath)) {
       conflicts.set(entry.fullPath, `目标已存在：${destination.relativePath}`);
     }
@@ -377,25 +415,20 @@ function safeRename(entry: WalkEntry, rules: readonly ResolvedReplacementRule[])
   const replacedName = replacedBaseName(entry, rules);
   const destination = destinationFor(entry, rules).fullPath;
   if (entry.fullPath === destination) return;
-  if (existsSync(destination)) {
-    let sameFile = false;
-    try {
-      sameFile = statSync(entry.fullPath).ino === statSync(destination).ino;
-    } catch {
-      sameFile = false;
-    }
-    if (!sameFile) throw new Error(`目标已存在：${destination}`);
+  if (pathEntryExists(destination) && !isSameFileSystemEntry(entry.fullPath, destination)) {
+    throw new Error(`目标已存在：${destination}`);
   }
   if (basename(entry.fullPath).toLowerCase() === replacedName.toLowerCase()) {
-    let temporary = `${entry.fullPath}${TEMP_RENAME_SUFFIX}`;
+    const parent = dirname(entry.fullPath);
+    let temporary = join(parent, TEMP_RENAME_BASENAME);
     let index = 0;
-    while (existsSync(temporary)) temporary = `${entry.fullPath}${TEMP_RENAME_SUFFIX}${++index}`;
+    while (pathEntryExists(temporary)) temporary = join(parent, `${TEMP_RENAME_BASENAME}${++index}`);
     renameSync(entry.fullPath, temporary);
     try {
       renameSync(temporary, destination);
     } catch (error) {
       try {
-        if (!existsSync(entry.fullPath)) renameSync(temporary, entry.fullPath);
+        if (!pathEntryExists(entry.fullPath)) renameSync(temporary, entry.fullPath);
       } catch {
         throw new Error(`仅大小写改名失败，且无法恢复临时路径：${temporary}`);
       }
@@ -508,6 +541,7 @@ export function runWorkspaceRename(opts: WorkspaceRenameOptions): WorkspaceRenam
 
   const hits: WorkspaceRenameHit[] = [];
   let workingDirectory = ktcResolveWorkspaceWorkingDirectory(root, opts.scope);
+  let allPathConflicts: Map<string, string> | undefined;
 
   for (const level of LEVEL_ORDER) {
     if (!opts.levels.includes(level)) continue;
@@ -534,7 +568,16 @@ export function runWorkspaceRename(opts: WorkspaceRenameOptions): WorkspaceRenam
       }
     } else {
       const matches = pathMatches(entries, rules, level);
-      const conflicts = opts.searchOnly ? new Map<string, string>() : pathConflictDetails(matches, rules);
+      if (!allPathConflicts) {
+        const allPathMatches = entries.filter((entry) => (
+          opts.levels.includes(entry.kind)
+          && replaceStringByRules(basename(entry.fullPath), rules).matches.length > 0
+        ));
+        allPathConflicts = opts.searchOnly
+          ? new Map<string, string>()
+          : pathConflictDetails(allPathMatches, rules);
+      }
+      const conflicts = allPathConflicts;
       const levelHits = matches.map((entry) => pathHit(
         entry,
         opts,

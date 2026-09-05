@@ -15,10 +15,18 @@
 
 See [docs/本地Wing并列开发.md](docs/本地Wing并列开发.md) for commands and the manual checklist.
 
+## Target release line and worktrees
+
+- Trial rule: read the version branch currently checked out in the repository's main working directory as the target release line for that round. `develop` is only the development/test baseline hint; it is not an implicit commit, merge, or release target.
+- Before every commit, merge, package, or release action, re-check the actual branch, package version, working tree, and the user's current release intent. Do not infer the target from an earlier task or another machine's in-progress branch.
+- Put ongoing development worktrees in the shared Phoenix root's `worktrees/` directory, alongside the product repositories. Do not create new hidden `.worktrees` directories. Existing historical worktrees may be inspected or retired separately, but must not be used as the new default.
+
 ## Locked three-block shell
 
-- The Primary sidebar has one Webview View with exactly three ordered, full-width VS Code-style sections: `工具栏`, fixed one-line `目录`, and the current tool Block. Ignore belongs to the unified Settings tool View, not the directory row.
-- 工具栏 and current tool collapse independently; the directory row intentionally has no disclosure arrow or body. Only the current tool Block owns the vertical content scrollbar; the Webview page itself must not become the normal scrolling boundary. The toolbar header owns the only ribbon customization `…`. The directory row owns the one Settings gear. The current tool header owns both its collapse toggle and the explicit `×`, whose only meaning is closing the current logical tool Block with the existing MRU fallback.
+- The Primary sidebar contributes one native Webview View named `KT Auto Code`. Its native View Header owns the fixed global actions in this order: Ignore, then Settings. Ignore opens the standalone `ignoreSettings` logical tool View; Settings opens `environmentSettings`. Search preview, the directory gear, and a Webview-internal Ignore shortcut do not belong in the native Header or directory row.
+- Inside that Webview there are exactly three ordered, full-width regions: the integrated Toolbar strip, fixed one-line `目录`, and the current tool Block. Ignore and Settings reuse the current tool Block and never create a fourth first-level Block.
+- The Toolbar strip has no separate visible title row and no density button. Its 16px chevron stays at the upper left, the one Ribbon DOM occupies the middle, and the only ribbon customization `…` stays fixed at the upper right. Expanded mode preserves the current icon-plus-short-label Ribbon and may wrap to multiple rows; compact mode keeps one icon-only row and leaves every hidden-overflow tool reachable from `…`. The chevron switches these two modes through `ktAutoCode.sidebar.toolPickerStyle`; it never removes the primary navigation entirely.
+- The current tool remains independently collapsible; the directory row intentionally has no disclosure arrow or body. Only the current tool Block owns the vertical content scrollbar; the Webview page itself must not become the normal scrolling boundary. The directory row owns only directory context, selection, and folder picking: it has no decorative folder on the left, aligns its `目录` label with spacing, and keeps the actionable folder picker as the only folder icon on the right. The current tool header owns both its collapse toggle and the explicit `×`, whose only meaning is closing the current logical tool Block with the existing MRU fallback.
 - Treat that section count, order, responsibility split, fixed directory-row behavior, single-ellipsis rule, and close semantics as a locked outer-shell contract. Ordinary feature, styling, or cleanup work must not change them incidentally.
 - Titles, icons, spacing, responsive styling, accessibility, and all content inside an individual Block may be improved as long as the locked outer-shell contract remains intact.
 - Before implementing a request that would change the locked contract, explicitly tell the user which rule would be broken, why the change is necessary, and what migration or regression risk it creates. Wait for explicit user confirmation before changing code or this rule.
@@ -33,9 +41,9 @@ See [docs/前端开发规则.md](docs/前端开发规则.md) for the authoritati
 
 ## Locked Primary shell
 
-- Preserve the approved three first-level Blocks in this exact order: Toolbar, Directory, Current Tool. Toolbar and Current Tool are independently collapsible; Directory is the approved fixed one-line context row; only Current Tool has the separate close action.
-- Preserve the VS Code section-header visual baseline: full-width adjoining rows, native 16px chevron alignment, shared top/bottom separators, compact height, title on the left, contextual actions on the right, and no card gap or draggable separator.
-- Toolbar header keeps the density action and one overflow action. Current Tool keeps collapse and close as independent actions. Internal features may evolve, but changing this outer structure or visual baseline requires warning the user and receiving explicit confirmation first.
+- Preserve the approved three first-level regions in this exact order: integrated Toolbar strip, Directory, Current Tool. Toolbar switches only between expanded and compact navigation; Current Tool remains independently collapsible; Directory is the approved fixed one-line context row; only Current Tool has the separate close action.
+- Preserve the full-width adjoining separators, native 16px chevron alignment, compact controls, no card gap and no draggable separator. Directory and Current Tool retain the VS Code section-header baseline; Toolbar intentionally uses the approved integrated strip with no separate title row.
+- The native View Header keeps Ignore and Settings in that order. The integrated Toolbar keeps its chevron, one shared Ribbon and one overflow action; it has no density action or visible `工具栏` title. Directory keeps the selector and its sole right-side folder picker with no left decorative folder and no gear. Current Tool keeps collapse and close as independent actions. Header actions may evolve only through an intentional contract, documentation, and regression-test change; ordinary feature work must not add shortcuts there. Internal features may evolve, but changing this outer structure or visual baseline requires warning the user and receiving explicit confirmation first.
 - A future shared ShellBlock component must be a behavior- and appearance-preserving extraction. Follow [docs/ShellBlock控件提炼TODO.md](docs/ShellBlock控件提炼TODO.md); do not combine the extraction with feature work.
 
 ## Plugin configuration storage

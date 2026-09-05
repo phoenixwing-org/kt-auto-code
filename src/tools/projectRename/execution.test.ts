@@ -9,9 +9,15 @@ import {
 
 describe("project rename execution gate", () => {
   it("冻结原报告路径并包含 Web 点目录", () => {
-    const report = analysis([hit("text", ".github/workflow.yml", 2)]);
+    const report = {
+      ...analysis([hit("text", ".github/workflow.yml", 2)]),
+      ignorePatterns: ["generated/"],
+      useBuiltInIgnore: false,
+    };
     expect(ktcProjectRenameApplyOptions(report)).toMatchObject({
       includePaths: [".github/workflow.yml"],
+      ignorePatterns: ["generated/"],
+      useBuiltInIgnore: false,
       includeDotDirectories: true,
       levels: ["text", "file", "dir"],
       apply: false,
@@ -93,6 +99,8 @@ function analysis(hits: WorkspaceRenameHit[], rootSuggestion = false): KtcProjec
     sourceName: "Old Project",
     targetName: "New Project",
     rules: [{ id: "display", style: "display", search: "Old Project", replace: "New Project", enabled: true }],
+    ignorePatterns: [],
+    useBuiltInIgnore: true,
     ...(rootSuggestion ? { rootSuggestion: { currentName: "old-project", suggestedName: "new-project" } } : {}),
     workspaceReport: workspace(hits),
     assessments: {},

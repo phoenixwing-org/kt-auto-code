@@ -31,6 +31,7 @@ export interface CollectSourceFilesOptions {
   headersOnly?: boolean;
   scope?: FileScopeOptions;
   ignorePatterns?: string[];
+  useBuiltInIgnore?: boolean;
   /** Optional exact workspace-relative file set, normally expanded from a workset. */
   includePaths?: readonly string[];
 }
@@ -74,6 +75,7 @@ export function collectSourceFiles(
     root: absRoot,
     extensions,
     ignorePatterns: opts.ignorePatterns ?? loadDotIgnore(absRoot),
+    useBuiltInIgnore: opts.useBuiltInIgnore,
   });
   if (!opts.includePaths) return files;
   const included = new Set(opts.includePaths.map((value) => value.replace(/\\/g, "/").replace(/^\.\//, "")));

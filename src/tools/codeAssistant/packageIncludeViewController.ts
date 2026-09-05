@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 import { appendOutputLine } from "../../output.js";
 import { ktcCreateWebviewSecurity } from "../../webviewSupport.js";
 import { ktcReadProjectEnvironment } from "../../projectEnvironment.js";
+import { resolveWorkspaceIgnorePatterns, type KtcWorkspaceIgnoreSourceOptions } from "../../ignoreConfig.js";
 import {
   ktcApplyPackageIncludes,
   ktcPreviewPackageIncludes,
@@ -62,13 +63,19 @@ export class KtcPackageIncludeViewController implements vscode.Disposable {
     canApply: false,
   };
   private busy = false;
+  private ignoreSources: KtcWorkspaceIgnoreSourceOptions = {
+    builtInIgnoreEnabled: true,
+    gitIgnoreEnabled: true,
+    customIgnoreEnabled: false,
+  };
 
   constructor(
     private readonly workspaceState: Pick<vscode.Memento, "get" | "update">,
     private readonly log: (text: string) => void = appendOutputLine,
   ) {}
 
-  async show(defaultTargetDirectory?: string): Promise<void> {
+  async show(defaultTargetDirectory?: string, ignoreSources?: KtcWorkspaceIgnoreSourceOptions): Promise<void> {
+    if (ignoreSources) this.ignoreSources = { ...ignoreSources };
     this.defaultTargetDirectory = defaultTargetDirectory ?? this.defaultTargetDirectory;
     if (defaultTargetDirectory) this.targetDirectory = defaultTargetDirectory;
     if (!this.packageDirectory) this.packageDirectory = this.workspaceState.get<string>(PACKAGE_DIRECTORY_STATE_KEY) || "";
@@ -240,11 +247,14 @@ export class KtcPackageIncludeViewController implements vscode.Disposable {
       const session = await ktcPreviewPackageIncludes({
         coreIncludeDirectory: this.state.packageDirectory,
         targetDirectory: this.targetDirectory,
+        coreIgnorePatterns: resolveWorkspaceIgnorePatterns(this.state.packageDirectory, this.ignoreSources),
+        targetIgnorePatterns: resolveWorkspaceIgnorePatterns(this.targetDirectory, this.ignoreSources),
+        useBuiltInIgnore: this.ignoreSources.builtInIgnoreEnabled !== false,
       });
       this.session = session;
       const { preview } = session;
       this.log(
-        `[代码辅助][头文件引用修正][预览][OK] 完成：映射 ${preview.headerCount} 个头文件；扫描 ${preview.scannedFileCount} 个文件；命中 ${preview.rows.length} 处；同名冲突 ${preview.collisions.length} 个；未加入映射 ${preview.skippedHeaderCount} 个。`,
+        `[代码辅助][头文件引用修正][预览][OK] 完成：映射 ${preview.headerCount} 个头文件；扫描 ${preview.scannedFileCount} 个文件；忽略目录 ${preview.ignoredDirectoryCount} 个；命中 ${preview.rows.length} 处；同名冲突 ${preview.collisions.length} 个；未加入映射 ${preview.skippedHeaderCount} 个。`,
       );
       for (const collision of preview.collisions) {
         this.log(`[代码辅助][头文件引用修正][预览][WARN] 同名冲突：${collision.fileName} -> ${collision.includePaths.join(" | ")}`);
@@ -333,7 +343,7 @@ function getPackageIncludeHtml(webview: Pick<vscode.Webview, "cspSource">, initi
 <script nonce="${nonce}">
 const vscode=acquireVsCodeApi();let state=${safeJson(initialState)};const byId=id=>document.getElementById(id);const els={packageDirectory:byId('package-directory'),targetDirectory:byId('target-directory'),preview:byId('preview'),apply:byId('apply'),status:byId('status'),summary:byId('summary'),warnings:byId('warnings'),rows:byId('rows')};
 const esc=value=>String(value??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-function render(){const running=state.status==='running';els.packageDirectory.value=state.packageDirectory||'';els.packageDirectory.className=state.packageDirectoryExists?'ready':'missing';els.targetDirectory.value=state.targetDirectory||'未选择';els.targetDirectory.title=state.targetDirectory||'未选择';els.preview.disabled=running||!els.packageDirectory.value.trim();els.apply.disabled=running||!state.canApply;els.status.textContent=state.message||'';els.status.className='status '+(state.status==='error'?'error':'');const p=state.preview;if(!p){els.summary.innerHTML='';els.warnings.innerHTML='';els.rows.className='empty';els.rows.textContent='填写 Package 目录后点击“预览修正”。';return}els.summary.innerHTML='<span class="badge">映射 '+p.headerCount+' 个头文件</span><span class="badge">扫描 '+p.scannedFileCount+' 个文件</span><span class="badge">命中 '+p.rows.length+' 处</span>'+(p.unsupportedFileCount?'<span class="badge">跳过 '+p.unsupportedFileCount+' 个未知编码文件</span>':'');const warnings=[];if(p.collisions.length)warnings.push('同名冲突 '+p.collisions.length+' 个，已全部排除，不会自动替换。');if(p.skippedHeaderCount)warnings.push('有 '+p.skippedHeaderCount+' 个头文件不在 source 目录结构中，未加入映射。');els.warnings.innerHTML=warnings.map(item=>'<div class="warning">'+esc(item)+'</div>').join('');if(!p.rows.length){els.rows.className='empty';els.rows.textContent='未发现可修正的 include。';return}els.rows.className='table-wrap';els.rows.innerHTML='<table><thead><tr><th>文件 @ 目录</th><th>行</th><th>旧值</th><th>新值</th></tr></thead><tbody>'+p.rows.map(row=>'<tr data-file="'+esc(row.filePath)+'" data-line="'+row.line+'" title="打开 '+esc(row.relativePath)+' 第 '+row.line+' 行"><td class="file">'+esc(row.fileName)+(row.directory?' @ '+esc(row.directory):'')+'</td><td class="line">'+row.line+'</td><td class="old">'+esc(row.oldValue)+'</td><td class="new">'+esc(row.newValue)+'</td></tr>').join('')+'</tbody></table>';for(const row of els.rows.querySelectorAll('tr[data-file]'))row.onclick=()=>vscode.postMessage({type:'openFile',filePath:row.dataset.file,line:Number(row.dataset.line)});}
+function render(){const running=state.status==='running';els.packageDirectory.value=state.packageDirectory||'';els.packageDirectory.className=state.packageDirectoryExists?'ready':'missing';els.targetDirectory.value=state.targetDirectory||'未选择';els.targetDirectory.title=state.targetDirectory||'未选择';els.preview.disabled=running||!els.packageDirectory.value.trim();els.apply.disabled=running||!state.canApply;els.status.textContent=state.message||'';els.status.className='status '+(state.status==='error'?'error':'');const p=state.preview;if(!p){els.summary.innerHTML='';els.warnings.innerHTML='';els.rows.className='empty';els.rows.textContent='填写 Package 目录后点击“预览修正”。';return}els.summary.innerHTML='<span class="badge">映射 '+p.headerCount+' 个头文件</span><span class="badge">扫描 '+p.scannedFileCount+' 个文件</span><span class="badge">忽略 '+p.ignoredDirectoryCount+' 个目录</span><span class="badge">命中 '+p.rows.length+' 处</span>'+(p.unsupportedFileCount?'<span class="badge">跳过 '+p.unsupportedFileCount+' 个未知编码文件</span>':'');const warnings=[];if(p.collisions.length)warnings.push('同名冲突 '+p.collisions.length+' 个，已全部排除，不会自动替换。');if(p.skippedHeaderCount)warnings.push('有 '+p.skippedHeaderCount+' 个头文件不在 source 目录结构中，未加入映射。');els.warnings.innerHTML=warnings.map(item=>'<div class="warning">'+esc(item)+'</div>').join('');if(!p.rows.length){els.rows.className='empty';els.rows.textContent='未发现可修正的 include。';return}els.rows.className='table-wrap';els.rows.innerHTML='<table><thead><tr><th>文件 @ 目录</th><th>行</th><th>旧值</th><th>新值</th></tr></thead><tbody>'+p.rows.map(row=>'<tr data-file="'+esc(row.filePath)+'" data-line="'+row.line+'" title="打开 '+esc(row.relativePath)+' 第 '+row.line+' 行"><td class="file">'+esc(row.fileName)+(row.directory?' @ '+esc(row.directory):'')+'</td><td class="line">'+row.line+'</td><td class="old">'+esc(row.oldValue)+'</td><td class="new">'+esc(row.newValue)+'</td></tr>').join('')+'</tbody></table>';for(const row of els.rows.querySelectorAll('tr[data-file]'))row.onclick=()=>vscode.postMessage({type:'openFile',filePath:row.dataset.file,line:Number(row.dataset.line)});}
 function invalidate(message){els.apply.disabled=true;els.status.textContent=message;els.status.className='status'}byId('derive-package').onclick=()=>vscode.postMessage({type:'pickEnvironmentPackageDirectory'});byId('pick-package').onclick=()=>vscode.postMessage({type:'pickPackageDirectory',packageDirectory:els.packageDirectory.value});byId('open-env').onclick=()=>vscode.postMessage({type:'openEnvironment'});els.preview.onclick=()=>vscode.postMessage({type:'preview',packageDirectory:els.packageDirectory.value,targetDirectory:els.targetDirectory.value});els.apply.onclick=()=>vscode.postMessage({type:'apply'});els.packageDirectory.oninput=()=>invalidate('Package 目录已编辑，请重新预览后再写入。');els.targetDirectory.oninput=()=>invalidate('工程目录已编辑，请重新预览后再写入。');els.packageDirectory.onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();els.preview.click()}};els.targetDirectory.onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();els.preview.click()}};window.addEventListener('message',event=>{if(event.data?.type==='state'){state=event.data;render()}});render();vscode.postMessage({type:'ready'});
 </script></body></html>`;
 }

@@ -1,4 +1,4 @@
-import { lstat, readdir, readFile, stat } from "node:fs/promises";
+import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import iconv from "iconv-lite";
 import { createHash } from "node:crypto";
@@ -19,6 +19,11 @@ import {
   ktcSummarizeWorkspaceRenameHits,
   type WorkspaceRenameHit,
 } from "../../core/workspaceRename.js";
+import {
+  shouldSkipDefaultDirectoryName,
+  shouldSkipScanSafetyEntryName,
+} from "../../core/workspace/scanScope.js";
+import { ktcRenamePathSegmentProblem, ktcRenamePathsReferToSameEntry } from "../../core/renamePathSegment.js";
 import { ktcSuggestNameReplacement } from "../../core/replacementRules.js";
 import type {
   KtcProjectRenameAnalysisReport,
@@ -34,10 +39,6 @@ import {
   type KtcProjectRenameRelatedCandidateDraft,
 } from "./relatedCandidates.js";
 
-const KTC_PROJECT_RENAME_SKIP_DIRECTORIES = new Set([
-  ".git", ".hg", ".svn", ".phoenix", ".pnpm-store", ".cache", ".next", ".nuxt", ".turbo",
-  "node_modules", "coverage", "dist", "build", "out", "target", "bin", "obj", "__pycache__", ".venv",
-]);
 const KTC_PROJECT_RENAME_MAX_FILE_BYTES = 8 * 1024 * 1024;
 const KTC_PROJECT_RENAME_MAX_HITS = 20_000;
 const KTC_PROJECT_RENAME_BATCH_SIZE = 12;
@@ -56,6 +57,7 @@ export interface KtcProjectRenameAnalysisOptions {
   readonly targetName: string;
   readonly rules: readonly KtcProjectRenameRule[];
   readonly ignorePatterns?: readonly string[];
+  readonly useBuiltInIgnore?: boolean;
   readonly maxFileBytes?: number;
   readonly maxHits?: number;
   readonly signal?: AbortSignal;
@@ -72,8 +74,16 @@ export class KtcProjectRenameCancelledError extends Error {
 export async function ktcAnalyzeProjectRename(
   options: KtcProjectRenameAnalysisOptions,
 ): Promise<KtcProjectRenameAnalysisReport> {
+  ktcThrowIfProjectRenameCancelled(options.signal);
   const root = resolve(options.root);
+  // Copy caller-owned arrays before the first await so a long-running analysis
+  // and its eventual execution plan share one immutable Ignore scope.
+  const requestedIgnorePatterns = options.ignorePatterns === undefined
+    ? undefined
+    : [...options.ignorePatterns];
+  const useBuiltInIgnore = options.useBuiltInIgnore ?? true;
   const rootStat = await stat(root);
+  ktcThrowIfProjectRenameCancelled(options.signal);
   if (!rootStat.isDirectory()) throw new Error(`分析根目录必须是文件夹：${root}`);
   const activeRules = ktcActiveProjectRenameRules(options.rules);
   if (activeRules.length === 0) throw new Error("至少需要一条启用且完整的改名规则");
@@ -90,8 +100,8 @@ export async function ktcAnalyzeProjectRename(
       relatedItems.set(id, (relatedItems.get(id) ?? 0) + 1);
     }
   };
-  const ignorePatterns = [...(options.ignorePatterns ?? loadDotIgnore(root))];
-  const entries = await ktcCollectProjectRenameEntries(root, ignorePatterns, options.signal);
+  const ignorePatterns = Object.freeze(requestedIgnorePatterns ?? [...loadDotIgnore(root)]);
+  const entries = await ktcCollectProjectRenameEntries(root, ignorePatterns, useBuiltInIgnore, options.signal);
   for (const entry of entries) {
     ktcThrowIfProjectRenameCancelled(options.signal);
     recordRelatedCandidates(basename(entry.fullPath));
@@ -125,12 +135,15 @@ export async function ktcAnalyzeProjectRename(
       break;
     }
     const replacement = replaceStringByRules(basename(entry.fullPath), resolvedRules);
-    const targetPath = join(dirname(entry.fullPath), replacement.output);
-    const targetRelativePath = ktcRelativeProjectPath(root, targetPath);
-    const identity = ktcProjectPathIdentity(targetPath);
-    const targetEntries = pathTargets.get(identity) ?? [];
-    targetEntries.push(entry);
-    pathTargets.set(identity, targetEntries);
+    const segmentProblem = ktcRenamePathSegmentProblem(replacement.output);
+    const targetPath = segmentProblem ? entry.fullPath : join(dirname(entry.fullPath), replacement.output);
+    const targetRelativePath = segmentProblem ? entry.relativePath : ktcRelativeProjectPath(root, targetPath);
+    if (!segmentProblem) {
+      const identity = ktcProjectPathIdentity(targetPath);
+      const targetEntries = pathTargets.get(identity) ?? [];
+      targetEntries.push(entry);
+      pathTargets.set(identity, targetEntries);
+    }
     const hit: WorkspaceRenameHit = {
       id: `${entry.kind === "dir" ? "dir" : "file"}:${entry.relativePath}`,
       relativePath: entry.relativePath,
@@ -140,14 +153,14 @@ export async function ktcAnalyzeProjectRename(
       level: entry.kind === "dir" ? "dir" : "file",
       occurrences: replacement.matches.reduce((sum, match) => sum + match.occurrences, 0),
       newPath: targetRelativePath,
-      status: "preview",
-      detail: "只读项目改名分析；未修改名称",
+      status: segmentProblem ? "error" : "preview",
+      detail: segmentProblem ?? "只读项目改名分析；未修改名称",
       ruleMatches: replacement.matches,
     };
     hits.push(hit);
     assessments[hit.id] = ktcAssessProjectRenameHit(hit);
   }
-  await ktcApplyProjectRenamePathConflicts(pathTargets, hits, assessments);
+  await ktcApplyProjectRenamePathConflicts(pathTargets, hits, assessments, options.signal);
 
   const files = entries.filter((entry) => entry.kind === "file");
   for (let offset = 0; offset < files.length && !stats.truncated; offset += KTC_PROJECT_RENAME_BATCH_SIZE) {
@@ -179,6 +192,7 @@ export async function ktcAnalyzeProjectRename(
     }
     options.onProgress?.({ scannedFiles: stats.scannedFiles, matchedItems: hits.length });
     await new Promise<void>((resolveYield) => setImmediate(resolveYield));
+    ktcThrowIfProjectRenameCancelled(options.signal);
   }
 
   ktcFinalizeWorkspaceRenamePlannedPaths(root, hits, false);
@@ -191,6 +205,8 @@ export async function ktcAnalyzeProjectRename(
     sourceName: options.sourceName,
     targetName: options.targetName,
     rules: options.rules.map((rule) => ({ ...rule })),
+    ignorePatterns,
+    useBuiltInIgnore,
     ...(rootSuggestion ? {
       rootSuggestion: { currentName: rootSuggestion.currentName, suggestedName: rootSuggestion.suggestedName },
     } : {}),
@@ -226,6 +242,7 @@ function ktcActiveProjectRenameRules(rules: readonly KtcProjectRenameRule[]): Re
 async function ktcCollectProjectRenameEntries(
   root: string,
   ignorePatterns: readonly string[],
+  useBuiltInIgnore: boolean,
   signal?: AbortSignal,
 ): Promise<KtcProjectRenameEntry[]> {
   const result: KtcProjectRenameEntry[] = [];
@@ -241,10 +258,11 @@ async function ktcCollectProjectRenameEntries(
     for (const entry of entries) {
       ktcThrowIfProjectRenameCancelled(signal);
       if (entry.isSymbolicLink()) continue;
+      if (shouldSkipScanSafetyEntryName(entry.name)) continue;
       const fullPath = join(directory, entry.name);
       const relativePath = ktcRelativeProjectPath(root, fullPath);
       if (entry.isDirectory()) {
-        if (KTC_PROJECT_RENAME_SKIP_DIRECTORIES.has(entry.name)
+        if ((useBuiltInIgnore && shouldSkipDefaultDirectoryName(entry.name))
           || shouldSkipDirName(entry.name, [...ignorePatterns])
           || isIgnoredPath(`${relativePath}/`, [...ignorePatterns])) continue;
         result.push({ fullPath, relativePath, kind: "dir" });
@@ -351,9 +369,11 @@ async function ktcApplyProjectRenamePathConflicts(
   pathTargets: ReadonlyMap<string, readonly KtcProjectRenameEntry[]>,
   hits: WorkspaceRenameHit[],
   assessments: Record<string, KtcProjectRenameHitAssessment>,
+  signal?: AbortSignal,
 ): Promise<void> {
   const bySource = new Map(hits.filter((hit) => hit.level !== "text").map((hit) => [hit.originalFullPath, hit]));
   for (const entries of pathTargets.values()) {
+    ktcThrowIfProjectRenameCancelled(signal);
     if (entries.length < 2) continue;
     for (const entry of entries) {
       const hit = bySource.get(entry.fullPath);
@@ -361,15 +381,53 @@ async function ktcApplyProjectRenamePathConflicts(
     }
   }
   for (const hit of hits.filter((candidate) => candidate.level !== "text" && candidate.status !== "error")) {
+    ktcThrowIfProjectRenameCancelled(signal);
     if (hit.originalFullPath === hit.plannedFullPath) continue;
+    let targetStat;
     try {
-      const [sourceStat, targetStat] = await Promise.all([lstat(hit.originalFullPath), lstat(hit.plannedFullPath)]);
-      if (sourceStat.dev === targetStat.dev && sourceStat.ino === targetStat.ino) continue;
-      ktcMarkProjectRenameConflict(hit, assessments, `目标已存在：${hit.newPath}`);
-    } catch {
-      // Missing destination is the expected safe preview state.
+      targetStat = await lstat(hit.plannedFullPath);
+    } catch (error) {
+      ktcThrowIfProjectRenameCancelled(signal);
+      if (ktcProjectRenamePathIsMissing(error)) continue;
+      ktcMarkProjectRenameConflict(hit, assessments, `无法安全检查目标路径：${hit.newPath}`);
+      continue;
     }
+    if (targetStat.isSymbolicLink()) {
+      ktcMarkProjectRenameConflict(hit, assessments, `目标已存在：${hit.newPath}`);
+      continue;
+    }
+    let sourceStat;
+    let sourceRealPath;
+    let targetRealPath;
+    try {
+      [sourceStat, sourceRealPath, targetRealPath] = await Promise.all([
+        lstat(hit.originalFullPath),
+        realpath(hit.originalFullPath),
+        realpath(hit.plannedFullPath),
+      ]);
+    } catch {
+      ktcThrowIfProjectRenameCancelled(signal);
+      // The destination entry exists (lstat succeeded) but at least one path
+      // cannot be canonicalized, including a dangling symlink. Fail closed.
+      ktcMarkProjectRenameConflict(hit, assessments, `目标已存在且无法安全确认：${hit.newPath}`);
+      continue;
+    }
+    ktcThrowIfProjectRenameCancelled(signal);
+    const samePathIdentity = ktcProjectPathIdentity(hit.originalFullPath)
+      === ktcProjectPathIdentity(hit.plannedFullPath);
+    if (samePathIdentity && ktcRenamePathsReferToSameEntry(
+      sourceRealPath,
+      targetRealPath,
+      sourceStat,
+      targetStat,
+    )) continue;
+    ktcMarkProjectRenameConflict(hit, assessments, `目标已存在：${hit.newPath}`);
   }
+}
+
+function ktcProjectRenamePathIsMissing(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  return code === "ENOENT" || code === "ENOTDIR";
 }
 
 function ktcMarkProjectRenameConflict(

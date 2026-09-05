@@ -74,6 +74,48 @@ describe("头文件引用修正文件服务", () => {
     expect(iconv.decode(await readFile(source), "gbk")).toContain("#include <KtCore/KtString.h>\r\n");
   });
 
+  it("同时遵守项目 Ignore 与 CAA/CMake/IDE 生成目录兜底", async () => {
+    const { include, target } = await createFixture();
+    const ignoredDirectories = [
+      "win_b64", "intel_a", "ToolsData", "CATEnv", "ImportedInterfaces", "various",
+      "ProtectedGenerated", "LocalGenerated", "Objects", "build", ".git", ".vs", "custom-output", "plugin-output",
+    ];
+    for (const directory of ignoredDirectories) {
+      await mkdir(join(target, directory), { recursive: true });
+      await writeFile(join(target, directory, "Generated.cpp"), "#include \"KtString.h\"\n");
+    }
+    await writeFile(join(target, "src", "Live.cpp"), "#include \"KtString.h\"\n");
+
+    const session = await ktcPreviewPackageIncludes({
+      coreIncludeDirectory: include,
+      targetDirectory: target,
+      targetIgnorePatterns: ["custom-output/", "plugin-output/"],
+    });
+
+    expect(session.preview.scannedFileCount).toBe(1);
+    expect(session.preview.ignoredDirectoryCount).toBe(14);
+    expect(session.preview.rows.map((row) => row.relativePath)).toEqual(["src/Live.cpp"]);
+  });
+
+  it("显式关闭插件忽略后扫描生成目录但仍保护元数据目录", async () => {
+    const { include, target } = await createFixture();
+    for (const directory of ["ImportedInterfaces", ".vs", ".git", ".phoenix"]) {
+      await mkdir(join(target, directory), { recursive: true });
+      await writeFile(join(target, directory, "Generated.cpp"), "#include \"KtString.h\"\n");
+    }
+
+    const session = await ktcPreviewPackageIncludes({
+      coreIncludeDirectory: include,
+      targetDirectory: target,
+      useBuiltInIgnore: false,
+    });
+
+    expect(session.preview.rows.map((row) => row.relativePath)).toContain("ImportedInterfaces/Generated.cpp");
+    expect(session.preview.rows.map((row) => row.relativePath)).toContain(".vs/Generated.cpp");
+    expect(session.preview.rows.map((row) => row.relativePath)).not.toContain(".git/Generated.cpp");
+    expect(session.preview.rows.map((row) => row.relativePath)).not.toContain(".phoenix/Generated.cpp");
+  });
+
   it("预览后文件改变时拒绝写入", async () => {
     const { include, target } = await createFixture();
     const source = join(target, "Demo.cpp");
