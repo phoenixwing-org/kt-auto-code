@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "currentDate": "2026-07-21",
+  "currentDate": "2026-09-05",
   "scanRoots": [
     "src"
   ],
@@ -15,6 +15,7 @@
     "src/core/fileEncoding.ts",
     "src/core/fullwidthPunct.ts",
     "src/core/ignorePresets.ts",
+    "src/core/ignoreManagerModel.ts",
     "src/core/ignoreRuleCatalog.ts",
     "src/core/moduleShellContract.ts",
     "src/core/git/KtcGitModel.ts",
@@ -34,6 +35,7 @@
     "src/tools/codegen/workspaceDiscoveryPolicy.ts",
     "src/tools/codegen/sourceApply.ts",
     "src/tools/codegen/sourceApplyTransaction.ts",
+    "src/tools/projectRename/structuredDiscovery.ts",
     "src/sidebar/reorderMembersPanelState.ts"
   ],
   "forbiddenPureImports": [
@@ -68,7 +70,9 @@
     "src/tools/git/KtcGitPrimaryPanel.ts",
     "src/tools/git/KtcGitPrimaryPanelEntry.ts",
     "src/tools/run/KtcRunPrimaryPanel.ts",
-    "src/tools/run/KtcRunPrimaryPanelEntry.ts"
+    "src/tools/run/KtcRunPrimaryPanelEntry.ts",
+    "src/tools/ignoreSettings/KtcIgnorePrimaryPanel.ts",
+    "src/tools/ignoreSettings/KtcIgnorePrimaryPanelEntry.ts"
   ],
   "forbiddenViewImports": [
     "^(?:node:fs|fs$|fs/|node:child_process|node:sqlite)"

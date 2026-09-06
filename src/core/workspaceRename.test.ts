@@ -1,5 +1,6 @@
 import {
   mkdtempSync,
+  linkSync,
   mkdirSync,
   readFileSync,
   readdirSync,
@@ -122,19 +123,42 @@ describe("workspaceRename", () => {
     expect(result.hits.map((hit) => hit.relativePath)).toEqual(["keep.cpp"]);
   });
 
-  it("大型项目流程可显式包含 Web 点目录，普通搜索替换仍跳过", () => {
+  it("普通 Web 点目录默认参与扫描", () => {
     const root = tempRoot();
     mkdirSync(join(root, ".github"));
     writeFileSync(join(root, ".github", "workflow.yml"), "Old\n");
-    expect(runWorkspaceRename({ root, oldName: "Old", newName: "New", levels: ["text"] }).hits).toHaveLength(0);
+    const report = runWorkspaceRename({ root, oldName: "Old", newName: "New", levels: ["text"] });
+    expect(report.hits.map((hit) => hit.relativePath)).toEqual([".github/workflow.yml"]);
+  });
+
+  it("关闭插件内置 Ignore 后放开生成目录，安全边界和显式规则仍生效", () => {
+    const root = tempRoot();
+    mkdirSync(join(root, ".github"));
+    writeFileSync(join(root, ".github", "workflow.yml"), "Old\n");
+    mkdirSync(join(root, ".git"));
+    writeFileSync(join(root, ".git", "config"), "Old\n");
+    mkdirSync(join(root, ".phoenix"));
+    writeFileSync(join(root, ".phoenix", "state.json"), "Old\n");
+    mkdirSync(join(root, ".vs"));
+    writeFileSync(join(root, ".vs", "generated.yml"), "Old\n");
+    mkdirSync(join(root, ".git-ignored"));
+    writeFileSync(join(root, ".git-ignored", "git.yml"), "Old\n");
+    mkdirSync(join(root, ".custom-ignored"));
+    writeFileSync(join(root, ".custom-ignored", "custom.yml"), "Old\n");
+
     const report = runWorkspaceRename({
       root,
       oldName: "Old",
       newName: "New",
       levels: ["text"],
-      includeDotDirectories: true,
+      useBuiltInIgnore: false,
+      ignorePatterns: [".git-ignored/", ".custom-ignored/"],
     });
-    expect(report.hits.map((hit) => hit.relativePath)).toEqual([".github/workflow.yml"]);
+
+    expect(report.hits.map((hit) => hit.relativePath)).toEqual([
+      ".github/workflow.yml",
+      ".vs/generated.yml",
+    ]);
   });
 
   it("按工作集文件快照限制文本和路径替换", () => {
@@ -449,6 +473,103 @@ describe("workspaceRename", () => {
     expect(readdirSync(root).sort()).toEqual(["Old.cpp", "OldOld.cpp"]);
   });
 
+  it("文件和目录映射到同一目标时整批不写盘", () => {
+    const root = tempRoot();
+    writeFileSync(join(root, "OldFile"), "file");
+    mkdirSync(join(root, "OldDirectory"));
+    const options = {
+      root,
+      rules: [
+        { search: "OldFile", replace: "New" },
+        { search: "OldDirectory", replace: "New" },
+      ],
+      levels: ["file", "dir"] as const,
+    };
+
+    const preview = runWorkspaceRename(options);
+    expect(preview.summary.errors).toBe(2);
+    expect(preview.hits.every((hit) => hit.detail === "多个项目将改为同一目标：New")).toBe(true);
+
+    const applied = runWorkspaceRename({ ...options, apply: true });
+    expect(applied.applied).toBe(false);
+    expect(readdirSync(root).sort()).toEqual(["OldDirectory", "OldFile"]);
+  });
+
+  it("硬链接目标仍视为已占用的不同路径", () => {
+    const root = tempRoot();
+    writeFileSync(join(root, "Old.cpp"), "content");
+    linkSync(join(root, "Old.cpp"), join(root, "New.cpp"));
+
+    const report = runWorkspaceRename({
+      root,
+      oldName: "Old",
+      newName: "New",
+      levels: ["file"],
+    });
+
+    expect(report.summary.errors).toBe(1);
+    expect(report.hits[0]).toMatchObject({ status: "error", detail: "目标已存在：New.cpp" });
+  });
+
+  it("悬空 symlink 目标在文本写盘前视为已占用", () => {
+    const root = tempRoot();
+    writeFileSync(join(root, "Old"), "Old\n");
+    symlinkSync("missing-target", join(root, "New"));
+    const options = {
+      root,
+      oldName: "Old",
+      newName: "New",
+      levels: ["text", "file"] as const,
+    };
+
+    const preview = runWorkspaceRename(options);
+    expect(preview.hits.find((hit) => hit.level === "file")).toMatchObject({
+      status: "error",
+      detail: "目标已存在：New",
+    });
+    const applied = runWorkspaceRename({ ...options, apply: true });
+    expect(applied.applied).toBe(false);
+    expect(readFileSync(join(root, "Old"), "utf8")).toBe("Old\n");
+    expect(readdirSync(root).sort()).toEqual(["New", "Old"]);
+  });
+
+  it.each(["New/Nested", "New\\Nested"])("在所有宿主上拒绝名称中的路径分隔符：%s", (newName) => {
+    const root = tempRoot();
+    writeFileSync(join(root, "Old.cpp"), "content");
+    expect(() => runWorkspaceRename({
+      root,
+      oldName: "Old",
+      newName,
+      levels: ["file"],
+    })).toThrow("不允许路径分隔符");
+  });
+
+  it.each([
+    ["Windows 保留名", "CON"],
+    ["带扩展名的 Windows 保留名", "NUL.txt"],
+    ["Windows 非法字符", "new:name"],
+    ["尾点", "new."],
+    ["尾空格", "new "],
+    ["超长 ASCII 组件", "n".repeat(256)],
+    ["超长 UTF-8 组件", "中".repeat(86)],
+  ])("在文本写盘前阻止跨平台非法目标：%s", (_label, newName) => {
+    const root = tempRoot();
+    writeFileSync(join(root, "Old"), "Old\n");
+    const options = {
+      root,
+      oldName: "Old",
+      newName,
+      levels: ["text", "file"] as const,
+    };
+
+    const preview = runWorkspaceRename(options);
+    expect(preview.hits.find((hit) => hit.level === "file")).toMatchObject({ status: "error" });
+    const applied = runWorkspaceRename({ ...options, apply: true });
+    expect(applied.applied).toBe(false);
+    expect(readFileSync(join(root, "Old"), "utf8")).toBe("Old\n");
+    expect(readdirSync(root)).toEqual(["Old"]);
+  });
+
   it("仅大小写文件名变更通过临时路径完成", () => {
     const root = tempRoot();
     writeFileSync(join(root, "Old.cpp"), "content");
@@ -464,6 +585,22 @@ describe("workspaceRename", () => {
     expect(result.summary.errors).toBe(0);
     expect(readdirSync(root)).toEqual(["old.cpp"]);
     expect(readFileSync(join(root, "old.cpp"), "utf8")).toBe("content");
+  });
+
+  it("仅大小写的长文件名使用短临时名完成改名", () => {
+    const root = tempRoot();
+    const suffix = "a".repeat(242);
+    writeFileSync(join(root, `Old${suffix}`), "content");
+    const result = runWorkspaceRename({
+      root,
+      oldName: "Old",
+      newName: "old",
+      levels: ["file"],
+      apply: true,
+    });
+
+    expect(result.summary.errors).toBe(0);
+    expect(readdirSync(root)).toEqual([`old${suffix}`]);
   });
 
   it("仅大小写目录名变更后保留目录内容", () => {

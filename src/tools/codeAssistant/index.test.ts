@@ -69,6 +69,10 @@ describe("代码辅助命令上下文", () => {
     expect(registration).toBeDefined();
     await registration?.[1]();
 
-    expect(mocks.showPackageIncludes).toHaveBeenCalledWith("/workspace/selected-project");
+    expect(mocks.showPackageIncludes).toHaveBeenCalledWith("/workspace/selected-project", {
+      builtInIgnoreEnabled: true,
+      gitIgnoreEnabled: true,
+      customIgnoreEnabled: true,
+    });
   });
 });

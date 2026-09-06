@@ -17,6 +17,7 @@ import { ktcProjectRenameViewHtml } from "./viewHtml.js";
 import { ktcParseProjectRenameViewMessage } from "./viewMessages.js";
 import { ktcProjectRenameCompletionAfterApply, ktcProjectRenamePreviewDrift } from "./execution.js";
 import { ktcPlanProjectRenameRootDirectory } from "./rootDirectoryRename.js";
+import { resolveWorkspaceIgnorePatterns } from "../../ignoreConfig.js";
 
 const KTC_PROJECT_RENAME_PAGE_SIZE = 200;
 const KTC_PROJECT_RENAME_MAX_CUSTOM_PROFILE_RULES = 26;
@@ -31,7 +32,18 @@ interface KtcProjectRenameOpenDraft {
     readonly replace: string;
     readonly enabled: boolean;
   }[];
+  readonly ignoreSources: {
+    readonly builtInIgnoreEnabled: boolean;
+    readonly gitIgnoreEnabled: boolean;
+    readonly customIgnoreEnabled: boolean;
+  };
 }
+
+const KTC_DEFAULT_PROJECT_RENAME_IGNORE_SOURCES: KtcProjectRenameOpenDraft["ignoreSources"] = Object.freeze({
+  builtInIgnoreEnabled: true,
+  gitIgnoreEnabled: true,
+  customIgnoreEnabled: false,
+});
 
 export class KtcProjectRenameViewController implements vscode.Disposable {
   private panel: vscode.WebviewPanel | undefined;
@@ -40,6 +52,7 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
   private nextReportId = 1;
   private postStateQueue: Promise<void> = Promise.resolve();
   private state: KtcProjectRenameViewState;
+  private ignoreSources: KtcProjectRenameOpenDraft["ignoreSources"] = KTC_DEFAULT_PROJECT_RENAME_IGNORE_SOURCES;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -99,6 +112,7 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
 
   private createInitialState(requestedRoot?: unknown): KtcProjectRenameViewState {
     const draft = ktcParseProjectRenameOpenDraft(requestedRoot);
+    this.ignoreSources = draft.ignoreSources;
     const explicitRoot = draft.root;
     const root = explicitRoot ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     const sourceName = draft.sourceName || (root ? basename(root) : "");
@@ -134,7 +148,7 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       return;
     }
     if (message.type === "cancel") {
-      this.abortController?.abort();
+      await this.cancelAnalysis();
       return;
     }
     if (message.type === "chooseRoot") {
@@ -230,6 +244,23 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       return;
     }
     await this.openResult(message.reportId, message.rowId);
+  }
+
+  private async cancelAnalysis(controller = this.abortController): Promise<void> {
+    if (!controller || this.abortController !== controller || this.state.status !== "running") return;
+    controller.abort();
+    if (this.abortController !== controller) return;
+    this.abortController = undefined;
+    this.report = undefined;
+    this.state = {
+      ...this.state,
+      status: "cancelled",
+      message: "项目改名分析已取消；没有修改任何文件。",
+      progress: undefined,
+      report: undefined,
+      completion: undefined,
+    };
+    await this.postState();
   }
 
   private async chooseRoot(): Promise<void> {
@@ -528,7 +559,9 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
         title: verifyingAfterApply ? "KT Auto Code：验证项目改名结果" : "KT Auto Code：项目改名",
         cancellable: !verifyingAfterApply,
       }, async (progress, token) => {
-        const cancellation = token.onCancellationRequested(() => abortController.abort());
+        const cancellation = token.onCancellationRequested(() => {
+          void this.cancelAnalysis(abortController);
+        });
         try {
           return await ktcAnalyzeProjectRename({
             reportId,
@@ -536,6 +569,8 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
             sourceName,
             targetName,
             rules,
+            ignorePatterns: resolveWorkspaceIgnorePatterns(root, this.ignoreSources),
+            useBuiltInIgnore: this.ignoreSources.builtInIgnoreEnabled,
             signal: abortController.signal,
             onProgress: (scanProgress) => {
               if (this.abortController !== abortController) return;
@@ -549,7 +584,7 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
         }
       });
       if (this.abortController !== abortController) return;
-      this.report = report;
+      if (abortController.signal.aborted) throw new KtcProjectRenameCancelledError();
       const history = verifyingAfterApply
         ? this.host.historySnapshot(root)
         : await this.host.rememberProjectPlan(root, {
@@ -559,6 +594,12 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
             targetPrefix,
             rules,
           });
+      // History persistence is asynchronous. The View may be cancelled, closed,
+      // or reopened for another task while it is in flight; never let that stale
+      // completion publish its report into the replacement task.
+      if (this.abortController !== abortController) return;
+      if (abortController.signal.aborted) throw new KtcProjectRenameCancelledError();
+      this.report = report;
       this.state = {
         ...this.state,
         status: "done",
@@ -856,9 +897,11 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
 
 function ktcParseProjectRenameOpenDraft(value: unknown): KtcProjectRenameOpenDraft {
   if (typeof value === "string") {
-    return { ...(value.trim() ? { root: value } : {}), rules: [] };
+    return { ...(value.trim() ? { root: value } : {}), rules: [], ignoreSources: KTC_DEFAULT_PROJECT_RENAME_IGNORE_SOURCES };
   }
-  if (!value || typeof value !== "object" || Array.isArray(value)) return { rules: [] };
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { rules: [], ignoreSources: KTC_DEFAULT_PROJECT_RENAME_IGNORE_SOURCES };
+  }
   const record = value as Record<string, unknown>;
   const root = typeof record.root === "string" && record.root.trim() ? record.root : undefined;
   const sourceName = ktcBoundedOpenText(record.sourceName, false);
@@ -874,11 +917,20 @@ function ktcParseProjectRenameOpenDraft(value: unknown): KtcProjectRenameOpenDra
     if (search === undefined || replace === undefined) return [];
     return [{ search, replace, enabled: rule.enabled !== false }];
   });
+  const rawIgnoreSources = record.ignoreSources && typeof record.ignoreSources === "object" && !Array.isArray(record.ignoreSources)
+    ? record.ignoreSources as Record<string, unknown>
+    : {};
+  const ignoreSources = {
+    builtInIgnoreEnabled: rawIgnoreSources.builtInIgnoreEnabled !== false,
+    gitIgnoreEnabled: rawIgnoreSources.gitIgnoreEnabled !== false,
+    customIgnoreEnabled: rawIgnoreSources.customIgnoreEnabled === true,
+  };
   return {
     ...(root ? { root } : {}),
     ...(sourceName === undefined ? {} : { sourceName }),
     ...(targetName === undefined ? {} : { targetName }),
     rules,
+    ignoreSources,
   };
 }
 

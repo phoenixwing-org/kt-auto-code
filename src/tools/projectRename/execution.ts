@@ -19,6 +19,8 @@ export function ktcProjectRenameApplyOptions(
     preserveCase: false,
     levels: ["text", "file", "dir"],
     includePaths: [...new Set(report.workspaceReport.hits.map((hit) => hit.relativePath))],
+    ignorePatterns: report.ignorePatterns,
+    useBuiltInIgnore: report.useBuiltInIgnore,
     includeDotDirectories: true,
     apply: false,
     searchOnly: false,

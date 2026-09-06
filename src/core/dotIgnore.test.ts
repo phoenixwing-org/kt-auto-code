@@ -35,13 +35,13 @@ describe("dotIgnore", () => {
     expect(phoenixIgnoreFile(root).replace(/\\/g, "/")).toContain("/.phoenix/.ignore");
     expect(loadDotIgnore(root)).toEqual(["vendor/", "legacy.cpp"]);
   });
-  it("不存在时从 .gitignore 同步生成 .phoenix/.ignore", () => {
+  it("不存在时创建空的自定义 .phoenix/.ignore，不复制独立 Git 规则", () => {
     const root = tempRoot();
     writeFileSync(join(root, ".gitignore"), "node_modules/\ndist/\n");
     const info = ensurePhoenixIgnore(root);
-    expect(info.syncedFromGit).toBe(true);
-    expect(info.patternCount).toBe(2);
-    expect(loadDotIgnore(root)).toEqual(["node_modules/", "dist/"]);
+    expect(info.syncedFromGit).toBe(false);
+    expect(info.patternCount).toBe(0);
+    expect(loadDotIgnore(root)).toEqual([]);
   });
 
   it("无 .gitignore 时创建空模板", () => {

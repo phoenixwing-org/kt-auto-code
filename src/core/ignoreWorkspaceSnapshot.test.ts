@@ -45,6 +45,12 @@ describe("ignoreWorkspaceSnapshot", () => {
     });
     expect(dirtyDocumentSnapshot.existingPatterns)
       .toEqual(["build/", "node_modules/", "Objects/"]);
+
+    const completeHostSnapshot = ktcCollectIgnoreWorkspaceSnapshot(root, {
+      existingPatterns: ["Objects/", "Objects/", "LocalGenerated/"],
+    });
+    expect(completeHostSnapshot.existingPatterns)
+      .toEqual(["Objects/", "LocalGenerated/"]);
   });
 
   it("达到条目上限时标记截断", () => {

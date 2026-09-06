@@ -25,6 +25,8 @@ interface KtcIgnorePresetDefinition {
   categories: readonly string[];
 }
 
+const KTC_PRIMARY_CUSTOM_IGNORE_KEY = "custom:primary v1";
+
 const KTC_IGNORE_PRESET_DEFINITIONS: readonly KtcIgnorePresetDefinition[] = [
   {
     id: "caa",
@@ -128,6 +130,26 @@ function existingIgnoreRules(text: string): Set<string> {
     .map((line) => line.trim())
     .filter((line) => line !== "" && !line.startsWith("#"))
     .map(canonicalIgnoreRule));
+}
+
+/** Primary 中直接维护的项目自定义规则；与预设/推荐受管块互不覆盖。 */
+export function ktcSetPrimaryCustomIgnoreRules(text: string, rules: readonly string[]): string {
+  const normalized = rules
+    .map((rule) => rule.trim())
+    .filter((rule, index, all) => rule !== "" && !rule.startsWith("#") && all.indexOf(rule) === index);
+  const found = findManagedBlock(text, KTC_PRIMARY_CUSTOM_IGNORE_KEY);
+  const withoutCurrent = found ? text.slice(0, found.start) + text.slice(found.end) : text;
+  if (normalized.length === 0) return withoutCurrent;
+  return upsertManagedBlock(withoutCurrent, KTC_PRIMARY_CUSTOM_IGNORE_KEY, ["# Primary 自定义忽略", ...normalized]);
+}
+
+export function ktcPrimaryCustomIgnoreRules(text: string): string[] {
+  const found = findManagedBlock(text, KTC_PRIMARY_CUSTOM_IGNORE_KEY);
+  if (!found) return [];
+  return text.slice(found.start, found.end)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line !== "" && !line.startsWith("#"));
 }
 
 export function ktcAppendIgnorePreset(text: string, id: KtcIgnorePresetId): string {

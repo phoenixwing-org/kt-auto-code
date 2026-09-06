@@ -25,7 +25,7 @@ const VARIABLE_BY_KEY = {
 export const environmentSettingsTool: KtTool = {
   id: "environmentSettings",
   title: "设置",
-  description: "管理 Ignore、工程环境和插件配置。",
+  description: "管理工程环境和插件配置。",
   icon: "media/tools/environment-settings.svg",
 
   getPanelModel(): ToolPanelModel {

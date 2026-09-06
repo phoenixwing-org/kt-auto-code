@@ -88,10 +88,12 @@
     },
     {
       "path": "docs/0.4.0-ExtensionHost人工验收清单.md",
-      "status": "current",
+      "status": "archived",
       "owner": "KT Auto Code maintainers",
-      "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-02"
+      "appliesTo": "historical",
+      "lastVerified": "2026-09-02",
+      "sourceOfTruth": "docs/current-roadmap.md",
+      "reason": "旧版本、已完成点检或阶段性共享提取证据"
     },
     {
       "path": "docs/0.7.2发布准备.md",
@@ -131,7 +133,7 @@
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
       "lastVerified": "2026-09-02",
-      "reason": "当前项目改名 Windows 测试候选与发布门禁真源"
+      "reason": "已发布项目改名版本与发布门禁归档"
     },
     {
       "path": "docs/0.8.2-本地编译工具归档.md",
@@ -139,6 +141,22 @@
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
       "lastVerified": "2026-09-02"
+    },
+    {
+      "path": "docs/0.8.3发布准备.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.8.x",
+      "lastVerified": "2026-09-02",
+      "reason": "0.8.3 正式基线、门禁、Windows 点检和制品回执的发布真源"
+    },
+    {
+      "path": "docs/0.8.3开发计划.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.8.x",
+      "lastVerified": "2026-09-02",
+      "reason": "避开 0.8.2 重叠文件的下一发布目标简表"
     },
     {
       "path": "docs/2026-07-20-功能修复人工点检表.md",
@@ -391,7 +409,7 @@
       "appliesTo": "0.8.x",
       "lastVerified": "2026-09-02",
       "sourceOfTruth": "docs/搜索替换.md",
-      "reason": "结构化名称与正则写盘仍是后续阶段候选，不进入当前 0.8.1"
+      "reason": "0.8.3 仅建立结构化名称纯算法基线；遗漏探测交互、候选升级与任何动态写盘仍待评审"
     },
     {
       "path": "docs/项目改名View整改方案.md",
@@ -628,6 +646,14 @@
       "appliesTo": "0.8.x",
       "lastVerified": "2026-09-02",
       "reason": "Git Primary Block 0.6.0 实现与验收基线"
+    },
+    {
+      "path": "docs/Phoenix-Auto统一Ignore方案.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.8.x",
+      "lastVerified": "2026-09-02",
+      "reason": "Phoenix Auto 插件内置、Git 与项目自定义 Ignore 的统一产品和跨仓契约"
     },
     {
       "path": "docs/Phoenix三形态产品架构计划.md",

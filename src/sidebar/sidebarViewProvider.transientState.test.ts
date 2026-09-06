@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const vscodeHost = vi.hoisted(() => ({
   executeCommand: vi.fn(async () => undefined),
@@ -29,7 +29,7 @@ vi.mock("vscode", () => {
   }
 
   return {
-    ConfigurationTarget: { Workspace: "workspace", WorkspaceFolder: "workspaceFolder" },
+    ConfigurationTarget: { Global: "global", Workspace: "workspace", WorkspaceFolder: "workspaceFolder" },
     Uri,
     commands: {
       executeCommand: vscodeHost.executeCommand,
@@ -68,11 +68,16 @@ import * as vscode from "vscode";
 import type {
   KtTool,
   KtcAssociatedRulePickerState,
+  KtcWorkingContext,
   ToolRunContext,
   ToolUiState,
   WebviewInboundMessage,
   WebviewOutboundMessage,
 } from "../tools/types.js";
+import {
+  ktcIgnoreController,
+  type KtcIgnoreControllerResult,
+} from "../ignoreController.js";
 import { registerTool } from "../tools/registry.js";
 import { encodingFixTool } from "../tools/encodingFix/index.js";
 import { reorderMembersTool } from "../tools/reorderMembers/index.js";
@@ -151,9 +156,36 @@ interface FakeWebviewView extends vscode.WebviewView {
 interface ProviderInternals {
   moduleView?: vscode.WebviewView;
   toolStates: Map<string, ToolUiState>;
+  ignoreContextRoot?: string;
   onMessage(message: WebviewInboundMessage, source: vscode.WebviewView): Promise<void>;
   sendInit(target: vscode.WebviewView): Promise<void>;
   setToolState(toolId: string, state: ToolUiState, transientTarget?: vscode.WebviewView): void;
+  getWorkingContext(): KtcWorkingContext;
+  postWorkingContext(): void;
+}
+
+interface Deferred<T> {
+  readonly promise: Promise<T>;
+  resolve(value: T): void;
+}
+
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+function workingContext(resolvedDirectory: string): KtcWorkingContext {
+  return {
+    selectedDirectory: resolvedDirectory,
+    resolvedDirectory,
+    label: resolvedDirectory.split("/").at(-1) ?? resolvedDirectory,
+    pluginIgnoreEnabled: false,
+    builtInIgnoreEnabled: true,
+    gitIgnoreEnabled: true,
+    customIgnoreEnabled: false,
+    gitIgnoreExists: true,
+  };
 }
 
 function memory(): vscode.Memento {
@@ -232,6 +264,10 @@ describe("SidebarViewProvider transient tool state", () => {
     };
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("欢迎页固定列出 Code/CAD 的安装状态与版本", () => {
     expect(ktcWelcomeExtensionSummaries([
       { id: "KUNTAI.KT-AUTO-CODE", packageJSON: { version: " 0.6.1 " } },
@@ -251,6 +287,144 @@ describe("SidebarViewProvider transient tool state", () => {
         installed: false,
       },
     ]);
+  });
+
+  it("Toolbar Strip 箭头把明确的展开方式保存到用户设置", async () => {
+    const { internals, module } = createProvider();
+
+    await internals.onMessage({ type: "setRibbonStyle", style: "compact" }, module);
+    expect(vscodeHost.configurationValues.get("ktAutoCode.sidebar.toolPickerStyle")).toBe("compact");
+
+    await internals.onMessage({ type: "setRibbonStyle", style: "ribbon" }, module);
+    expect(vscodeHost.configurationValues.get("ktAutoCode.sidebar.toolPickerStyle")).toBe("ribbon");
+
+    await internals.onMessage(
+      { type: "setRibbonStyle", style: "invalid" } as unknown as WebviewInboundMessage,
+      module,
+    );
+    expect(vscodeHost.configurationValues.get("ktAutoCode.sidebar.toolPickerStyle")).toBe("ribbon");
+  });
+
+  it("读取 Toolbar 展示设置时把未知值收敛为展开态", async () => {
+    vscodeHost.configurationValues.set("ktAutoCode.sidebar.toolPickerStyle", "future-mode");
+    const { internals, module } = createProvider();
+
+    await internals.sendInit(module);
+
+    expect(module.messages.find((message) => message.type === "init")).toMatchObject({
+      type: "init",
+      sidebarStyle: "ribbon",
+    });
+  });
+
+  it("Ignore 消息严格串行执行，并在每次真实执行期间发布 running 状态", async () => {
+    const { internals, module } = createProvider();
+    vi.spyOn(internals, "getWorkingContext").mockReturnValue(workingContext("/workspace/project-a"));
+    const first = deferred<KtcIgnoreControllerResult>();
+    const second = deferred<KtcIgnoreControllerResult>();
+    let activeOperations = 0;
+    let maxActiveOperations = 0;
+    const handle = vi.spyOn(ktcIgnoreController, "handle")
+      .mockImplementationOnce(async () => {
+        activeOperations += 1;
+        maxActiveOperations = Math.max(maxActiveOperations, activeOperations);
+        const result = await first.promise;
+        activeOperations -= 1;
+        return result;
+      })
+      .mockImplementationOnce(async () => {
+        activeOperations += 1;
+        maxActiveOperations = Math.max(maxActiveOperations, activeOperations);
+        const result = await second.promise;
+        activeOperations -= 1;
+        return result;
+      });
+
+    const firstOperation = internals.onMessage({ type: "openIgnoreTarget", target: "git" }, module);
+    await vi.waitFor(() => expect(handle).toHaveBeenCalledTimes(1));
+    expect(stateMessages(module).at(-1)).toMatchObject({
+      toolId: "ignoreSettings",
+      state: { status: "running", message: "正在更新 Ignore…" },
+    });
+
+    const secondOperation = internals.onMessage({ type: "openIgnoreTarget", target: "phoenix" }, module);
+    await Promise.resolve();
+    expect(handle).toHaveBeenCalledTimes(1);
+    expect(activeOperations).toBe(1);
+
+    first.resolve({ message: "第一项完成" });
+    await firstOperation;
+    await vi.waitFor(() => expect(handle).toHaveBeenCalledTimes(2));
+    expect(stateMessages(module).at(-1)).toMatchObject({
+      toolId: "ignoreSettings",
+      state: { status: "running", message: "正在更新 Ignore…" },
+    });
+    expect(maxActiveOperations).toBe(1);
+
+    second.resolve({ message: "第二项完成" });
+    await secondOperation;
+    expect(stateMessages(module).at(-1)).toMatchObject({
+      toolId: "ignoreSettings",
+      state: { status: "done", message: "第二项完成" },
+    });
+    expect(maxActiveOperations).toBe(1);
+    expect(handle.mock.calls.map((call) => call[1])).toEqual([
+      "/workspace/project-a",
+      "/workspace/project-a",
+    ]);
+  });
+
+  it("切换 resolved 工作目录会清除旧 Ignore 状态，并丢弃迟到的旧目录结果", async () => {
+    const { internals, module } = createProvider();
+    let currentRoot = "/workspace/project-a";
+    vi.spyOn(internals, "getWorkingContext").mockImplementation(() => workingContext(currentRoot));
+    vi.spyOn(ktcIgnoreController, "snapshot").mockReturnValue(undefined);
+    const invalidate = vi.spyOn(ktcIgnoreController, "invalidateRecommendations");
+    const pending = deferred<KtcIgnoreControllerResult>();
+    const handle = vi.spyOn(ktcIgnoreController, "handle").mockImplementation(async () => pending.promise);
+    internals.ignoreContextRoot = currentRoot;
+    internals.setToolState("ignoreSettings", {
+      status: "done",
+      message: "旧目录分析完成",
+      ignoreRecommendations: {
+        workspace: "project-a",
+        truncated: false,
+        recommendations: [],
+      },
+      ignoreSelectedGroupIds: ["old-group"],
+    });
+    module.messages.length = 0;
+
+    const oldOperation = internals.onMessage({ type: "analyzeIgnore" }, module);
+    await vi.waitFor(() => expect(handle).toHaveBeenCalledOnce());
+    expect(stateMessages(module).at(-1)?.state.status).toBe("running");
+
+    currentRoot = "/workspace/project-b";
+    internals.postWorkingContext();
+
+    const stateAfterSwitch = internals.toolStates.get("ignoreSettings");
+    expect(invalidate).toHaveBeenCalledOnce();
+    expect(stateAfterSwitch).toEqual({
+      status: "idle",
+      message: "目录已切换，请重新分析 Ignore 建议。",
+      ignoreRecommendations: undefined,
+      ignoreSelectedGroupIds: [],
+    });
+    const stateMessageCountAfterSwitch = stateMessages(module).length;
+
+    pending.resolve({
+      message: "旧目录迟到的分析结果",
+      recommendations: {
+        workspace: "project-a",
+        truncated: false,
+        recommendations: [],
+      },
+    });
+    await oldOperation;
+
+    expect(internals.toolStates.get("ignoreSettings")).toEqual(stateAfterSwitch);
+    expect(stateMessages(module)).toHaveLength(stateMessageCountAfterSwitch);
+    expect(JSON.stringify(module.messages)).not.toContain("旧目录迟到的分析结果");
   });
 
   it("代码辅助 Tree 折叠状态保存到用户级 globalState 并在 init 时回传", async () => {
@@ -471,7 +645,7 @@ describe("SidebarViewProvider transient tool state", () => {
     );
 
     await provider.closeToolBlock();
-    expect(module.title).toBe("工具栏");
+    expect(module.title).toBe("KT Auto Code");
     expect(vscodeHost.executeCommand).toHaveBeenCalledWith(
       "setContext",
       "ktAutoCode.modulePanelVisible",

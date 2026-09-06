@@ -33,20 +33,14 @@ const SYNC_HEADER =
 
 const ignorePatternCache = new Map<string, { mtimeMs: number; size: number; patterns: string[] }>();
 
-/** 若不存在 `.phoenix/.ignore`，从 `.gitignore` 同步（或创建空文件） */
+/** 若不存在 `.phoenix/.ignore`，创建空的自定义规则文件；Git Ignore 由独立来源读取。 */
 export function ensurePhoenixIgnore(root: string): IgnoreConfigInfo {
   const file = phoenixIgnoreFile(root);
   if (!existsSync(file)) {
     mkdirSync(dirname(file), { recursive: true });
-    const gitFile = gitIgnoreFile(root);
-    if (existsSync(gitFile)) {
-      writeFileSync(file, SYNC_HEADER + readFileSync(gitFile, "utf8"), "utf8");
-      ignorePatternCache.delete(file);
-      return buildIgnoreConfigInfo(root, true);
-    }
     writeFileSync(
       file,
-      "# KT Auto Code scan ignore rules\n# 可手动添加，或点击「从 .gitignore 同步」\n\n",
+      "# KT Auto Code custom scan ignore rules\n# Primary 自定义忽略；每行一条规则\n\n",
       "utf8",
     );
     ignorePatternCache.delete(file);

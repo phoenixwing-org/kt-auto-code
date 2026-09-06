@@ -214,6 +214,7 @@ function ignoreRootForDocument(document: vscode.TextDocument): string | undefine
   const normalized = process.platform === "win32" || process.platform === "darwin"
     ? normalizedPath.toLocaleLowerCase("en-US")
     : normalizedPath;
-  if (!normalized.endsWith("/.phoenix/.ignore")) return undefined;
-  return dirname(dirname(document.uri.fsPath));
+  if (normalized.endsWith("/.phoenix/.ignore")) return dirname(dirname(document.uri.fsPath));
+  if (normalized.endsWith("/.gitignore")) return dirname(document.uri.fsPath);
+  return undefined;
 }

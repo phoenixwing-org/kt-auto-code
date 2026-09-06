@@ -124,7 +124,7 @@ Web 模式不假设任意本地路径可访问；浏览器目录授权只能作�
 
 CAD manifest 不注册新的 `viewsContainers.activitybar`；它只向基础插件已有的 `kt-auto-code` custom View Container 贡献 Views。因此同时安装两个扩展后，Activity Bar 仍只有当前一个图标。
 
-基础插件在原生 View Header 中提供 `Code`/`CAD` 两个排他切换按钮，位于搜索、工作集、布局和设置按钮之后。共享 Ribbon 只渲染当前模块在 manifest 中声明的工具；切换模块仅替换 Ribbon 内容，不新开工具块，复杂详情仍按需使用 `activeModule` 保持一次只显示一个模块。
+基础插件的原生 View Header 固定只提供 Ignore 与 Settings。`Code` / `CAD` 模块可见性放在 Toolbar Strip 最右唯一 `…` 菜单的分组 checkbox 中；共享 Ribbon 按 manifest 与用户可见性设置渲染工具，不再向原生 Header 追加模块、搜索、工作集或布局按钮。选择工具只切换当前逻辑工具 Block，复杂详情仍按需保持一次只显示一个模块。
 
 CAD 的依赖按能力拆分，而不是把整个模块绑定到 Desk Tools：文件名语义、工作区 FCStd 检索和基础 View 直接可用；已有工作区数据库的查询入口标记为数据库能力；只有解析 FCStd 内容或调用外部原生工具时才要求 native provider。CAD manifest 不声明 Desk Tools 扩展安装依赖。
 

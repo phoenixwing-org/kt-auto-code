@@ -120,6 +120,20 @@ const gitPrimaryPanelOptions = {
 };
 
 /** @type {import('esbuild').BuildOptions} */
+const ignorePrimaryPanelOptions = {
+  entryPoints: ["src/tools/ignoreSettings/KtcIgnorePrimaryPanelEntry.ts"],
+  bundle: true,
+  outfile: "dist/ktc-ignore-primary-panel.js",
+  platform: "browser",
+  format: "iife",
+  target: "es2022",
+  sourcemap: true,
+  logLevel: "info",
+  metafile: Boolean(localWing),
+  plugins: localWingPlugins,
+};
+
+/** @type {import('esbuild').BuildOptions} */
 const reorderMembersPanelOptions = {
   entryPoints: ["src/sidebar/reorderMembersPanelEntry.ts"],
   bundle: true,
@@ -233,6 +247,7 @@ const buildOptions = [
   codegenApplyReportOptions,
   runPrimaryPanelOptions,
   gitPrimaryPanelOptions,
+  ignorePrimaryPanelOptions,
   reorderMembersPanelOptions,
   uuidResultsPanelOptions,
   renameResultsPanelOptions,
@@ -251,6 +266,7 @@ if (watch) {
   const applyReportContext = await esbuild.context(codegenApplyReportOptions);
   const runPrimaryPanelContext = await esbuild.context(runPrimaryPanelOptions);
   const gitPrimaryPanelContext = await esbuild.context(gitPrimaryPanelOptions);
+  const ignorePrimaryPanelContext = await esbuild.context(ignorePrimaryPanelOptions);
   const reorderMembersPanelContext = await esbuild.context(reorderMembersPanelOptions);
   const uuidResultsPanelContext = await esbuild.context(uuidResultsPanelOptions);
   const renameResultsPanelContext = await esbuild.context(renameResultsPanelOptions);
@@ -260,7 +276,7 @@ if (watch) {
   const ribbonCustomizationMenuContext = await esbuild.context(ribbonCustomizationMenuOptions);
   await Promise.all([
     extensionContext.watch(), tableContext.watch(), controlCatalogContext.watch(), primaryPanelContext.watch(), applyReportContext.watch(),
-    runPrimaryPanelContext.watch(), gitPrimaryPanelContext.watch(), reorderMembersPanelContext.watch(), uuidResultsPanelContext.watch(), renameResultsPanelContext.watch(), associatedRulePickerContext.watch(), autoBuildViewContext.watch(), projectRenameAnalysisContext.watch(), ribbonCustomizationMenuContext.watch(),
+    runPrimaryPanelContext.watch(), gitPrimaryPanelContext.watch(), ignorePrimaryPanelContext.watch(), reorderMembersPanelContext.watch(), uuidResultsPanelContext.watch(), renameResultsPanelContext.watch(), associatedRulePickerContext.watch(), autoBuildViewContext.watch(), projectRenameAnalysisContext.watch(), ribbonCustomizationMenuContext.watch(),
   ]);
   console.log("watching extension…");
 } else {

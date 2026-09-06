@@ -29,5 +29,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: auto-code-vsix
-          path: extension/*.vsix
+          path: |
+            dist/vsix/*.vsix
+            dist/vsix/*.vsix.sha256
           if-no-files-found: error

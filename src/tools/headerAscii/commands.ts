@@ -9,27 +9,33 @@ import type { FileResultSummary, ToolRunContext } from "../types.js";
 import { dedupeIssuesByOffset, formatIssueTransform } from "./formatIssue.js";
 import { getModeLabel, getPreserveGbk, getStripBom, isAsciiOnly } from "./options.js";
 import { getFileScope, isScopeEmpty, scopeSummary } from "../../scopeOptions.js";
-import { resolveWorkspaceIgnorePatterns } from "../../ignoreConfig.js";
+import { resolveWorkspaceIgnorePatterns, type KtcWorkspaceIgnoreSourceOptions } from "../../ignoreConfig.js";
 import { ktcHighlightHeaderIssues } from "../../workbench/editorMatchHighlight.js";
 import { ktcResolveWorkspaceFileScope, type KtcWorkspaceFileScope } from "../../worksets.js";
 
-function walkOptions(root: string, fix: boolean, workspaceScope?: KtcWorkspaceFileScope, pluginIgnoreEnabled = true) {
+function walkOptions(
+  root: string,
+  fix: boolean,
+  workspaceScope?: KtcWorkspaceFileScope,
+  ignoreSources: boolean | KtcWorkspaceIgnoreSourceOptions = {},
+) {
   const scope = getFileScope();
   return {
     fix,
     asciiOnly: isAsciiOnly(),
     stripBom: getStripBom(),
     scope: { ...scope, includeMarkdown: false },
-    ignorePatterns: resolveWorkspaceIgnorePatterns(root, pluginIgnoreEnabled),
+    ignorePatterns: resolveWorkspaceIgnorePatterns(root, ignoreSources),
+    useBuiltInIgnore: typeof ignoreSources === "boolean" ? true : ignoreSources.builtInIgnoreEnabled !== false,
     includePaths: workspaceScope?.relativeFiles,
   };
 }
 
-export async function scanHeaders(root: string, workspaceScope?: KtcWorkspaceFileScope, pluginIgnoreEnabled = true): Promise<WorkspaceReport> {
-  return runWorkspaceEncodingScan({ root, ...walkOptions(root, false, workspaceScope, pluginIgnoreEnabled) });
+export async function scanHeaders(root: string, workspaceScope?: KtcWorkspaceFileScope, ignoreSources: boolean | KtcWorkspaceIgnoreSourceOptions = {}): Promise<WorkspaceReport> {
+  return runWorkspaceEncodingScan({ root, ...walkOptions(root, false, workspaceScope, ignoreSources) });
 }
 
-export async function fixHeaders(root: string, workspaceScope?: KtcWorkspaceFileScope, pluginIgnoreEnabled = true): Promise<WorkspaceReport | undefined> {
+export async function fixHeaders(root: string, workspaceScope?: KtcWorkspaceFileScope, ignoreSources: boolean | KtcWorkspaceIgnoreSourceOptions = {}): Promise<WorkspaceReport | undefined> {
   const preserveGbk = getPreserveGbk();
   const stripBom = getStripBom();
   let msg = preserveGbk
@@ -45,7 +51,7 @@ export async function fixHeaders(root: string, workspaceScope?: KtcWorkspaceFile
   if (ok !== "修复") {
     return undefined;
   }
-  return runWorkspaceEncodingScan({ root, ...walkOptions(root, true, workspaceScope, pluginIgnoreEnabled) });
+  return runWorkspaceEncodingScan({ root, ...walkOptions(root, true, workspaceScope, ignoreSources) });
 }
 
 export function reportToResults(report: WorkspaceReport): FileResultSummary[] {
@@ -125,7 +131,7 @@ export async function runHeaderAsciiAction(
     const workspaceScope = await ktcResolveWorkspaceFileScope(vscode.Uri.file(ctx.workspaceRoot), ctx.workspaceFileScopeId);
     ctx.postState({ status: "running", message: `${action === "fix" ? "正在修复" : "正在预检"}（${workspaceScope.label}；${getModeLabel()}；${scopeSummary(scope)}）…` });
     if (action === "scan") {
-      const report = await scanHeaders(ctx.workspaceRoot, workspaceScope, ctx.pluginIgnoreEnabled);
+      const report = await scanHeaders(ctx.workspaceRoot, workspaceScope, ctx);
       logReport(report, false, ctx.log);
       ctx.postState({
         status: "done",
@@ -141,14 +147,14 @@ export async function runHeaderAsciiAction(
     }
 
     if (action === "fix") {
-      const report = await fixHeaders(ctx.workspaceRoot, workspaceScope, ctx.pluginIgnoreEnabled);
+      const report = await fixHeaders(ctx.workspaceRoot, workspaceScope, ctx);
       if (!report) {
         ctx.log("[头文件 ASCII 修正][修复][INFO] 用户已取消，未写入文件。");
         ctx.postState({ status: "idle", message: "已取消修复。" });
         return;
       }
       logReport(report, true, ctx.log);
-      const rescan = await scanHeaders(ctx.workspaceRoot, workspaceScope, ctx.pluginIgnoreEnabled);
+      const rescan = await scanHeaders(ctx.workspaceRoot, workspaceScope, ctx);
       ctx.postState({
         status: "done",
         message: `已修复 ${report.fixedFiles} 个文件。`,

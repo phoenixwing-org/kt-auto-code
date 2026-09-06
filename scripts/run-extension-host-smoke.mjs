@@ -74,6 +74,14 @@ try {
     || receipt.flows?.gitEmptyState !== true
     || receipt.flows?.runBlock !== true
     || receipt.flows?.projectRenameAnalysis !== true
+    || receipt.flows?.projectRenameCancel !== true
+    || !Number.isInteger(receipt.evidence?.projectRenameCancel?.scannedFilesBeforeCancel)
+    || receipt.evidence.projectRenameCancel.scannedFilesBeforeCancel < 1
+    || receipt.evidence.projectRenameCancel.signalAborted !== true
+    || receipt.evidence.projectRenameCancel.cancelledWithoutReport !== true
+    || receipt.evidence.projectRenameCancel.restartReportId !== 2
+    || receipt.evidence.projectRenameCancel.fixtureFileCount !== 360
+    || receipt.evidence.projectRenameCancel.fixtureUnchanged !== true
     || !receipt.evidence?.commands?.includes("ktAutoCode.git.open")
     || !receipt.evidence?.commands?.includes("ktAutoCode.run.open")
   ) {

@@ -19,7 +19,22 @@
     {
       "match": "^docs/0\\.8\\.1发布准备\\.md$",
       "status": "current",
-      "reason": "当前项目改名 Windows 测试候选与发布门禁真源"
+      "reason": "已发布项目改名版本与发布门禁归档"
+    },
+    {
+      "match": "^docs/0\\.8\\.3开发计划\\.md$",
+      "status": "current",
+      "reason": "避开 0.8.2 重叠文件的下一发布目标简表"
+    },
+    {
+      "match": "^docs/0\\.8\\.3发布准备\\.md$",
+      "status": "current",
+      "reason": "0.8.3 正式基线、门禁、Windows 点检和制品回执的发布真源"
+    },
+    {
+      "match": "^docs/Phoenix-Auto统一Ignore方案\\.md$",
+      "status": "current",
+      "reason": "Phoenix Auto 插件内置、Git 与项目自定义 Ignore 的统一产品和跨仓契约"
     },
     {
       "match": "^docs/历史/(下一阶段实施计划|Codegen下一阶段实施计划|0\\.4\\.0-Block工作流改造计划)\\.md$",
@@ -28,7 +43,7 @@
       "reason": "重叠路线已合并为当前 roadmap"
     },
     {
-      "match": "^docs/(0\\.1\\.0-.*|0\\.3\\.0-.*|0\\.4\\.0-(单Block.*|DeskTools复用盘点)|成员排序整合POC记录|三库共享整改执行计划|DeskTools-Code共享提取审计|catdlg-core-迁入准备清单|真实工作区只读验收)\\.md$",
+      "match": "^docs/(0\\.1\\.0-.*|0\\.3\\.0-.*|0\\.4\\.0-(单Block.*|DeskTools复用盘点|ExtensionHost人工验收清单)|成员排序整合POC记录|三库共享整改执行计划|DeskTools-Code共享提取审计|catdlg-core-迁入准备清单|真实工作区只读验收)\\.md$",
       "status": "archived",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "旧版本、已完成点检或阶段性共享提取证据"
@@ -61,7 +76,7 @@
       "match": "^docs/项目改名第二阶段-结构化规则与正则可行性\\.md$",
       "status": "draft",
       "sourceOfTruth": "docs/搜索替换.md",
-      "reason": "结构化名称与正则写盘仍是后续阶段候选，不进入当前 0.8.1"
+      "reason": "0.8.3 仅建立结构化名称纯算法基线；遗漏探测交互、候选升级与任何动态写盘仍待评审"
     },
     {
       "match": "^docs/代码辅助入口整合TODO\\.md$",

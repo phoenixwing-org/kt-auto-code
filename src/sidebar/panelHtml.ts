@@ -121,6 +121,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
   const gitPrimaryPanelUri = webview.asWebviewUri(
     extensionUri.with({ path: `${basePath}/dist/ktc-git-primary-panel.js` }),
   );
+  const ignorePrimaryPanelUri = webview.asWebviewUri(
+    extensionUri.with({ path: `${basePath}/dist/ktc-ignore-primary-panel.js` }),
+  );
   const reorderMembersPanelUri = webview.asWebviewUri(
     extensionUri.with({ path: `${basePath}/dist/reorder-members-panel.js` }),
   );
@@ -189,10 +192,15 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .shell-block.collapsed > .shell-block-body { display: none; }
     .shell-block-action { display: grid; width: 24px; height: 22px; flex: 0 0 24px; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 3px; color: var(--vscode-foreground); background: transparent; cursor: pointer; font-size: 16px; }
     .shell-block-action:hover { border-color: var(--ktc-ui-active-border, var(--vscode-focusBorder)); background: var(--vscode-toolbar-hoverBackground); }
-    .ribbon-header-controls { display: flex; min-width: 0; flex: 0 1 auto; align-items: center; gap: 1px; }
-    .ribbon-header-density svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-width: 1.4; }
+    .ribbon-strip { display: grid; min-width: 0; grid-template-columns: 24px minmax(0, 1fr) 24px; align-items: start; gap: 2px; padding: 4px; border-top: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border)); background: var(--vscode-sideBarSectionHeader-background); }
+    .ribbon-mode-toggle { align-self: start; }
+    .ribbon-mode-toggle .shell-block-chevron { transition: transform .1s ease; }
+    .ribbon-shell.compact .ribbon-mode-toggle .shell-block-chevron { transform: rotate(-90deg); }
+    .ribbon-track { min-width: 0; overflow: visible; }
+    .ribbon-shell.compact .ribbon-track { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+    .ribbon-shell.compact .ribbon-track::-webkit-scrollbar { display: none; }
     .shell-block-body { min-width: 0; padding: 8px 14px 10px; }
-    #ribbon-body { padding: 6px 14px 4px; }
+    #ribbon-body { padding: 0; }
     #ribbon-body .tabs { margin: 0; border-bottom: 0; padding-bottom: 0; }
     #primary-shell { display: flex; min-height: 24px; flex: 1 1 auto; flex-direction: column; overflow: hidden; }
     #primary-shell.collapsed { flex: 0 0 auto; }
@@ -223,12 +231,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     }
     /* 固定的一行目录上下文：不再承载低频 Ignore 表单。 */
     #working-context-shell .shell-block-header { min-height: 34px; padding: 2px 4px; gap: 2px; }
-    .working-context-context-icon { width: 16px; height: 16px; flex: 0 0 16px; color: var(--vscode-descriptionForeground); fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.5; }
-    .working-context-label { flex: 0 0 auto; font-size: var(--vscode-font-size); font-weight: 600; }
+    .working-context-label { flex: 0 0 auto; margin-left: 18px; font-size: var(--vscode-font-size); font-weight: 600; }
     .working-context { min-width: 0; flex: 1 1 auto; margin: 0; padding: 0; }
-    .working-context-main { display: grid; grid-template-columns: minmax(0, 1fr) 30px 30px; gap: 5px; }
+    .working-context-main { display: grid; grid-template-columns: minmax(0, 1fr) 30px; gap: 5px; }
     .working-context select { min-width: 0; height: 30px; padding: 3px 7px; border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border)); border-radius: 2px; color: var(--vscode-dropdown-foreground); background: var(--vscode-dropdown-background); }
-    .working-context-settings { font-size: 17px; line-height: 1; }
     .settings-block { margin: 0; }
     .settings-section { width: 100%; margin: 0; border-block-end: 1px solid var(--vscode-panel-border); }
     .settings-section > summary { display: flex; width: 100%; min-height: 28px; align-items: center; gap: 2px; padding: 0 5px; color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground)); background: var(--vscode-sideBarSectionHeader-background, transparent); cursor: pointer; font-size: var(--vscode-font-size); font-weight: 600; list-style: none; }
@@ -248,17 +254,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .plugin-setting-name { font-weight: 600; }
     .plugin-setting-value { color: var(--vscode-descriptionForeground); }
     .settings-section-count { margin-left: auto; color: var(--vscode-descriptionForeground); font-weight: 400; }
-    .ignore-manager { width: 100%; margin: 0; }
-    .ignore-manager > summary { display: flex; width: 100%; min-height: 28px; align-items: center; gap: 2px; padding: 0 5px; color: var(--vscode-foreground); cursor: pointer; font-size: var(--vscode-font-size); font-weight: 600; list-style: none; }
-    .ignore-manager > summary::-webkit-details-marker { display: none; }
-    .ignore-manager-chevron { width: 16px; height: 16px; flex: 0 0 16px; transform: rotate(-90deg); transform-origin: center; transition: transform .1s ease; }
-    .ignore-manager-chevron path { fill: currentColor; }
-    .ignore-manager[open] .ignore-manager-chevron { transform: rotate(0deg); }
-    .ignore-manager-body { padding: 5px 8px 8px; }
-    .ignore-manager-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 7px; color: var(--vscode-descriptionForeground); font-size: 11px; }
-    .ignore-manager-status label { display: inline-flex; align-items: center; gap: 4px; margin: 0; cursor: pointer; }
-    .ignore-manager-status input { margin: 0; }
-    .ignore-recommendations { margin-top: 7px; }
     .tabs.ribbon {
       display: flex;
       flex-wrap: wrap;
@@ -379,7 +374,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       background: var(--vscode-list-activeSelectionBackground);
       border-color: var(--vscode-focusBorder);
     }
-    .tabs.ribbon .tool-icon { width: 22px; height: 22px; flex-basis: 22px; }
+    .tabs.ribbon .tool-icon,
+    .tabs.ribbon .tool-icon-fallback { width: 22px; height: 22px; flex-basis: 22px; }
     .module-block { font-size: 12px; }
     .module-block .block-header { padding-bottom: 10px; border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-sideBarSectionHeader-border)); }
     .module-block .block-header-row { display: flex; align-items: flex-start; gap: 8px; }
@@ -424,21 +420,25 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .welcome-link:hover { border-bottom-color: currentColor; color: var(--vscode-textLink-activeForeground); }
     .tabs.compact {
       display: flex;
-      flex-wrap: wrap;
+      width: max-content;
+      min-width: 100%;
+      flex-wrap: nowrap;
       justify-content: start;
-      align-items: start;
+      align-items: center;
       gap: 2px;
     }
-    .tabs.compact .module-group-label { flex-basis: 14px; width: 14px; min-height: 32px; font-size: 7px; }
-    .tabs.compact .module-more > summary { width: 28px; min-height: 38px; }
+    .tabs.compact .module-group-label { display: none; }
+    .tabs.compact .module-more > summary { width: 28px; min-height: 32px; }
     .tabs.compact .tab {
-      width: 42px;
-      height: 38px;
+      width: 34px;
+      height: 32px;
+      flex: 0 0 34px;
       justify-content: center;
-      padding: 5px;
+      padding: 4px;
     }
     .tabs.compact .tab > span:last-child { display: none; }
-    .tabs.compact .tool-icon { width: 24px; height: 24px; flex: 0 0 24px; }
+    .tabs.compact .tool-icon,
+    .tabs.compact .tool-icon-fallback { width: 20px; height: 20px; flex: 0 0 20px; }
     .tab:disabled { opacity: 0.45; cursor: default; }
     .tool-icon {
       width: 15px;
@@ -447,6 +447,18 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       background: currentColor;
       mask: var(--tool-icon) center / contain no-repeat;
       -webkit-mask: var(--tool-icon) center / contain no-repeat;
+    }
+    .tool-icon-fallback {
+      display: grid;
+      width: 15px;
+      height: 15px;
+      flex: 0 0 15px;
+      place-items: center;
+      border: 1px solid currentColor;
+      border-radius: 3px;
+      font-size: 9px;
+      font-weight: 700;
+      line-height: 1;
     }
     h2 {
       font-size: 13px;
@@ -561,6 +573,19 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .replace-block.collapsed .replace-only { display: none; }
     .replace-options { display: flex; flex-wrap: wrap; gap: 5px 12px; margin: 6px 0; }
     .replace-options label { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; }
+    .replace-ignore-summary { margin-top: 5px; border-top: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
+    .replace-ignore-summary > summary { display: flex; align-items: center; min-height: 26px; gap: 4px; list-style: none; cursor: pointer; color: var(--vscode-foreground); }
+    .replace-ignore-summary > summary::-webkit-details-marker { display: none; }
+    .replace-ignore-chevron { width: 16px; height: 16px; fill: currentColor; transform: rotate(-90deg); flex: 0 0 16px; }
+    .replace-ignore-summary[open] .replace-ignore-chevron { transform: none; }
+    .replace-ignore-state { min-width: 0; margin-left: auto; color: var(--vscode-descriptionForeground); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .replace-ignore-body { display: grid; gap: 6px; padding: 3px 0 7px 20px; }
+    .replace-ignore-sources { display: flex; flex-wrap: wrap; gap: 5px 12px; }
+    .replace-ignore-sources label { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; }
+    .replace-ignore-custom { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px; align-items: stretch; }
+    .replace-ignore-custom textarea { min-width: 0; min-height: 48px; resize: vertical; padding: 4px 6px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, var(--vscode-panel-border)); font: inherit; font-size: 11px; }
+    .replace-ignore-custom .action { min-width: 42px; }
+    .replace-ignore-hint { margin: 0; color: var(--vscode-descriptionForeground); font-size: 10px; line-height: 1.35; }
     .replace-helpers { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; margin-top: 6px; }
     .replace-history-control { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) 23px auto; gap: 3px; }
     .replace-history-control select {
@@ -638,10 +663,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .action-tooltip .action { width: 100%; height: 100%; }
     .text-button { border: 0; padding: 2px 0; color: var(--vscode-textLink-foreground); background: transparent; cursor: pointer; font-size: 11px; }
     .text-button:disabled { opacity: 0.45; cursor: default; }
-    @media (max-width: 320px) {
-      body .preset-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-      body .preset-row select { grid-column: 1 / -1; }
-    }
     .scope-block {
       margin-bottom: 12px;
       font-size: 12px;
@@ -671,20 +692,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       margin: 4px 0 0 0;
       line-height: 1.4;
     }
-    #ignore-block { margin: 0; }
-    #ignore-block .scope-hint { margin: 0 0 10px; font-size: 12px; }
-    #ignore-block .actions { margin: 0; gap: 6px; }
-    #ignore-block .ignore-primary .action { flex: 1 1 0; }
-    .preset-row { display: grid; grid-template-columns: minmax(72px, 1fr) auto auto; gap: 6px; margin-bottom: 8px; }
-    .preset-row select {
-      min-width: 0;
-      height: 28px;
-      border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border));
-      border-radius: 2px;
-      color: var(--vscode-dropdown-foreground);
-      background: var(--vscode-dropdown-background);
-    }
-    .preset-row .action { padding-inline: 10px; }
     .actions {
       display: flex;
       gap: 6px;
@@ -867,19 +874,15 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
 </head>
 <body>
   <div class="wrap">
-    <section class="shell-block" id="ribbon-shell">
-      <header class="shell-block-header">
-        <button class="shell-block-toggle" id="btn-toggle-ribbon-block" type="button" aria-expanded="true" aria-controls="ribbon-body"><svg class="shell-block-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg><span>工具栏</span></button>
-        <div class="ribbon-header-controls" id="ribbon-header-controls">
-          <button class="shell-block-action ribbon-header-density" id="btn-ribbon-density" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12M5 2v4M10 6v4M7 10v4"/></svg></button>
-        </div>
+    <section class="shell-block ribbon-shell" id="ribbon-shell" aria-label="工具栏">
+      <div class="ribbon-strip">
+        <button class="shell-block-action ribbon-mode-toggle" id="btn-toggle-ribbon-mode" type="button" aria-pressed="false" title="收起为仅图标" aria-label="仅显示工具图标"><svg class="shell-block-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg></button>
+        <div class="ribbon-track" id="ribbon-body"><div class="tabs" id="tabs"></div></div>
         <button class="shell-block-action" id="btn-ribbon-customize" type="button" title="自定义工具栏" aria-label="自定义工具栏">…</button>
-      </header>
-      <div class="shell-block-body" id="ribbon-body"><div class="tabs" id="tabs"></div></div>
+      </div>
     </section>
     <section class="shell-block" id="working-context-shell">
       <header class="shell-block-header" aria-label="目录">
-        <svg class="working-context-context-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.82 1.2A2 2 0 0 0 12.1 6H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z"/><path d="M2 10h20"/></svg>
         <span class="working-context-label">目录</span>
         <section class="working-context" id="working-context" aria-label="目录">
           <div class="working-context-main">
@@ -887,7 +890,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         <button class="folder-button" id="btn-pick-working-directory" type="button" title="选择工作目录" aria-label="选择工作目录">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.82 1.2A2 2 0 0 0 12.1 6H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z"/><path d="M2 10h20"/></svg>
         </button>
-        <button class="folder-button working-context-settings" id="btn-open-settings" type="button" title="打开设置" aria-label="打开设置">⚙</button>
           </div>
         </section>
       </header>
@@ -1034,32 +1036,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     <div class="compact-tools" id="compact-tools" hidden>
       <button class="text-button" id="btn-caa-check-connection" type="button" hidden>连接 Desk Tools</button>
     </div>
+    <ktc-ignore-primary-panel id="ignore-panel" hidden></ktc-ignore-primary-panel>
     <section class="settings-block" id="environment-block" hidden aria-label="设置">
-      <details class="settings-section ignore-manager" id="ignore-manager" open>
-        <summary><svg class="ignore-manager-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg><span>Ignore 管理</span></summary>
-        <div class="ignore-manager-body scope-block" id="ignore-block">
-          <div class="ignore-manager-status">
-            <span id="git-ignore-status">Git Ignore · 自动</span>
-            <label title="叠加当前目录的 .phoenix/.ignore"><input id="plugin-ignore-enabled" type="checkbox" />插件 Ignore</label>
-          </div>
-          <div class="actions ignore-primary">
-            <button class="action secondary" id="btn-analyze-ignore" type="button">分析当前目录</button>
-            <button class="action" id="btn-apply-ignore-recommendations" type="button" hidden>追加所选推荐</button>
-          </div>
-          <p class="scope-hint" id="ignore-status">—</p>
-          <div class="preset-row">
-            <select id="ignore-preset" aria-label="Ignore 预设"><option value="caa">CAA</option><option value="cpp">C++</option><option value="web">Web</option></select>
-            <button class="action" id="btn-append-preset" type="button">追加</button>
-            <button class="action secondary" id="btn-remove-preset" type="button">去除</button>
-          </div>
-          <div class="actions">
-            <button class="action secondary" id="btn-open-ignore" type="button">编辑规则</button>
-            <button class="action" id="btn-sync-ignore" type="button">从 .gitignore 追加</button>
-          </div>
-          <div class="ignore-recommendations" id="ignore-recommendations"></div>
-        </div>
-      </details>
-      <details class="settings-section" open>
+      <details class="settings-section" id="environment-settings-section" open>
         <summary><svg class="settings-section-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg><span>工程环境</span></summary>
         <div class="settings-section-body">
           <div class="environment-actions">
@@ -1118,6 +1097,22 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
           </select>
         </label>
       </div>
+      <details class="replace-ignore-summary" id="replace-ignore-summary">
+        <summary><svg class="replace-ignore-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.976 10.072l4.357-4.357.62.618L7.976 11.31 3 6.333l.62-.618 4.356 4.357z"/></svg><span>忽略范围</span><span class="replace-ignore-state" id="replace-ignore-state">插件 · Git</span></summary>
+        <div class="replace-ignore-body">
+          <div class="replace-ignore-sources" aria-label="Ignore 来源">
+            <label title="Phoenix Auto 内置的 CAA、C++、Web 生成物和缓存目录"><input id="replace-ignore-builtin" type="checkbox" checked />插件忽略</label>
+            <label title="读取所选目录所在最近 Git 仓库根部的 .gitignore"><input id="replace-ignore-git" type="checkbox" checked />Git 忽略</label>
+            <label title="读取当前目录的 .phoenix/.ignore"><input id="replace-ignore-custom-enabled" type="checkbox" />自定义忽略</label>
+          </div>
+          <div class="replace-ignore-custom">
+            <textarea id="replace-ignore-custom-patterns" spellcheck="false" aria-label="自定义 Ignore 规则" placeholder="每行一条，例如 ImportedInterfaces/"></textarea>
+            <button class="action" id="btn-save-replace-ignore" type="button">保存</button>
+            <button class="action secondary" id="btn-manage-replace-ignore" type="button">管理…</button>
+          </div>
+          <p class="replace-ignore-hint">自定义规则非空时才保存到当前项目 .phoenix/.ignore；空项目不会自动创建文件。三个来源可独立启停，项目改名和头文件引用修正复用当前选择。</p>
+        </div>
+      </details>
       </div>
     </section>
     <ktc-uuid-results-panel id="uuid-results-panel" hidden></ktc-uuid-results-panel>
@@ -1182,6 +1177,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
   <script nonce="${nonce}" src="${codegenPrimaryPanelUri}"></script>
   <script nonce="${nonce}" src="${runPrimaryPanelUri}"></script>
   <script nonce="${nonce}" src="${gitPrimaryPanelUri}"></script>
+  <script nonce="${nonce}" src="${ignorePrimaryPanelUri}"></script>
   <script nonce="${nonce}" src="${reorderMembersPanelUri}"></script>
   <script nonce="${nonce}" src="${uuidResultsPanelUri}"></script>
   <script nonce="${nonce}" src="${renameResultsPanelUri}"></script>
@@ -1190,6 +1186,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     const vscode = acquireVsCodeApi();
     const saved = vscode.getState() || {};
     const savedReplace = saved.replace || {};
+    let pendingRibbonCollapseMigration = saved.ribbonBlockCollapsed === true;
     let state = {
       tools: [],
       activeToolId: "",
@@ -1200,7 +1197,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       ignoreConfig: null,
       showDetails: !!saved.showDetails,
       showEncDetails: !!saved.showEncDetails,
-      ribbonBlockCollapsed: !!saved.ribbonBlockCollapsed,
       primaryBlockCollapsed: !!saved.primaryBlockCollapsed,
       sidebarStyle: "ribbon",
       presentation: "ribbon",
@@ -1218,7 +1214,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       },
       extensionInstallations: [],
       ribbonLayout: { pinnedToolIds: [], toolOrder: [] },
-      workingContext: { selectedDirectory: "", label: "未打开目录", pluginIgnoreEnabled: true, gitIgnoreExists: false },
+      workingContext: { selectedDirectory: "", label: "未打开目录", pluginIgnoreEnabled: false, builtInIgnoreEnabled: true, gitIgnoreEnabled: true, customIgnoreEnabled: false, gitIgnoreExists: false },
       uuidStrategy: saved.uuidStrategy === "fresh_per_hit" ? "fresh_per_hit" : "map_per_value",
       replace: Object.assign({ search: "", with: "", text: true, file: false, dir: false, ignored: false, scope: "", collapsed: false, defaultEncoding: "utf8", variantMode: "exact", variantBasis: "", variantRules: [] }, savedReplace),
     };
@@ -1231,6 +1227,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     let focusRibbonMenuRequested = false;
     let initialized = false;
     let selectedRenameHistoryKey = "";
+    let customIgnoreDraftPath = "";
+    let customIgnoreDraftDirty = false;
     const gitPanelModel = ${ktcGitPanelModel.toString()};
     const gitRepositoryOptionLabels = ${ktcGitRepositoryOptionLabels.toString()};
     let gitRefreshRequested = false;
@@ -1240,7 +1238,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         showDetails: state.showDetails,
         showEncDetails: state.showEncDetails,
         uuidStrategy: state.uuidStrategy,
-        ribbonBlockCollapsed: state.ribbonBlockCollapsed,
         primaryBlockCollapsed: state.primaryBlockCollapsed,
         replace: state.replace,
       });
@@ -1309,9 +1306,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     const els = {
       ribbonShell: document.getElementById("ribbon-shell"),
       primaryShell: document.getElementById("primary-shell"),
-      btnToggleRibbonBlock: document.getElementById("btn-toggle-ribbon-block"),
+      btnToggleRibbonMode: document.getElementById("btn-toggle-ribbon-mode"),
       btnTogglePrimaryBlock: document.getElementById("btn-toggle-primary-block"),
-      btnRibbonDensity: document.getElementById("btn-ribbon-density"),
       btnRibbonCustomize: document.getElementById("btn-ribbon-customize"),
       btnCloseTool: document.getElementById("btn-close-tool"),
       primaryBody: document.getElementById("primary-body"),
@@ -1360,13 +1356,17 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       replaceText: document.getElementById("replace-text"),
       replaceFile: document.getElementById("replace-file"),
       replaceDir: document.getElementById("replace-dir"),
+      replaceIgnoreSummary: document.getElementById("replace-ignore-summary"),
+      replaceIgnoreState: document.getElementById("replace-ignore-state"),
+      replaceIgnoreBuiltIn: document.getElementById("replace-ignore-builtin"),
+      replaceIgnoreGit: document.getElementById("replace-ignore-git"),
+      replaceIgnoreCustomEnabled: document.getElementById("replace-ignore-custom-enabled"),
+      replaceIgnoreCustomPatterns: document.getElementById("replace-ignore-custom-patterns"),
+      btnSaveReplaceIgnore: document.getElementById("btn-save-replace-ignore"),
+      btnManageReplaceIgnore: document.getElementById("btn-manage-replace-ignore"),
       replaceScope: document.getElementById("replace-scope"),
       workingContext: document.getElementById("working-context"),
-      gitIgnoreStatus: document.getElementById("git-ignore-status"),
-      pluginIgnoreEnabled: document.getElementById("plugin-ignore-enabled"),
-      ignoreRecommendations: document.getElementById("ignore-recommendations"),
       btnPickWorkingDirectory: document.getElementById("btn-pick-working-directory"),
-      btnOpenSettings: document.getElementById("btn-open-settings"),
       btnProjectRenameAnalysis: document.getElementById("btn-project-rename-analysis"),
       defaultEncoding: document.getElementById("replace-default-encoding"),
       replacePreview: document.getElementById("btn-replace-preview"),
@@ -1382,6 +1382,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       uuidStrategy: document.getElementById("uuid-strategy"),
       uuidStrategyHint: document.getElementById("uuid-strategy-hint"),
       btnCaaCheckConnection: document.getElementById("btn-caa-check-connection"),
+      ignorePanel: document.getElementById("ignore-panel"),
       environmentBlock: document.getElementById("environment-block"),
       environmentValues: document.getElementById("environment-values"),
       pluginSettingValues: document.getElementById("plugin-setting-values"),
@@ -1395,20 +1396,11 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       gitRepositoryAdd: document.getElementById("git-repository-add"),
       gitRepositoryRefresh: document.getElementById("git-repository-refresh"),
       gitRepositoryRemove: document.getElementById("git-repository-remove"),
-      ignoreBlock: document.getElementById("ignore-block"),
       scopeBlock: document.getElementById("scope-block"),
       scopeHeaders: document.getElementById("scope-headers"),
       scopeSource: document.getElementById("scope-source"),
       scopeMd: document.getElementById("scope-md"),
       scopeMdWrap: document.getElementById("scope-md-wrap"),
-      ignoreStatus: document.getElementById("ignore-status"),
-      ignorePreset: document.getElementById("ignore-preset"),
-      btnAppendPreset: document.getElementById("btn-append-preset"),
-      btnRemovePreset: document.getElementById("btn-remove-preset"),
-      btnOpenIgnore: document.getElementById("btn-open-ignore"),
-      btnSyncIgnore: document.getElementById("btn-sync-ignore"),
-      btnAnalyzeIgnore: document.getElementById("btn-analyze-ignore"),
-      btnApplyIgnoreRecommendations: document.getElementById("btn-apply-ignore-recommendations"),
       targetHint: document.getElementById("target-hint"),
       encodingDefaultTarget: document.getElementById("encoding-default-target"),
       btnEncodingSettings: document.getElementById("btn-encoding-settings"),
@@ -1766,47 +1758,19 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       };
     }
 
-    function renderIgnoreResults(ts) {
-      const target = els.ignoreRecommendations;
-      target.innerHTML = "";
-      const report = ts.ignoreRecommendations;
-      const selected = new Set(ts.ignoreSelectedGroupIds || []);
-      els.btnApplyIgnoreRecommendations.hidden = !report;
-      els.btnApplyIgnoreRecommendations.disabled = ts.status === "running" || selected.size === 0;
-      els.btnApplyIgnoreRecommendations.textContent = selected.size ? "追加所选推荐（" + selected.size + "）" : "追加所选推荐";
-      if (!report) return;
-      if (!report.recommendations.length) {
-        const empty = document.createElement("p");
-        empty.className = "scope-hint";
-        empty.textContent = "没有可追加的推荐规则。";
-        target.appendChild(empty);
-        return;
-      }
-      for (const group of report.recommendations) {
-        const selectable = group.suggestedRules.length > 0;
-        const headerRow = document.createElement("div");
-        headerRow.className = "compact-subtext";
-        headerRow.textContent = group.description;
-        const rules = document.createElement("div");
-        rules.className = "compact-rules";
-        const parts = [];
-        if (group.suggestedRules.length) parts.push("建议：" + group.suggestedRules.map((rule) => rule.value).join("，"));
-        if (group.existingRules.length) parts.push("已有 " + group.existingRules.length + " 条");
-        if (group.blockedRules.length) parts.push("有跟踪文件，阻止 " + group.blockedRules.length + " 条");
-        rules.textContent = parts.join(" · ");
-        const wrapper = document.createElement("div");
-        wrapper.append(headerRow, rules);
-        const checkbox = selectable ? {
-          checked: selected.has(group.groupId), disabled: ts.status === "running", label: "选择 " + group.title,
-          onChange: (checked) => {
-            if (checked) selected.add(group.groupId); else selected.delete(group.groupId);
-            vscode.postMessage({ type: "ignoreSelection", toolId: "ignoreSettings", groupIds: [...selected] });
-            ts.ignoreSelectedGroupIds = [...selected];
-            renderIgnoreResults(ts);
-          },
-        } : undefined;
-        target.appendChild(createCompactGroup(group.title, group.confidence + (group.reviewRequired ? " · 需复核" : ""), [wrapper], checkbox));
-      }
+    function syncIgnorePrimaryPanel(ts) {
+      const context = state.workingContext || {};
+      els.ignorePanel.model = {
+        config: state.ignoreConfig || undefined,
+        recommendations: ts.ignoreRecommendations,
+        sourceEnabled: {
+          builtIn: context.builtInIgnoreEnabled !== false,
+          git: context.gitIgnoreEnabled !== false,
+          custom: context.customIgnoreEnabled === true,
+        },
+        running: ts.status === "running",
+        message: ts.message || state.ignoreConfig?.statusText || "",
+      };
     }
 
     function syncUuidResultsPanel(ts) {
@@ -2022,31 +1986,38 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
 
     const searchReplaceButtonState = ${ktcSearchReplaceButtonState.toString()};
     const simpleRenameRules = ${ktcSimpleRenameRules.toString()};
-    function renderIgnoreConfig() {
-      const cfg = state.ignoreConfig;
-      if (!cfg) {
-        els.ignoreStatus.textContent = "未打开工作区";
-        els.btnOpenIgnore.disabled = true;
-        els.btnSyncIgnore.disabled = true;
-        els.btnAppendPreset.disabled = true;
-        els.btnRemovePreset.disabled = true;
-        els.btnAnalyzeIgnore.disabled = true;
-        return;
-      }
-      const dirty = cfg.statusText.includes("未保存") ? " · 未保存" : "";
-      els.ignoreStatus.textContent = cfg.relativePath + " · " + cfg.patternCount + " 条" + dirty;
-      els.btnOpenIgnore.disabled = false;
-      els.btnSyncIgnore.disabled = !cfg.gitIgnoreExists;
-      els.btnAppendPreset.disabled = false;
-      els.btnRemovePreset.disabled = false;
-      els.btnAnalyzeIgnore.disabled = false;
+    function renderWorkingContext() {
+      renderReplaceIgnoreSummary();
+      renderRecentWorkingDirectories();
     }
 
-    function renderWorkingContext() {
+    function normalizedIgnoreDraft(value) {
+      return String(value || "").split(/\\r?\\n/).map((line) => line.trim()).filter((line, index, all) => line && !line.startsWith("#") && all.indexOf(line) === index);
+    }
+
+    function renderReplaceIgnoreSummary() {
       const context = state.workingContext || {};
-      els.gitIgnoreStatus.textContent = context.gitIgnoreExists ? "Git Ignore · 生效" : "Git Ignore · 无规则";
-      els.pluginIgnoreEnabled.checked = context.pluginIgnoreEnabled !== false;
-      renderRecentWorkingDirectories();
+      const config = state.ignoreConfig;
+      const configPath = config?.fullPath || "";
+      if (!customIgnoreDraftDirty && customIgnoreDraftPath !== configPath) {
+        customIgnoreDraftPath = configPath;
+        els.replaceIgnoreCustomPatterns.value = (config?.primaryCustomPatterns || []).join("\\n");
+      }
+      els.replaceIgnoreBuiltIn.checked = context.builtInIgnoreEnabled !== false;
+      els.replaceIgnoreGit.checked = context.gitIgnoreEnabled !== false;
+      els.replaceIgnoreCustomEnabled.checked = context.customIgnoreEnabled === true;
+      const customCount = config?.patternCount || 0;
+      els.replaceIgnoreState.textContent = [
+        context.builtInIgnoreEnabled !== false ? "插件 " + (config?.builtInPatternCount || "") : "插件关",
+        context.gitIgnoreEnabled !== false ? (context.gitIgnoreExists ? "Git" : "Git无规则") : "Git关",
+        context.customIgnoreEnabled === true ? "自定义 " + customCount : "自定义关",
+      ].join(" · ");
+      const saved = config?.primaryCustomPatterns || [];
+      const draft = normalizedIgnoreDraft(els.replaceIgnoreCustomPatterns.value);
+      els.btnSaveReplaceIgnore.disabled = !context.resolvedDirectory
+        || (draft.join("\\n") === saved.join("\\n"));
+      els.replaceIgnoreCustomPatterns.disabled = !context.resolvedDirectory;
+      els.btnManageReplaceIgnore.disabled = !context.resolvedDirectory;
     }
 
     function renderRecentWorkingDirectories() {
@@ -2208,10 +2179,13 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       }
     }
 
-    function renderRibbonHeaderControls() {
-      const nextDensity = state.sidebarStyle === "compact" ? "图标与文字" : "仅图标";
-      els.btnRibbonDensity.title = "切换为" + nextDensity;
-      els.btnRibbonDensity.setAttribute("aria-label", els.btnRibbonDensity.title);
+    function renderRibbonModeControl() {
+      const compact = state.sidebarStyle === "compact";
+      const title = compact ? "展开工具栏文字" : "收起为仅图标";
+      els.ribbonShell.classList.toggle("compact", compact);
+      els.btnToggleRibbonMode.title = title;
+      els.btnToggleRibbonMode.setAttribute("aria-label", "仅显示工具图标");
+      els.btnToggleRibbonMode.setAttribute("aria-pressed", compact ? "true" : "false");
     }
 
     function renderCodeAssistantReorder(reorderState, running) {
@@ -2260,11 +2234,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       document.body.classList.toggle("ribbon-only", state.presentation === "ribbon");
       document.body.classList.toggle("detail-block", state.presentation === "detailBlock");
       const welcomeMode = state.presentation === "detailBlock" && (state.openToolIds || []).length === 0;
-      els.ribbonShell.classList.toggle("collapsed", !!state.ribbonBlockCollapsed);
       els.primaryShell.classList.toggle("collapsed", !!state.primaryBlockCollapsed);
-      els.btnToggleRibbonBlock.setAttribute("aria-expanded", state.ribbonBlockCollapsed ? "false" : "true");
       els.btnTogglePrimaryBlock.setAttribute("aria-expanded", state.primaryBlockCollapsed ? "false" : "true");
-      renderRibbonHeaderControls();
+      renderRibbonModeControl();
       els.btnCloseTool.hidden = welcomeMode;
       document.body.classList.toggle("welcome-mode", welcomeMode);
       els.welcomePanel.hidden = !welcomeMode;
@@ -2317,6 +2289,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         const group = document.createElement("div");
         group.className = "module-group";
         group.dataset.moduleId = moduleId;
+        group.setAttribute("role", "group");
+        group.setAttribute("aria-label", (moduleTools[0].moduleTitle || moduleId) + " 模块");
         const groupLabel = document.createElement("div");
         groupLabel.className = "module-group-label" + (moduleId === state.moduleState.active ? " active" : "");
         groupLabel.textContent = (moduleTools[0].moduleTitle || moduleId).toUpperCase();
@@ -2331,12 +2305,16 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
           btn.className = "tab" + (isOpen ? " open" : "") + (isActive ? " active" : "");
           btn.type = "button";
           btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+          const icon = document.createElement("span");
+          icon.setAttribute("aria-hidden", "true");
           if (t.icon && t.icon.includes(":")) {
-            const icon = document.createElement("span");
             icon.className = "tool-icon";
             icon.style.setProperty("--tool-icon", 'url("' + t.icon.replace(/"/g, "") + '")');
-            btn.appendChild(icon);
+          } else {
+            icon.className = "tool-icon-fallback";
+            icon.textContent = Array.from(String(t.shortTitle || t.title || "?").trim())[0] || "?";
           }
+          btn.appendChild(icon);
           const label = document.createElement("span");
           label.textContent = t.shortTitle || shortTitles[t.id] || t.title;
           btn.appendChild(label);
@@ -2491,6 +2469,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.gitPanel.hidden = !git;
       els.uuidResultsPanel.hidden = !uuid;
       els.renameResultsPanel.hidden = !rename;
+      els.ignorePanel.hidden = !ignore;
       els.environmentBlock.hidden = !environment;
       const genericActionFeature = enc || header || uuid || caaDialog;
       els.codeAssistantGenericActions.hidden = !genericActionFeature;
@@ -2513,7 +2492,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.compactTools.hidden = !caaDialog;
       els.btnCaaCheckConnection.hidden = !caaDialog;
       els.btnCaaCheckConnection.textContent = ts.caaDeskConnection?.status === "online" ? "重新检测" : "连接 Desk Tools";
-      els.btnApplyIgnoreRecommendations.hidden = true;
       els.btnScan.disabled = running;
       els.btnFix.disabled = running;
       els.btnScan.textContent = rename ? "打开" : (ignore ? "打开规则" : (uuid ? "扫描 UUID" : (caaDialog ? "扫描 CATDlg" : "预检")));
@@ -2555,9 +2533,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.scopeMdWrap.className = enc ? "" : "disabled";
       els.scopeMd.disabled = !enc;
 
-      renderIgnoreConfig();
       renderWorkingContext();
-      renderIgnoreResults(state.toolStates.ignoreSettings || { status: "idle" });
+      syncIgnorePrimaryPanel(state.toolStates.ignoreSettings || { status: "idle" });
 
       els.optionsPanel.hidden = rename || codeAssistantTreeOnly || codegen || run || git || ignore || uuid || caaDialog || environment;
       els.headerOptions.hidden = enc;
@@ -2575,9 +2552,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
 
       els.status.textContent = ts.message || "";
       els.status.className = "status" + (ts.status === "error" ? " error" : "");
-      els.status.hidden = codeAssistantTreeOnly || codegen || run || git;
-      els.resultsTitle.hidden = codeAssistantTreeOnly || codegen || run || git || rename || uuid || environment;
-      els.results.hidden = codeAssistantTreeOnly || codegen || run || git || rename || uuid || environment;
+      els.status.hidden = codeAssistantTreeOnly || codegen || run || git || ignore;
+      els.resultsTitle.hidden = codeAssistantTreeOnly || codegen || run || git || rename || ignore || uuid || environment;
+      els.results.hidden = codeAssistantTreeOnly || codegen || run || git || rename || ignore || uuid || environment;
       els.results.innerHTML = "";
       els.resultsTitle.textContent = header ? "问题文件" : (enc ? "编码结果" : (rename ? "替换结果" : (ignore ? "推荐规则" : (uuid ? "UUID 结果" : (caaDialog ? "CATDlg 文件" : "结果")))));
 
@@ -2599,7 +2576,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       } else if (rename) {
         els.empty.style.display = "none";
       } else if (ignore) {
-        renderIgnoreResults(ts);
+        els.empty.style.display = "none";
       } else if (uuid) {
         els.empty.style.display = "none";
       } else if (caaDialog) {
@@ -2989,7 +2966,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
           levels,
           scope: state.workingContext.selectedDirectory || "",
           includeIgnored: false,
-          pluginIgnoreEnabled: state.workingContext.pluginIgnoreEnabled !== false,
+          pluginIgnoreEnabled: state.workingContext.customIgnoreEnabled === true,
+          builtInIgnoreEnabled: state.workingContext.builtInIgnoreEnabled !== false,
+          gitIgnoreEnabled: state.workingContext.gitIgnoreEnabled !== false,
+          customIgnoreEnabled: state.workingContext.customIgnoreEnabled === true,
         },
       });
     }
@@ -3008,6 +2988,11 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         sourceName: state.replace.search,
         targetName: state.replace.with,
         rules,
+        ignoreSources: {
+          builtInIgnoreEnabled: state.workingContext.builtInIgnoreEnabled !== false,
+          gitIgnoreEnabled: state.workingContext.gitIgnoreEnabled !== false,
+          customIgnoreEnabled: state.workingContext.customIgnoreEnabled === true,
+        },
       });
     };
     els.replaceToggle.onclick = () => {
@@ -3048,7 +3033,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     };
     els.defaultEncoding.onchange = saveReplaceState;
     els.btnPickWorkingDirectory.onclick = () => vscode.postMessage({ type: "pickWorkingDirectory" });
-    els.btnOpenSettings.onclick = () => vscode.postMessage({ type: "selectTool", toolId: "environmentSettings" });
     function stopTextInputEnter(event) {
       if (event.key !== "Enter") return;
       event.preventDefault();
@@ -3066,9 +3050,28 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.replaceScope.title = els.replaceScope.value || "当前目录";
       vscode.postMessage({ type: "selectWorkingDirectory", directory: els.replaceScope.value });
     };
-    els.pluginIgnoreEnabled.onchange = () => vscode.postMessage({
-      type: "setPluginIgnoreEnabled", enabled: els.pluginIgnoreEnabled.checked,
+    els.replaceIgnoreBuiltIn.onchange = () => vscode.postMessage({
+      type: "setIgnoreSourceEnabled", source: "builtIn", enabled: els.replaceIgnoreBuiltIn.checked,
     });
+    els.replaceIgnoreGit.onchange = () => vscode.postMessage({
+      type: "setIgnoreSourceEnabled", source: "git", enabled: els.replaceIgnoreGit.checked,
+    });
+    els.replaceIgnoreCustomEnabled.onchange = () => vscode.postMessage({
+      type: "setIgnoreSourceEnabled", source: "custom", enabled: els.replaceIgnoreCustomEnabled.checked,
+    });
+    els.replaceIgnoreCustomPatterns.oninput = () => {
+      customIgnoreDraftDirty = true;
+      renderReplaceIgnoreSummary();
+    };
+    els.btnSaveReplaceIgnore.onclick = () => {
+      const patterns = normalizedIgnoreDraft(els.replaceIgnoreCustomPatterns.value);
+      customIgnoreDraftDirty = false;
+      vscode.postMessage({ type: "savePrimaryCustomIgnore", patterns });
+      if (patterns.length > 0 && state.workingContext.customIgnoreEnabled !== true) {
+        vscode.postMessage({ type: "setIgnoreSourceEnabled", source: "custom", enabled: true });
+      }
+    };
+    els.btnManageReplaceIgnore.onclick = () => vscode.postMessage({ type: "selectTool", toolId: "ignoreSettings" });
     for (const input of [els.replaceText, els.replaceFile, els.replaceDir]) {
       input.onchange = saveReplaceState;
     }
@@ -3084,18 +3087,33 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     els.scopeMd.onchange = () => vscode.postMessage({
       type: "setOption", toolId: "scope", key: "includeMarkdown", value: els.scopeMd.checked,
     });
-    els.btnOpenIgnore.onclick = () => vscode.postMessage({ type: "openIgnoreFile" });
-    els.btnSyncIgnore.onclick = () => vscode.postMessage({ type: "syncIgnoreFromGit" });
-    els.btnAnalyzeIgnore.onclick = () => vscode.postMessage({ type: "analyzeIgnore" });
-    els.btnApplyIgnoreRecommendations.onclick = () => vscode.postMessage({
-      type: "applyIgnoreRecommendations",
-      groupIds: state.toolStates.ignoreSettings?.ignoreSelectedGroupIds || [],
-    });
-    els.btnAppendPreset.onclick = () => vscode.postMessage({
-      type: "applyIgnorePreset", presetId: els.ignorePreset.value, action: "append",
-    });
-    els.btnRemovePreset.onclick = () => vscode.postMessage({
-      type: "applyIgnorePreset", presetId: els.ignorePreset.value, action: "remove",
+    els.ignorePanel.addEventListener("ktc-ignore-primary-action", (event) => {
+      const detail = event.detail || {};
+      if (detail.action === "setSourceEnabled") {
+        vscode.postMessage({
+          type: "setIgnoreSourceEnabled",
+          source: detail.source,
+          enabled: detail.enabled,
+        });
+      } else if (detail.action === "openTarget") {
+        vscode.postMessage({ type: "openIgnoreTarget", target: detail.target });
+      } else if (detail.action === "analyze") {
+        vscode.postMessage({ type: "analyzeIgnore" });
+      } else if (detail.action === "applyRules") {
+        vscode.postMessage(detail.scope === "recommendation"
+          ? {
+              type: "applyIgnoreRecommendations",
+              target: detail.target,
+              action: detail.operation,
+              ruleValues: [...detail.rules],
+            }
+          : {
+              type: "applyIgnoreRules",
+              target: detail.target,
+              action: detail.operation,
+              rules: [...detail.rules],
+            });
+      }
     });
     els.preserveGbk.onchange = () => vscode.postMessage({
       type: "setOption",
@@ -3118,23 +3136,15 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       type: "openEncodingSettings",
       toolId: "encodingFix",
     });
-    els.btnToggleRibbonBlock.onclick = () => {
-      state.ribbonBlockCollapsed = !state.ribbonBlockCollapsed;
-      persistUiState();
+    els.btnToggleRibbonMode.onclick = () => {
+      state.sidebarStyle = state.sidebarStyle === "compact" ? "ribbon" : "compact";
       render();
+      vscode.postMessage({ type: "setRibbonStyle", style: state.sidebarStyle });
     };
     els.btnTogglePrimaryBlock.onclick = () => {
       state.primaryBlockCollapsed = !state.primaryBlockCollapsed;
       persistUiState();
       render();
-    };
-    els.btnRibbonDensity.onclick = () => {
-      if (state.ribbonBlockCollapsed) {
-        state.ribbonBlockCollapsed = false;
-        persistUiState();
-        render();
-      }
-      vscode.postMessage({ type: "toggleRibbonDensity" });
     };
     els.btnRibbonCustomize.onclick = () => {
       openModuleMenuId = "all";
@@ -3184,6 +3194,14 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         state.scope = msg.scope || state.scope;
         state.ignoreConfig = msg.ignoreConfig || null;
         state.sidebarStyle = msg.sidebarStyle || "ribbon";
+        if (pendingRibbonCollapseMigration) {
+          pendingRibbonCollapseMigration = false;
+          if (state.sidebarStyle === "ribbon") {
+            state.sidebarStyle = "compact";
+            vscode.postMessage({ type: "setRibbonStyle", style: "compact" });
+          }
+          persistUiState();
+        }
         state.ribbonLayout = msg.ribbonLayout || state.ribbonLayout;
         state.workingContext = msg.workingContext || state.workingContext;
         state.presentation = msg.presentation === "detailBlock" ? "detailBlock" : "ribbon";
@@ -3201,6 +3219,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         render();
       } else if (msg.type === "ignoreConfig") {
         state.ignoreConfig = msg.ignoreConfig || null;
+        customIgnoreDraftDirty = false;
+        customIgnoreDraftPath = "";
         render();
       } else if (msg.type === "options") {
         state.toolOptions[msg.toolId] = msg.options;
@@ -3216,6 +3236,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         focusRibbonMenuRequested = true;
         render();
       } else if (msg.type === "workingContext") {
+        if ((msg.context?.resolvedDirectory || "") !== (state.workingContext?.resolvedDirectory || "")) {
+          customIgnoreDraftDirty = false;
+          customIgnoreDraftPath = "";
+        }
         state.workingContext = msg.context || state.workingContext;
         state.recentWorkingDirectories = msg.directories || state.recentWorkingDirectories;
         state.replace.scope = state.workingContext.selectedDirectory || "";

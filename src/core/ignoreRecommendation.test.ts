@@ -41,15 +41,15 @@ describe("ignoreRecommendation", () => {
     expect(node?.defaultSelected).toBe(false);
   });
 
-  it("目录规则忽略结尾斜杠差异", () => {
+  it("目录规则不会把无尾斜杠的裸规则当作已有", () => {
     const recommendations = ktcAnalyzeIgnoreRecommendations({
       paths: ["win_b64/"],
       trackedPaths: ["win_b64/link.json"],
       existingPatterns: ["win_b64"],
     });
     const platform = recommendations.find((item) => item.groupId === "caa-platform");
-    expect(platform?.existingRules.map((rule) => rule.value)).toContain("win_b64/");
-    expect(platform?.blockedRules.map((item) => item.rule.value)).not.toContain("win_b64/");
+    expect(platform?.existingRules.map((rule) => rule.value)).not.toContain("win_b64/");
+    expect(platform?.blockedRules.map((item) => item.rule.value)).toContain("win_b64/");
   });
 
   it("命中 Git 已跟踪文件的危险规则被阻止", () => {

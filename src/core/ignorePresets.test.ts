@@ -4,8 +4,10 @@ import {
   ktcAppendIgnoreGroup,
   ktcGetIgnorePreset,
   ktcMergeGitIgnore,
+  ktcPrimaryCustomIgnoreRules,
   ktcRemoveIgnorePreset,
   ktcRemoveIgnoreGroup,
+  ktcSetPrimaryCustomIgnoreRules,
 } from "./ignorePresets.js";
 
 describe("ignorePresets", () => {
@@ -90,5 +92,14 @@ describe("ignorePresets", () => {
       catalogVersion: 5,
       rules: ["build/"],
     })).toBe(source);
+  });
+
+  it("Primary 自定义规则独立保存、去重并可清空", () => {
+    const source = ktcAppendIgnorePreset("manual/\n", "web");
+    const saved = ktcSetPrimaryCustomIgnoreRules(source, ["ImportedInterfaces/", "build/", "build/"]);
+    expect(ktcPrimaryCustomIgnoreRules(saved)).toEqual(["ImportedInterfaces/", "build/"]);
+    expect(saved).toContain("preset:web");
+    expect(ktcSetPrimaryCustomIgnoreRules(saved, [])).toContain("preset:web");
+    expect(ktcPrimaryCustomIgnoreRules(ktcSetPrimaryCustomIgnoreRules(saved, []))).toEqual([]);
   });
 });

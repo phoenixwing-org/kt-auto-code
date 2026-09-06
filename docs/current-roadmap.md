@@ -6,7 +6,7 @@ Owner：KT Auto Code maintainers
 
 适用版本：0.8.x
 
-最后核验：2026-09-02
+最后核验：2026-09-04
 
 ## 已完成基线
 
@@ -14,6 +14,14 @@ Owner：KT Auto Code maintainers
 - 自动测试覆盖纯核心、宿主 adapter、Codegen 文档模型、事务与回归场景；精确数量由 CI 结果维护，不作为源码断言。
 - Phoenix Wing 根包当前最新为 `0.7.2`；Auto 不直接依赖根聚合包，manifest 与 lockfile 精确消费 Registry 实际发布的 `code-core`、`git-core`、`git-node`、`kt-codegen` `0.6.4` 和 `run-core`、`run-node` `0.6.3`。本地路径、override 与 lockfile 回退继续由 `verify:wing-dependencies` 阻止。
 - 0.4 Block 工作流、Codegen 预检/Apply 与共享 workset 已进入稳定基线；旧实施清单保留为历史证据。
+- 用户已确认 `0.8.1` 完成发布；基础手工项目改名验证通过，未形成的详细 Windows 回归仍作为后续质量证据，不反向改写发布状态。
+
+## 2026-09-04 Auto 唯一真源与 Desk 减法治理
+
+- Codegen、Code 工具与工作区自动化以 KT Auto Code 为唯一产品开发真源，不再要求 Auto 与 Desk 同时适配同一新能力。
+- 当前只读盘点确认 Desk 的 Codegen、成员排序、Ignore、Code 批量改名和 UUID 五组入口属于 `R1` 退役候选；Code Index 属于 `R2` 灰区，冻结新增并等待桌面宿主必要性证据。
+- Git 独立页、CAA 编辑器、CAD/BOM、音视频提取与 Desk 自测台有明确宿主或产品边界，不纳入本轮误删范围。
+- 完整能力矩阵、顺序和删除门禁以[产品功能归属矩阵](产品功能归属矩阵.md#2026-09-04-auto-code--desk-tools-减法矩阵)为准。当前批次只建立真源与退役计划，不直接修改 Desk 工作区。
 
 ## 2026-07-22 Codegen 当前架构真源
 
@@ -24,17 +32,20 @@ Owner：KT Auto Code maintainers
 
 ## 当前优先级
 
-0. **[Windows 测试候选：0.8.1]** `0.8.0` 在用户基本手工改名后继续整改为 **项目改名**：Primary 保留适合 CAA/C++/简单 Web 的精确替换和六种简单显式变形，复杂档案、前缀、候选与项目方案迁入独立 View，并增加写盘前 VS Code 原生 Diff。Phoenix Wing root 适配 npm Registry 最新 `0.7.2`，Auto scoped 依赖继续精确使用四个 `0.6.4` 与两个 `0.6.3`。当前仍先交付 Windows 用户详细测试，Registry/VSIX 不得写入本地路径。
-1. 将字符串型架构检查升级为 AST/import graph，固化 pure core、Extension Host 与 Webview 的依赖方向。
-2. 与 Wing、Desk 共享 Analyze/Apply/Schema golden fixtures，避免宿主用自己的样例解释同一协议。
-3. 真实 Extension Host 的打开、预览、冲突、Apply、保存复读和失败回滚已进入自动 smoke；继续补齐浅色、深色、高对比、取消和 VSIX 安装的人工视觉矩阵。
-4. **[2026-07-22 已完成/裁定]** Ignore 与 workspace path 已形成双端共享；Auto glob Workset 和 Desk SQLite entries 被确认是不同产品模型，不强行统一；encoding/file-core 因尚无第二消费者不启动公共包。P1 去重队列不再保留这条伪待办。
-5. 保持双 VSIX 可复现，并在 Wing 升级时先运行 Registry 防回退、全测和制品门禁。
-6. Codegen `全部应用` V1 已落地：一次确认后冻结当前 JSON 列表，在后台 session 中串行 Preflight → Apply，不再铺开 JSON Panel；单份错误继续后续项。single/batch Apply 报告按规则文件名原子写入 `.phoenix/reports/codegen/`，Primary“应用报告”列表可重开；View 用结果/源码变化双轴避免把正常内容一致误报为失败，并安全进入 Codegen View 或定位问题。全量预检屏障、跨 JSON 冲突、独立批次 Problems、取消与完整 receipt 报告保留为 2.0，见 `codegen-plan/Codegen全部应用与批量报告计划.md`。
-7. **[已完成：0.5.1 发布]** 0.5.1 作为 patch 公开发布：只包含既有 Codegen 流程的安全性、状态稳定性、紧凑呈现与 Wing 0.4.3 消费升级，不新增公共命令或扩展 API；KT Auto CAD 0.1.0 同步完成 Marketplace 首发，两个公开制品哈希均与本地门禁产物一致并通过人工审查。
-8. **[已完成：0.5.2 发布候选]** 0.5.2 收口持久 Codegen 应用报告、Primary 历史列表、后台批量 View 生命周期、结果/变化双轴与前端筛选，并加入工作区及文件类别级 ASCII/UTF-8/GBK 编码目标；真实宿主人工点检、全量自动测试和双 VSIX 制品门禁已通过。Marketplace 发布回执未在仓库中登记，不宣称已公开发布。
-9. **[已完成：0.5.3 本地发布候选]** 0.5.3 统一补齐高对比度/高对比度浅色主题下 Sidebar Primary、功能 Block、Codegen 预检及 Shadow DOM 组件的边框、标签和 hover 对比反馈；Node 22 全量门禁、Registry/并列 Wing 构建和本地 VSIX 归档已通过。Marketplace 发布未执行，保持普通主题与公共命令/API 不变。
-10. **[正式候选已归档：0.6.0]** Code 模块末尾已加入 Git 与 Run 两个独立 Primary Block；共享算法和 Node adapter 位于 Wing `git-core`/`git-node`、`run-core`/`run-node`。Phoenix Wing 0.5.0 已正式发布，Auto Code 的 15 处 Wing manifest 引用与 lockfile 已精确闭环到 Registry；Node 22 全量测试、Registry 构建、并列 Wing 来源门禁、真实 Extension Host、人工功能点检与正式 VSIX 制品门禁均已通过。Marketplace 上传由用户手动执行。
+下一发布目标的简明范围见[0.8.3 开发计划](0.8.3开发计划.md)。另一台机器的 `0.8.2` 正在修改批量编译、代码辅助和 Tree；当前不追踪其中间状态，发布后再整体合入，`v0.8.3` 只避开这些重叠文件。
+
+0. **[外部协调，不占 0.8.3 开发]** Desk 冻结五组 `R1` 重复入口并在自己的仓库分批退役；Auto 只维护能力矩阵和既有契约。只有 Desk 删除暴露共同 fixture 或契约缺口时，才在 Auto 另立小任务。Code Index 的 `R2` 裁定也由 Desk 负责。
+1. **[已完成发布：0.8.1]** `0.8.0` 已整改为 **项目改名**：Primary 保留适合 CAA/C++/简单 Web 的精确替换和六种简单显式变形，复杂档案、前缀、候选与项目方案迁入独立 View，并增加写盘前 VS Code 原生 Diff。Phoenix Wing root 适配 npm Registry `0.7.2`，Auto scoped 依赖继续精确使用四个 `0.6.4` 与两个 `0.6.3`。用户已确认完成发布；详细 Windows 回归继续作为后续质量证据补齐。
+2. **[已完成]** 架构检查已升级为 TypeScript AST/import graph：递归冻结 pure core，限制 View 直接写盘，并检查 Host 禁止声明；项目改名结构化 scanner 已纳入 pure graph。当前门禁覆盖 188 个源码文件、26 个 pure graph 和 20 个 View root。
+3. 与 Wing 维护 Analyze/Apply/Schema golden fixtures；Desk 在退役窗口只消费兼容 fixture，不再作为同功能的新开发端。
+4. 真实 Extension Host 的打开、预览、冲突、Apply、保存复读和失败回滚已进入自动 smoke；继续补齐浅色、深色、高对比、取消和 VSIX 安装的人工视觉矩阵。
+5. **[2026-07-22 已完成/裁定]** Ignore 与 workspace path 已形成共享 pure core；Auto glob Workset 和 Desk SQLite entries 是不同 Host 状态模型，不强行统一，但该差异不再授权 Desk 保留重复 Code 工具页面。
+6. 保持 Code/CAD VSIX 可复现，并在 Wing 升级时先运行 Registry 防回退、全测和制品门禁。
+7. Codegen `全部应用` V1 已落地：一次确认后冻结当前 JSON 列表，在后台 session 中串行 Preflight → Apply，不再铺开 JSON Panel；单份错误继续后续项。single/batch Apply 报告按规则文件名原子写入 `.phoenix/reports/codegen/`，Primary“应用报告”列表可重开；View 用结果/源码变化双轴避免把正常内容一致误报为失败，并安全进入 Codegen View 或定位问题。全量预检屏障、跨 JSON 冲突、独立批次 Problems、取消与完整 receipt 报告保留为 2.0，见 `codegen-plan/Codegen全部应用与批量报告计划.md`。
+8. **[已完成：0.5.1 发布]** 0.5.1 作为 patch 公开发布：只包含既有 Codegen 流程的安全性、状态稳定性、紧凑呈现与 Wing 0.4.3 消费升级，不新增公共命令或扩展 API；KT Auto CAD 0.1.0 同步完成 Marketplace 首发，两个公开制品哈希均与本地门禁产物一致并通过人工审查。
+9. **[已完成：0.5.2 发布候选]** 0.5.2 收口持久 Codegen 应用报告、Primary 历史列表、后台批量 View 生命周期、结果/变化双轴与前端筛选，并加入工作区及文件类别级 ASCII/UTF-8/GBK 编码目标；真实宿主人工点检、全量自动测试和双 VSIX 制品门禁已通过。Marketplace 发布回执未在仓库中登记，不宣称已公开发布。
+10. **[已完成：0.5.3 本地发布候选]** 0.5.3 统一补齐高对比度/高对比度浅色主题下 Sidebar Primary、功能 Block、Codegen 预检及 Shadow DOM 组件的边框、标签和 hover 对比反馈；Node 22 全量门禁、Registry/并列 Wing 构建和本地 VSIX 归档已通过。Marketplace 发布未执行，保持普通主题与公共命令/API 不变。
+11. **[正式候选已归档：0.6.0]** Code 模块末尾已加入 Git 与 Run 两个独立 Primary Block；共享算法和 Node adapter 位于 Wing `git-core`/`git-node`、`run-core`/`run-node`。Phoenix Wing 0.5.0 已正式发布，Auto Code 的 15 处 Wing manifest 引用与 lockfile 已精确闭环到 Registry；Node 22 全量测试、Registry 构建、并列 Wing 来源门禁、真实 Extension Host、人工功能点检与正式 VSIX 制品门禁均已通过。Marketplace 上传由用户手动执行。
 
 ## 2026-07-20 简单 TODO 收口
 
@@ -46,7 +57,7 @@ Owner：KT Auto Code maintainers
 - 已删除独立 CAD 连接入口遗留的 `cad-provider.svg`，VSIX 制品门禁拒绝该死资源重新进入安装包。
 - Ignore Host adapter 新增自动证据：预设操作只修改打开的文本缓冲区并保持 dirty，磁盘字节不变；保存监听使用的缓存失效路径能重新读取新规则。
 - 开源仓库 URL TODO 已按当前 Git remote 核实为 Gitee；extension manifest 的 repository、bugs 与 homepage 已存在，无需重复修改。
-- 搜索替换已开放底层原有的“同时匹配全大写”能力，状态可随 Block 和规则档案持久；真实预览/写盘回归已追加到 Extension Host 待测试列表。
+- 搜索替换已移除无效的“同时匹配全大写”隐式控件；Primary 的“常用变形”与“项目改名”View 使用可见、可编辑、可逐项启停的显式大小写规则，避免界面状态与真实命中脱节。
 - 编码修正的 UTF-8 / GBK 默认目标在写入后立即回传 Webview，不再因旧 `toolOptions` 渲染回弹；切换后主动废弃上一目标的预检结果。
 - Ignore Host 入站守卫会校验 preset/action/推荐组 ID，分析结果最多默认勾选首个安全可追加组；工作集追加会在读取磁盘配置前拒绝 dirty 的 `worksets.json`，避免以旧磁盘内容覆盖用户缓冲区。
 - 头文件 ASCII、编码修正与 Ignore 同步已补齐 Controller 级取消/缺失工作区/dirty 缓冲区测试；关联规则选择器显示候选数和默认选中数，降低批量追加前的误判。
@@ -214,8 +225,8 @@ Owner：KT Auto Code maintainers
 4. **Wing 后续条件项**：`KtCodegenTable` 已到首轮合理停止线；页面布局能力完成发布和 Registry 消费验证前，不为降行数继续拆。只有出现第二产品消费者或真实复用需求时，才评估公开更多 visual primitive。
 5. **跨仓人工证据**：Windows NSIS 真实回执，以及 VS Code/Desk 的浅色、深色、高对比视觉矩阵继续由用户手工并行；不阻塞当前代码归档，也不追溯提高联合评分。
 6. **Codegen 显式修复提醒**：控制符单入口已完成，Primary 负责目录/筛选/选择/输出，JSON View 只保留预检结果、Artifact 与问题定位；预检结果自己的列表/详情 separator 不代表控制符目录回归。剩余 TODO 是“问题 N”控制符筛选与显式修复提醒：必须先由 Wing 诊断提供结构化 `blockKey/classId/boundary`，不得从英文 message 猜 block。`marker.missing-end` 只允许用户在问题详情中显式选择“插入编译期修复提醒”，经确认后在下一条 marker 前写入可识别的 `#error`；不得预检时自动写入，也不得自动猜测补 End，且入口不能只依赖不可发现的右键菜单。
-7. **Auto Code Primary 工具条**：顶部 sticky、紧凑图标、tooltip 和无障碍名称已完成；未选择子工作目录时的空提示保持隐藏。工具界面标题右上角 `…` 原生菜单按工具条顺序提供打开、导入、全部应用、刷新和扫描命令，最后提供“复制运行诊断”，全部使用 VS Code Product Icon 并复用既有 Host Action；`X` 继续负责关闭当前工具界面，Primary 不再保留重复诊断图标。
-8. **共享 Block 标题菜单接口（TODO）**：当前 `…` 仅在 Host 上下文 `ktAutoCode.modulePanel.activeTool == codegen` 时显示，先阻止其他共享 Block 误用 Codegen 菜单；共享 Panel 对已可见 Block 的重复 `show` 已做幂等保护，真实切换则按 `toolId` 保存和恢复外层滚动。后续目标模型是“Block 自描述、共享 Panel 投影、Host 路由”：内置 `KtTool` 与可选模块 `ktAutoCodeModule.tools[]` 提供有序 `titleActions`（`actionId / title / icon / order`）以及必要的 Block 视图状态；共享 Panel 获取当前 Block 的声明，空数组或无法获取时不显示 `…`，有动作时才放置菜单；用户点击后，Host 只把 `actionId` 发给当前 Block 的既有 action handler，不复制业务命令。实施前必须先验证 VS Code 原生 `view/title` 菜单的静态 contribution 限制：优先采用“共享 submenu + 各扩展静态贡献命令 + `activeTool / hasTitleMenu` context”适配层；若动态标题/数量无法投影，再单独评估通用 Quick Pick 或 Webview 内部菜单，不假设公共 API 可以运行时任意注册原生菜单项。
+7. **Auto Code Primary 工具条**：2026-09-05 用户批准去除独立“工具栏”标题行；首段改为 `箭头 + 同一份 Ribbon + 唯一 …` 的 Toolbar Strip。展开保留现有图标文字并允许多行，紧凑为单行小图标，左侧箭头直接切换两态，不再有密度按钮或完全隐藏态。原生 Header 仍只放 Ignore 与 Settings，Codegen 命令继续保留但不投影到标题栏；`X` 继续负责关闭当前工具界面，Primary 不保留重复诊断图标。
+8. **共享 Block 标题菜单接口（TODO）**：共享 Panel 对已可见 Block 的重复 `show` 已做幂等保护，真实切换则按 `toolId` 保存和恢复外层滚动。原生 View Header 当前固定为 Ignore 与 Settings，不实现按活动工具动态投影。若未来恢复“Block 自描述、共享 Panel 投影、Host 路由”，必须先定义不会挤掉这两个全局入口的顺序与空间契约，再验证 VS Code 原生 `view/title` 的静态 contribution 限制；不得假设公共 API 可以运行时任意注册菜单项。
 
 暂停期间联合成熟度保持 **92.00 / 100**。恢复时从本 TODO 重新选择一个最小切口，不默认续跑整套大型 UI 计划。
 
@@ -232,7 +243,8 @@ Owner：KT Auto Code maintainers
 - Desk/Tauri 壳层和原生 CAD provider 不复制进入 Auto Code。
 - 用户已于 2026-07-18 接受联合成熟度 **92.00** 作为停止线；Windows 发布态回执保留为用户手工后续项。大型 UI 拆分目标已在完成若干小切口后暂停，恢复前仍禁止向大文件加入新的领域算法或文件真相。
 - 测试数量、bundle 大小和版本关系由 CI/manifest 产生，不在当前路线复制易漂移数字。
-# 编译工具深度清理 TODO
+
+## 编译工具深度清理 TODO
 
 - 重新确认“当前 ROOT_DIR”“构建输出 ROOT_DIR”“工具 Root”三者的长期职责与命名。
 - 在确认不再需要独立构建 Root 后，从 View、schema、保存/加载、脚本导出与测试中一次性移除，提供明确的旧 JSON 迁移策略，避免隐藏字段继续生效。

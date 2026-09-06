@@ -95,6 +95,7 @@ export const codeRenameTool: KtTool = {
           sourceName: message.sourceName,
           targetName: message.targetName,
           rules: message.rules,
+          ignoreSources: message.ignoreSources,
         });
       } catch (error) {
         ctx.postState({

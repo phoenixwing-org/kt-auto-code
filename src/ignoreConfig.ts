@@ -1,12 +1,9 @@
 import * as vscode from "vscode";
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 import {
-  ensurePhoenixIgnore,
-  buildIgnoreConfigInfo,
   gitIgnoreFile,
   invalidateDotIgnoreCache,
-  loadDotIgnore,
   parseDotIgnoreText,
   phoenixIgnoreFile,
   type IgnoreConfigInfo,
@@ -14,31 +11,54 @@ import {
 import {
   ktcAppendIgnoreGroup,
   ktcAppendIgnorePreset,
+  ktcGetIgnorePreset,
   ktcMergeGitIgnore,
+  ktcPrimaryCustomIgnoreRules,
   ktcRemoveIgnorePreset,
+  ktcSetPrimaryCustomIgnoreRules,
   type KtcIgnorePresetId,
   type KtcIgnoreManagedGroup,
 } from "./core/ignorePresets.js";
-import type { IgnoreConfigSummary } from "./tools/types.js";
+import type { IgnoreConfigSummary, IgnoreTargetSummary } from "./tools/types.js";
+import {
+  DEFAULT_SKIP_DIR_NAMES,
+  SCAN_SAFETY_SKIP_ENTRY_NAMES,
+} from "./core/workspace/scanScope.js";
+import {
+  ktcApplyIgnoreRuleMutation,
+  ktcDedupeIgnoreRules,
+  ktcMergeIgnoreRuleSources,
+  ktcRelocateGitIgnoreRules,
+  type KtcIgnoreRuleAction,
+  type KtcIgnoreRuleMutationResult,
+  type KtcIgnoreWriteTarget,
+} from "./core/ignoreManagerModel.js";
 
-/** 工具自身的会话、规则和工作集绝不应成为待处理源文件。 */
-const BUILT_IN_IGNORE_PATTERNS = [".phoenix/"];
+/** Safety boundaries remain active even when every user-selectable Ignore source is disabled. */
+const SCAN_SAFETY_IGNORE_PATTERNS = Object.freeze(
+  [...SCAN_SAFETY_SKIP_ENTRY_NAMES].map((name) => `${name}/`),
+);
+const BUILT_IN_IGNORE_RULES = Object.freeze(
+  [...DEFAULT_SKIP_DIR_NAMES]
+    .sort((left, right) => left < right ? -1 : left > right ? 1 : 0)
+    .map((name) => `${name}/`),
+);
+const BUILT_IN_IGNORE_COUNT = BUILT_IN_IGNORE_RULES.length;
+const PHOENIX_IGNORE_INITIAL_TEXT = "# KT Auto Code custom scan ignore rules\n# Primary 自定义忽略；每行一条规则\n\n";
+
+export interface KtcWorkspaceIgnoreSourceOptions {
+  builtInIgnoreEnabled?: boolean;
+  gitIgnoreEnabled?: boolean;
+  customIgnoreEnabled?: boolean;
+}
 
 export function toIgnoreSummary(root: string, info: IgnoreConfigInfo): IgnoreConfigSummary {
-  return {
-    relativePath: `${".phoenix"}/.ignore`,
-    fullPath: info.ignorePath,
-    patternCount: info.patternCount,
-    gitIgnoreExists: !!findNearestGitIgnore(root),
-    statusText: info.statusText,
-  };
+  return buildIgnoreSummary(root, info.statusText);
 }
 
 export function refreshIgnoreConfig(root: string | undefined): IgnoreConfigSummary | undefined {
   if (!root) return undefined;
-  const openDocument = findOpenIgnoreDocument(root);
-  if (openDocument) return summaryFromDocument(root, openDocument);
-  return toIgnoreSummary(root, buildIgnoreConfigInfo(root, false));
+  return buildIgnoreSummary(root);
 }
 
 /**
@@ -47,24 +67,44 @@ export function refreshIgnoreConfig(root: string | undefined): IgnoreConfigSumma
  * 根 `.gitignore` 按 Phoenix 扫描器支持的规则子集解析；插件规则启用时，
  * 再叠加 `.phoenix/.ignore`。这里只读现有文件，不负责创建插件配置。
  */
-export function resolveWorkspaceIgnorePatterns(root: string, pluginIgnoreEnabled = true): string[] {
-  const gitPatterns = readExistingIgnoreFile(findNearestGitIgnore(root));
-  let pluginPatterns: string[] = [];
-  if (pluginIgnoreEnabled) {
-    const openDocument = findOpenIgnoreDocument(root);
-    pluginPatterns = openDocument ? parseDotIgnoreText(openDocument.getText()) : loadDotIgnore(root);
+export function resolveWorkspaceIgnorePatterns(
+  root: string,
+  sources: boolean | KtcWorkspaceIgnoreSourceOptions = {},
+): string[] {
+  const options = typeof sources === "boolean"
+    ? { builtInIgnoreEnabled: true, gitIgnoreEnabled: true, customIgnoreEnabled: sources }
+    : sources;
+  const gitPatterns = options.gitIgnoreEnabled === false
+    ? []
+    : resolveGitIgnorePatterns(root);
+  let customPatterns: string[] = [];
+  if (options.customIgnoreEnabled === true) {
+    customPatterns = parseDotIgnoreText(readIgnoreTargetState(root, "phoenix").text);
   }
-  return [...new Set([...BUILT_IN_IGNORE_PATTERNS, ...gitPatterns, ...pluginPatterns])];
+  return [...ktcDedupeIgnoreRules([...SCAN_SAFETY_IGNORE_PATTERNS, ...gitPatterns, ...customPatterns])];
+}
+
+function resolveGitIgnorePatterns(root: string): readonly string[] {
+  const gitRoot = findNearestGitRoot(root);
+  if (!gitRoot) return [];
+  const repositoryRules = parseDotIgnoreText(readIgnoreTargetState(root, "git").text);
+  const scanRootRelativePath = relative(gitRoot, resolve(root)).replace(/\\/g, "/");
+  return ktcRelocateGitIgnoreRules(repositoryRules, scanRootRelativePath);
 }
 
 /** 返回所选目录所在最近 Git 仓库根部的 `.gitignore`；不递归聚合多个仓库。 */
 export function findNearestGitIgnore(root: string): string | undefined {
+  const gitRoot = findNearestGitRoot(root);
+  if (!gitRoot) return undefined;
+  const candidate = gitIgnoreFile(gitRoot);
+  return existsSync(candidate) ? candidate : undefined;
+}
+
+/** 返回所选目录所在最近 Git 仓库根；支持普通仓库和 worktree 的 `.git` 文件。 */
+export function findNearestGitRoot(root: string): string | undefined {
   let current = resolve(root);
   while (true) {
-    if (existsSync(join(current, ".git"))) {
-      const candidate = gitIgnoreFile(current);
-      return existsSync(candidate) ? candidate : undefined;
-    }
+    if (existsSync(join(current, ".git"))) return current;
     const parent = dirname(current);
     if (parent === current) return undefined;
     current = parent;
@@ -76,26 +116,66 @@ export function invalidateWorkspaceIgnorePatterns(root: string): void {
 }
 
 export async function openIgnoreConfigFile(root: string): Promise<vscode.TextDocument> {
-  ensurePhoenixIgnore(root);
-  const uri = vscode.Uri.file(phoenixIgnoreFile(root));
-  const doc = await vscode.workspace.openTextDocument(uri);
+  return openIgnoreTargetFile(root, "phoenix");
+}
+
+export async function openIgnoreTargetFile(
+  root: string,
+  target: KtcIgnoreWriteTarget,
+): Promise<vscode.TextDocument> {
+  const file = ignoreTargetFile(root, target);
+  if (!file) throw new Error("当前目录不在 Git 仓库内，无法使用根 .gitignore。");
+  if (!existsSync(file)) {
+    const relativePath = target === "git" ? ".gitignore" : ".phoenix/.ignore";
+    throw new Error(`${relativePath} 尚不存在；请先添加至少一条规则。`);
+  }
+  const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
   await vscode.window.showTextDocument(doc, { preview: false });
   return doc;
 }
 
-function summaryFromDocument(root: string, doc: vscode.TextDocument): IgnoreConfigSummary {
-  const patternCount = parseDotIgnoreText(doc.getText()).length;
-  return {
-    relativePath: ".phoenix/.ignore",
-    fullPath: doc.uri.fsPath,
-    patternCount,
-    gitIgnoreExists: !!findNearestGitIgnore(root),
-    statusText: doc.isDirty ? `${patternCount} 条跳过规则（未保存）` : `${patternCount} 条跳过规则`,
-  };
+async function openIgnoreTargetDocument(
+  root: string,
+  target: KtcIgnoreWriteTarget,
+): Promise<vscode.TextDocument> {
+  const file = ignoreTargetFile(root, target);
+  if (!file) throw new Error("当前目录不在 Git 仓库内，无法使用根 .gitignore。");
+  const openDocument = findOpenIgnoreTargetDocument(root, target);
+  if (openDocument) return openDocument;
+  if (target === "phoenix") mkdirSync(dirname(file), { recursive: true });
+  try {
+    writeFileSync(file, target === "phoenix" ? PHOENIX_IGNORE_INITIAL_TEXT : "", {
+      encoding: "utf8",
+      flag: "wx",
+    });
+  } catch (error) {
+    if (!isAlreadyExistsError(error)) throw error;
+  }
+  const uri = vscode.Uri.file(file);
+  return vscode.workspace.openTextDocument(uri);
+}
+
+function isAlreadyExistsError(error: unknown): boolean {
+  return !!error && typeof error === "object" && "code" in error && error.code === "EEXIST";
+}
+
+function ignoreTargetFile(root: string, target: KtcIgnoreWriteTarget): string | undefined {
+  if (target === "phoenix") return phoenixIgnoreFile(root);
+  const gitRoot = findNearestGitRoot(root);
+  return gitRoot ? gitIgnoreFile(gitRoot) : undefined;
 }
 
 function findOpenIgnoreDocument(root: string): vscode.TextDocument | undefined {
-  const expected = normalizeFsPath(phoenixIgnoreFile(root));
+  return findOpenIgnoreTargetDocument(root, "phoenix");
+}
+
+function findOpenIgnoreTargetDocument(
+  root: string,
+  target: KtcIgnoreWriteTarget,
+): vscode.TextDocument | undefined {
+  const file = ignoreTargetFile(root, target);
+  if (!file) return undefined;
+  const expected = normalizeFsPath(file);
   return vscode.workspace.textDocuments.find((document) =>
     document.uri.scheme === "file" && normalizeFsPath(document.uri.fsPath) === expected);
 }
@@ -107,20 +187,75 @@ function normalizeFsPath(value: string): string {
     : normalized;
 }
 
-function readExistingIgnoreFile(file: string | undefined): string[] {
-  if (!file || !existsSync(file)) return [];
+function readExistingIgnoreText(file: string | undefined): string {
+  if (!file || !existsSync(file)) return "";
   try {
-    return parseDotIgnoreText(readFileSync(file, "utf8"));
+    return readFileSync(file, "utf8");
   } catch {
-    return [];
+    return "";
   }
 }
 
-async function editIgnoreDocument(
+interface IgnoreTargetState {
+  readonly summary: IgnoreTargetSummary;
+  readonly text: string;
+}
+
+function readIgnoreTargetState(root: string, target: KtcIgnoreWriteTarget): IgnoreTargetState {
+  const file = ignoreTargetFile(root, target);
+  const document = findOpenIgnoreTargetDocument(root, target);
+  const text = document?.getText() ?? readExistingIgnoreText(file);
+  const exists = !!file && existsSync(file);
+  return {
+    text,
+    summary: {
+      target,
+      label: target === "git" ? "Git Ignore" : "Phoenix Ignore",
+      relativePath: target === "git" ? ".gitignore" : ".phoenix/.ignore",
+      ...(file ? { fullPath: file } : {}),
+      exists,
+      available: target === "phoenix" || !!file,
+      dirty: document?.isDirty ?? false,
+      patternCount: parseDotIgnoreText(text).length,
+    },
+  };
+}
+
+function buildIgnoreSummary(root: string, statusText?: string): IgnoreConfigSummary {
+  const git = readIgnoreTargetState(root, "git");
+  const phoenix = readIgnoreTargetState(root, "phoenix");
+  const mergedRules = ktcMergeIgnoreRuleSources([
+    { source: "git", text: git.text },
+    { source: "phoenix", text: phoenix.text },
+  ]);
+  const dirty = [git.summary, phoenix.summary].find((target) => target.dirty);
+  const resolvedStatus = statusText ?? (dirty
+    ? `${mergedRules.length} 条有效规则（${dirty.relativePath} 未保存）`
+    : mergedRules.length > 0 ? `${mergedRules.length} 条有效规则` : "未配置");
+  return {
+    relativePath: ".phoenix/.ignore",
+    fullPath: phoenix.summary.fullPath ?? phoenixIgnoreFile(root),
+    patternCount: phoenix.summary.patternCount,
+    gitIgnoreExists: git.summary.exists,
+    statusText: resolvedStatus,
+    primaryCustomPatterns: ktcPrimaryCustomIgnoreRules(phoenix.text),
+    builtInPatternCount: BUILT_IN_IGNORE_COUNT,
+    builtInPatterns: BUILT_IN_IGNORE_RULES,
+    targets: [git.summary, phoenix.summary],
+    mergedRules,
+  };
+}
+
+async function editIgnoreTargetDocument(
   root: string,
+  target: KtcIgnoreWriteTarget,
   transform: (text: string) => string,
 ): Promise<IgnoreConfigSummary> {
-  const doc = await openIgnoreConfigFile(root);
+  const current = readIgnoreTargetState(root, target);
+  if (!current.summary.available) throw new Error("当前目录不在 Git 仓库内，无法使用根 .gitignore。");
+  // A no-op must not create a missing target file.
+  if (transform(current.text) === current.text) return buildIgnoreSummary(root);
+  const doc = await openIgnoreTargetDocument(root, target);
   const before = doc.getText();
   const after = transform(before);
   if (after !== before) {
@@ -131,7 +266,42 @@ async function editIgnoreDocument(
     const applied = await vscode.workspace.applyEdit(edit);
     if (!applied) throw new Error("无法更新 Ignore 文档缓冲区");
   }
-  return summaryFromDocument(root, doc);
+  return buildIgnoreSummary(root);
+}
+
+async function editIgnoreDocument(
+  root: string,
+  transform: (text: string) => string,
+): Promise<IgnoreConfigSummary> {
+  return editIgnoreTargetDocument(root, "phoenix", transform);
+}
+
+export interface KtcIgnoreDocumentMutationResult {
+  readonly summary: IgnoreConfigSummary;
+  readonly mutation: KtcIgnoreRuleMutationResult;
+}
+
+export async function applyIgnoreRulesToDocument(
+  root: string,
+  target: KtcIgnoreWriteTarget,
+  action: KtcIgnoreRuleAction,
+  rules: readonly string[],
+): Promise<KtcIgnoreDocumentMutationResult> {
+  let mutation = ktcApplyIgnoreRuleMutation(readIgnoreTargetState(root, target).text, action, rules);
+  const summary = await editIgnoreTargetDocument(root, target, (text) => {
+    mutation = ktcApplyIgnoreRuleMutation(text, action, rules);
+    return mutation.text;
+  });
+  return { summary, mutation };
+}
+
+export function applyIgnorePresetToDocument(
+  root: string,
+  target: KtcIgnoreWriteTarget,
+  presetId: KtcIgnorePresetId,
+  action: KtcIgnoreRuleAction,
+): Promise<KtcIgnoreDocumentMutationResult> {
+  return applyIgnoreRulesToDocument(root, target, action, ktcGetIgnorePreset(presetId).rules);
 }
 
 export function appendIgnorePresetToDocument(
@@ -149,10 +319,11 @@ export function removeIgnorePresetFromDocument(
 }
 
 export function mergeGitIgnoreIntoDocument(root: string): Promise<IgnoreConfigSummary> {
-  const gitPath = findNearestGitIgnore(root);
-  if (!gitPath) throw new Error("当前目录不在含 .gitignore 的 Git 仓库内，无法合并");
-  const gitText = readFileSync(gitPath, "utf8");
-  return editIgnoreDocument(root, (text) => ktcMergeGitIgnore(text, gitText));
+  const git = readIgnoreTargetState(root, "git");
+  if (!git.summary.exists && !git.summary.dirty) {
+    throw new Error("当前目录不在含 .gitignore 的 Git 仓库内，无法合并");
+  }
+  return editIgnoreDocument(root, (text) => ktcMergeGitIgnore(text, git.text));
 }
 
 export function appendIgnoreGroupsToDocument(
@@ -163,4 +334,21 @@ export function appendIgnoreGroupsToDocument(
     (current, group) => ktcAppendIgnoreGroup(current, group),
     text,
   ));
+}
+
+/** 仅在存在非空规则时创建文件；Primary 的“保存”会真实写盘。 */
+export async function savePrimaryCustomIgnorePatterns(
+  root: string,
+  rules: readonly string[],
+): Promise<IgnoreConfigSummary> {
+  const normalized = parseDotIgnoreText(rules.join("\n"));
+  const file = phoenixIgnoreFile(root);
+  if (normalized.length === 0 && !existsSync(file) && !findOpenIgnoreDocument(root)) {
+    return refreshIgnoreConfig(root)!;
+  }
+  const summary = await editIgnoreDocument(root, (text) => ktcSetPrimaryCustomIgnoreRules(text, normalized));
+  const doc = findOpenIgnoreDocument(root);
+  if (doc?.isDirty && !await doc.save()) throw new Error("无法保存自定义 Ignore 规则");
+  invalidateWorkspaceIgnorePatterns(root);
+  return refreshIgnoreConfig(root) ?? summary;
 }

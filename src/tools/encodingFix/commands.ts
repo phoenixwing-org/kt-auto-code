@@ -13,7 +13,7 @@ import {
 } from "../../core/fileEncoding.js";
 import type { EncodingFileResultSummary, ToolRunContext } from "../types.js";
 import { getFileScope, isScopeEmpty, scopeSummary } from "../../scopeOptions.js";
-import { resolveWorkspaceIgnorePatterns } from "../../ignoreConfig.js";
+import { resolveWorkspaceIgnorePatterns, type KtcWorkspaceIgnoreSourceOptions } from "../../ignoreConfig.js";
 import { ktcResolveWorkspaceFileScope, type KtcWorkspaceFileScope } from "../../worksets.js";
 import { ktcClearEditorMatchHighlights } from "../../workbench/editorMatchHighlight.js";
 import { getEncodingTargetPolicy } from "./options.js";
@@ -46,12 +46,13 @@ export async function scanEncodings(
   root: string,
   workspaceScope?: KtcWorkspaceFileScope,
   targetPolicy: EncodingTargetPolicy = getEncodingTargetPolicy(),
-  pluginIgnoreEnabled = true,
+  ignoreSources: boolean | KtcWorkspaceIgnoreSourceOptions = {},
 ): Promise<FileEncodingWalkReport> {
   return runFileEncodingWalk({
     root,
     scope: getFileScope(),
-    ignorePatterns: resolveWorkspaceIgnorePatterns(root, pluginIgnoreEnabled),
+    ignorePatterns: resolveWorkspaceIgnorePatterns(root, ignoreSources),
+    useBuiltInIgnore: typeof ignoreSources === "boolean" ? true : ignoreSources.builtInIgnoreEnabled !== false,
     includePaths: workspaceScope?.relativeFiles,
     targetPolicy,
     convert: false,
@@ -61,10 +62,10 @@ export async function scanEncodings(
 export async function convertEncodings(
   root: string,
   workspaceScope?: KtcWorkspaceFileScope,
-  pluginIgnoreEnabled = true,
+  ignoreSources: boolean | KtcWorkspaceIgnoreSourceOptions = {},
 ): Promise<FileEncodingWalkReport | undefined> {
   const targetPolicy = getEncodingTargetPolicy();
-  const preview = await scanEncodings(root, workspaceScope, targetPolicy, pluginIgnoreEnabled);
+  const preview = await scanEncodings(root, workspaceScope, targetPolicy, ignoreSources);
   const counts = countConvertibleRows(preview.results);
 
   if (counts.total === 0) {
@@ -88,7 +89,8 @@ export async function convertEncodings(
   return runFileEncodingWalk({
     root,
     scope: getFileScope(),
-    ignorePatterns: resolveWorkspaceIgnorePatterns(root, pluginIgnoreEnabled),
+    ignorePatterns: resolveWorkspaceIgnorePatterns(root, ignoreSources),
+    useBuiltInIgnore: typeof ignoreSources === "boolean" ? true : ignoreSources.builtInIgnoreEnabled !== false,
     includePaths: workspaceScope?.relativeFiles,
     targetPolicy,
     convert: true,
@@ -141,7 +143,7 @@ export async function runEncodingFixAction(
         : `正在预检编码（${workspaceScope.label}；${scopeSummary(scope)}）…`,
     });
     if (action === "scan") {
-      const report = await scanEncodings(ctx.workspaceRoot, workspaceScope, undefined, ctx.pluginIgnoreEnabled);
+      const report = await scanEncodings(ctx.workspaceRoot, workspaceScope, undefined, ctx);
       logEncodingReport(report, false, ctx.log);
       ctx.postState({
         status: "done",
@@ -157,7 +159,7 @@ export async function runEncodingFixAction(
     }
 
     if (action === "convert") {
-      const report = await convertEncodings(ctx.workspaceRoot, workspaceScope, ctx.pluginIgnoreEnabled);
+      const report = await convertEncodings(ctx.workspaceRoot, workspaceScope, ctx);
       if (!report) {
         ctx.log("[编码修正][转换][INFO] 用户已取消，未写入文件。");
         ctx.postState({ status: "idle", message: "已取消转换。" });
@@ -175,7 +177,7 @@ export async function runEncodingFixAction(
         return;
       }
       logEncodingReport(report, true, ctx.log);
-      const rescan = await scanEncodings(ctx.workspaceRoot, workspaceScope, report.targetPolicy, ctx.pluginIgnoreEnabled);
+      const rescan = await scanEncodings(ctx.workspaceRoot, workspaceScope, report.targetPolicy, ctx);
       ctx.postState({
         status: "done",
         message: `已按项目编码目标转换 ${report.convertedFiles} 个文件。`,
