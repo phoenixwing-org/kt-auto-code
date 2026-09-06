@@ -665,6 +665,13 @@
       "reason": "Phoenix Auto 插件内置、Git 与项目自定义 Ignore 的统一产品和跨仓契约"
     },
     {
+      "path": "docs/Phoenix-Webview-Preview原型跟踪.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.8.x",
+      "lastVerified": "2026-09-06"
+    },
+    {
       "path": "docs/Phoenix三形态产品架构计划.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
@@ -723,6 +730,13 @@
     },
     {
       "path": "scripts/auto-build/README.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.8.x",
+      "lastVerified": "2026-09-06"
+    },
+    {
+      "path": "scripts/webview-preview/README.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",

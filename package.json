@@ -645,6 +645,8 @@
   },
   "scripts": {
     "dev": "pnpm ext:dev",
+    "ui": "pnpm ui:dev",
+    "ui:dev": "tsx scripts/preview-primary-ui.ts",
     "dev:registry": "pnpm ext:dev:registry",
     "test": "vitest run",
     "scan-encoding": "tsx scripts/scan-source-encoding.ts",

@@ -75,10 +75,9 @@ function byAria(root: FakeNode, label: string): FakeNode {
 }
 
 const MODEL: KtcToolNavigatorModel = {
+  presentation: "compact",
   title: "功能目录",
-  mode: "outline",
-  expanded: true,
-  expandedGroupIds: ["cpp"],
+  showLabels: true,
   activeToolId: "headerAscii",
   nodes: [{
     kind: "group",
@@ -91,13 +90,39 @@ const MODEL: KtcToolNavigatorModel = {
   }],
 };
 
+const LEGACY_MODEL: KtcToolNavigatorModel = {
+  title: "功能目录",
+  nodes: MODEL.nodes,
+  mode: "outline",
+  expanded: true,
+  expandedGroupIds: ["cpp"],
+  activeToolId: "headerAscii",
+};
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.resetModules();
 });
 
 describe("KtcToolNavigator", () => {
-  it("幂等注册，并使用同一模型渲染大纲、分组、选中工具和文本切换", async () => {
+  it("未声明 presentation 时保持正式 View 的旧标题、分组和事件契约", async () => {
+    installFakeDom();
+    const browser = await import("./KtcToolNavigator.js");
+    const element = new browser.KtcToolNavigator() as unknown as FakeElement & { model: KtcToolNavigatorModel };
+    element.model = LEGACY_MODEL;
+    expect(findNodes(element.shadow, (node) => node.className.includes("legacy mode-outline"))).toHaveLength(1);
+    byAria(element.shadow, "切换为网格模式").onclick?.();
+    byAria(element.shadow, "收起C++ 整理").onclick?.();
+    byAria(element.shadow, "打开成员排序").onclick?.();
+    expect(element.events.map((event) => event.detail)).toEqual([
+      { kind: "setMode", mode: "grid" },
+      { kind: "setGroupExpanded", groupId: "cpp", expanded: false },
+      { kind: "activate", toolId: "reorderMembers" },
+    ]);
+    expect(byAria(element.shadow, "打开成员排序").children.some((node) => node.className === "tool-description")).toBe(true);
+  });
+
+  it("幂等注册，并把分组数据扁平渲染为紧凑工具网格", async () => {
     const registry = installFakeDom();
     const browser = await import("./KtcToolNavigator.js");
     expect(browser.ktcDefineToolNavigator()).toBe(browser.ktcDefineToolNavigator());
@@ -105,26 +130,21 @@ describe("KtcToolNavigator", () => {
     const element = new browser.KtcToolNavigator() as unknown as FakeElement & { model: KtcToolNavigatorModel };
     element.model = MODEL;
     expect(byAria(element.shadow, "功能目录")).toBeTruthy();
-    expect(byAria(element.shadow, "切换为大纲模式").attributes.get("aria-pressed")).toBe("true");
-    expect(byAria(element.shadow, "切换为网格模式").textContent).toBe("网格");
     expect(byAria(element.shadow, "打开头文件 ASCII").attributes.get("aria-current")).toBe("page");
-    expect(findNodes(element.shadow, (node) => node.className.includes("group"))[0]).toBeTruthy();
+    expect(findNodes(element.shadow, (node) => node.className.includes("group"))).toHaveLength(0);
+    expect(byAria(element.shadow, "隐藏工具名称").textContent).toBe("Aa");
   });
 
-  it("只发出布局、折叠和工具激活语义，不直接依赖 Host", async () => {
+  it("只发出名称显示和工具激活语义，不直接依赖 Host", async () => {
     installFakeDom();
     const browser = await import("./KtcToolNavigator.js");
     const element = new browser.KtcToolNavigator() as unknown as FakeElement & { model: KtcToolNavigatorModel };
     element.model = MODEL;
-    byAria(element.shadow, "切换为网格模式").onclick?.();
-    byAria(element.shadow, "收起C++ 整理").onclick?.();
+    byAria(element.shadow, "隐藏工具名称").onclick?.();
     byAria(element.shadow, "打开成员排序").onclick?.();
-    byAria(element.shadow, "收起功能目录").onclick?.();
     expect(element.events.map((event) => event.detail)).toEqual([
-      { kind: "setMode", mode: "grid" },
-      { kind: "setGroupExpanded", groupId: "cpp", expanded: false },
+      { kind: "setShowLabels", showLabels: false },
       { kind: "activate", toolId: "reorderMembers" },
-      { kind: "setExpanded", expanded: false },
     ]);
     expect(element.events.every((event) => event.bubbles && event.composed)).toBe(true);
     expect(browser.KtcToolNavigator.toString()).not.toMatch(
@@ -132,17 +152,20 @@ describe("KtcToolNavigator", () => {
     );
   });
 
-  it("网格由容器宽度响应列数，大纲仍保持单列", async () => {
+  it("网格响应宽度，隐藏名称后保留可访问名称与 tooltip", async () => {
     installFakeDom();
     const browser = await import("./KtcToolNavigator.js");
     const element = new browser.KtcToolNavigator() as unknown as FakeElement & { model: KtcToolNavigatorModel };
-    element.model = { ...MODEL, mode: "grid" };
-    const shell = findNodes(element.shadow, (node) => node.className.includes("navigator mode-grid"))[0]!;
+    element.model = { ...MODEL, showLabels: false };
+    const shell = findNodes(element.shadow, (node) => node.className.includes("compact labels-hidden"))[0]!;
     expect(shell).toBeTruthy();
     const style = findNodes(element.shadow, (node) => node.tagName === "style")[0]!.textContent;
     expect(style).toContain("container-type:inline-size");
-    expect(style).toContain("repeat(auto-fit,minmax(min(142px,100%),1fr))");
-    expect(style).toContain("@container (max-width:300px)");
-    expect(style).toContain(".mode-outline .tool");
+    expect(style).toContain("repeat(auto-fit,minmax(min(96px,100%),1fr))");
+    expect(style).toContain("repeat(auto-fit,minmax(min(32px,100%),1fr))");
+    expect(shell.className).not.toContain("mode-outline");
+    expect(byAria(element.shadow, "打开头文件 ASCII").title).toContain("头文件 ASCII");
+    expect(byAria(element.shadow, "显示工具名称").attributes.get("aria-pressed")).toBe("false");
+    expect(findNodes(element.shadow, (node) => node.className === "tool-description")).toHaveLength(0);
   });
 });

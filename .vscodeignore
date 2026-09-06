@@ -15,6 +15,7 @@ src/**
 scripts/**
 !scripts/auto-build/**
 tests/**
+ui-preview/**
 docs/**
 !docs/编译工具/**
 esbuild.mjs

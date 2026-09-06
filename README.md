@@ -6,9 +6,9 @@
 
 需要同时配置两个远端时，macOS/Linux 运行 `./addRemote.sh`，PowerShell 运行 `.\addRemote.ps1`。脚本可重复执行且默认保留已有 `origin`；仅显式使用 `--remove-origin` 或 `-RemoveOrigin` 时才删除它。
 
-当前插件提供 **头文件编码修正、文件转码、Ignore 设置、工作区搜索替换、项目改名与受控执行、C++ 成员排序、UUID 替换、CAA UI、工程环境管理与 Codegen 参数表原型**。Primary 的 Ignore 使用“插件内置 / Git / 自定义”三个独立来源：默认启用内置与 Git，自定义非空保存时才创建 `.phoenix/.ignore`；原生 View Header 当前依次提供目录显隐、Ignore 和 Settings，目录动作只显示/隐藏顶部单行目录且不丢上下文，后二者打开统一 Tool Area 中对应的独立逻辑工具。Ignore 管理单独展示插件内置规则，并以 radio 在最近 Git 根 `.gitignore` 与当前目录 `.phoenix/.ignore` 间选择写入目标：默认读写 Git，只有用户主动切换或 Git 不可用时才使用 Phoenix；来源合并、智能去重和逐条增删会保护注释与无关规则。
+当前插件提供 **头文件编码修正、文件转码、Ignore 设置、工作区搜索替换、项目改名与受控执行、C++ 成员排序、UUID 替换、CAA UI、工程环境管理与 Codegen 参数表原型**。Primary 的 Ignore 使用“插件内置 / Git / 自定义”三个独立来源：默认启用内置与 Git，自定义非空保存时才创建 `.phoenix/.ignore`。原生 View Header 固定依次提供 Ignore 和 Settings；Webview 内按 Toolbar Strip → 固定单行目录 → Current Tool Block 排列三个一级区域，后二者打开同一个 Current Tool Block 中对应的独立逻辑工具。Ignore 管理单独展示插件内置规则，并以 radio 在最近 Git 根 `.gitignore` 与当前目录 `.phoenix/.ignore` 间选择写入目标：默认读写 Git，只有用户主动切换或 Git 不可用时才使用 Phoenix；来源合并、智能去重和逐条增删会保护注释与无关规则。
 
-Primary 的搜索替换保留精确规则和 Pascal、小写、全大写、空格、kebab、snake 等简单显式变形；Web/CAA/C++ 通用前缀和复杂 Web 多变形使用 Header 中的 **项目改名**按钮打开独立 Editor View。打开时会带入 Primary 当前目录、名称、启用规则和 Ignore 来源；一个 View 固定一个目录任务，重复点击只聚焦当前任务，关闭后才可为另一目录新建任务。该 View 先生成只读报告和冻结计划，写盘前可用 VS Code 原生 Diff 对比计划内容，只有通过冲突、文件指纹、编码、命中数和 Git 状态门禁并再次确认后才执行写盘。成员排序、UUID、CAA 扫描和 Codegen 预检可共用 `.phoenix/worksets.json`；搜索替换当前使用独立目录选择，工作集入口待产品交互明确后再评估。工程环境 Block 直接维护操作系统用户环境变量，不使用 VS Code Settings 伪装系统值；其他插件配置仍使用 VS Code Settings。写盘前会检查冲突和文件快照，结果统一显示在单 Block 中；Codegen Apply 会自动预检、重验源码指纹并保持 UTF-8/BOM/GBK 原编码，批量写入失败时尝试回滚。
+Primary 的搜索替换保留精确规则和 Pascal、小写、全大写、空格、kebab、snake 等简单显式变形；Web/CAA/C++ 通用前缀和复杂 Web 多变形使用搜索替换工具内的 **项目改名**按钮打开独立 Editor View。打开时会带入 Primary 当前目录、名称、启用规则和 Ignore 来源；一个 View 固定一个目录任务，重复点击只聚焦当前任务，关闭后才可为另一目录新建任务。该 View 先生成只读报告和冻结计划，写盘前可用 VS Code 原生 Diff 对比计划内容，只有通过冲突、文件指纹、编码、命中数和 Git 状态门禁并再次确认后才执行写盘。成员排序、UUID、CAA 扫描和 Codegen 预检可共用 `.phoenix/worksets.json`；搜索替换当前使用独立目录选择，工作集入口待产品交互明确后再评估。工程环境 Block 直接维护操作系统用户环境变量，不使用 VS Code Settings 伪装系统值；其他插件配置仍使用 VS Code Settings。写盘前会检查冲突和文件快照，结果统一显示在单 Block 中；Codegen Apply 会自动预检、重验源码指纹并保持 UTF-8/BOM/GBK 原编码，批量写入失败时尝试回滚。
 
 ## Code 与 CAD 功能关系
 
@@ -24,6 +24,9 @@ pnpm dev
 
 # npm Registry 精确版本对照
 pnpm dev:registry
+
+# 内部界面热预览（仅浏览器原型，不启动 Extension Host）
+pnpm ui
 
 pnpm test
 pnpm ext:typecheck
@@ -52,6 +55,7 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 | [工作区验收记录](docs/真实工作区只读验收.md) | CAA、C++、Web 只读预览与一次性工作区真实写盘验收 |
 | [代码规范](docs/代码规范.md) | 命名前缀、代码整理、MVC、状态与测试规则 |
 | [UI 开发规则](docs/前端开发规则.md) | Ribbon、单显示多打开、Block 布局、范围、缓存、结果、Diff、主题与验收的权威规范 |
+| [Phoenix Webview Preview 原型跟踪](docs/Phoenix-Webview-Preview原型跟踪.md) | `pnpm ui` 的四区域实验、浏览器注释结论、状态恢复与正式迁移点检 |
 | [Codegen 快速原型](docs/Codegen快速原型.md) | Codegen 单 Block、多 JSON View、共享 Table 与 MVC 边界 |
 | [Codegen 总 Controller 会话提炼点检](docs/codegen-plan/Codegen总Controller会话提炼点检表.md) | Session Controller、VS Code Host adapter 责任图与后续拆分边界 |
 | [Codegen 手工验收](docs/codegen-plan/Codegen手工验收.md) | 可重置 fixture 工作区、深浅主题与冲突/取消测试步骤 |
@@ -72,6 +76,7 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 | `pnpm ext:dev:code:prepare` | 只构建 Auto Code + 本地 Wing 并验证来源，不启动 GUI |
 | `pnpm dev:registry` | 清除本地模式并用 Registry 精确版本构建、启动 Auto Code |
 | `pnpm ext:dev:registry:prepare` | 使用 Registry 精确版本构建 Auto Code，不启动 GUI |
+| `pnpm ui` / `pnpm ui:dev` | 启动 Phoenix Webview Preview；仅验证 Primary / Right View 布局与交互原型，不替代 Extension Host 点检 |
 | `pnpm ext:watch` | 监听编译扩展 |
 | `pnpm ext:launch` | 同时加载 Code + CAD 的 Extension Host（默认 F5 配置） |
 | `pnpm ext:launch:code` | 只加载 KT Auto Code 的 Extension Host |

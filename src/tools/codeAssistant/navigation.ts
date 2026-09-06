@@ -1,5 +1,16 @@
 import type { KtcToolNavigatorNode } from "../../ui/KtcToolNavigatorModel.js";
 
+/** Shared semantic icon identifiers for every Code Assistant leaf projection. */
+export const KTC_CODE_ASSISTANT_TOOL_ICONS = Object.freeze({
+  autoBuild: "build",
+  packageIncludes: "file",
+  reorderMembers: "sort",
+  headerAscii: "file",
+  encodingFix: "file",
+  uuidReplace: "uuid",
+  caaDialog: "file",
+} as const);
+
 /**
  * Code Assistant is the first consumer of the framework-level Tool Navigator.
  * Navigation contains no executable action: every leaf only references the
@@ -17,7 +28,7 @@ export const KTC_CODE_ASSISTANT_NAVIGATION: readonly KtcToolNavigatorNode[] = Ob
         toolId: "autoBuild",
         label: "编译工具",
         description: "CAA / MSVC 批量构建",
-        icon: "build",
+        icon: KTC_CODE_ASSISTANT_TOOL_ICONS.autoBuild,
       },
       {
         kind: "tool",
@@ -25,7 +36,7 @@ export const KTC_CODE_ASSISTANT_NAVIGATION: readonly KtcToolNavigatorNode[] = Ob
         toolId: "packageIncludes",
         label: "头文件引用修正",
         description: "平铺 include → <KtCore/...>",
-        icon: "file",
+        icon: KTC_CODE_ASSISTANT_TOOL_ICONS.packageIncludes,
       },
       {
         kind: "tool",
@@ -33,7 +44,7 @@ export const KTC_CODE_ASSISTANT_NAVIGATION: readonly KtcToolNavigatorNode[] = Ob
         toolId: "reorderMembers",
         label: "C++ 成员排序",
         description: "扫描、预览并确认写回",
-        icon: "sort",
+        icon: KTC_CODE_ASSISTANT_TOOL_ICONS.reorderMembers,
       },
       {
         kind: "tool",
@@ -41,7 +52,7 @@ export const KTC_CODE_ASSISTANT_NAVIGATION: readonly KtcToolNavigatorNode[] = Ob
         toolId: "headerAscii",
         label: "头文件 ASCII 修正",
         description: "预检并修正问题字节",
-        icon: "file",
+        icon: KTC_CODE_ASSISTANT_TOOL_ICONS.headerAscii,
       },
     ],
   },
@@ -56,7 +67,7 @@ export const KTC_CODE_ASSISTANT_NAVIGATION: readonly KtcToolNavigatorNode[] = Ob
         toolId: "encodingFix",
         label: "编码修正",
         description: "检查并无损转换项目编码",
-        icon: "file",
+        icon: KTC_CODE_ASSISTANT_TOOL_ICONS.encodingFix,
       },
       {
         kind: "tool",
@@ -64,7 +75,7 @@ export const KTC_CODE_ASSISTANT_NAVIGATION: readonly KtcToolNavigatorNode[] = Ob
         toolId: "uuidReplace",
         label: "UUID 替换",
         description: "扫描映射并确认写入",
-        icon: "uuid",
+        icon: KTC_CODE_ASSISTANT_TOOL_ICONS.uuidReplace,
       },
     ],
   },
@@ -79,7 +90,7 @@ export const KTC_CODE_ASSISTANT_NAVIGATION: readonly KtcToolNavigatorNode[] = Ob
         toolId: "caaDialog",
         label: "CAA UI",
         description: "扫描 CATDlg 并连接 Desk Tools",
-        icon: "file",
+        icon: KTC_CODE_ASSISTANT_TOOL_ICONS.caaDialog,
       },
     ],
   },

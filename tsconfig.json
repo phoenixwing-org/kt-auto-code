@@ -10,5 +10,5 @@
     "noEmit": true,
     "types": ["vscode", "node"]
   },
-  "include": ["src/**/*.ts", "scripts/**/*.ts"]
+  "include": ["src/**/*.ts", "scripts/**/*.ts", "ui-preview/**/*.ts"]
 }
