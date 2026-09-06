@@ -153,6 +153,15 @@ for (const artifact of artifacts) {
         || associatedRulePickerBundle.includes("existingRules")) {
       throw new Error("Code VSIX is missing the Host-neutral associated-rule picker custom element");
     }
+    const toolNavigatorBundle = readText(zip, "extension/dist/ktc-tool-navigator.js");
+    if (!toolNavigatorBundle.includes("ktc-tool-navigator")
+        || !toolNavigatorBundle.includes("ktc-tool-navigator-action")
+        || !toolNavigatorBundle.includes("container-type:inline-size")
+        || toolNavigatorBundle.includes("acquireVsCodeApi")
+        || toolNavigatorBundle.includes("postMessage")
+        || toolNavigatorBundle.includes("workspace.fs")) {
+      throw new Error("Code VSIX is missing the Host-neutral responsive Tool Navigator custom element");
+    }
     const projectRenameAnalysisBundle = readText(zip, "extension/dist/project-rename-analysis.js");
     if (!projectRenameAnalysisBundle.includes("upper-snake")
         || !projectRenameAnalysisBundle.includes("loadMore")

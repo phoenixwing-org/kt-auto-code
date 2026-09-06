@@ -34,7 +34,8 @@ interface KtcProjectRenameSmokeDriver {
   state: KtcProjectRenameViewState;
   abortController?: AbortController;
   report?: KtcProjectRenameAnalysisReport;
-  handleMessage(message: KtcProjectRenameViewInboundMessage): Promise<void>;
+  currentSessionContext(): unknown;
+  handleMessage(message: KtcProjectRenameViewInboundMessage, context: unknown): Promise<void>;
 }
 
 interface KtcProjectRenameCancelEvidence {
@@ -133,7 +134,9 @@ async function ktcRunProjectRenameCancelSmoke(
 
   try {
     controller.show(fixture.fsPath);
-    const firstAnalysis = driver.handleMessage(request);
+    const session = driver.currentSessionContext();
+    assert.ok(session, "project rename smoke must resolve the live Editor session");
+    const firstAnalysis = driver.handleMessage(request, session);
     await ktcWaitFor(
       () => driver.state.status === "running" && (driver.state.progress?.scannedFiles ?? 0) > 0,
       () => `项目改名取消烟测未进入可取消扫描阶段：${driver.state.status}/${driver.state.progress?.scannedFiles ?? 0}`,
@@ -144,7 +147,7 @@ async function ktcRunProjectRenameCancelSmoke(
 
     // Start the replacement without awaiting cancellation. This proves that the
     // task slot is released immediately and a late first result cannot win.
-    const cancellation = driver.handleMessage({ type: "cancel" });
+    const cancellation = driver.handleMessage({ type: "cancel" }, session);
     assert.equal(firstSignal.aborted, true);
     assert.equal(driver.state.status, "cancelled");
     assert.equal(driver.report, undefined);
@@ -153,7 +156,7 @@ async function ktcRunProjectRenameCancelSmoke(
       && driver.report === undefined
       && driver.state.report === undefined;
 
-    const secondAnalysis = driver.handleMessage(request);
+    const secondAnalysis = driver.handleMessage(request, session);
     assert.equal(driver.state.status, "running", "cancelled task slot must be reusable immediately");
     await ktcWithTimeout(
       Promise.all([firstAnalysis, cancellation, secondAnalysis]),

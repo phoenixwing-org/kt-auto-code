@@ -44,7 +44,21 @@ import { ktcClassifyWorkingDirectory } from "../searchReplaceLocation.js";
 import { ktcListSearchReplaceDirectoryOptions } from "../searchReplaceDirectoryOptions.js";
 import { ktcIsPathInsideWorkspace } from "../core/workspace/workspacePath.js";
 import { ktcActivateResultAccordion } from "../workbench/resultAccordion.js";
-import { ktcActivateToolBlock, ktcCloseToolBlock } from "./toolBlockHistory.js";
+import {
+  ktcActivateEditorPrimaryTool,
+  ktcCloseEditorPrimaryTool,
+  ktcCreateEditorPrimaryCompanionState,
+  ktcRegisterEditorPrimaryCompanion,
+  ktcResolveEditorPrimaryCompanionRoute,
+  ktcUpdateEditorPrimaryCompanion,
+  ktcValidateEditorPrimaryCompanionRoute,
+  type KtcEditorPrimaryActivationSource,
+  type KtcEditorPrimaryCompanionState,
+} from "./editorPrimaryCompanionModel.js";
+import type {
+  KtcEditorPrimaryCompanionSnapshot,
+  KtcEditorPrimaryCompanionToolId,
+} from "../core/editorPrimaryCompanionContracts.js";
 import {
   ktcMoveRibbonTool,
   ktcNormalizeRibbonLayout,
@@ -75,6 +89,10 @@ import type {
 } from "../core/moduleShellContract.js";
 
 const MODULE_STATE_KEY = "ktAutoCode.modules.v1";
+const DIRECTORY_VISIBILITY_STATE_KEY = "ktAutoCode.sidebar.directoryVisible.v1";
+const DIRECTORY_VISIBILITY_CONTEXT_KEY = "ktAutoCode.modulePanel.directoryVisible";
+const EDITOR_COMPANION_TOMBSTONE_LIMIT_PER_TOOL = 4;
+const EDITOR_COMPANION_RETIRED_SESSION_LIMIT_PER_TOOL = 8;
 const RIBBON_LAYOUT_STATE_KEY = "ktAutoCode.ribbonLayout.v1";
 const CODE_ASSISTANT_TREE_UI_STATE_KEY = "ktAutoCode.codeAssistant.treeUi.v1";
 const WORKING_DIRECTORY_STATE_KEY = "ktAutoCode.workingContext.directory.v1";
@@ -84,6 +102,7 @@ const CUSTOM_IGNORE_STATE_KEY = "ktAutoCode.workingContext.customIgnoreEnabled.v
 const PLUGIN_IGNORE_STATE_KEY = "ktAutoCode.workingContext.pluginIgnoreEnabled.v1";
 const MODULE_VIEW_TITLE = "KT Auto Code";
 const DEFAULT_CODE_ASSISTANT_TREE_UI_STATE: KtcCodeAssistantTreeUiState = Object.freeze({
+  navigatorMode: "outline",
   treeExpanded: true,
   cppOrganizeExpanded: true,
   fileToolsExpanded: true,
@@ -136,6 +155,7 @@ function normalizeCodeAssistantTreeUiState(value: unknown): KtcCodeAssistantTree
   if (!value || typeof value !== "object") return { ...DEFAULT_CODE_ASSISTANT_TREE_UI_STATE };
   const candidate = value as Partial<KtcCodeAssistantTreeUiState>;
   return {
+    navigatorMode: candidate.navigatorMode === "grid" ? "grid" : "outline",
     treeExpanded: candidate.treeExpanded !== false,
     cppOrganizeExpanded: candidate.cppOrganizeExpanded !== false,
     fileToolsExpanded: candidate.fileToolsExpanded !== false,
@@ -171,9 +191,14 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
   private moduleView?: vscode.WebviewView;
   private activeToolId = "headerAscii";
+  private directoryVisible: boolean;
   private codeAssistantFeatureId: KtcCodeAssistantFeatureId | undefined;
   private codeAssistantTreeUiState: KtcCodeAssistantTreeUiState;
   private openToolIds: string[] = [];
+  private editorCompanionState: KtcEditorPrimaryCompanionState = ktcCreateEditorPrimaryCompanionState();
+  private readonly editorCompanionSnapshots = new Map<string, KtcEditorPrimaryCompanionSnapshot>();
+  private readonly retiredEditorCompanionSessions = new Map<KtcEditorPrimaryCompanionToolId, string[]>();
+  private editorCompanionQueue: Promise<void> = Promise.resolve();
   private toolStates = new Map<string, ToolUiState>();
   private readonly recentExternalDirectories: KtcRecentWorkingDirectoryStore;
   private readonly recentWorkspaceDirectories: KtcRecentWorkspaceDirectoryStore;
@@ -181,6 +206,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   private moduleState: KtcModuleState;
   private moduleStateSyncQueue: Promise<void> = Promise.resolve();
   private modulePanelContextSyncQueue: Promise<void> = Promise.resolve();
+  private directoryVisibilitySyncQueue: Promise<void> = Promise.resolve();
   private ignoreOperationQueue: Promise<void> = Promise.resolve();
   private ignoreContextRoot: string | undefined;
   private readonly moduleBlockProviders = new Map<KtcModuleId, KtcModuleBlockProvider>();
@@ -190,6 +216,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     private readonly globalState: vscode.Memento,
     private readonly workspaceState: vscode.Memento,
   ) {
+    this.directoryVisible = globalState.get<boolean>(DIRECTORY_VISIBILITY_STATE_KEY, true) !== false;
     const installed = this.getInstalledModuleIds();
     this.moduleState = ktcCreateModuleState(
       installed,
@@ -214,6 +241,27 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
   async initializeModuleState(): Promise<void> {
     await this.syncModuleState();
+    await this.syncDirectoryVisibilityContext(this.directoryVisible);
+  }
+
+  /** Changes only the Directory row presentation; tool and working state stay authoritative. */
+  setDirectoryVisible(visible: boolean): Promise<void> {
+    this.directoryVisible = visible;
+    const task = this.directoryVisibilitySyncQueue.then(async () => {
+      await this.globalState.update(DIRECTORY_VISIBILITY_STATE_KEY, visible);
+      await vscode.commands.executeCommand("setContext", DIRECTORY_VISIBILITY_CONTEXT_KEY, visible);
+      this.postToViews({ type: "directoryVisibility", visible });
+    });
+    this.directoryVisibilitySyncQueue = task.catch(() => undefined);
+    return task;
+  }
+
+  private syncDirectoryVisibilityContext(visible: boolean): Promise<void> {
+    const task = this.directoryVisibilitySyncQueue.then(async () => {
+      await vscode.commands.executeCommand("setContext", DIRECTORY_VISIBILITY_CONTEXT_KEY, visible);
+    });
+    this.directoryVisibilitySyncQueue = task.catch(() => undefined);
+    return task;
   }
 
   async refreshInstalledModules(): Promise<void> {
@@ -309,34 +357,27 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   }
 
   /** Opens the tool interface block; results are rendered in the same block. */
-  async showTool(toolId: string): Promise<void> {
+  async showTool(
+    toolId: string,
+    activationSource: KtcEditorPrimaryActivationSource = "command",
+  ): Promise<void> {
     const requestedToolId = toolId;
     const requestedTool = getTool(requestedToolId);
     if (!requestedTool) return;
-    const codeAssistantFeatureId = isCodeAssistantFeatureId(requestedToolId) ? requestedToolId : undefined;
-    const visibleToolId = codeAssistantFeatureId ? "codeAssistant" : requestedToolId;
-    const tool = getTool(visibleToolId);
-    if (!tool) return;
-    const codeAssistantFeatureChanged = this.codeAssistantFeatureId !== codeAssistantFeatureId;
-    this.codeAssistantFeatureId = codeAssistantFeatureId;
-    if (codeAssistantFeatureId && codeAssistantFeatureChanged) {
-      this.codeAssistantTreeUiState = { ...this.codeAssistantTreeUiState, treeExpanded: false };
-      await this.globalState.update(CODE_ASSISTANT_TREE_UI_STATE_KEY, this.codeAssistantTreeUiState);
-      const context = this.createRunContext(requestedToolId);
-      context.log(`[代码辅助][入口][INFO] 已打开：${requestedTool.title}；目录 ${context.workspaceLabel}。`);
-    }
-    if (this.isToolBlockVisible(visibleToolId)) {
-      if (codeAssistantFeatureChanged && this.moduleView) await this.sendInit(this.moduleView);
+    const legacyFeatureChanged = this.codeAssistantFeatureId !== undefined;
+    this.codeAssistantFeatureId = undefined;
+    if (this.isToolBlockVisible(requestedToolId)) {
+      if (legacyFeatureChanged && this.moduleView) await this.sendInit(this.moduleView);
+      this.postToViews({ type: "revealToolSurface", toolId: requestedToolId });
       if (requestedToolId === "environmentSettings") await requestedTool.runAction("refresh", this.createRunContext(requestedToolId));
       if (requestedToolId === "caaDialog") await requestedTool.runAction("checkConnection", this.createRunContext(requestedToolId));
       if (requestedTool.onDidShow) await requestedTool.onDidShow(this.createRunContext(requestedToolId));
       return;
     }
     await this.activateModule("code");
-    this.activeToolId = visibleToolId;
-    this.openToolIds = ktcActivateToolBlock(this.openToolIds, visibleToolId);
+    this.activateToolHistory(requestedToolId, activationSource);
     ktcActivateResultAccordion(SidebarViewProvider.moduleViewType);
-    await this.setModulePanelContext(true, visibleToolId);
+    await this.setModulePanelContext(true, requestedToolId);
     await vscode.commands.executeCommand("workbench.view.extension.kt-auto-code");
     if (this.moduleView) {
       this.moduleView.title = MODULE_VIEW_TITLE;
@@ -351,8 +392,161 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     if (requestedTool.onDidShow) await requestedTool.onDidShow(this.createRunContext(requestedToolId));
   }
 
+  /** Activates a complex tool before its Editor opens, so the Editor keeps final focus. */
+  async activateEditorCompanionTool(toolId: KtcEditorPrimaryCompanionToolId): Promise<void> {
+    await this.showTool(toolId, "command");
+  }
+
+  /** Accepts only Host snapshots; Webview draft state never enters this channel. */
+  updateEditorCompanion(snapshot: KtcEditorPrimaryCompanionSnapshot): Promise<void> {
+    const operation = this.editorCompanionQueue.then(() => this.applyEditorCompanionSnapshot(snapshot));
+    this.editorCompanionQueue = operation.catch(() => undefined);
+    return operation;
+  }
+
+  private activateToolHistory(toolId: string, source: KtcEditorPrimaryActivationSource): void {
+    this.editorCompanionState = ktcActivateEditorPrimaryTool(this.editorCompanionState, {
+      toolId,
+      source,
+      preserveFocus: source === "editor",
+    });
+    this.openToolIds = [...this.editorCompanionState.openToolIds];
+    this.activeToolId = this.editorCompanionState.activeToolId ?? toolId;
+  }
+
+  private async applyEditorCompanionSnapshot(
+    snapshot: KtcEditorPrimaryCompanionSnapshot,
+  ): Promise<void> {
+    const knownSession = this.editorCompanionState.companions.find(({ panelId }) => panelId === snapshot.panelId);
+    const sameSession = knownSession?.toolId === snapshot.toolId
+      && knownSession.sessionId === snapshot.sessionId;
+    if (snapshot.lifecycle === "disposed" && !sameSession) {
+      logOutput(`[${snapshot.toolId}][Primary][WARN] 已忽略未登记 Editor 的 dispose 快照。`);
+      return;
+    }
+    if (!sameSession && this.isRetiredEditorCompanionSession(snapshot)) {
+      logOutput(`[${snapshot.toolId}][Primary][WARN] 已丢弃 retired Editor session 的迟到快照。`);
+      return;
+    }
+    if (knownSession && !sameSession) {
+      this.rememberRetiredEditorCompanionSession(knownSession.toolId, knownSession.panelId, knownSession.sessionId);
+    }
+    const transition = sameSession
+      ? ktcUpdateEditorPrimaryCompanion(this.editorCompanionState, snapshot)
+      : ktcRegisterEditorPrimaryCompanion(this.editorCompanionState, {
+          ...snapshot,
+          lifecycle: snapshot.lifecycle === "disposed" ? "open-inactive" : snapshot.lifecycle,
+        });
+    if (!transition.accepted) {
+      logOutput(`[${snapshot.toolId}][Primary][WARN] 已丢弃 companion 快照：${transition.reason}。`);
+      return;
+    }
+
+    this.editorCompanionState = transition.state;
+    if (snapshot.lifecycle === "disposed") {
+      this.editorCompanionSnapshots.delete(snapshot.panelId);
+      this.rememberRetiredEditorCompanionSession(snapshot.toolId, snapshot.panelId, snapshot.sessionId);
+    } else this.editorCompanionSnapshots.set(snapshot.panelId, snapshot);
+    const projectedSnapshot = this.resolveEditorCompanionSnapshot(snapshot);
+    if (projectedSnapshot) {
+      this.setToolState(snapshot.toolId, {
+        status: projectedSnapshot.status,
+        message: projectedSnapshot.message,
+        editorCompanion: projectedSnapshot,
+      });
+    }
+    if (snapshot.lifecycle === "disposed") this.pruneEditorCompanionTombstones(snapshot.toolId);
+    if (!transition.activation) return;
+
+    await this.activateModule("code");
+    this.openToolIds = [...transition.state.openToolIds];
+    this.activeToolId = transition.state.activeToolId ?? snapshot.toolId;
+    await this.setModulePanelContext(true, this.activeToolId);
+    this.postToViews({
+      type: "openTools",
+      activeToolId: this.activeToolId,
+      openToolIds: this.openToolIds,
+      codeAssistantFeature: this.codeAssistantFeatureId,
+    });
+  }
+
+  /** Projects only the routed Editor into one Primary tool state. */
+  private resolveEditorCompanionSnapshot(
+    fallback: KtcEditorPrimaryCompanionSnapshot,
+  ): KtcEditorPrimaryCompanionSnapshot | undefined {
+    const route = ktcResolveEditorPrimaryCompanionRoute(this.editorCompanionState, fallback.toolId);
+    if (!route) return fallback.lifecycle === "disposed"
+      ? this.closedEditorCompanionSnapshot(fallback)
+      : undefined;
+    const snapshot = this.editorCompanionSnapshots.get(route.panelId);
+    if (
+      snapshot?.toolId === route.toolId
+      && snapshot.sessionId === route.sessionId
+      && snapshot.revision === route.revision
+    ) return snapshot;
+    return undefined;
+  }
+
+  private closedEditorCompanionSnapshot(
+    snapshot: KtcEditorPrimaryCompanionSnapshot,
+  ): KtcEditorPrimaryCompanionSnapshot {
+    const failed = snapshot.status === "error";
+    return {
+      panelId: `${snapshot.toolId}-closed`,
+      toolId: snapshot.toolId,
+      sessionId: "closed",
+      revision: snapshot.revision,
+      lifecycle: "disposed",
+      title: snapshot.toolId === "projectRename" ? "项目改名" : "自动编译",
+      status: failed ? "error" : "idle",
+      message: failed
+        ? "右侧 View 已关闭；任务可能未完成，请检查结果后再从原入口启动。"
+        : "右侧 View 已关闭；可从原入口启动新的任务。",
+      ready: false,
+      summary: [],
+      actions: [],
+    };
+  }
+
+  private pruneEditorCompanionTombstones(toolId: KtcEditorPrimaryCompanionToolId): void {
+    const retained = new Set(this.editorCompanionState.companions
+      .filter((session) => session.toolId === toolId && session.lifecycle === "disposed")
+      .sort((left, right) => right.openedOrder - left.openedOrder)
+      .slice(0, EDITOR_COMPANION_TOMBSTONE_LIMIT_PER_TOOL)
+      .map((session) => session.panelId));
+    this.editorCompanionState = {
+      ...this.editorCompanionState,
+      companions: this.editorCompanionState.companions.filter((session) => (
+        session.toolId !== toolId
+        || session.lifecycle !== "disposed"
+        || retained.has(session.panelId)
+      )),
+    };
+  }
+
+  private rememberRetiredEditorCompanionSession(
+    toolId: KtcEditorPrimaryCompanionToolId,
+    panelId: string,
+    sessionId: string,
+  ): void {
+    const key = `${panelId}\u0000${sessionId}`;
+    const previous = this.retiredEditorCompanionSessions.get(toolId) ?? [];
+    this.retiredEditorCompanionSessions.set(toolId, [
+      ...previous.filter((candidate) => candidate !== key),
+      key,
+    ].slice(-EDITOR_COMPANION_RETIRED_SESSION_LIMIT_PER_TOOL));
+  }
+
+  private isRetiredEditorCompanionSession(snapshot: KtcEditorPrimaryCompanionSnapshot): boolean {
+    return this.retiredEditorCompanionSessions.get(snapshot.toolId)
+      ?.includes(`${snapshot.panelId}\u0000${snapshot.sessionId}`) === true;
+  }
+
   /** Opens one optional-module tool in the shared Block history. */
-  async showModuleTool(moduleId: KtcModuleId, toolId: string): Promise<boolean> {
+  async showModuleTool(
+    moduleId: KtcModuleId,
+    toolId: string,
+  ): Promise<boolean> {
     if (moduleId === "code") {
       if (!getTool(toolId)) return false;
       await this.showTool(toolId);
@@ -363,8 +557,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     if (this.isToolBlockVisible(toolId)) return true;
     if (!await this.activateModule(moduleId)) return false;
 
-    this.activeToolId = toolId;
-    this.openToolIds = ktcActivateToolBlock(this.openToolIds, toolId);
+    this.activateToolHistory(toolId, "command");
     ktcActivateResultAccordion(SidebarViewProvider.moduleViewType);
     await this.setModulePanelContext(true, toolId);
     await vscode.commands.executeCommand("workbench.view.extension.kt-auto-code");
@@ -390,8 +583,9 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
   async closeToolBlock(toolId = this.activeToolId): Promise<KtcToolBlockState> {
     if (toolId === "codeAssistant") this.codeAssistantFeatureId = undefined;
-    const closed = ktcCloseToolBlock(this.openToolIds, toolId);
-    this.openToolIds = [...closed.openToolIds];
+    const closed = ktcCloseEditorPrimaryTool(this.editorCompanionState, toolId);
+    this.editorCompanionState = closed.state;
+    this.openToolIds = [...closed.state.openToolIds];
     if (closed.nextToolId) {
       await this.restoreToolBlock(closed.nextToolId);
       return this.getToolBlockState();
@@ -545,6 +739,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       sidebarStyle: this.getSidebarStyle(),
       ribbonLayout,
       workingContext,
+      directoryVisible: this.directoryVisible,
       presentation: "detailBlock",
       recentWorkingDirectories: this.getRecentWorkingDirectories(),
       workspaceFileScopes: [],
@@ -748,19 +943,52 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
+    if (message.type === "editorCompanionAction") {
+      const validation = ktcValidateEditorPrimaryCompanionRoute(this.editorCompanionState, message);
+      if (!validation.accepted) {
+        logOutput(`[${message.toolId}][Primary][WARN] 已丢弃 companion 动作 ${message.actionId}：${validation.reason}。`);
+        return;
+      }
+      if (message.panelId !== validation.route.panelId) {
+        logOutput(`[${message.toolId}][Primary][WARN] 已丢弃 panel 不匹配的 companion 动作：${message.actionId}。`);
+        return;
+      }
+      const snapshot = this.editorCompanionSnapshots.get(validation.route.panelId);
+      const action = snapshot?.actions.find((candidate) => candidate.id === message.actionId);
+      if (
+        !snapshot?.ready
+        || snapshot.lifecycle === "disposed"
+        || snapshot.sessionId !== message.sessionId
+        || snapshot.revision !== message.revision
+        || !action?.enabled
+      ) {
+        logOutput(`[${message.toolId}][Primary][WARN] 已丢弃未就绪、过期或禁用的 companion 动作：${message.actionId}。`);
+        return;
+      }
+      const tool = getTool(message.toolId);
+      if (!tool?.runEditorCompanionAction) {
+        logOutput(`[${message.toolId}][Primary][WARN] 工具未声明 companion 动作处理器。`);
+        return;
+      }
+      await tool.runEditorCompanionAction(message, this.createRunContext(message.toolId, source));
+      return;
+    }
+
     if (message.type === "selectTool") {
-      await this.showTool(message.toolId);
+      await this.showTool(message.toolId, message.source ?? "ribbon");
       return;
     }
 
     if (message.type === "openCodeAssistantFeature") {
+      if (message.feature === "autoBuild") {
+        this.createRunContext("codeAssistant").log(`[代码辅助][入口][INFO] 已打开：编译工具；目录 ${this.getWorkingContext().label}。`);
+        await vscode.commands.executeCommand("ktAutoCode.codeAssistant.autoBuild");
+        return;
+      }
       this.codeAssistantFeatureId = message.feature;
-      const featureTitle = message.feature === "autoBuild" ? "编译工具" : "头文件引用修正";
-      this.createRunContext("codeAssistant").log(`[代码辅助][入口][INFO] 已打开：${featureTitle}；目录 ${this.getWorkingContext().label}。`);
+      this.createRunContext("codeAssistant").log(`[代码辅助][入口][INFO] 已打开：头文件引用修正；目录 ${this.getWorkingContext().label}。`);
       await this.sendInit(source);
-      await vscode.commands.executeCommand(message.feature === "autoBuild"
-        ? "ktAutoCode.codeAssistant.autoBuild"
-        : "ktAutoCode.codeAssistant.packageIncludes");
+      await vscode.commands.executeCommand("ktAutoCode.codeAssistant.packageIncludes");
       return;
     }
 
@@ -971,6 +1199,18 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   private async restoreToolBlock(toolId: string): Promise<boolean> {
     const moduleId = this.getToolModuleId(toolId);
     if (!moduleId) return false;
+    if (this.isToolBlockVisible(toolId)) {
+      // Closing a background logical tool can leave the same tool visible while
+      // its MRU/open badges changed. Refresh only the shell projection here;
+      // do not rerun business `onDidShow` hooks for an already visible tool.
+      if (!await this.activateModule(moduleId)) return false;
+      await this.setModulePanelContext(true, toolId);
+      if (this.moduleView) {
+        this.moduleView.title = MODULE_VIEW_TITLE;
+        await this.sendInit(this.moduleView);
+      }
+      return true;
+    }
     if (moduleId === "code") {
       await this.showTool(toolId);
       return true;

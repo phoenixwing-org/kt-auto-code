@@ -27,6 +27,10 @@ import type {
 import type { KtcRunViewModel } from "../core/run/KtcRunModel.js";
 import type { KtcGitViewModel } from "../core/git/KtcGitModel.js";
 import type { PnwCodeUuidFileResultRow } from "@phoenix-wing/code-core/ui/model";
+import type {
+  KtcEditorPrimaryCompanionActionToken,
+  KtcEditorPrimaryCompanionSnapshot,
+} from "../core/editorPrimaryCompanionContracts.js";
 
 export type { KtcCodegenMetaField } from "./codegen/contracts.js";
 export type {
@@ -63,7 +67,8 @@ export type WebviewInboundMessage =
     }
   | { type: "runModuleTool"; moduleId: KtcModuleId; command: string }
   | { type: "moduleBlockAction"; actionId: string }
-  | { type: "selectTool"; toolId: string }
+  | { type: "selectTool"; toolId: string; source?: "ribbon" | "menu" }
+  | ({ type: "editorCompanionAction" } & KtcEditorPrimaryCompanionActionToken)
   | { type: "openCodeAssistantFeature"; feature: "packageIncludes" | "autoBuild" }
   | { type: "setCodeAssistantTreeUiState"; state: KtcCodeAssistantTreeUiState }
   | { type: "closeToolBlock" }
@@ -206,6 +211,7 @@ export type WebviewOutboundMessage =
       ignoreConfig?: IgnoreConfigSummary;
       toolOptions: Record<string, ToolOptionsState>;
       sidebarStyle: "ribbon" | "compact";
+      directoryVisible: boolean;
       ribbonLayout: KtcRibbonLayoutV1;
       workingContext: KtcWorkingContext;
       presentation: "ribbon" | "detailBlock";
@@ -221,6 +227,7 @@ export type WebviewOutboundMessage =
   | { type: "ignoreConfig"; ignoreConfig?: IgnoreConfigSummary }
   | { type: "options"; toolId: string; options: ToolOptionsState }
   | { type: "sidebarStyle"; style: "ribbon" | "compact" }
+  | { type: "directoryVisibility"; visible: boolean }
   | { type: "ribbonLayout"; layout: KtcRibbonLayoutV1 }
   | { type: "openRibbonCustomization" }
   | { type: "workingContext"; context: KtcWorkingContext; directories: KtcRecentWorkingDirectories }
@@ -230,6 +237,7 @@ export type WebviewOutboundMessage =
       openToolIds: readonly string[];
       codeAssistantFeature?: KtcCodeAssistantFeatureId;
     }
+  | { type: "revealToolSurface"; toolId: string }
   | { type: "modules"; moduleState: KtcModuleState }
   | { type: "moduleBlock"; moduleId: KtcModuleId; content?: KtcModuleBlockContent }
   | {
@@ -253,6 +261,8 @@ export type KtcCodeAssistantFeatureId =
 
 /** 用户级 Tree 展开状态；不属于任何工作区的工程配置。 */
 export interface KtcCodeAssistantTreeUiState {
+  /** 同一导航数据的显示方式；只影响呈现，不改变工具激活。 */
+  navigatorMode: "outline" | "grid";
   /** 整个功能目录的用户级展开状态；不影响已打开的功能会话。 */
   treeExpanded: boolean;
   cppOrganizeExpanded: boolean;
@@ -402,6 +412,8 @@ export interface ToolUiState {
   codegen?: KtcCodegenPrimaryViewModel;
   run?: KtcRunViewModel;
   git?: KtcGitViewModel;
+  /** Host-owned summary of a complex Editor View; never a second executable draft. */
+  editorCompanion?: KtcEditorPrimaryCompanionSnapshot;
 }
 
 export interface KtcPluginSettingValueSummary {
@@ -486,6 +498,11 @@ export interface KtTool {
   getPanelModel(): ToolPanelModel;
   handleMessage(message: WebviewInboundMessage, ctx: ToolRunContext): Promise<void>;
   runAction(action: string, ctx: ToolRunContext): Promise<void>;
+  /** Executes an already session/revision-validated action against the Editor owner. */
+  runEditorCompanionAction?(
+    token: KtcEditorPrimaryCompanionActionToken,
+    ctx: ToolRunContext,
+  ): Promise<void>;
   /** Releases transient preview/results when a nested Code Assistant leaf is explicitly closed. */
   clearSession?(ctx: ToolRunContext): Promise<void> | void;
 }

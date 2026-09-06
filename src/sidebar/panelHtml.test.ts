@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import {
+  ktcEditorCompanionStatusText,
   getPanelHtml,
   ktcCodeAssistantFeatureBlock,
   ktcGitPanelModel,
@@ -9,7 +10,50 @@ import {
 } from "./panelHtml.js";
 import { ktcNextReorderSelection } from "./reorderMembersPanelState.js";
 
+function panelElementAncestors(html: string, targetId: string): string[] | undefined {
+  const start = html.indexOf('<div class="wrap">');
+  const end = html.indexOf("<script nonce=", start);
+  const fragment = html.slice(start, end);
+  const stack: Array<{ tag: string; marker: string }> = [];
+  const tags = /<(\/)?([a-z][\w-]*)([^>]*)>/giu;
+  const voidTags = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"]);
+  let match: RegExpExecArray | null;
+  while ((match = tags.exec(fragment))) {
+    const [, closing, rawTag, attributes] = match;
+    const tag = rawTag.toLowerCase();
+    if (closing) {
+      const openIndex = stack.map((entry) => entry.tag).lastIndexOf(tag);
+      if (openIndex >= 0) stack.length = openIndex;
+      continue;
+    }
+    const id = /\sid="([^"]+)"/u.exec(attributes)?.[1];
+    if (id === targetId) return stack.map((entry) => entry.marker);
+    const firstClass = /\sclass="([^"]+)"/u.exec(attributes)?.[1]?.split(/\s+/u)[0];
+    const marker = id ? `#${id}` : firstClass ? `.${firstClass}` : tag;
+    if (!voidTags.has(tag) && !/\/\s*$/u.test(attributes)) stack.push({ tag, marker });
+  }
+  return undefined;
+}
+
 describe("sidebar panel HTML", () => {
+  it("disposed companion 优先保留 Host 安全提示，仅在空消息时回退", () => {
+    expect(ktcEditorCompanionStatusText({
+      lifecycle: "disposed",
+      message: "任务关闭时仍在写盘，已阻止继续操作。",
+      ready: false,
+    })).toBe("任务关闭时仍在写盘，已阻止继续操作。");
+    expect(ktcEditorCompanionStatusText({
+      lifecycle: "disposed",
+      message: "",
+      ready: false,
+    })).toBe("右侧 View 已关闭；可从原入口启动新的任务。");
+    expect(ktcEditorCompanionStatusText({
+      lifecycle: "active",
+      message: "",
+      ready: true,
+    })).toBe("任务已连接。");
+  });
+
   it("代码辅助内部功能统一由同一 Block 外壳生成", () => {
     expect(ktcCodeAssistantFeatureBlock({
       id: "feature",
@@ -95,9 +139,17 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('replace.className = "replace-variant-input"');
     expect(html).toContain('up.textContent = "↑"');
     expect(html).toContain('remove.textContent = "×"');
-    expect(html).toContain('class="primary-header-context-action" id="btn-project-rename-analysis"');
-    expect(html.indexOf('id="btn-project-rename-analysis"')).toBeLessThan(html.indexOf('id="btn-close-tool"'));
-    expect(html).toContain('hidden>项目改名</button>');
+    expect(html).toContain('class="replace-variant-toggle" id="btn-project-rename-analysis"');
+    expect(html.indexOf('id="btn-project-rename-analysis"')).toBeGreaterThan(html.indexOf('id="replace-block"'));
+    expect(html).toContain('>项目改名</button>');
+    expect(html).toContain('id="editor-companion-block"');
+    expect(html).toContain('function renderEditorCompanion(ts)');
+    expect(html).toContain('els.editorCompanionStatus.textContent = editorCompanionStatusText(model)');
+    expect(html).toContain('type: "editorCompanionAction"');
+    expect(html).toContain('panelId: model.panelId');
+    expect(html).toContain('sessionId: model.sessionId');
+    expect(html).toContain('revision: model.revision');
+    expect(html).toContain('button.disabled = closed || !model.ready || !action.enabled');
     expect(html).not.toContain('id="workspace-file-scope-select"');
     expect(html).not.toContain('type: "selectWorkspaceFileScope"');
     expect(html).not.toContain('type: "openWorkspaceWorksets"');
@@ -156,7 +208,7 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain("group.appendChild(option)");
     expect(html).toContain('body.welcome-mode #primary-body > :not(#welcome-panel)');
     expect(html).toContain('state.presentation === "detailBlock" && (state.openToolIds || []).length === 0');
-    expect(html).toContain('if (welcomeMode) {\n        els.title.textContent = "插件概览";');
+    expect(html).toContain('if (welcomeMode) {\n        els.toolSurface.setAttribute("aria-label", "插件概览");');
     expect(html).toContain('state.extensionInstallations = msg.extensionInstallations || []');
     expect(html).toContain('extension.moduleId === "cad" ? "CAD" : "CODE"');
     expect(html).toContain('grid-template-columns: 46px minmax(0, 1fr) auto');
@@ -174,7 +226,7 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('type: "runModuleTool"');
     expect(html).toContain('t.shortTitle || shortTitles[t.id] || t.title');
     expect(html).toContain('<ktc-reorder-members-panel id="reorder-members-panel"></ktc-reorder-members-panel>');
-    expect(html).toContain('id="btn-code-assistant-reorder-members"');
+    expect(html).toContain('<ktc-tool-navigator id="code-assistant-navigator"></ktc-tool-navigator>');
     expect(html).toContain('id="code-assistant-reorder-actions"');
     expect(html).toContain('id="code-assistant-reorder-results"');
     expect(html).toContain("test-webview:/extension/dist/reorder-members-panel.js");
@@ -284,7 +336,7 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('.ktc-compact-label { display: block;');
     expect(html).toContain('main.className = "compact-file-main ktc-compact-label"');
     expect(html).not.toContain('.compact-file-name { flex:');
-    expect(html).toContain('body.ribbon-only .wrap > :not(#ribbon-shell)');
+    expect(html).toContain('body.ribbon-only #tool-area-shell > :not(#ribbon-shell)');
     expect(html).toContain('className = "module-group"');
     expect(html).toContain('className = "module-group-label"');
     expect(html).toContain('(moduleTools[0].moduleTitle || moduleId).toUpperCase()');
@@ -314,10 +366,10 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('id="primary-shell"');
     expect(html).toContain('id="btn-toggle-ribbon-mode"');
     expect(html).not.toContain('id="btn-toggle-ribbon-block"');
-    expect(html).toContain('id="btn-toggle-primary-block"');
+    expect(html).not.toContain('id="btn-toggle-primary-block"');
     expect(html).not.toContain('id="btn-toggle-working-context"');
-    expect(html.match(/<svg class="shell-block-chevron" viewBox="0 0 16 16" aria-hidden="true">/gu)).toHaveLength(2);
-    expect(html.match(/M7\.976 10\.072l4\.357-4\.357\.62\.618L7\.976 11\.31 3 6\.333l\.62-\.618 4\.356 4\.357z/gu)).toHaveLength(9);
+    expect(html.match(/<svg class="shell-block-chevron" viewBox="0 0 16 16" aria-hidden="true">/gu)).toHaveLength(1);
+    expect(html.match(/M7\.976 10\.072l4\.357-4\.357\.62\.618L7\.976 11\.31 3 6\.333l\.62-\.618 4\.356 4\.357z/gu)).toHaveLength(4);
     expect(html).toContain('id="replace-ignore-summary"');
     expect(html).toContain('id="replace-ignore-builtin" type="checkbox" checked');
     expect(html).toContain('id="replace-ignore-git" type="checkbox" checked');
@@ -342,7 +394,7 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('Array.from(String(t.shortTitle || t.title || "?").trim())[0] || "?"');
     expect(html).toContain('icon.setAttribute("aria-hidden", "true")');
     expect(html).toContain('aria-pressed="false"');
-    expect(html).toContain('aria-label="仅显示工具图标"');
+    expect(html).toContain('aria-label="仅显示图标"');
     expect(html).not.toContain('aria-controls="ribbon-body"');
     expect(html).not.toContain('setAttribute("aria-expanded", compact ? "false" : "true")');
     expect(html).not.toContain('class="shell-block-chevron">⌄</span>');
@@ -354,41 +406,40 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('els.environmentBlock.hidden = !environment');
     expect(html).not.toContain('els.btnRibbonIgnore.onclick');
     expect(html).toContain('id="code-assistant-block"');
-    expect(html).toContain('id="code-assistant-tree-section"');
-    expect(html).toContain('<span>功能目录</span>');
+    expect(html).toContain('id="code-assistant-navigator"');
+    expect(html).toContain("test-webview:/extension/dist/ktc-tool-navigator.js");
+    expect(html).toContain('const codeAssistantNavigation = [{"kind":"group"');
     expect(html).toContain('/* 当前工具统一采用满宽紧凑内容边界；每个功能在自身行内保留必要内边距。 */');
     expect(html).toContain('.code-assistant-block { margin: -8px 0 0; }');
     expect(html).toContain('底部不得负边距，避免当前功能操作区与 Tree 最后一行重叠。');
-    expect(html).toContain('.code-assistant-tree-section { margin: 0 0 4px; padding: 0; border: 1px solid');
-    expect(html).toContain('.code-assistant-tree-section[open] > summary { border-bottom: 1px solid');
-    expect(html).toContain('class="code-assistant-tree-section-count">（7）</span>');
-    expect(html).toContain('data-code-assistant-feature="autoBuild"');
-    expect(html).toContain('aria-label="打开 Windows 编译工具（PowerShell 5.1）"');
-    expect(html).toContain('Windows PowerShell 5.1 · CAA/MSVC 批量构建');
-    expect(html).toContain('type: "openCodeAssistantFeature", feature: "autoBuild"');
-    expect(html).toContain('class="code-assistant-tree-count">（4）</span>');
-    expect(html).toContain('class="code-assistant-tree-count">（2）</span>');
-    expect(html).toContain('class="code-assistant-tree-count">（1）</span>');
+    expect(html).toContain('ktc-tool-navigator { display: block; min-width: 0; }');
+    expect(html).toContain('"toolId":"autoBuild"');
+    expect(html).toContain('"description":"CAA / MSVC 批量构建"');
+    expect(html).toContain('type: "openCodeAssistantFeature", feature: toolId');
     expect(html).toContain('els.primaryBody.insertBefore(els.codeAssistantBlock, els.primaryBody.firstElementChild)');
-    expect(html).toContain('"代码辅助 / " + tool.title');
-    expect(html).toContain('id="btn-code-assistant-package-includes"');
-    expect(html).toContain('class="code-assistant-tree-group"');
+    expect(html).toContain('els.toolSurface.setAttribute("aria-label", tool.title + "工具内容")');
+    expect(html).not.toContain('"代码辅助 / " + tool.title');
+    expect(html).toContain('"toolId":"packageIncludes"');
+    expect(html).toContain('"id":"cpp-organize"');
     expect(html).toContain('C++ 整理');
     expect(html).toContain('文件工具');
     expect(html).toContain('CAA');
     expect(html).toContain('头文件引用修正');
-    expect(html).toContain('class="code-assistant-tree-chevron" viewBox="0 0 16 16"');
-    expect(html).toContain('button.classList.toggle("selected", button.dataset.codeAssistantFeature === state.codeAssistantFeature)');
-    expect(html).toContain('function collapseCodeAssistantDirectory()');
-    expect(html).toContain('state.codeAssistantTreeUiState.treeExpanded = false');
-    expect(html).toContain('selectCodeAssistantFeature("encodingFix", { type: "selectTool", toolId: "encodingFix" })');
+    expect(html).toContain('mode: treeUi.navigatorMode === "grid" ? "grid" : "outline"');
+    expect(html).toContain('activeToolId: state.activeToolId');
+    expect(html).toContain('"ktc-tool-navigator-action"');
+    expect(html).toContain('detail.kind === "setMode"');
+    expect(html).toContain('detail.kind === "setGroupExpanded"');
+    expect(html).not.toContain('function collapseCodeAssistantDirectory()');
+    expect(html).not.toContain('state.codeAssistantTreeUiState.treeExpanded = false');
+    expect(html).toContain('vscode.postMessage({ type: "selectTool", toolId, source: "menu" })');
     expect(html).toContain('toolId: currentContentToolId()');
-    expect(html).toContain('type: "closeCodeAssistantFeature"');
+    expect(html).not.toContain('type: "closeCodeAssistantFeature"');
     expect(html).toContain('id="code-assistant-generic-actions"');
     expect(html).toContain('id="btn-code-assistant-generic-close"');
-    expect(html).toContain('state.codeAssistantFeature = "packageIncludes"');
-    expect(html).toContain('if (!treeUi.reorderActionsExpanded && !treeUi.reorderResultsExpanded)');
-    expect(html).toContain('els.codeAssistantGenericActions.open = true');
+    expect(html).not.toContain('state.codeAssistantFeature = "packageIncludes"');
+    expect(html).not.toContain('if (!treeUi.reorderActionsExpanded && !treeUi.reorderResultsExpanded)');
+    expect(html).not.toContain('els.codeAssistantGenericActions.open = true');
     expect(html).not.toContain('code-assistant-tree-group-count');
     expect(html).toContain('pendingRibbonCollapseMigration = saved.ribbonBlockCollapsed === true');
     expect(html).toContain('type: "setRibbonStyle", style: state.sidebarStyle');
@@ -397,12 +448,20 @@ describe("sidebar panel HTML", () => {
     expect(html).not.toContain('state.ribbonBlockCollapsed = !state.ribbonBlockCollapsed');
     expect(html).toContain('state.sidebarStyle = state.sidebarStyle === "compact" ? "ribbon" : "compact"');
     expect(html).toContain('setAttribute("aria-pressed", compact ? "true" : "false")');
-    expect(html).toContain('setAttribute("aria-label", "仅显示工具图标")');
+    expect(html).toContain('const ariaLabel = compact ? "显示图标和文字" : "仅显示图标"');
+    expect(html).toContain('setAttribute("aria-label", ariaLabel)');
+    expect(html).not.toContain('setAttribute("aria-label", "仅显示工具图标")');
     expect(html).not.toContain('state.workingContextCollapsed = !state.workingContextCollapsed');
-    expect(html).toContain('state.primaryBlockCollapsed = !state.primaryBlockCollapsed');
-    expect(html).toContain('if (initialized && activeToolChanged) state.primaryBlockCollapsed = false');
+    expect(html).toContain('toolSurfaceCollapsed: !!(saved.toolSurfaceCollapsed ?? saved.primaryBlockCollapsed)');
+    expect(html).toContain('state.toolSurfaceCollapsed = intent.collapsed');
+    expect(html).toContain('if (intent.kind === "toggle") return');
+    expect(html).toContain('const effectiveSurfaceCollapsed = !welcomeMode && state.toolSurfaceCollapsed');
+    expect(html).toContain('if (initialized && (activeToolChanged || !activeToolWasOpen)) state.toolSurfaceCollapsed = false');
+    expect(html).toContain('} else if (msg.type === "openTools") {\n        const activeToolChanged = switchActiveTool(msg.activeToolId);\n        state.toolSurfaceCollapsed = false;');
+    expect(html).toContain('msg.type === "revealToolSurface"');
     expect(html).toContain('let initialized = false;');
-    expect(html).toContain('#primary-body { min-height: 0; flex: 1 1 auto; padding-inline: 0; overflow-x: hidden; overflow-y: auto; }');
+    expect(html).toContain('#primary-body { min-height: 0; flex: 1 1 auto; padding-right: 30px; padding-left: 0; overflow-x: hidden; overflow-y: auto; }');
+    expect(html).toContain('body.welcome-mode #primary-body { padding-right: 0; }');
     expect(html).toContain('type: "closeToolBlock"');
     expect(html).toContain('min-height: 50px;');
     expect(html).not.toContain('id="replace-validation"');
@@ -441,6 +500,95 @@ describe("sidebar panel HTML", () => {
     const sidebarProvider = readFileSync(new URL("./sidebarViewProvider.ts", import.meta.url), "utf8");
     expect(sidebarProvider).toContain("invalidateEncodingFixResults()");
     expect(sidebarProvider).toContain('message: "项目编码目标已更新，请重新预检。"');
+  });
+
+  it("目录与工具区域构成两段外壳，Ribbon 后直接承载无 Header Tool Surface", () => {
+    const extensionUri = {
+      path: "/extension",
+      with(change: { path: string }) { return { ...this, ...change }; },
+    } as unknown as Parameters<typeof getPanelHtml>[1];
+    const html = getPanelHtml({
+      cspSource: "test-webview",
+      asWebviewUri(uri: { path: string }) { return `test-webview:${uri.path}`; },
+    } as unknown as Parameters<typeof getPanelHtml>[0], extensionUri);
+
+    expect(panelElementAncestors(html, "working-context-shell")).toEqual([".wrap"]);
+    expect(panelElementAncestors(html, "tool-area-shell")).toEqual([".wrap"]);
+    expect(panelElementAncestors(html, "ribbon-shell")).toEqual([".wrap", "#tool-area-shell"]);
+    expect(panelElementAncestors(html, "primary-shell")).toEqual([".wrap", "#tool-area-shell"]);
+    expect(panelElementAncestors(html, "btn-toggle-ribbon-mode")).toEqual([".wrap", "#tool-area-shell", "#ribbon-shell", ".ribbon-strip"]);
+    expect(panelElementAncestors(html, "ribbon-body")).toEqual([".wrap", "#tool-area-shell", "#ribbon-shell", ".ribbon-strip"]);
+    expect(panelElementAncestors(html, "btn-ribbon-customize")).toEqual([".wrap", "#tool-area-shell", "#ribbon-shell", ".ribbon-strip"]);
+    expect(panelElementAncestors(html, "btn-toggle-primary-block")).toBeUndefined();
+    expect(panelElementAncestors(html, "btn-close-tool")).toEqual([".wrap", "#tool-area-shell", "#primary-shell"]);
+    expect(html.indexOf('id="working-context-shell"')).toBeLessThan(html.indexOf('id="tool-area-shell"'));
+    expect(html.indexOf('id="ribbon-shell"')).toBeLessThan(html.indexOf('id="primary-shell"'));
+    expect(html).toContain('<section class="tool-surface" id="primary-shell" aria-label="当前工具">');
+    expect(html).not.toContain('class="shell-block-header sub-tool-header"');
+    expect(html).toContain('class="tool-surface-close" id="btn-close-tool"');
+    expect(html).toContain('.tool-surface.collapsed > .shell-block-body,');
+    expect(html).toContain('.tool-surface-close { position: absolute; z-index: 5; top: 3px; right: 4px;');
+    expect(html).toContain('.tool-area-shell { display: flex; width: 100%; min-width: 0; min-height: 0; flex: 1 1 auto; flex-direction: column; overflow: hidden; }');
+    expect(html).toContain('body.ribbon-only #tool-area-shell > :not(#ribbon-shell) { display: none; }');
+    expect(html).toContain('.ribbon-shell.compact .ribbon-track { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }');
+    expect(html).toContain('#primary-body { min-height: 0; flex: 1 1 auto; padding-right: 30px; padding-left: 0; overflow-x: hidden; overflow-y: auto; }');
+    expect(html).toContain('body {\n      width: 100%;\n      min-width: 0;\n      max-width: 100%;\n      overflow: hidden;');
+
+    expect(html).toContain('directoryVisible: true');
+    expect(html).toContain('state.directoryVisible = msg.directoryVisible !== false');
+    expect(html).toContain('els.workingContextShell.hidden = !state.directoryVisible');
+    expect(html).toContain('msg.type === "directoryVisibility"');
+    expect(html).toContain('state.directoryVisible = msg.visible !== false');
+    expect(html).toContain('els.ribbonShell.classList.toggle("compact", compact)');
+    expect(html).not.toContain('els.toolSurface.classList.toggle("compact"');
+  });
+
+  it("代码辅助 Primary 叶子直接使用 activeToolId，并统一由 Tool Surface 悬浮按钮关闭", () => {
+    const extensionUri = {
+      path: "/extension",
+      with(change: { path: string }) { return { ...this, ...change }; },
+    } as unknown as Parameters<typeof getPanelHtml>[1];
+    const html = getPanelHtml({
+      cspSource: "test-webview",
+      asWebviewUri(uri: { path: string }) { return `test-webview:${uri.path}`; },
+    } as unknown as Parameters<typeof getPanelHtml>[0], extensionUri);
+
+    expect(html).toContain('function currentContentToolId() {\n      return state.activeToolId;\n    }');
+    expect(html).toContain('function isReorderMembersTool() {\n      return state.activeToolId === "reorderMembers";\n    }');
+    for (const toolId of ["reorderMembers", "headerAscii", "encodingFix", "uuidReplace", "caaDialog"]) {
+      expect(html).toContain(`"toolId":"${toolId}"`);
+    }
+    expect(html).toContain('function activateCodeAssistantNavigatorTool(toolId)');
+    expect(html).toContain('vscode.postMessage({ type: "selectTool", toolId, source: "menu" })');
+
+    expect(html).toContain('const openTool = (tool, source) => {');
+    expect(html).toContain('vscode.postMessage({ type: "selectTool", toolId: tool.id, source })');
+    expect(html).toContain('btn.onclick = () => openTool(t, "ribbon")');
+    expect(html).toContain('openTool(selected, "menu")');
+
+    expect(html).toContain('els.codeAssistantBlock.hidden = !(codeAssistant || reorder)');
+    expect(html).toContain('els.codeAssistantNavigator.hidden = !isCodeAssistantTool()');
+    expect(html).toContain('els.codeAssistantNavigator.model = {');
+    expect(html).toContain('els.codeAssistantReorderActions.hidden = !reorder');
+    expect(html).toContain('els.codeAssistantReorderResults.hidden = !reorder');
+    expect(html).toContain('if (codeAssistant || reorder) renderCodeAssistantArea(reorderState, running)');
+    expect(html).toContain('const genericActionFeature = enc || header || uuid || caaDialog');
+    expect(html).toContain('els.codeAssistantGenericActions.hidden = !genericActionFeature');
+    expect(html).toContain('els.generalActions.hidden = !genericActionFeature');
+
+    expect(html).toContain('els.btnCodeAssistantReorderClose.hidden = true');
+    expect(html).toContain('els.btnCodeAssistantGenericClose.hidden = true');
+    expect(html).not.toContain('type: "closeCodeAssistantFeature"');
+    expect(html.match(/vscode\.postMessage\(\{ type: "closeToolBlock" \}\)/gu)).toHaveLength(1);
+    expect(html).toContain('toolId === "packageIncludes" || toolId === "autoBuild"');
+    expect(html).toContain('type: "openCodeAssistantFeature", feature: toolId');
+    expect(html).not.toContain('state.codeAssistantFeature = "packageIncludes"');
+    expect(html).not.toContain('state.codeAssistantFeature = "autoBuild"');
+    expect(html).not.toContain('state.codeAssistantTreeUiState.treeExpanded = false');
+
+    // Legacy Host snapshots are accepted, but no render predicate reads this field.
+    expect(html.match(/state\.codeAssistantFeature = msg\.codeAssistantFeature \|\| ""/gu)).toHaveLength(2);
+    expect(html.match(/state\.codeAssistantFeature/gu)).toHaveLength(2);
   });
 
   it("只把 Codegen Host 状态投影给 Primary 页面组件", () => {
@@ -534,7 +682,7 @@ describe("sidebar panel HTML", () => {
     ]));
   });
 
-  it("只贡献一个自动高度 View，并在内部提供三个 VS Code 风格 Block", () => {
+  it("只贡献一个自动高度 View，并在内部提供目录与工具区域两段外壳", () => {
     const manifest = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as {
       contributes: {
         viewsContainers?: { activitybar?: Array<{ id: string; title?: string }> };
@@ -584,6 +732,16 @@ describe("sidebar panel HTML", () => {
     ]));
     expect(manifest.contributes.menus["view/title"]).toEqual([
       {
+        command: "ktAutoCode.directory.hide",
+        when: "view == ktAutoCode.modulePanel && ktAutoCode.modulePanel.directoryVisible",
+        group: "navigation@5",
+      },
+      {
+        command: "ktAutoCode.directory.show",
+        when: "view == ktAutoCode.modulePanel && !ktAutoCode.modulePanel.directoryVisible",
+        group: "navigation@5",
+      },
+      {
         command: "ktAutoCode.ignore.openAdvanced",
         when: "view == ktAutoCode.modulePanel",
         group: "navigation@10",
@@ -621,6 +779,13 @@ describe("sidebar panel HTML", () => {
         scope: "resource",
       });
     }
+    expect(manifest.contributes.configuration.properties["ktAutoCode.sidebar.blockExpansionMode"]).toMatchObject({
+      enumDescriptions: [
+        "结果 Accordion 排他展开：仅保留最近激活的结果视图",
+        "结果 Accordion 可同时保持多个结果视图展开",
+      ],
+      description: "仅控制结果 Accordion 参与视图之间的展开协调，不影响 Primary 的两区 Shell、Ribbon 或单个 Tool Surface 结构。",
+    });
   });
 
   it("新扫描全选 pending，同一缓存更新保留用户取消选择", () => {

@@ -225,8 +225,9 @@ Owner：KT Auto Code maintainers
 4. **Wing 后续条件项**：`KtCodegenTable` 已到首轮合理停止线；页面布局能力完成发布和 Registry 消费验证前，不为降行数继续拆。只有出现第二产品消费者或真实复用需求时，才评估公开更多 visual primitive。
 5. **跨仓人工证据**：Windows NSIS 真实回执，以及 VS Code/Desk 的浅色、深色、高对比视觉矩阵继续由用户手工并行；不阻塞当前代码归档，也不追溯提高联合评分。
 6. **Codegen 显式修复提醒**：控制符单入口已完成，Primary 负责目录/筛选/选择/输出，JSON View 只保留预检结果、Artifact 与问题定位；预检结果自己的列表/详情 separator 不代表控制符目录回归。剩余 TODO 是“问题 N”控制符筛选与显式修复提醒：必须先由 Wing 诊断提供结构化 `blockKey/classId/boundary`，不得从英文 message 猜 block。`marker.missing-end` 只允许用户在问题详情中显式选择“插入编译期修复提醒”，经确认后在下一条 marker 前写入可识别的 `#error`；不得预检时自动写入，也不得自动猜测补 End，且入口不能只依赖不可发现的右键菜单。
-7. **Auto Code Primary 工具条**：2026-09-05 用户批准去除独立“工具栏”标题行；首段改为 `箭头 + 同一份 Ribbon + 唯一 …` 的 Toolbar Strip。展开保留现有图标文字并允许多行，紧凑为单行小图标，左侧箭头直接切换两态，不再有密度按钮或完全隐藏态。原生 Header 仍只放 Ignore 与 Settings，Codegen 命令继续保留但不投影到标题栏；`X` 继续负责关闭当前工具界面，Primary 不保留重复诊断图标。
-8. **共享 Block 标题菜单接口（TODO）**：共享 Panel 对已可见 Block 的重复 `show` 已做幂等保护，真实切换则按 `toolId` 保存和恢复外层滚动。原生 View Header 当前固定为 Ignore 与 Settings，不实现按活动工具动态投影。若未来恢复“Block 自描述、共享 Panel 投影、Host 路由”，必须先定义不会挤掉这两个全局入口的顺序与空间契约，再验证 VS Code 原生 `view/title` 的静态 contribution 限制；不得假设公共 API 可以运行时任意注册菜单项。
+7. **Auto Code Primary 两区 Shell**：2026-09-06 用户确认原生 Header 的最小核心集为“目录显隐 → Ignore → Settings”，目录 Row 默认显示且位于工具区域之上；隐藏只节省空间，不丢目录和任务上下文。Tool Area 内部使用 `箭头 + 同一份 Ribbon + 唯一 …` 的 Toolbar Strip 与一个无 Header Tool Surface。Ribbon 现有展开/紧凑效果已确认，当前不再改动。
+8. **0.9.0 统一工具导航与 companion**：已用项目改名和自动编译验证直接叶子 `toolId`、MRU、Primary 摘要、可选 Editor companion 与 session/revision 动作路由。用户已进一步确认删除 Sub Tool Header：重复当前 Ribbon Tool/Group 只切换 Surface 显隐，悬浮 `×` 单独执行 MRU 关闭。下一阶段把 Module / Tool Group / Category 统一为递归 Group，Tree 仅包含 `group | tool`；Action 不进入 Tree，由 Tool Action Map 声明并由系统按 `(toolId, actionId)` 路由。树形/图标只作为同一 Tool Navigator 的表现。
+9. **并行版本边界**：0.8.x 只继续小修、单个 Tool/Editor View 内部改进与必要领域修复，尽量不碰 Tree、Group/Tool、Action Registry/Router 或 Primary 外壳；0.9.0 独占上述架构迁移。0.9.0 不自动追随 0.8.x rebase/merge，待稳定发布节点形成后先做共享文件与语义差异审计，再由用户决定合入方式。
 
 暂停期间联合成熟度保持 **92.00 / 100**。恢复时从本 TODO 重新选择一个最小切口，不默认续跑整套大型 UI 计划。
 

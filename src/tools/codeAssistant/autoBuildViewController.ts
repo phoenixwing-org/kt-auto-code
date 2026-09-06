@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { promisify } from "node:util";
 import { StringDecoder } from "node:string_decoder";
+import { AsyncLocalStorage } from "node:async_hooks";
 import * as vscode from "vscode";
 import { getOutputChannel } from "../../output.js";
 import { ktcReadProjectEnvironment } from "../../projectEnvironment.js";
@@ -13,25 +14,156 @@ import { ktcCreateAutoBuildLauncher } from "./autoBuildLauncher.js";
 import { ktcCreateRepositoryCheckoutScript } from "./autoBuildCheckoutScript.js";
 import { ktcCreateBuildManifest, ktcParseBuildManifest, type KtcBuildManifestMode } from "./autoBuildManifest.js";
 import { ktcAutoBuildRepositoryArguments, ktcExportArguments, ktcLinkCaaArguments, ktcMkArguments, ktcPlanAutoBuildTasks, ktcSelectAutoBuildProjects, ktcValidateAutoBuildConfiguration, type KtcAutoBuildConfiguration, type KtcAutoBuildTask } from "./autoBuildContracts.js";
+import type {
+  KtcEditorPrimaryCompanionActionToken,
+  KtcEditorPrimaryCompanionLifecycle,
+  KtcEditorPrimaryCompanionSnapshot,
+} from "../../core/editorPrimaryCompanionContracts.js";
+import { ktcEditorPrimaryCompanionStatusMessage } from "../../core/editorPrimaryCompanionContracts.js";
 
 const STATE_KEY = "ktAutoCode.codeAssistant.autoBuild.configuration", PATH_KEY = "ktAutoCode.codeAssistant.autoBuild.lastPath", RECENT_KEY = "ktAutoCode.codeAssistant.autoBuild.recentPaths";
 const execFileAsync = promisify(execFile);
+let nextAutoBuildCompanionSession = 1;
 type Message = { type: "ready" | "stop" | "open" | "save" | "saveAs" | "selectRecent"; path?: string; configuration?: KtcAutoBuildConfiguration } | { type: "preflight" | "start" | "runTask"; configuration: KtcAutoBuildConfiguration; taskId?: string } | { type: "pickProjectDirectories" | "discoverProjectDirectories"; configuration: KtcAutoBuildConfiguration } | { type: "probeProject" | "runProject"; configuration: KtcAutoBuildConfiguration; projectId: string } | { type: "exportLauncher"; configuration: KtcAutoBuildConfiguration } | { type: "writeScript"; configuration: KtcAutoBuildConfiguration; scriptKind: "build" | "checkout" | "manifest"; targetDirectory: string; manifestMode?: KtcBuildManifestMode; manifestTarget?: "root" | "working"; checkoutOptions?: { includeRoots?: boolean; includeBranch?: boolean; includeCommit?: boolean } } | { type: "pickScriptTargetDirectory"; targetDirectory?: string } | { type: "cleanRootArtifacts"; prefix: string } | { type: "syncRootScript" };
 const defaults = (rootDirectory = "", thirdPartyDirectory = "", workingDirectory = ""): KtcAutoBuildConfiguration => ({ schemaVersion: 2, rootDirectory, thirdPartyDirectory, updateRoot: false, updateThirdParty: false, workingDirectory, buildExecutionMode: "sequential", rootBranch: "develop", branch: "develop", cmakeBranch: "master", projects: [], clean: false });
 
+export interface KtcAutoBuildPrimaryCompanionPort {
+  onDidChange(snapshot: KtcEditorPrimaryCompanionSnapshot): void;
+}
+
+interface KtcAutoBuildSessionContext {
+  readonly epoch: number;
+  readonly panel: vscode.WebviewPanel;
+  readonly sessionId: string;
+}
+
 export class KtcAutoBuildViewController implements vscode.Disposable {
   private panel: vscode.WebviewPanel | undefined; private readonly processes = new Set<ChildProcessWithoutNullStreams>(); private currentPath = ""; private detectedRootDirectory = ""; private defaultWorkingDirectory = ""; private tasks: KtcAutoBuildTask[] = []; private stopped = false; private nonWindowsRunNoticeShown = false; private readonly output = getOutputChannel();
-  constructor(private readonly extensionUri: vscode.Uri, private readonly workspaceState: Pick<vscode.Memento, "get" | "update">) {}
-  async show(defaultWorkingDirectory?: string): Promise<void> { this.defaultWorkingDirectory = defaultWorkingDirectory || this.defaultWorkingDirectory; if (this.panel) { this.panel.reveal(this.panel.viewColumn, false); if (defaultWorkingDirectory) await this.post({ type: "workingDirectory", value: defaultWorkingDirectory }); return; } const panel = vscode.window.createWebviewPanel("ktAutoCode.autoBuild", "代码辅助 · 编译工具", vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [this.extensionUri] }); this.panel = panel; panel.webview.html = this.html(panel.webview); panel.webview.onDidReceiveMessage((message: Message) => void this.handleSafely(message)); panel.onDidDispose(() => { this.panel = undefined; }); }
+  private companionSessionId = "";
+  private companionRevision = 0;
+  private companionReady = false;
+  private companionStatus: "idle" | "running" | "done" | "error" = "idle";
+  private companionMessage = "打开编译工具后，可在这里查看任务摘要。";
+  private companionConfiguration: KtcAutoBuildConfiguration | undefined;
+  private companionEpoch = 0;
+  private readonly sessionContext = new AsyncLocalStorage<KtcAutoBuildSessionContext>();
+
+  constructor(
+    private readonly extensionUri: vscode.Uri,
+    private readonly workspaceState: Pick<vscode.Memento, "get" | "update">,
+    private readonly companion?: KtcAutoBuildPrimaryCompanionPort,
+  ) {}
+
+  async show(defaultWorkingDirectory?: string): Promise<void> {
+    this.defaultWorkingDirectory = defaultWorkingDirectory || this.defaultWorkingDirectory;
+    if (this.panel) {
+      const context = this.currentSessionContext();
+      if (!context) return;
+      return this.sessionContext.run(context, async () => {
+        context.panel.reveal(context.panel.viewColumn, false);
+        if (defaultWorkingDirectory) {
+          this.companionConfiguration = this.companionConfiguration
+            ? { ...this.companionConfiguration, workingDirectory: defaultWorkingDirectory }
+            : this.companionConfiguration;
+          await this.post({ type: "workingDirectory", value: defaultWorkingDirectory });
+          if (!this.isLiveSession(context)) return;
+          this.touchCompanion();
+        }
+        this.publishCompanion();
+      });
+    }
+
+    const sequence = nextAutoBuildCompanionSession++;
+    this.companionSessionId = `auto-build-${sequence}`;
+    this.companionRevision = 0;
+    this.companionReady = false;
+    this.companionStatus = "idle";
+    this.companionMessage = "编译工具正在初始化…";
+    this.companionConfiguration = undefined;
+    this.currentPath = "";
+    this.detectedRootDirectory = "";
+    this.tasks = [];
+    const panel = vscode.window.createWebviewPanel("ktAutoCode.autoBuild", "代码辅助 · 编译工具", vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [this.extensionUri] });
+    this.panel = panel;
+    const context: KtcAutoBuildSessionContext = {
+      epoch: ++this.companionEpoch,
+      panel,
+      sessionId: this.companionSessionId,
+    };
+    panel.webview.html = this.html(panel.webview);
+    panel.webview.onDidReceiveMessage((message: Message) => {
+      if (!this.isLiveSession(context)) return;
+      void this.sessionContext.run(context, () => this.handleSafely(message));
+    });
+    panel.onDidChangeViewState(({ webviewPanel }) => {
+      if (this.panel === webviewPanel) this.publishCompanion();
+    });
+    panel.onDidDispose(() => {
+      if (!this.isLiveSession(context)) return;
+      this.panel = undefined;
+      this.companionReady = false;
+      this.companionEpoch += 1;
+      if (this.companionStatus === "running") {
+        this.companionStatus = "error";
+        this.companionMessage = this.processes.size
+          ? "编译 View 已关闭；运行中的进程状态不再受此会话跟踪，请检查 Output 后再继续。"
+          : "编译 View 已关闭；进行中的操作已中断跟踪，请重新打开并检查任务状态。";
+      }
+      this.publishCompanion("disposed");
+    });
+    this.publishCompanion();
+  }
   dispose(): void { for (const process of this.processes) process.kill(); this.panel?.dispose(); }
+
+  async runPrimaryCompanionAction(token: KtcEditorPrimaryCompanionActionToken): Promise<boolean> {
+    if (
+      token.toolId !== "autoBuild"
+      || !this.panel
+      || token.panelId !== this.companionSessionId
+      || token.sessionId !== this.companionSessionId
+      || token.revision !== this.companionRevision
+      || !this.companionReady
+    ) return false;
+    const context = this.currentSessionContext();
+    if (!context) return false;
+    const action = this.companionSnapshot().actions.find((candidate) => candidate.id === token.actionId);
+    if (!action?.enabled) return false;
+    if (token.actionId === "reveal") {
+      this.panel.reveal(this.panel.viewColumn, false);
+      return true;
+    }
+    if (token.actionId === "stop") {
+      await this.sessionContext.run(context, () => this.handle({ type: "stop" }));
+      return this.isLiveSession(context);
+    }
+    if (token.actionId === "openOutput") {
+      this.output.show(true);
+      return true;
+    }
+    return false;
+  }
   private log(text: string, show = false): void { this.output.appendLine(`[Auto Build] ${text}`); if (show) this.output.show(true); }
-  private async handleSafely(message: Message): Promise<void> { this.log(`action received: ${message.type}`); try { await this.handle(message); } catch (error) { const text = error instanceof Error ? error.message : String(error); this.log(`ERROR ${text}`, true); await this.status("error", text); } }
+  private async handleSafely(message: Message): Promise<void> {
+    if (!this.isLiveHandler()) return;
+    this.log(`action received: ${message.type}`);
+    try {
+      await this.handle(message);
+    } catch (error) {
+      if (!this.isLiveHandler()) return;
+      const text = error instanceof Error ? error.message : String(error);
+      this.log(`ERROR ${text}`, true);
+      await this.status("error", text);
+    }
+  }
   private async handle(message: Message): Promise<void> {
     if (message.type === "ready") {
+      this.companionReady = true;
+      this.touchCompanion();
       const environment = await ktcReadProjectEnvironment();
+      if (!this.isLiveHandler()) return;
       this.detectedRootDirectory = environment.values.find((value) => value.key === "customRoot")?.value || process.env.ROOT_DIR || "";
       this.currentPath = this.workspaceState.get<string>(PATH_KEY) || "";
-      if (this.currentPath) { try { await this.load(this.currentPath, this.defaultWorkingDirectory); return; } catch (error) { this.log(`最近 JSON 读取失败，回退到会话配置：${error instanceof Error ? error.message : String(error)}`); this.currentPath = ""; } }
+      if (this.currentPath) { try { await this.load(this.currentPath, this.defaultWorkingDirectory); return; } catch (error) { if (!this.isLiveHandler()) return; this.log(`最近 JSON 读取失败，回退到会话配置：${error instanceof Error ? error.message : String(error)}`); this.currentPath = ""; } }
       const stored = this.workspaceState.get<KtcAutoBuildConfiguration>(STATE_KEY), saved = stored?.schemaVersion === 2 ? stored : undefined;
       const outputRoot = this.detectedRootDirectory;
       const third = environment.values.find((value) => value.key === "thirdPartyRoot")?.value || process.env.ROOT_DIR_3rdParty || "", inferred = defaults(outputRoot, third, this.defaultWorkingDirectory);
@@ -40,10 +172,10 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
     }
     if (message.type === "stop") { this.stopped = true; if (!this.processes.size) { this.log("stop: no process", true); await this.status("idle", "当前没有运行中的任务。"); } else { this.log("stop requested", true); for (const process of this.processes) process.kill(); } return; }
     if (message.type === "selectRecent" && message.path) { await this.load(message.path); return; }
-    if (message.type === "open") { const uri = (await vscode.window.showOpenDialog({ filters: { "Auto Build JSON": ["json"] }, canSelectMany: false }))?.[0]; if (uri) await this.load(uri.fsPath); return; }
+    if (message.type === "open") { const uri = (await vscode.window.showOpenDialog({ filters: { "Auto Build JSON": ["json"] }, canSelectMany: false }))?.[0]; if (!this.isLiveHandler()) return; if (uri) await this.load(uri.fsPath); return; }
     if (message.type === "cleanRootArtifacts") { if (!this.detectedRootDirectory) throw new Error("未探测到当前 ROOT_DIR，不能执行 Root 清理。"); if (!ktcCanAccessAutoBuildPathOnHost(this.detectedRootDirectory, process.platform)) throw new Error("当前 ROOT_DIR 不是本机绝对路径，未执行 Root 清理。"); if (ktcIsAutoBuildFilesystemRoot(this.detectedRootDirectory)) throw new Error("不允许在文件系统根目录执行 Root 清理。"); const result = await KtcCleanRootArtifacts(this.detectedRootDirectory, message.prefix); this.log(`Root 前缀清理完成：${this.detectedRootDirectory}；删除 ${result.deleted.length} 项；已跳过 .git。`, true); await this.status("done", `Root 清理完成：删除 ${result.deleted.length} 项。Git 修改只显示状态，不阻断后续任务。`); return; }
     if (message.type === "syncRootScript") { if (!this.detectedRootDirectory) throw new Error("未探测到当前 ROOT_DIR。"); const source = vscode.Uri.joinPath(this.extensionUri, "scripts", "auto-build", "Invoke-AutoBuild.ps1").fsPath, target = ktcJoinAutoBuildPath(this.detectedRootDirectory, "tools", "Invoke-AutoBuild.ps1"); if (!ktcCanAccessAutoBuildPathOnHost(target, process.platform)) throw new Error("当前 ROOT_DIR 不是本机原生绝对路径，未执行同步；请修正路径，或使用“导出 PS1”选择本机位置。"); await copyFile(source, target); this.log(`已由用户操作同步 Root 脚本：${source} -> ${target}`, true); await this.postScriptStatus(); await this.status("done", `已同步：${target}${this.nonWindowsScriptNote()}`); return; }
-    if (message.type === "exportLauncher") { const configuration = message.configuration, errors = ktcValidateAutoBuildConfiguration(configuration); if (errors.length) throw new Error(errors.join("\n")); const working = configuration.workingDirectory?.trim(); if (!working) throw new Error("请先填写当前工作目录。"); let target = ktcJoinAutoBuildPath(working, "Invoke-AutoBuild.local.ps1"); if (!ktcCanAccessAutoBuildPathOnHost(target, process.platform)) { if (process.platform === "win32") throw new Error("当前工作目录不是 Windows 盘符或 UNC 共享根路径，未导出脚本。"); const selected = await vscode.window.showSaveDialog({ title: "当前配置使用 Windows 路径，请选择本机 PS1 保存位置", saveLabel: "保存 PS1", filters: { "PowerShell": ["ps1"] } }); if (!selected) { await this.status("idle", "已取消导出，未写入文件。"); return; } target = selected.fsPath; } const toolRoot = ktcCanAccessAutoBuildPathOnHost(this.detectedRootDirectory, "win32") ? this.detectedRootDirectory : configuration.rootDirectory; await writeFile(target, `\uFEFF${ktcCreateAutoBuildLauncher(configuration, toolRoot)}`, "utf8"); this.log(`已导出脱离 UI 的构建脚本：${target}`, true); await this.status("done", `已导出：${target}${this.nonWindowsScriptNote()}`); return; }
+    if (message.type === "exportLauncher") { const configuration = message.configuration, errors = ktcValidateAutoBuildConfiguration(configuration); if (errors.length) throw new Error(errors.join("\n")); const working = configuration.workingDirectory?.trim(); if (!working) throw new Error("请先填写当前工作目录。"); let target = ktcJoinAutoBuildPath(working, "Invoke-AutoBuild.local.ps1"); if (!ktcCanAccessAutoBuildPathOnHost(target, process.platform)) { if (process.platform === "win32") throw new Error("当前工作目录不是 Windows 盘符或 UNC 共享根路径，未导出脚本。"); const selected = await vscode.window.showSaveDialog({ title: "当前配置使用 Windows 路径，请选择本机 PS1 保存位置", saveLabel: "保存 PS1", filters: { "PowerShell": ["ps1"] } }); if (!this.isLiveHandler()) return; if (!selected) { await this.status("idle", "已取消导出，未写入文件。"); return; } target = selected.fsPath; } if (!this.isLiveHandler()) return; const toolRoot = ktcCanAccessAutoBuildPathOnHost(this.detectedRootDirectory, "win32") ? this.detectedRootDirectory : configuration.rootDirectory; await writeFile(target, `\uFEFF${ktcCreateAutoBuildLauncher(configuration, toolRoot)}`, "utf8"); if (!this.isLiveHandler()) return; this.log(`已导出脱离 UI 的构建脚本：${target}`, true); await this.status("done", `已导出：${target}${this.nonWindowsScriptNote()}`); return; }
     if (message.type === "pickScriptTargetDirectory") { const uri = (await vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri: message.targetDirectory?.trim() ? vscode.Uri.file(message.targetDirectory.trim()) : undefined, title: "选择脚本输出目录" }))?.[0]; if (uri) await this.post({ type: "scriptTargetDirectory", value: uri.fsPath }); return; }
     if (message.type === "writeScript") {
       const directory = message.scriptKind === "manifest" ? (message.manifestTarget === "root" ? message.configuration.rootDirectory.trim() : message.configuration.workingDirectory?.trim() || "") : message.targetDirectory.trim() || message.configuration.workingDirectory?.trim() || "";
@@ -55,16 +187,19 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
         name = "Invoke-AutoBuild.local.ps1";
       } else if (message.scriptKind === "checkout") {
         message.configuration.repositorySnapshot = await this.probeRepositories(message.configuration);
+        if (!this.isLiveHandler()) return;
         if (!message.configuration.repositorySnapshot.repositories.some((item) => !item.error && item.origin && item.origin !== "(无 origin)")) throw new Error("没有探测到可写入检出脚本的 Git 仓库。");
         source = ktcCreateRepositoryCheckoutScript(message.configuration, message.checkoutOptions);
         name = "Checkout-AutoBuildRepositories.ps1";
         await this.post({ type: "repositorySnapshot", snapshot: message.configuration.repositorySnapshot });
       } else {
         message.configuration.repositorySnapshot = await this.probeRepositories(message.configuration);
+        if (!this.isLiveHandler()) return;
         name = "BUILD_MANIFEST.json";
         const target = ktcJoinAutoBuildPath(directory, name), mode = message.manifestMode || "overwrite";
         let previous;
         if (mode === "merge") { try { previous = ktcParseBuildManifest(await readFile(target, "utf8")); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; } }
+        if (!this.isLiveHandler()) return;
         source = JSON.stringify(ktcCreateBuildManifest(message.configuration, previous), null, 2) + "\n";
         const temporary = `${target}.tmp-${process.pid}-${Date.now()}`;
         await writeFile(temporary, source, "utf8"); await rename(temporary, target);
@@ -73,21 +208,23 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
         await this.status("done", `已写入：${target}`); await this.post({ type: "scriptWritten", path: target }); return;
       }
       const target = ktcJoinAutoBuildPath(directory, name);
+      if (!this.isLiveHandler()) return;
       await writeFile(target, `\uFEFF${source}`, "utf8");
+      if (!this.isLiveHandler()) return;
       this.log(`已写入脚本：${vscode.Uri.file(target).toString()}`, true);
       await this.status("done", `已写入：${target}`);
       await this.post({ type: "scriptWritten", path: target });
       return;
     }
     const configuration = message.configuration!;
-    if (message.type === "pickProjectDirectories") { const working = configuration.workingDirectory?.trim() || ""; const defaultUri = working && ktcCanAccessAutoBuildPathOnHost(working, process.platform) ? vscode.Uri.file(working) : undefined; const uris = await vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: true, defaultUri, title: "选择一个或多个仓库/构建目录" }); if (uris?.length) await this.addProjectDirectories(configuration, uris.map((uri) => uri.fsPath)); return; }
-    if (message.type === "discoverProjectDirectories") { const root = configuration.workingDirectory?.trim(); if (!root) throw new Error("请先填写工作目录。"); if (!ktcCanAccessAutoBuildPathOnHost(root, process.platform)) throw new Error("当前工作目录不是本机原生绝对路径，未执行目录扫描。"); await this.addProjectDirectories(configuration, await this.discoverGitDirectories(root), true); return; }
-    if (message.type === "probeProject") { const index = configuration.projects.findIndex((project) => project.id === message.projectId); if (index < 0) throw new Error("项目行已变化，请重新探测。"); configuration.projects[index] = await this.probeProjectRow(configuration.projects[index]!, configuration.workingDirectory || ""); await this.workspaceState.update(STATE_KEY, configuration); await this.post({ type: "projects", projects: configuration.projects }); return; }
+    if (message.type === "pickProjectDirectories") { const working = configuration.workingDirectory?.trim() || ""; const defaultUri = working && ktcCanAccessAutoBuildPathOnHost(working, process.platform) ? vscode.Uri.file(working) : undefined; const uris = await vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: true, defaultUri, title: "选择一个或多个仓库/构建目录" }); if (!this.isLiveHandler()) return; if (uris?.length) await this.addProjectDirectories(configuration, uris.map((uri) => uri.fsPath)); return; }
+    if (message.type === "discoverProjectDirectories") { const root = configuration.workingDirectory?.trim(); if (!root) throw new Error("请先填写工作目录。"); if (!ktcCanAccessAutoBuildPathOnHost(root, process.platform)) throw new Error("当前工作目录不是本机原生绝对路径，未执行目录扫描。"); const paths = await this.discoverGitDirectories(root); if (!this.isLiveHandler()) return; await this.addProjectDirectories(configuration, paths, true); return; }
+    if (message.type === "probeProject") { const index = configuration.projects.findIndex((project) => project.id === message.projectId); if (index < 0) throw new Error("项目行已变化，请重新探测。"); const project = await this.probeProjectRow(configuration.projects[index]!, configuration.workingDirectory || ""); if (!this.isLiveHandler()) return; configuration.projects[index] = project; await this.workspaceState.update(STATE_KEY, configuration); if (!this.isLiveHandler()) return; await this.post({ type: "projects", projects: configuration.projects }); return; }
     if (message.type === "runProject") { await this.runProject(configuration, message.projectId); return; }
     if (message.type === "save" || message.type === "saveAs") { await this.save(configuration, message.type === "saveAs"); return; }
     const errors = ktcValidateAutoBuildConfiguration(configuration);
     errors.forEach((error) => this.log(`预检失败：${error}`)); if (errors.length) { this.output.show(true); await this.status("error", errors.join("\n")); return; }
-    configuration.projects = await Promise.all(configuration.projects.map((project) => this.probeProjectRow(project, configuration.workingDirectory || ""))); await this.post({ type: "projects", projects: configuration.projects }); await this.workspaceState.update(STATE_KEY, configuration); const selected = ktcSelectAutoBuildProjects(configuration); this.log(`配置摘要：Root=${configuration.rootDirectory}; RootBranch=${configuration.rootBranch}; 3rdParty=${configuration.thirdPartyDirectory}; Branch=${configuration.branch}; 项目=${configuration.projects.length}; CMake=${selected.cmakeProjectPaths.length}; CAA=${selected.caaProjectPaths.length}; Clean=${configuration.clean}`);
+    const probedProjects = await Promise.all(configuration.projects.map((project) => this.probeProjectRow(project, configuration.workingDirectory || ""))); if (!this.isLiveHandler()) return; configuration.projects = probedProjects; await this.post({ type: "projects", projects: configuration.projects }); await this.workspaceState.update(STATE_KEY, configuration); if (!this.isLiveHandler()) return; const selected = ktcSelectAutoBuildProjects(configuration); this.log(`配置摘要：Root=${configuration.rootDirectory}; RootBranch=${configuration.rootBranch}; 3rdParty=${configuration.thirdPartyDirectory}; Branch=${configuration.branch}; 项目=${configuration.projects.length}; CMake=${selected.cmakeProjectPaths.length}; CAA=${selected.caaProjectPaths.length}; Clean=${configuration.clean}`);
     const summary = `本地预检通过：ROOT_DIR (${configuration.rootBranch})；ROOT_DIR_3rdParty (${configuration.branch})；启用项目 ${configuration.projects.filter((project) => project.enabled).length} 个；CMake ${selected.cmakeProjectPaths.length} 个；CAA ${selected.caaProjectPaths.length} 个。`; this.log(summary, true);
     this.tasks = ktcPlanAutoBuildTasks(configuration); await this.post({ type: "tasks", tasks: this.tasks });
     if (message.type === "preflight") { await this.refreshRepositorySnapshot(configuration); await this.status("done", summary); return; } if (this.processes.size) { await this.status("in_progress", "已有任务进行中。"); return; }
@@ -97,16 +234,19 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
       const index = this.tasks.findIndex((task) => task.id === message.taskId);
       if (index < 0) { await this.status("error", "未找到所选任务，请重新预检。"); return; }
       const task = this.tasks[index]!;
-      if (task.phase === "repository" && configuration.clean && await vscode.window.showWarningMessage("该仓库任务将执行清理。是否继续？", { modal: true }, "清理并运行") !== "清理并运行") { await this.status("idle", "已取消。"); return; }
+      if (task.phase === "repository" && configuration.clean && await vscode.window.showWarningMessage("该仓库任务将执行清理。是否继续？", { modal: true }, "清理并运行") !== "清理并运行") { if (!this.isLiveHandler()) return; await this.status("idle", "已取消。"); return; }
+      if (!this.isLiveHandler()) return;
       task.status = "in_progress"; task.children?.forEach((child) => { child.status = "in_progress"; }); await this.post({ type: "tasks", tasks: this.tasks }); await this.status("in_progress", `单独运行：${task.name}`);
       const code = await this.runProcess(task, commands[index]!, configuration);
+      if (!this.isLiveHandler()) return;
       task.status = code === 0 ? "done" : "error"; task.children?.forEach((child) => { child.status = task.status; }); await this.post({ type: "tasks", tasks: this.tasks });
       if (code === 0 && task.phase === "repository") await this.refreshRepositorySnapshot(configuration);
       await this.status(code === 0 ? "done" : "error", code === 0 ? `${task.name} 完成。` : `${task.name} 失败，请查看 Output。`); return;
     }
-    if (configuration.clean && await vscode.window.showWarningMessage("仅清理 ROOT_DIR、ROOT_DIR_3rdParty 和 CMake 仓库；不会清理 CAA/附加仓库。是否继续？", { modal: true }, "清理并启动") !== "清理并启动") { await this.status("idle", "已取消。"); return; }
+    if (configuration.clean && await vscode.window.showWarningMessage("仅清理 ROOT_DIR、ROOT_DIR_3rdParty 和 CMake 仓库；不会清理 CAA/附加仓库。是否继续？", { modal: true }, "清理并启动") !== "清理并启动") { if (!this.isLiveHandler()) return; await this.status("idle", "已取消。"); return; }
+    if (!this.isLiveHandler()) return;
     this.log(`脚本：${script}`); this.stopped = false; await this.status("in_progress", "进行中（In progress）");
-    const runOne = async (task: KtcAutoBuildTask): Promise<number> => { if (this.stopped) return -1; const index = this.tasks.indexOf(task); task.status = "in_progress"; task.children?.forEach((child) => { child.status = "in_progress"; }); await this.post({ type: "tasks", tasks: this.tasks }); const code = await this.runProcess(task, commands[index]!, configuration); task.status = code === 0 ? "done" : "error"; task.children?.forEach((child) => { child.status = task.status; }); await this.post({ type: "tasks", tasks: this.tasks }); return code; };
+    const runOne = async (task: KtcAutoBuildTask): Promise<number> => { if (!this.isLiveHandler() || this.stopped) return -1; const index = this.tasks.indexOf(task); task.status = "in_progress"; task.children?.forEach((child) => { child.status = "in_progress"; }); await this.post({ type: "tasks", tasks: this.tasks }); const code = await this.runProcess(task, commands[index]!, configuration); if (!this.isLiveHandler()) return -1; task.status = code === 0 ? "done" : "error"; task.children?.forEach((child) => { child.status = task.status; }); await this.post({ type: "tasks", tasks: this.tasks }); return code; };
     const repositoryTask = this.tasks.find((task) => task.phase === "repository")!;
     if (await runOne(repositoryTask) !== 0) { await this.status("error", "仓库安全门禁失败，未启动导出和编译。"); return; }
     await this.refreshRepositorySnapshot(configuration);
@@ -132,8 +272,9 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
       const refreshed = await this.probeProjectRow(row, working), detectedBranch = refreshed.probe?.branch;
       return detectedBranch && detectedBranch !== "(detached)" ? { ...refreshed, branch: detectedBranch } : refreshed;
     }));
+    if (!this.isLiveHandler()) return;
     configuration.projects = deduplicateOrigin ? ktcDeduplicateAutoBuildProjectsByOrigin(probed) : probed;
-    await this.workspaceState.update(STATE_KEY, configuration); await this.post({ type: "projects", projects: configuration.projects }); await this.status("done", `项目表已更新：${configuration.projects.length} 行。`);
+    await this.workspaceState.update(STATE_KEY, configuration); if (!this.isLiveHandler()) return; await this.post({ type: "projects", projects: configuration.projects }); await this.status("done", `项目表已更新：${configuration.projects.length} 行。`);
   }
   private async probeProjectRow(row: KtcAutoBuildProjectRow, working: string): Promise<KtcAutoBuildProjectRow> {
     const path = ktcResolveAutoBuildPath(row.path, working), capturedAt = new Date().toISOString();
@@ -153,10 +294,10 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
     return found;
   }
   private async runProject(configuration: KtcAutoBuildConfiguration, projectId: string): Promise<void> {
-    let selected = configuration.projects.find((project) => project.id === projectId); if (!selected) throw new Error("项目行已变化，请重新探测。"); if (!selected.enabled) throw new Error("该项目未启用。"); const validationErrors = ktcValidateAutoBuildConfiguration({ ...configuration, projects: [selected] }); if (validationErrors.length) throw new Error(validationErrors.join("\n")); if (selected.operations.update) this.warnNonWindowsBlindRun(); selected = await this.probeProjectRow(selected, configuration.workingDirectory || ""); if (selected.operations.update) await this.updateProjectRow(selected, configuration.workingDirectory || "");
+    let selected = configuration.projects.find((project) => project.id === projectId); if (!selected) throw new Error("项目行已变化，请重新探测。"); if (!selected.enabled) throw new Error("该项目未启用。"); const validationErrors = ktcValidateAutoBuildConfiguration({ ...configuration, projects: [selected] }); if (validationErrors.length) throw new Error(validationErrors.join("\n")); if (selected.operations.update) this.warnNonWindowsBlindRun(); selected = await this.probeProjectRow(selected, configuration.workingDirectory || ""); if (!this.isLiveHandler()) return; if (selected.operations.update) await this.updateProjectRow(selected, configuration.workingDirectory || ""); if (!this.isLiveHandler()) return;
     const single = { ...configuration, projects: [{ ...selected }] }, tasks = ktcPlanAutoBuildTasks(single).filter((task) => task.phase !== "repository"), script = vscode.Uri.joinPath(this.extensionUri, "scripts", "auto-build", "Invoke-AutoBuild.ps1").fsPath;
     if (!tasks.length) { if (selected.operations.update) { await this.status("done", `${selected.name} 更新完成。`); return; } throw new Error("该项目没有选择更新、linkCAA、CMake 或 CAA 操作。"); } this.tasks = tasks; await this.post({ type: "tasks", tasks });
-    for (const task of tasks) { task.status = "in_progress"; await this.post({ type: "tasks", tasks }); const code = await this.runProcess(task, this.taskArguments(task, single, script), single); task.status = code === 0 ? "done" : "error"; await this.post({ type: "tasks", tasks }); }
+    for (const task of tasks) { if (!this.isLiveHandler()) return; task.status = "in_progress"; await this.post({ type: "tasks", tasks }); const code = await this.runProcess(task, this.taskArguments(task, single, script), single); if (!this.isLiveHandler()) return; task.status = code === 0 ? "done" : "error"; await this.post({ type: "tasks", tasks }); }
     const failed = tasks.filter((task) => task.status === "error"); await this.status(failed.length ? "error" : "done", failed.length ? `${selected.name}：${failed.length} 个任务失败。` : `${selected.name} 完成。`);
   }
   private async updateProjectRow(project: KtcAutoBuildProjectRow, working: string): Promise<void> { const root = ktcResolveAutoBuildPath(project.path, working); if (!ktcCanAccessAutoBuildPathOnHost(root, process.platform)) throw new Error("当前项目不是本机原生绝对路径，未执行 Git 更新。"); const status = (await execFileAsync("git", ["-C", root, "status", "--porcelain=v1"], { encoding: "utf8" })).stdout.trim(); if (status) { this.log(`项目有修改，保留并跳过更新：${root}`, true); return; } const run = async (...args: string[]) => { this.log(`git -C ${root} ${args.join(" ")}`); await execFileAsync("git", ["-C", root, ...args], { encoding: "utf8" }); }; await run("fetch", "--prune", "origin"); await run("checkout", project.branch); await run("pull", "--ff-only", "origin", project.branch); await run("submodule", "sync", "--recursive"); await run("submodule", "update", "--init", "--recursive"); }
@@ -184,9 +325,12 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
     this.log(`库探测完成：${repositories.filter((item) => !item.error).length}/${repositories.length} 个 Git 仓库；${repositories.filter((item) => item.hasChanges).length} 个有修改。`); return { capturedAt: new Date().toISOString(), repositories };
   }
   private async refreshRepositorySnapshot(configuration: KtcAutoBuildConfiguration): Promise<void> {
-    configuration.projects = await Promise.all(configuration.projects.map((project) => this.probeProjectRow(project, configuration.workingDirectory || "")));
+    const projects = await Promise.all(configuration.projects.map((project) => this.probeProjectRow(project, configuration.workingDirectory || "")));
+    if (!this.isLiveHandler()) return;
+    configuration.projects = projects;
     await this.post({ type: "projects", projects: configuration.projects });
     configuration.repositorySnapshot = await this.probeRepositories(configuration);
+    if (!this.isLiveHandler()) return;
     const repositoryTask = this.tasks.find((task) => task.phase === "repository");
     if (repositoryTask) { repositoryTask.children = configuration.repositorySnapshot.repositories.map((repository, index) => {
       const shouldUpdate = repository.role === "ROOT_DIR"
@@ -196,11 +340,125 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
           : true;
       return { id: `repository-${index}`, name: `${repository.role} · ${repository.path}`, commandSummary: shouldUpdate ? configuration.clean && repository.role !== "更新的库" ? "清理并更新" : "检查并更新" : "跳过更新（仅探测）", detail: repository.error || `${repository.hasChanges ? "有修改" : "干净"} · ${repository.branch} · ${repository.commit.slice(0, 12)}`, status: repository.error ? "error" : repositoryTask.status };
     }); await this.post({ type: "tasks", tasks: this.tasks }); }
-    await this.workspaceState.update(STATE_KEY, configuration); await this.post({ type: "repositorySnapshot", snapshot: configuration.repositorySnapshot });
+    await this.workspaceState.update(STATE_KEY, configuration); if (!this.isLiveHandler()) return; await this.post({ type: "repositorySnapshot", snapshot: configuration.repositorySnapshot });
   }
-  private async load(path: string, preferredWorkingDirectory = ""): Promise<void> { if (!ktcCanAccessAutoBuildPathOnHost(path, process.platform)) throw new Error("配置文件是 Windows 路径，当前非 Windows 环境未读取该文件。"); const loaded = JSON.parse(await readFile(path, "utf8")) as KtcAutoBuildConfiguration, value = preferredWorkingDirectory ? { ...loaded, workingDirectory: preferredWorkingDirectory } : loaded; if (value.schemaVersion !== 2) throw new Error("仅支持 Auto Build JSON schemaVersion 2。"); this.currentPath = path; await this.remember(value, path); await this.post({ type: "configuration", configuration: value, detectedRootDirectory: this.detectedRootDirectory, path, recentPaths: this.workspaceState.get<string[]>(RECENT_KEY) || [], platform: process.platform }); await this.postScriptStatus(); }
-  private async save(configuration: KtcAutoBuildConfiguration, saveAs: boolean): Promise<void> { let path = saveAs ? "" : this.currentPath; if (!path) { const defaultPath = this.currentPath && ktcCanAccessAutoBuildPathOnHost(this.currentPath, process.platform) ? this.currentPath : "auto-build.json"; path = (await vscode.window.showSaveDialog({ filters: { "Auto Build JSON": ["json"] }, defaultUri: vscode.Uri.file(defaultPath) }))?.fsPath || ""; } if (!path) return; if (!ktcCanAccessAutoBuildPathOnHost(path, process.platform)) throw new Error("配置文件是 Windows 路径，当前非 Windows 环境未写入该文件。"); const working = configuration.workingDirectory || "", value = { ...configuration, schemaVersion: 2 as const, projects: configuration.projects.map((project) => ({ ...project, path: ktcStoreAutoBuildPath(ktcResolveAutoBuildPath(project.path, working), working) })) }; await writeFile(path, JSON.stringify(value, null, 2) + "\n", "utf8"); this.currentPath = path; await this.remember(value, path); await this.post({ type: "saved", path, recentPaths: this.workspaceState.get<string[]>(RECENT_KEY) || [] }); await this.status("done", `已保存：${path}`); }
-  private async remember(configuration: KtcAutoBuildConfiguration, path: string): Promise<void> { const recent = [path, ...(this.workspaceState.get<string[]>(RECENT_KEY) || []).filter((v) => v !== path)].slice(0, 8); await this.workspaceState.update(STATE_KEY, configuration); await this.workspaceState.update(PATH_KEY, path); await this.workspaceState.update(RECENT_KEY, recent); }
-  private async status(status: string, text: string): Promise<void> { await this.post({ type: "status", status, text }); } private async post(value: unknown): Promise<void> { await this.panel?.webview.postMessage(value); }
+  private async load(path: string, preferredWorkingDirectory = ""): Promise<void> { if (!ktcCanAccessAutoBuildPathOnHost(path, process.platform)) throw new Error("配置文件是 Windows 路径，当前非 Windows 环境未读取该文件。"); const loaded = JSON.parse(await readFile(path, "utf8")) as KtcAutoBuildConfiguration, value = preferredWorkingDirectory ? { ...loaded, workingDirectory: preferredWorkingDirectory } : loaded; if (!this.isLiveHandler()) return; if (value.schemaVersion !== 2) throw new Error("仅支持 Auto Build JSON schemaVersion 2。"); this.currentPath = path; await this.remember(value, path); if (!this.isLiveHandler()) return; await this.post({ type: "configuration", configuration: value, detectedRootDirectory: this.detectedRootDirectory, path, recentPaths: this.workspaceState.get<string[]>(RECENT_KEY) || [], platform: process.platform }); await this.postScriptStatus(); }
+  private async save(configuration: KtcAutoBuildConfiguration, saveAs: boolean): Promise<void> { let path = saveAs ? "" : this.currentPath; if (!path) { const defaultPath = this.currentPath && ktcCanAccessAutoBuildPathOnHost(this.currentPath, process.platform) ? this.currentPath : "auto-build.json"; path = (await vscode.window.showSaveDialog({ filters: { "Auto Build JSON": ["json"] }, defaultUri: vscode.Uri.file(defaultPath) }))?.fsPath || ""; if (!this.isLiveHandler()) return; } if (!path) return; if (!ktcCanAccessAutoBuildPathOnHost(path, process.platform)) throw new Error("配置文件是 Windows 路径，当前非 Windows 环境未写入该文件。"); const working = configuration.workingDirectory || "", value = { ...configuration, schemaVersion: 2 as const, projects: configuration.projects.map((project) => ({ ...project, path: ktcStoreAutoBuildPath(ktcResolveAutoBuildPath(project.path, working), working) })) }; if (!this.isLiveHandler()) return; await writeFile(path, JSON.stringify(value, null, 2) + "\n", "utf8"); if (!this.isLiveHandler()) return; this.currentPath = path; await this.remember(value, path); if (!this.isLiveHandler()) return; await this.post({ type: "saved", path, recentPaths: this.workspaceState.get<string[]>(RECENT_KEY) || [] }); await this.status("done", `已保存：${path}`); }
+  private async remember(configuration: KtcAutoBuildConfiguration, path: string): Promise<void> { const recent = [path, ...(this.workspaceState.get<string[]>(RECENT_KEY) || []).filter((v) => v !== path)].slice(0, 8); if (!this.isLiveHandler()) return; await this.workspaceState.update(STATE_KEY, configuration); if (!this.isLiveHandler()) return; await this.workspaceState.update(PATH_KEY, path); if (!this.isLiveHandler()) return; await this.workspaceState.update(RECENT_KEY, recent); }
+  private async status(status: string, text: string): Promise<void> {
+    if (!this.isLiveHandler()) return;
+    this.companionStatus = status === "in_progress"
+      ? "running"
+      : status === "error"
+        ? "error"
+        : status === "done"
+          ? "done"
+          : "idle";
+    this.companionMessage = text;
+    this.touchCompanion();
+    await this.post({ type: "status", status, text });
+  }
+
+  private async post(value: unknown): Promise<void> {
+    const context = this.sessionContext.getStore();
+    if (context && !this.isLiveSession(context)) return;
+    if (value && typeof value === "object" && "type" in value) {
+      const message = value as {
+        type?: string;
+        configuration?: KtcAutoBuildConfiguration;
+        projects?: KtcAutoBuildProjectRow[];
+      };
+      if (message.type === "configuration" && message.configuration) {
+        this.companionConfiguration = message.configuration;
+        this.touchCompanion();
+      } else if (message.type === "projects" && message.projects && this.companionConfiguration) {
+        this.companionConfiguration = { ...this.companionConfiguration, projects: message.projects };
+        this.touchCompanion();
+      } else if (message.type === "tasks") {
+        this.touchCompanion();
+      }
+    }
+    const panel = context?.panel ?? this.panel;
+    if (context && !this.isLiveSession(context)) return;
+    await panel?.webview.postMessage(value);
+  }
+
+  private touchCompanion(): void {
+    if (!this.isLiveHandler()) return;
+    this.companionRevision += 1;
+    this.publishCompanion();
+  }
+
+  private companionLifecycle(): KtcEditorPrimaryCompanionLifecycle {
+    if (!this.panel) return "disposed";
+    if (this.panel.active) return "active";
+    return this.panel.visible ? "visible" : "open-inactive";
+  }
+
+  private companionSnapshot(
+    lifecycle: KtcEditorPrimaryCompanionLifecycle = this.companionLifecycle(),
+  ): KtcEditorPrimaryCompanionSnapshot {
+    const configuration = this.companionConfiguration;
+    const liveReady = this.companionReady && lifecycle !== "disposed";
+    const running = this.tasks.filter((task) => task.status === "in_progress").length;
+    const failed = this.tasks.filter((task) => task.status === "error").length;
+    const configName = this.currentPath
+      ? this.currentPath.replace(/[\\/]+$/, "").split(/[\\/]/).at(-1) || this.currentPath
+      : "未保存配置";
+    return {
+      panelId: this.companionSessionId,
+      toolId: "autoBuild",
+      sessionId: this.companionSessionId,
+      revision: this.companionRevision,
+      lifecycle,
+      title: "自动编译",
+      status: this.companionStatus,
+      message: ktcEditorPrimaryCompanionStatusMessage(
+        this.companionStatus,
+        this.companionMessage,
+      ),
+      ready: liveReady,
+      summary: [
+        { label: "配置", value: configName },
+        { label: "目录", value: configuration?.workingDirectory?.trim() || this.defaultWorkingDirectory || "未设置" },
+        { label: "项目", value: `${configuration?.projects.length ?? 0} 个` },
+        { label: "任务", value: running ? `${running} 个进行中` : failed ? `${failed} 个失败` : `${this.tasks.length} 个` },
+        { label: "平台", value: process.platform === "win32" ? "Windows" : `${process.platform}（检查）` },
+      ],
+      actions: [
+        { id: "reveal", label: "回到 View", enabled: liveReady, tone: "primary" },
+        {
+          id: "stop",
+          label: "停止",
+          enabled: liveReady && this.companionStatus === "running",
+          tone: "danger",
+          ...(liveReady && this.companionStatus === "running" ? {} : { disabledReason: "当前没有运行中的任务。" }),
+        },
+        { id: "openOutput", label: "Output", enabled: liveReady },
+      ],
+    };
+  }
+
+  private publishCompanion(lifecycle?: KtcEditorPrimaryCompanionLifecycle): void {
+    if (!this.companion || !this.companionSessionId) return;
+    this.companion.onDidChange(this.companionSnapshot(lifecycle));
+  }
+
+  private currentSessionContext(): KtcAutoBuildSessionContext | undefined {
+    const panel = this.panel;
+    if (!panel || !this.companionSessionId) return undefined;
+    return { epoch: this.companionEpoch, panel, sessionId: this.companionSessionId };
+  }
+
+  private isLiveSession(context: KtcAutoBuildSessionContext): boolean {
+    return this.companionEpoch === context.epoch
+      && this.panel === context.panel
+      && this.companionSessionId === context.sessionId;
+  }
+
+  private isLiveHandler(): boolean {
+    const context = this.sessionContext.getStore();
+    return !context || this.isLiveSession(context);
+  }
   private html(webview: vscode.Webview): string { const { nonce, csp } = ktcCreateWebviewSecurity(webview), componentUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, "dist", "auto-build-view.js")); return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><style>body{padding:12px;color:var(--vscode-foreground);background:var(--vscode-editor-background);font:13px var(--vscode-font-family)}.toolbar,.actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.toolbar select{min-width:220px}.repo{display:grid;grid-template-columns:150px minmax(220px,1fr) 150px;gap:6px;align-items:center;margin:5px 0}.repo.head{color:var(--vscode-descriptionForeground);font-size:11px}.clean{display:flex;gap:6px;align-items:center;margin-top:7px}input,textarea,select{color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-contrastBorder,var(--vscode-panel-border)));padding:5px}input:focus-visible,textarea:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}textarea{width:100%;box-sizing:border-box}.build{display:grid;grid-template-columns:80px 1fr;gap:7px;margin:6px 0}button{padding:5px 10px}.status{margin:7px 0;padding:6px;border-left:3px solid var(--vscode-focusBorder);background:var(--vscode-textBlockQuote-background)}pre{min-height:100px;max-height:40vh;overflow:auto;background:var(--vscode-textCodeBlock-background);white-space:pre-wrap}</style></head><body><h2>编译工具</h2><div class="toolbar"><button id="open">打开 JSON</button><button id="save">保存当前</button><button id="saveAs">另存为</button><select id="recent"><option value="">最近配置…</option></select><span id="path"></span></div><pnw-collapsible-block title="仓库"><div class="repo head"><span>角色</span><span>目录</span><span>分支</span></div><div class="repo"><strong>ROOT_DIR</strong><input id="root"><input id="rootBranch"></div><div class="repo"><strong>ROOT_DIR_3rdParty</strong><input id="third"><input id="branch"></div><div class="repo"><strong>CMake 项目</strong><span>使用下方目录列表</span><input id="cmakeBranch"></div><label class="clean"><input id="clean" type="checkbox">清理 Root、3rdParty 与 CMake 仓库（默认不清理）</label></pnw-collapsible-block><pnw-collapsible-block title="构建目录"><label class="build">CMake<textarea id="cmake" rows="4"></textarea></label><label class="build">CAA<textarea id="caa" rows="4"></textarea></label></pnw-collapsible-block><pnw-collapsible-block title="执行与日志"><div class="actions"><button id="preflight">预检配置</button><button id="start">启动</button><button id="stop" disabled>停止</button></div><div class="status" id="status">空闲</div><pre id="output"></pre></pnw-collapsible-block><script nonce="${nonce}" src="${componentUri}"></script><script nonce="${nonce}">const vscode=acquireVsCodeApi(),$=id=>document.getElementById(id),list=id=>$(id).value.split(/\\r?\\n/).map(x=>x.trim()).filter(Boolean);const config=()=>({schemaVersion:1,rootDirectory:$('root').value.trim(),thirdPartyDirectory:$('third').value.trim(),rootBranch:$('rootBranch').value.trim(),branch:$('branch').value.trim(),cmakeBranch:$('cmakeBranch').value.trim(),cmakeProjectPaths:list('cmake'),caaProjectPaths:list('caa'),clean:$('clean').checked});const busy=v=>{$('preflight').disabled=v;$('start').disabled=v;$('stop').disabled=!v};const action=type=>{if(type==='preflight'||type==='start'){$('status').textContent=type==='start'?'正在启动…':'正在预检…';busy(true)}vscode.postMessage(type==='stop'||type==='open'?{type}:{type,configuration:config()})};$('preflight').onclick=()=>action('preflight');$('start').onclick=()=>action('start');$('stop').onclick=()=>action('stop');$('open').onclick=()=>action('open');$('save').onclick=()=>action('save');$('saveAs').onclick=()=>action('saveAs');$('recent').onchange=()=>{if($('recent').value)vscode.postMessage({type:'selectRecent',path:$('recent').value})};function fill(c){$('root').value=c.rootDirectory||'';$('third').value=c.thirdPartyDirectory||'';$('rootBranch').value=c.rootBranch||'develop';$('branch').value=c.branch||'develop';$('cmakeBranch').value=c.cmakeBranch||'master';$('cmake').value=(c.cmakeProjectPaths||[]).join('\\n');$('caa').value=(c.caaProjectPaths||[]).join('\\n');$('clean').checked=!!c.clean}function recents(paths){$('recent').replaceChildren(new Option('最近配置…',''),...(paths||[]).map(p=>new Option(p,p)))}window.addEventListener('message',e=>{const m=e.data;if(m.type==='configuration'){fill(m.configuration);$('path').textContent=m.path||'未保存';recents(m.recentPaths)}else if(m.type==='saved'){$('path').textContent=m.path;recents(m.recentPaths)}else if(m.type==='status'){$('status').textContent=m.text;busy(m.status==='in_progress')}else if(m.type==='output'){$('output').textContent+=m.text;$('output').scrollTop=$('output').scrollHeight}});vscode.postMessage({type:'ready'});</script></body></html>`; }
 }

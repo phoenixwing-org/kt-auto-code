@@ -224,6 +224,20 @@ const ribbonCustomizationMenuOptions = {
 };
 
 /** @type {import('esbuild').BuildOptions} */
+const toolNavigatorOptions = {
+  entryPoints: ["src/ui/KtcToolNavigatorEntry.ts"],
+  bundle: true,
+  outfile: "dist/ktc-tool-navigator.js",
+  platform: "browser",
+  format: "iife",
+  target: "es2022",
+  sourcemap: true,
+  logLevel: "info",
+  metafile: Boolean(localWing),
+  plugins: localWingPlugins,
+};
+
+/** @type {import('esbuild').BuildOptions} */
 const extensionHostSmokeOptions = {
   entryPoints: ["src/test/extensionHostSmoke.ts"],
   bundle: true,
@@ -255,6 +269,7 @@ const buildOptions = [
   autoBuildViewOptions,
   projectRenameAnalysisOptions,
   ribbonCustomizationMenuOptions,
+  toolNavigatorOptions,
   extensionHostSmokeOptions,
 ];
 
@@ -274,9 +289,10 @@ if (watch) {
   const autoBuildViewContext = await esbuild.context(autoBuildViewOptions);
   const projectRenameAnalysisContext = await esbuild.context(projectRenameAnalysisOptions);
   const ribbonCustomizationMenuContext = await esbuild.context(ribbonCustomizationMenuOptions);
+  const toolNavigatorContext = await esbuild.context(toolNavigatorOptions);
   await Promise.all([
     extensionContext.watch(), tableContext.watch(), controlCatalogContext.watch(), primaryPanelContext.watch(), applyReportContext.watch(),
-    runPrimaryPanelContext.watch(), gitPrimaryPanelContext.watch(), ignorePrimaryPanelContext.watch(), reorderMembersPanelContext.watch(), uuidResultsPanelContext.watch(), renameResultsPanelContext.watch(), associatedRulePickerContext.watch(), autoBuildViewContext.watch(), projectRenameAnalysisContext.watch(), ribbonCustomizationMenuContext.watch(),
+    runPrimaryPanelContext.watch(), gitPrimaryPanelContext.watch(), ignorePrimaryPanelContext.watch(), reorderMembersPanelContext.watch(), uuidResultsPanelContext.watch(), renameResultsPanelContext.watch(), associatedRulePickerContext.watch(), autoBuildViewContext.watch(), projectRenameAnalysisContext.watch(), ribbonCustomizationMenuContext.watch(), toolNavigatorContext.watch(),
   ]);
   console.log("watching extension…");
 } else {

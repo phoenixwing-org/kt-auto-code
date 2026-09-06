@@ -1,12 +1,12 @@
 # Ribbon 与基础上下文 Block 改进计划
 
-状态：in-progress（0.8.3 实现与自动验证完成，最新两态界面待人工点检）
+状态：current（0.9.0 两区 Shell、Header/目录显隐、Ribbon 两态与无 Header Tool Surface 为当前契约）
 
 Owner：KT Auto Code maintainers
 
 适用版本：0.6.x 起；0.8.3 Toolbar Strip 整改
 
-最后核验：2026-09-05
+最后核验：2026-09-06
 
 ## 1. 目标
 
@@ -14,9 +14,10 @@ Owner：KT Auto Code maintainers
 
 ```text
 KT AUTO CODE（一个 Webview View）
-├─ Toolbar Strip（箭头 + 同一份 Ribbon + 唯一 `…`；无独立标题行）
-├─ 目录 Block（固定一行；共享目录选择与文件夹入口）
-└─ 当前工具 Block（可折叠；标题与明确的 `×`；内容区独立纵向滚动）
+├─ 目录 Row（默认显示、Header 可隐藏；共享目录选择与文件夹入口）
+└─ Tool Area
+   ├─ Toolbar Strip（箭头 + 同一份 Ribbon + 唯一 `…`；无独立标题行）
+   └─ Tool Surface（无 Header；重复当前 Ribbon 项显隐；右上悬浮 `×`；独立纵向滚动）
 ```
 
 目标不是禁止用户调整整个侧栏或 View Container，而是取消 Ribbon 与工具内容之间的第二个原生 View、可拖动分隔条和浪费空间的独立“工具栏”标题行。Ribbon 成为同一 Webview 内的首段工具条：展开时保留现有图标文字效果并按宽度自然多行，紧凑时用一行小图标；高度只由当前入口数量、模式和可用宽度决定。
@@ -28,10 +29,10 @@ VS Code 的公开 `WebviewView` / `WebviewViewProvider` API 支持解析、显�
 因此采用以下方案：
 
 - 只贡献一个 Webview View；Ribbon、基础上下文和当前工具均在其内部渲染。
-- 三个区域全宽连续相接，不用卡片外边距表达 Block；目录与当前工具保留 VS Code Source Control 式 Header，Toolbar Strip 不再另占标题行。
-- Toolbar Strip 的箭头切换“图标与文字 / 仅图标”，不再提供完全隐藏状态；当前工具仍独立折叠。目录 Block 固定为一行，不提供空的展开区。
+- 两个一级区域全宽连续相接，不用卡片外边距表达 Block；目录 Row 位于顶部，Toolbar Strip 与 Tool Surface 同属 Tool Area。
+- Toolbar Strip 的箭头切换“图标与文字 / 仅图标”，不再提供完全隐藏状态；重复点击当前 Ribbon Tool/Group 切换 Tool Surface 显隐。目录 Row 固定为一行且由 Header 显隐，不提供空的展开区。
 - 不用脚本测量高度，不模拟拖动条，不循环修改 `initialSize`。
-- 页面本身不承担日常纵向滚动；前两个 Block 自然占高，当前工具 Block 填充剩余高度并在内容区内部滚动。
+- 页面本身不承担日常纵向滚动；目录与 Toolbar 自然占高，Tool Surface 填充剩余高度并在内容区内部滚动。
 - 保留 VS Code 对整个 View Container 的移动、调整宽度和折叠能力。
 
 参考：
@@ -106,7 +107,7 @@ Webview 只能发出 `toggleToolPin`、`movePinnedTool` 等语义消息；Extens
 
 ## 5. 工作目录与忽略 Block
 
-> 本节保留原始设计依据。2026-09-05 最新契约改为：第一段使用无独立标题行的两态 Toolbar Strip；第二 Block 只保留目录下拉和唯一文件夹按钮；原生 View Header 提供 Ignore 与 Settings；Ignore 和设置是两个同级逻辑工具 View。后续实现和验收以[前端开发规则](./前端开发规则.md)与[工作目录、Ignore 与设置 View 改造计划](./工作目录与统一设置View改造计划.md)为准。
+> 本节保留原始设计依据。2026-09-06 当前契约改为：目录 Row 是可由 Header 显隐的第一个一级区域；Tool Area 内依次包含无独立标题行的两态 Toolbar Strip 与一个无 Header Tool Surface；原生 View Header 当前提供目录显隐、Ignore 与 Settings。后续实现和验收以[前端开发规则](./前端开发规则.md)与[0.9.0 Primary 与 Editor 联动及统一工具运行时计划](./0.9.0-Primary与Editor联动讨论稿.md)为准。
 
 Ribbon 下方增加 Shell 级“工作目录与忽略”Block，供头文件、编码、搜索替换、UUID、成员排序和 CAA UI 等文件工具复用。目录是扫描候选集，Ignore 是候选集上的过滤器，两者必须在同一处表达：
 
@@ -134,7 +135,7 @@ Ribbon 下方增加 Shell 级“工作目录与忽略”Block，供头文件、�
 - **自定义 Ignore 默认关闭且为空**：非空保存时才创建当前扫描根 `.phoenix/.ignore`。
 - 三项可独立启停，有效候选集合减去当前启用来源的并集。
 - 本期只解析所选目录所在的最近 Git 仓库；如果选择的是不属于 Git 的聚合父目录，不递归发现其下多个仓库。用户可从目录下拉快速切换到具体 Git 子目录。
-- 原生 View Header 提供固定 Ignore 图标，打开独立 Ignore 逻辑工具，不增加第四个 Shell Block；Toolbar Strip 不再重复该图标。
+- 原生 View Header 当前提供目录显隐、Ignore 与 Settings；Ignore 打开独立逻辑工具，Toolbar Strip 不重复这些全局图标。
 - “管理规则”用于打开独立 Ignore View；详细预设、分析、有效规则和文件编辑都位于该 View。
 - 搜索替换原“包含 Ignore 路径”选项移除，避免它绕过默认 Git Ignore 或与公共开关冲突。
 
@@ -146,7 +147,7 @@ Ribbon 下方增加 Shell 级“工作目录与忽略”Block，供头文件、�
 
 ### 5.3 工作集退场
 
-工作集概念停止扩展，本轮不把它并入第二个 Block；完整消费者审计与退场步骤见[工作集退场与多目录范围调查](./工作集退场与多目录范围调查.md)：
+工作集概念停止扩展，本轮不把它并入目录 Row 或新增一级区域；完整消费者审计与退场步骤见[工作集退场与多目录范围调查](./工作集退场与多目录范围调查.md)：
 
 - 从头文件、搜索替换等日常扫描的主界面移除工作集选择和“加入工作集”入口。
 - 当前继续使用一个明确工作目录；多目录是否有必要尚未明确，不在本期实现。
@@ -160,7 +161,7 @@ Ribbon 下方增加 Shell 级“工作目录与忽略”Block，供头文件、�
 
 1. **单 View Shell**：manifest 只贡献一个 Webview View；清理双 View 广播、动态标题和旧诊断字段，Ribbon 与欢迎页/工具 Block 在同一 DOM 中。
 2. **布局状态模型**：在 Host 增加 `KtcRibbonLayoutV1` 的规范化、持久化和消息守卫；为纯函数补单元测试。
-3. **三段 Shell 与定制菜单**：实现两态 Toolbar Strip、固定单行目录、当前工具折叠与 `×`、唯一 `…`、固定/取消固定、拖动、键盘上移/下移和模块连续换行；补 DOM/浏览器测试。
+3. **两区 Shell 与定制菜单**：实现可显隐固定单行目录 Row，以及 Tool Area 内的两态 Toolbar Strip、无 Header Tool Surface、悬浮 `×`、唯一 `…`、固定/取消固定、拖动、键盘上移/下移和模块连续换行；补 DOM/浏览器测试。
 4. **Toolbar 两态**：沿用原 `toolPickerStyle` 设置，由左侧箭头直接切换；验证展开多行、紧凑单行、tooltip、键盘滚入可见区和高对比度边框。
 5. **工作目录与 Ignore**：抽取共享目录/Ignore ViewModel 与 Host resolver；接入文件扫描类工具，提供内置/Git/自定义三个来源，并删除重复 UI。
 6. **工作集退场第一阶段**：隐藏日常入口并禁用写入，冻结 schema 和新消费；保留已有文件与兼容代码，不增加多目录 UI。
@@ -175,8 +176,8 @@ Ribbon 下方增加 Shell 级“工作目录与忽略”Block，供头文件、�
 - 未置顶当前工具临时显示，但不写入置顶集合。
 - `…` 中可以打开、置顶、取消置顶、上移和下移；所有动作有 `aria-label` 与键盘焦点。
 - 整个 Shell 只有一个定制 `…`；窄宽下不裁切，置顶或排序后菜单保持打开。
-- Toolbar Strip 可在展开/紧凑间切换且不完全隐藏；目录固定显示；当前工具的折叠按钮只收起内容，`×` 只关闭当前逻辑 Block。
-- 长工具内容只在第三个 Block 内滚动；切换工具时分别恢复内部滚动位置，页面本身无日常纵向滚动。
+- Toolbar Strip 可在展开/紧凑间切换且不完全隐藏；目录默认显示并可由 Header 隐藏；重复当前 Ribbon 项只切换 Tool Surface，悬浮 `×` 只关闭当前逻辑工具。
+- 长工具内容只在 Tool Surface 内滚动；切换工具时分别恢复内部滚动位置，页面本身无日常纵向滚动。
 - 展开态在 300px、500px 侧栏宽度下自然换行；紧凑态只允许中间工具轨道局部横向滚动，箭头、唯一 `…` 和页面本身不横向滚动。
 - 深色、浅色、高对比度模式均有边框、hover、活动态和拖动目标反馈。
 - 文件扫描类工具得到同一解析目录及 Ignore 开关；内部相对目录、多根工作区的单根选择、外部目录、Git/非 Git 目录均有 Host/纯函数测试。
@@ -186,10 +187,10 @@ Ribbon 下方增加 Shell 级“工作目录与忽略”Block，供头文件、�
 
 ## 8. 人工点检
 
-1. 页面显示“Toolbar Strip / 目录 / 当前工具”三个连续全宽区域；第一段没有独立“工具栏”标题行，目录固定单行，当前工具可独立折叠，不存在可拖动的内部高度分隔条。
+1. 页面显示“可显隐目录 Row → Tool Area”两个连续全宽区域；Tool Area 内 Toolbar Strip 没有独立“工具栏”标题行，Tool Surface 没有独立 Header，不存在可拖动的内部高度分隔条。
 2. 用左侧箭头切换两态：展开保留现有图标文字并允许多行，紧凑只显示一行小图标；功能和顺序不变，不出现完全隐藏态。
-3. Toolbar Strip 右侧只保留唯一 `…`；取消固定一个工具后，可从其 Code/CAD 分组重新打开，当前入口临时可见。原生 View Header 另有 Ignore 与 Settings。
-4. 连续点击或双击当前入口，Block 不关闭、表单与结果不清空；只有明确点击右上角 `×` 才关闭。
+3. Toolbar Strip 右侧只保留唯一 `…`；取消固定一个工具后，可从其 Code/CAD 分组重新打开，当前入口临时可见。原生 View Header 当前另有目录显隐、Ignore 与 Settings。
+4. 重复点击当前 Ribbon 入口时 Tool Surface 收起/展开，逻辑工具不关闭、MRU 不变、表单与结果不清空；只有明确点击右上角悬浮 `×` 才关闭。
 5. 重新固定工具并拖到新位置；关闭、重新打开侧栏和重启 Extension Host 后顺序保持。
 6. 用键盘完成同样的固定和上移/下移操作。
 7. Code 与 CAD 入口连续排列，窄宽时自然换行，不出现整行空位或横向滚动。
@@ -200,12 +201,12 @@ Ribbon 下方增加 Shell 级“工作目录与忽略”Block，供头文件、�
 
 ### 8.1 最终人工结论（2026-08-08）
 
-以下外层 UI 契约已由用户在固定测试 worktree 中点检通过，并同步固化到[前端开发规则](./前端开发规则.md#11-锁定的三-block-外层契约)：
+以下外层 UI 契约已由用户在固定测试 worktree 中点检通过，并同步固化到[前端开发规则](./前端开发规则.md#11-锁定的两区外层契约)：
 
-- 三个主 Block 的数量、顺序和职责固定。
-- 2026-09-05 用户批准的新契约取代旧工具栏折叠行为：Toolbar Strip 改为展开/紧凑两态且没有独立标题行；当前工具仍可独立折叠；目录固定单行。
-- 第三个 Block 内部纵向滚动，Primary 页面不整体滚动。
-- 第三个 Block 的折叠与 `×` 是两个独立操作。
+- 2026-09-06 用户批准“两区 Shell”取代旧三段：目录 Row 位于顶部且可由 Header 显隐，Tool Area 内依次为 Toolbar Strip 与 Tool Surface。
+- Toolbar Strip 使用已确认的展开/紧凑两态且没有独立标题行；Tool Surface 同样没有 Header；目录固定单行。
+- Tool Surface 内部纵向滚动，Primary 页面不整体滚动。
+- 当前 Ribbon Tool/Group 的重复点击只控制 Surface 显隐；Surface 悬浮 `×` 独立执行逻辑关闭。
 - 标题、图标、样式及各 Block 内部功能允许继续改进。
 
 此前已通过的唯一 `…`、窄侧栏菜单、置顶/排序后保持展开、当前工具独立 `×` 以及 Code/CAD 筛选入口继续有效。后续若要改变外层契约，必须先提示规则冲突并取得用户明确确认。

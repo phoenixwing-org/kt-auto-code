@@ -10,6 +10,7 @@ const {
   ProjectRenameCancelledError,
   showInformationMessage,
   showWarningMessage,
+  executeCommand,
   FakeFileSystemError,
 } = vi.hoisted(() => {
   class HoistedFileSystemError extends Error {
@@ -35,6 +36,7 @@ const {
     ProjectRenameCancelledError: HoistedProjectRenameCancelledError,
     showInformationMessage: vi.fn(),
     showWarningMessage: vi.fn(),
+    executeCommand: vi.fn(),
     FakeFileSystemError: HoistedFileSystemError,
   };
 });
@@ -53,7 +55,7 @@ vi.mock("vscode", () => ({
     file: (fsPath: string) => ({ fsPath }),
     joinPath: uriJoinPath,
   },
-  commands: { executeCommand: vi.fn() },
+  commands: { executeCommand },
   workspace: {
     workspaceFolders: [{ uri: { fsPath: "/workspace/phoenix-dev-hub" } }],
     fs: workspaceFs,
@@ -72,14 +74,33 @@ import { KtcRenameHistoryStore } from "../../core/renameHistory.js";
 import type { WorkspaceRenameHit } from "../../core/workspaceRename.js";
 import { KtcProjectRenameHost } from "../../projectRenameHost.js";
 import type { KtcProjectRenameAnalysisReport, KtcProjectRenameViewState } from "./contracts.js";
-import { KtcProjectRenameViewController } from "./viewController.js";
+import {
+  KtcProjectRenameViewController,
+  type KtcProjectRenameCompanionEvent,
+} from "./viewController.js";
 
-function fakePanel(): vscode.WebviewPanel {
+interface FakeProjectRenamePanel extends vscode.WebviewPanel {
+  fireViewState(active: boolean, visible: boolean): void;
+}
+
+function fakePanel(): FakeProjectRenamePanel {
   let disposeListener: (() => void) | undefined;
-  return {
+  let viewStateListener: ((event: vscode.WebviewPanelOnDidChangeViewStateEvent) => void) | undefined;
+  const panel = {
+    active: true,
+    visible: true,
     viewColumn: 2,
     reveal: vi.fn(),
     dispose: vi.fn(() => disposeListener?.()),
+    fireViewState(active: boolean, visible: boolean): void {
+      panel.active = active;
+      panel.visible = visible;
+      viewStateListener?.({ webviewPanel: panel } as vscode.WebviewPanelOnDidChangeViewStateEvent);
+    },
+    onDidChangeViewState: vi.fn((listener: (event: vscode.WebviewPanelOnDidChangeViewStateEvent) => void) => {
+      viewStateListener = listener;
+      return { dispose: vi.fn() };
+    }),
     onDidDispose: vi.fn((listener: () => void) => {
       disposeListener = listener;
       return { dispose: vi.fn() };
@@ -91,7 +112,8 @@ function fakePanel(): vscode.WebviewPanel {
       onDidReceiveMessage: vi.fn(() => ({ dispose: vi.fn() })),
       postMessage: vi.fn(async () => true),
     },
-  } as unknown as vscode.WebviewPanel;
+  } as unknown as Omit<FakeProjectRenamePanel, "active" | "visible"> & { active: boolean; visible: boolean };
+  return panel as FakeProjectRenamePanel;
 }
 
 describe("project rename analysis View", () => {
@@ -103,6 +125,7 @@ describe("project rename analysis View", () => {
     analyzeProjectRename.mockReset();
     showInformationMessage.mockReset();
     showWarningMessage.mockReset();
+    executeCommand.mockReset();
   });
 
   it("复用单个独立 WebviewPanel，并加载受 CSP 约束的浏览器 bundle", () => {
@@ -201,7 +224,216 @@ describe("project rename analysis View", () => {
       type: "state",
       state: expect.objectContaining({ root: "/workspace/project-b", sourceName: "project-b" }),
     })));
+    firstReceiver({
+      type: "derive",
+      sourceName: "stale-project",
+      targetName: "must-not-win",
+      sourcePrefix: "",
+      targetPrefix: "",
+    });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(second.webview.postMessage).toHaveBeenCalledTimes(1);
     expect(createWebviewPanel).toHaveBeenCalledTimes(2);
+  });
+
+  it("向 Primary 发布可识别的创建、激活、状态与关闭生命周期", async () => {
+    const panel = fakePanel();
+    createWebviewPanel.mockReturnValue(panel);
+    const events: KtcProjectRenameCompanionEvent[] = [];
+    const controller = new KtcProjectRenameViewController(
+      { fsPath: "/extension" } as vscode.Uri,
+      new KtcProjectRenameHost(),
+      { onCompanionEvent: (event) => events.push(event) },
+    );
+
+    controller.show("/workspace/project-a");
+    expect(events.map((event) => event.reason)).toEqual(["created", "shown"]);
+    expect(events[0]?.snapshot).toMatchObject({
+      toolId: "projectRename",
+      lifecycle: "active",
+      revision: 0,
+      ready: false,
+      summary: expect.arrayContaining([
+        { label: "目录", value: "/workspace/project-a" },
+        { label: "改名", value: "project-a → —" },
+      ]),
+    });
+    expect(events[0]?.snapshot).not.toHaveProperty("root");
+    expect(events[0]?.snapshot).not.toHaveProperty("sourceName");
+    expect(events[0]?.snapshot).not.toHaveProperty("targetName");
+    expect(events[0]?.snapshot.panelId).toMatch(/^projectRename-panel-/u);
+    expect(events[0]?.snapshot.sessionId).toMatch(/^projectRename-session-/u);
+
+    panel.fireViewState(false, true);
+    panel.fireViewState(false, false);
+    panel.fireViewState(true, true);
+    expect(events.slice(-3).map((event) => event.snapshot.lifecycle))
+      .toEqual(["visible", "open-inactive", "active"]);
+
+    const receiver = vi.mocked(panel.webview.onDidReceiveMessage).mock.calls[0]![0];
+    receiver({ type: "ready" });
+    await vi.waitFor(() => expect(events.at(-1)).toMatchObject({
+      reason: "state",
+      snapshot: { revision: 1, status: "idle", projectStatus: "idle", ready: true },
+    }));
+    const live = controller.getCompanionSnapshot()!;
+
+    panel.dispose();
+    expect(events.at(-1)).toMatchObject({
+      reason: "disposed",
+      snapshot: {
+        sessionId: live.sessionId,
+        revision: live.revision + 1,
+        lifecycle: "disposed",
+        ready: false,
+      },
+    });
+    expect(events.at(-1)?.snapshot.actions.every((action) => action.enabled === false)).toBe(true);
+    await expect(controller.runCompanionAction({
+      toolId: "projectRename",
+      panelId: live.panelId,
+      sessionId: live.sessionId,
+      revision: live.revision,
+      actionId: "reveal",
+    })).resolves.toEqual({ accepted: false, reason: "disposed" });
+  });
+
+  it("Primary 安全动作同时校验 panel、session、revision 与动作可用性", async () => {
+    const panel = fakePanel();
+    createWebviewPanel.mockReturnValue(panel);
+    const controller = new KtcProjectRenameViewController(
+      { fsPath: "/extension" } as vscode.Uri,
+      new KtcProjectRenameHost(),
+    );
+    controller.show("/workspace/project-a");
+    const initial = controller.getCompanionSnapshot()!;
+
+    await expect(controller.runCompanionAction({
+      toolId: "projectRename",
+      panelId: "another-panel",
+      sessionId: initial.sessionId,
+      revision: initial.revision,
+      actionId: "reveal",
+    })).resolves.toEqual({ accepted: false, reason: "panel-mismatch" });
+    await expect(controller.runCompanionAction({
+      toolId: "projectRename",
+      panelId: initial.panelId,
+      sessionId: "old-session",
+      revision: initial.revision,
+      actionId: "reveal",
+    })).resolves.toEqual({ accepted: false, reason: "session-mismatch" });
+    await expect(controller.runCompanionAction({
+      toolId: "projectRename",
+      panelId: initial.panelId,
+      sessionId: initial.sessionId,
+      revision: initial.revision + 1,
+      actionId: "reveal",
+    })).resolves.toEqual({ accepted: false, reason: "revision-mismatch" });
+    await expect(controller.runCompanionAction({
+      toolId: "projectRename",
+      panelId: initial.panelId,
+      sessionId: initial.sessionId,
+      revision: initial.revision,
+      actionId: "cancel",
+    })).resolves.toEqual({ accepted: false, reason: "action-unavailable" });
+
+    const receiver = vi.mocked(panel.webview.onDidReceiveMessage).mock.calls[0]![0];
+    receiver({ type: "ready" });
+    await vi.waitFor(() => expect(controller.getCompanionSnapshot()?.revision).toBe(initial.revision + 1));
+    const readyIdle = controller.getCompanionSnapshot()!;
+    await expect(controller.runCompanionAction({
+      toolId: "projectRename",
+      panelId: readyIdle.panelId,
+      sessionId: readyIdle.sessionId,
+      revision: readyIdle.revision,
+      actionId: "reveal",
+    })).resolves.toMatchObject({ accepted: true, snapshot: { lifecycle: "active" } });
+    expect(panel.reveal).toHaveBeenCalledTimes(2);
+
+    const mutable = controller as unknown as { state: KtcProjectRenameViewState };
+    mutable.state = {
+      ...mutable.state,
+      status: "done",
+      gitCompareAvailable: true,
+      completion: {
+        plannedItems: 1,
+        appliedItems: 1,
+        remainingItems: 0,
+        targetReached: true,
+        allPlannedApplied: true,
+        canFinish: true,
+        message: "完成",
+      },
+    };
+    receiver({ type: "ready" });
+    await vi.waitFor(() => expect(controller.getCompanionSnapshot()?.revision).toBe(initial.revision + 2));
+    const ready = controller.getCompanionSnapshot()!;
+    await expect(controller.runCompanionAction({
+      toolId: "projectRename",
+      panelId: ready.panelId,
+      sessionId: ready.sessionId,
+      revision: ready.revision,
+      actionId: "openGitChanges",
+    })).resolves.toMatchObject({ accepted: true });
+    expect(executeCommand).toHaveBeenCalledWith("workbench.view.scm");
+
+    let finishGitCommand = (): void => undefined;
+    executeCommand.mockImplementationOnce(() => new Promise<void>((resolve) => {
+      finishGitCommand = resolve;
+    }));
+    const pending = controller.runCompanionAction({
+      toolId: "projectRename",
+      panelId: ready.panelId,
+      sessionId: ready.sessionId,
+      revision: ready.revision,
+      actionId: "openGitChanges",
+    });
+    await vi.waitFor(() => expect(executeCommand).toHaveBeenCalledTimes(2));
+    panel.dispose();
+    finishGitCommand();
+    await expect(pending).resolves.toEqual({ accepted: false, reason: "disposed" });
+  });
+
+  it("Primary 取消动作只终止当前 session 的只读分析", async () => {
+    const panel = fakePanel();
+    createWebviewPanel.mockReturnValue(panel);
+    withProgress.mockImplementation(async (_options, task) => task(
+      { report: vi.fn() },
+      { onCancellationRequested: vi.fn(() => ({ dispose: vi.fn() })) },
+    ));
+    analyzeProjectRename.mockImplementation((options) => new Promise((_resolve, reject) => {
+      options.signal.addEventListener("abort", () => reject(new ProjectRenameCancelledError()), { once: true });
+    }));
+    const controller = new KtcProjectRenameViewController(
+      { fsPath: "/extension" } as vscode.Uri,
+      new KtcProjectRenameHost(),
+    );
+    controller.show("/workspace/project-a");
+    const receiver = vi.mocked(panel.webview.onDidReceiveMessage).mock.calls[0]![0];
+    receiver({ type: "ready" });
+    await vi.waitFor(() => expect(controller.getCompanionSnapshot()?.ready).toBe(true));
+    receiver({
+      type: "analyze",
+      sourceName: "Old Project",
+      targetName: "New Project",
+      sourcePrefix: "",
+      targetPrefix: "",
+      rules: [{ id: "display", style: "display", search: "Old Project", replace: "New Project", enabled: true }],
+    });
+    await vi.waitFor(() => expect(controller.getCompanionSnapshot()?.status).toBe("running"));
+    const running = controller.getCompanionSnapshot()!;
+
+    await expect(controller.runCompanionAction({
+      toolId: "projectRename",
+      panelId: running.panelId,
+      sessionId: running.sessionId,
+      revision: running.revision,
+      actionId: "cancel",
+    })).resolves.toMatchObject({
+      accepted: true,
+      snapshot: { status: "idle", projectStatus: "cancelled" },
+    });
+    expect(controller.getCompanionSnapshot()?.revision).toBeGreaterThan(running.revision);
   });
 
   it("取消异步历史保存中的分析，并为下一次分析换用新的 AbortSignal", async () => {
@@ -437,6 +669,178 @@ describe("project rename analysis View", () => {
       expect.objectContaining({ modal: true }),
       "清空本机历史",
     );
+  });
+
+  it("旧会话等待确认时关闭并重开，不会执行清空历史提交或污染新会话", async () => {
+    const first = fakePanel();
+    const second = fakePanel();
+    createWebviewPanel.mockReturnValueOnce(first).mockReturnValueOnce(second);
+    let finishConfirmation = (_value: string | undefined): void => undefined;
+    showWarningMessage.mockImplementationOnce(() => new Promise<string | undefined>((resolve) => {
+      finishConfirmation = resolve;
+    }));
+    const host = new KtcProjectRenameHost();
+    const clearRenameHistory = vi.spyOn(host, "clearRenameHistory");
+    const controller = new KtcProjectRenameViewController(
+      { fsPath: "/extension" } as vscode.Uri,
+      host,
+    );
+
+    controller.show("/workspace/project-a");
+    const firstReceiver = vi.mocked(first.webview.onDidReceiveMessage).mock.calls[0]![0];
+    firstReceiver({ type: "clearHistory" });
+    await vi.waitFor(() => expect(showWarningMessage).toHaveBeenCalledOnce());
+
+    first.dispose();
+    controller.show("/workspace/project-b");
+    finishConfirmation("清空本机历史");
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    expect(clearRenameHistory).not.toHaveBeenCalled();
+    expect(controller.getCompanionSnapshot()).toMatchObject({
+      lifecycle: "active",
+      projectStatus: "idle",
+      summary: expect.arrayContaining([
+        { label: "目录", value: "/workspace/project-b" },
+        { label: "改名", value: "project-b → —" },
+      ]),
+    });
+    expect(second.webview.postMessage).not.toHaveBeenCalled();
+  });
+
+  it("旧报告等待 Git 检查时关闭并重开，不会进入确认或执行写盘", async () => {
+    const first = fakePanel();
+    const second = fakePanel();
+    createWebviewPanel.mockReturnValueOnce(first).mockReturnValueOnce(second);
+    const host = new KtcProjectRenameHost();
+    const report = fakeReport("/workspace/project-a");
+    (report.workspaceReport.hits as WorkspaceRenameHit[]).push({
+      id: "text:README.md",
+      relativePath: "README.md",
+      fullPath: "/workspace/project-a/README.md",
+      originalFullPath: "/workspace/project-a/README.md",
+      plannedFullPath: "/workspace/project-a/README.md",
+      level: "text",
+      occurrences: 1,
+      status: "preview",
+    });
+    vi.spyOn(host, "preview").mockReturnValue(report.workspaceReport);
+    let finishGitState = (_value: "clean"): void => undefined;
+    vi.spyOn(host, "gitState").mockImplementationOnce(() => new Promise((resolve) => {
+      finishGitState = resolve;
+    }));
+    const apply = vi.spyOn(host, "apply");
+    const controller = new KtcProjectRenameViewController(
+      { fsPath: "/extension" } as vscode.Uri,
+      host,
+    );
+    controller.show("/workspace/project-a");
+    const mutable = controller as unknown as {
+      report: KtcProjectRenameAnalysisReport;
+      state: KtcProjectRenameViewState;
+    };
+    mutable.report = report;
+    mutable.state = { ...mutable.state, status: "done" };
+    const firstReceiver = vi.mocked(first.webview.onDidReceiveMessage).mock.calls[0]![0];
+    firstReceiver({ type: "apply", reportId: report.reportId });
+    await vi.waitFor(() => expect(host.gitState).toHaveBeenCalledWith(report.root));
+
+    first.dispose();
+    controller.show("/workspace/project-b");
+    finishGitState("clean");
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    expect(showWarningMessage).not.toHaveBeenCalled();
+    expect(apply).not.toHaveBeenCalled();
+    expect(controller.getCompanionSnapshot()).toMatchObject({
+      projectStatus: "idle",
+      summary: expect.arrayContaining([{ label: "目录", value: "/workspace/project-b" }]),
+    });
+  });
+
+  it("关闭时将只读分析归一为已取消，并将执行中的根目录写盘标记为结果未知", async () => {
+    const analyzingPanel = fakePanel();
+    const renamePanel = fakePanel();
+    createWebviewPanel.mockReturnValueOnce(analyzingPanel).mockReturnValueOnce(renamePanel);
+    withProgress.mockImplementationOnce(async (_options, task) => task(
+      { report: vi.fn() },
+      { onCancellationRequested: vi.fn(() => ({ dispose: vi.fn() })) },
+    ));
+    let finishAnalysis = (_report: KtcProjectRenameAnalysisReport): void => undefined;
+    analyzeProjectRename.mockImplementationOnce(() => new Promise((resolve) => {
+      finishAnalysis = resolve;
+    }));
+    const events: KtcProjectRenameCompanionEvent[] = [];
+    const host = new KtcProjectRenameHost();
+    const controller = new KtcProjectRenameViewController(
+      { fsPath: "/extension" } as vscode.Uri,
+      host,
+      { onCompanionEvent: (event) => events.push(event) },
+    );
+    controller.show("/workspace/project-a");
+    const analyzeReceiver = vi.mocked(analyzingPanel.webview.onDidReceiveMessage).mock.calls[0]![0];
+    analyzeReceiver({
+      type: "analyze",
+      sourceName: "Old Project",
+      targetName: "New Project",
+      sourcePrefix: "",
+      targetPrefix: "",
+      rules: [{ id: "display", style: "display", search: "Old Project", replace: "New Project", enabled: true }],
+    });
+    await vi.waitFor(() => expect(controller.getCompanionSnapshot()?.projectStatus).toBe("running"));
+    analyzingPanel.dispose();
+    expect(events.at(-1)).toMatchObject({
+      reason: "disposed",
+      snapshot: {
+        lifecycle: "disposed",
+        status: "idle",
+        projectStatus: "cancelled",
+        message: "等待操作。",
+      },
+    });
+    finishAnalysis(fakeReport("/workspace/project-a"));
+
+    controller.show("/repos/phoenix-open-issue");
+    const report = fakeReport("/repos/phoenix-open-issue");
+    const mutable = controller as unknown as {
+      report: KtcProjectRenameAnalysisReport;
+      state: KtcProjectRenameViewState;
+    };
+    mutable.report = report;
+    mutable.state = {
+      ...mutable.state,
+      status: "done",
+      report: {
+        reportId: 7,
+        rootSuggestion: { currentName: "phoenix-open-issue", suggestedName: "phoenix-issue", canRename: true },
+        summary: report.workspaceReport.summary,
+        riskSummary: report.riskSummary,
+        stats: report.stats,
+        relatedCandidates: [],
+        page: { reportId: 7, rows: [], offset: 0, totalRows: 0 },
+      },
+    };
+    showWarningMessage.mockResolvedValueOnce("重命名根目录");
+    let finishRename = (): void => undefined;
+    vi.spyOn(host, "renameRoot").mockImplementationOnce(() => new Promise<void>((resolve) => {
+      finishRename = resolve;
+    }));
+    const renameReceiver = vi.mocked(renamePanel.webview.onDidReceiveMessage).mock.calls[0]![0];
+    renameReceiver({ type: "renameRoot", reportId: 7 });
+    await vi.waitFor(() => expect(host.renameRoot).toHaveBeenCalledOnce());
+    renamePanel.dispose();
+
+    expect(events.at(-1)).toMatchObject({
+      reason: "disposed",
+      snapshot: {
+        lifecycle: "disposed",
+        status: "error",
+        projectStatus: "error",
+        message: "任务遇到问题；请在右侧 View 或 Output 中查看详情。",
+      },
+    });
+    finishRename();
+    await new Promise<void>((resolve) => setImmediate(resolve));
   });
 
   it("根目录改名只发送报告版本，不信任 Webview 提供的路径", async () => {

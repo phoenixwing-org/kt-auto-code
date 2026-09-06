@@ -2,6 +2,14 @@
 
 所有显著变更会记录在本文件中。
 
+## 0.9.0（Primary 统一工具运行时原型）
+
+- Primary 改为“可显隐目录 + 工具区域”两区 Shell：工具区域内顺序放置 Toolbar Strip 和紧凑的二级 Sub Tool，只让 Sub Tool Body 承担日常纵向滚动。
+- 原生 View Header 依次提供目录显隐、Ignore 和 Settings；目录首次默认显示，显隐偏好持久化，隐藏不丢失已选目录或任务状态。
+- Ribbon、功能目录、命令和 Editor 统一使用直接叶子 `toolId` 激活同一 Sub Tool、MRU 与关闭通道，不再为代码辅助叶子维护第二套内部运行时。
+- 项目改名与自动编译 Editor View 向 Primary 投影只读摘要和安全动作；会话、revision、过期回调、关闭中任务和有界脱敏 tombstone 均由 Host 校验。
+- 修复关闭当前工具后的 MRU 投影刷新，避免左侧仍显示已关闭工具；companion 状态只允许短文本枚举进入 Primary，完整路径、命令和诊断保留在所属 Editor/Output。
+
 ## 0.8.4（脚本生成与整合）
 
 - 编译工具增加“写脚本”内容块和可移动的非模态浮动窗口。

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "owner": "KT Auto Code maintainers",
-  "lastVerified": "2026-09-02",
+  "lastVerified": "2026-09-06",
   "appliesTo": "0.8.x",
   "rules": [
     {
@@ -28,8 +28,15 @@
     },
     {
       "match": "^docs/0\\.8\\.3发布准备\\.md$",
+      "status": "archived",
+      "sourceOfTruth": "docs/current-roadmap.md",
+      "reason": "0.8.3 发布准备历史快照；当前界面与发布目标以现行规则和路线为准"
+    },
+    {
+      "match": "^docs/0\\.9\\.0-Primary与Editor联动讨论稿\\.md$",
       "status": "current",
-      "reason": "0.8.3 正式基线、门禁、Windows 点检和制品回执的发布真源"
+      "appliesTo": "0.9.0",
+      "reason": "用户已确认的两区 Primary Shell、无 Header Tool Surface、当前 Ribbon 项显隐与悬浮关闭，以及双 Editor companion、Group/Tool 导航、Action Registry 与分阶段验证计划"
     },
     {
       "match": "^docs/Phoenix-Auto统一Ignore方案\\.md$",
@@ -86,7 +93,7 @@
     {
       "match": "^docs/Ribbon与基础上下文Block改进计划\\.md$",
       "status": "current",
-      "reason": "已确认的单 View Ribbon、用户定制与共享工作目录实施计划"
+      "reason": "已确认的单 View Ribbon、无 Header Tool Surface、用户定制与共享工作目录实施计划"
     },
     {
       "match": "^docs/工作集退场与多目录范围调查\\.md$",

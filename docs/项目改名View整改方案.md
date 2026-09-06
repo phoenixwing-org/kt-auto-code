@@ -41,7 +41,7 @@ Owner：KT Auto Code maintainers
 | 写盘前内容差异 | 不提供 | **预览差异…**和文本结果行 **对比**打开原生 Diff Editor |
 | 执行后 Git 验收 | 结果提示即可 | 保留 **Git 对比**，打开 VS Code 原生 SCM |
 
-Primary 外层仍严格保持 `Toolbar Strip → 目录 → 当前工具` 三段结构。本整改只修改“搜索替换”工具内部内容，不增加第四段、不改变固定目录行，也不改变当前工具的关闭语义；Header 与设置入口采用当前 UI 规则。
+Primary 外层采用当前 `可显隐目录 Row → Tool Area` 两区结构，Toolbar Strip 与无 Header Tool Surface 都位于 Tool Area 内。本整改只修改“搜索替换”工具内容，不新增一级区域、不改变固定目录行，也不改变 Tool Surface 的悬浮关闭/MRU 语义；Header 与设置入口采用当前 UI 规则。
 
 ## 3. 命名与入口
 

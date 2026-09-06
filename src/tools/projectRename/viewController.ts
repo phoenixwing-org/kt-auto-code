@@ -18,10 +18,126 @@ import { ktcParseProjectRenameViewMessage } from "./viewMessages.js";
 import { ktcProjectRenameCompletionAfterApply, ktcProjectRenamePreviewDrift } from "./execution.js";
 import { ktcPlanProjectRenameRootDirectory } from "./rootDirectoryRename.js";
 import { resolveWorkspaceIgnorePatterns } from "../../ignoreConfig.js";
+import type {
+  KtcEditorPrimaryCompanionAction,
+  KtcEditorPrimaryCompanionActionToken,
+  KtcEditorPrimaryCompanionLifecycle,
+  KtcEditorPrimaryCompanionSnapshot,
+  KtcEditorPrimaryCompanionStatus,
+  KtcEditorPrimaryCompanionSummaryItem,
+} from "../../core/editorPrimaryCompanionContracts.js";
+import { ktcEditorPrimaryCompanionStatusMessage } from "../../core/editorPrimaryCompanionContracts.js";
 
 const KTC_PROJECT_RENAME_PAGE_SIZE = 200;
 const KTC_PROJECT_RENAME_MAX_CUSTOM_PROFILE_RULES = 26;
 const KTC_PROJECT_RENAME_MAX_OPEN_RULES = 6;
+let ktcProjectRenameSessionSequence = 0;
+
+export type KtcProjectRenameCompanionLifecycle = KtcEditorPrimaryCompanionLifecycle;
+
+export type KtcProjectRenameCompanionActionId = "reveal" | "cancel" | "openGitChanges";
+
+export interface KtcProjectRenameCompanionAction extends Omit<KtcEditorPrimaryCompanionAction, "id"> {
+  readonly id: KtcProjectRenameCompanionActionId;
+}
+
+/**
+ * Host-owned projection for Primary. It intentionally excludes editable draft
+ * fields and write actions: Primary may only route the safe actions listed here.
+ */
+export interface KtcProjectRenameCompanionSnapshot extends Omit<
+  KtcEditorPrimaryCompanionSnapshot,
+  "toolId" | "title" | "actions"
+> {
+  readonly toolId: "projectRename";
+  readonly title: "项目改名";
+  readonly projectStatus: KtcProjectRenameViewState["status"];
+  readonly enabledRuleCount: number;
+  readonly progress?: KtcProjectRenameViewState["progress"];
+  readonly report?: {
+    readonly reportId: number;
+    readonly totalRows: number;
+    readonly replacements: number;
+    readonly highRisk: number;
+    readonly mediumRisk: number;
+    readonly lowRisk: number;
+  };
+  readonly actions: readonly KtcProjectRenameCompanionAction[];
+}
+
+export type KtcProjectRenameCompanionEventReason =
+  | "created"
+  | "shown"
+  | "view-state"
+  | "state"
+  | "disposed";
+
+export interface KtcProjectRenameCompanionEvent {
+  readonly reason: KtcProjectRenameCompanionEventReason;
+  readonly snapshot: KtcProjectRenameCompanionSnapshot;
+}
+
+export interface KtcProjectRenameViewCallbacks {
+  readonly onCompanionEvent?: (event: KtcProjectRenameCompanionEvent) => void;
+}
+
+export interface KtcProjectRenameCompanionActionRequest extends Omit<
+  KtcEditorPrimaryCompanionActionToken,
+  "toolId" | "actionId"
+> {
+  readonly toolId: "projectRename";
+  readonly panelId: string;
+  readonly actionId: KtcProjectRenameCompanionActionId;
+}
+
+export type KtcProjectRenameCompanionActionRejectionReason =
+  | "no-open-session"
+  | "tool-mismatch"
+  | "panel-mismatch"
+  | "session-mismatch"
+  | "revision-mismatch"
+  | "disposed"
+  | "action-unavailable";
+
+export type KtcProjectRenameCompanionActionResult =
+  | { readonly accepted: true; readonly snapshot: KtcProjectRenameCompanionSnapshot }
+  | { readonly accepted: false; readonly reason: KtcProjectRenameCompanionActionRejectionReason };
+
+interface KtcProjectRenameCompanionSession {
+  readonly panelId: string;
+  readonly sessionId: string;
+  readonly revision: number;
+  readonly lifecycle: KtcProjectRenameCompanionLifecycle;
+}
+
+interface KtcProjectRenameSessionIdentity {
+  readonly epoch: number;
+  readonly panelId: string;
+  readonly sessionId: string;
+}
+
+interface KtcProjectRenameSessionContext extends KtcProjectRenameSessionIdentity {
+  readonly panel: vscode.WebviewPanel;
+}
+
+type KtcProjectRenameWritePhase =
+  | "apply-confirmed"
+  | "apply-writing"
+  | "verify-after-apply"
+  | "rename-confirmed"
+  | "rename-writing";
+
+interface KtcProjectRenameWriteOperation {
+  readonly epoch: number;
+  readonly phase: KtcProjectRenameWritePhase;
+}
+
+class KtcProjectRenameStaleSessionError extends Error {
+  constructor() {
+    super("项目改名 Editor 会话已经关闭或被替换");
+    this.name = "KtcProjectRenameStaleSessionError";
+  }
+}
 
 interface KtcProjectRenameOpenDraft {
   readonly root?: string;
@@ -47,6 +163,10 @@ const KTC_DEFAULT_PROJECT_RENAME_IGNORE_SOURCES: KtcProjectRenameOpenDraft["igno
 
 export class KtcProjectRenameViewController implements vscode.Disposable {
   private panel: vscode.WebviewPanel | undefined;
+  private companionSession: KtcProjectRenameCompanionSession | undefined;
+  private companionReady = false;
+  private controllerEpoch = 0;
+  private writeOperation: KtcProjectRenameWriteOperation | undefined;
   private abortController: AbortController | undefined;
   private report: KtcProjectRenameAnalysisReport | undefined;
   private nextReportId = 1;
@@ -57,6 +177,7 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly host: KtcProjectRenameHostPort,
+    private readonly callbacks: KtcProjectRenameViewCallbacks = {},
   ) {
     this.state = this.createInitialState();
   }
@@ -66,24 +187,76 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       // 一个 Editor View 对应一个复杂分析任务。Primary 再次点击只能聚焦，
       // 不得用新的目录或表单状态覆盖仍在查看的报告。
       this.panel.reveal(this.panel.viewColumn, false);
+      this.updateCompanionLifecycle("active", "shown");
       return;
     }
     this.report = undefined;
     this.state = this.createInitialState(requestedRoot);
-    this.panel = this.createPanel();
-    this.panel.reveal(this.panel.viewColumn, false);
+    this.companionReady = false;
+    this.writeOperation = undefined;
+    const sequence = ++ktcProjectRenameSessionSequence;
+    const identity: KtcProjectRenameSessionIdentity = {
+      epoch: ++this.controllerEpoch,
+      panelId: `projectRename-panel-${sequence}`,
+      sessionId: `projectRename-session-${sequence}`,
+    };
+    const panel = this.createPanel(identity);
+    this.panel = panel;
+    this.companionSession = {
+      panelId: identity.panelId,
+      sessionId: identity.sessionId,
+      revision: 0,
+      lifecycle: ktcProjectRenamePanelLifecycle(panel),
+    };
+    this.emitCompanionEvent("created");
+    panel.reveal(panel.viewColumn, false);
+    this.updateCompanionLifecycle("active", "shown");
   }
 
   dispose(): void {
-    this.abortController?.abort();
-    this.abortController = undefined;
     const panel = this.panel;
-    this.panel = undefined;
-    this.report = undefined;
-    panel?.dispose();
+    if (!panel) return;
+    panel.dispose();
+    // VS Code normally raises onDidDispose synchronously. Keep a defensive
+    // fallback for panel adapters that do not do so.
+    if (this.panel === panel) this.closePanel(panel);
   }
 
-  private createPanel(): vscode.WebviewPanel {
+  getCompanionSnapshot(): KtcProjectRenameCompanionSnapshot | undefined {
+    return this.companionSnapshot();
+  }
+
+  async runCompanionAction(
+    request: KtcProjectRenameCompanionActionRequest,
+  ): Promise<KtcProjectRenameCompanionActionResult> {
+    const rejection = this.validateCompanionActionRequest(request);
+    if (rejection) return { accepted: false, reason: rejection };
+    const context = this.currentSessionContext();
+    if (!context) return { accepted: false, reason: "no-open-session" };
+    const action = this.companionSnapshot()?.actions.find((candidate) => candidate.id === request.actionId);
+    if (!action?.enabled) return { accepted: false, reason: "action-unavailable" };
+
+    if (request.actionId === "reveal") {
+      context.panel.reveal(context.panel.viewColumn, false);
+      this.updateCompanionLifecycle("active", "shown");
+    } else if (request.actionId === "cancel") {
+      await this.cancelAnalysis(this.abortController, context);
+    } else {
+      await this.openGitChanges(false, context);
+    }
+    const currentSession = this.companionSession;
+    if (!currentSession) return { accepted: false, reason: "no-open-session" };
+    if (currentSession.lifecycle === "disposed") return { accepted: false, reason: "disposed" };
+    if (!this.panel) return { accepted: false, reason: "no-open-session" };
+    if (currentSession.panelId !== request.panelId) return { accepted: false, reason: "panel-mismatch" };
+    if (currentSession.sessionId !== request.sessionId) return { accepted: false, reason: "session-mismatch" };
+    const snapshot = this.companionSnapshot();
+    return snapshot
+      ? { accepted: true, snapshot }
+      : { accepted: false, reason: "no-open-session" };
+  }
+
+  private createPanel(identity: KtcProjectRenameSessionIdentity): vscode.WebviewPanel {
     const panel = vscode.window.createWebviewPanel(
       "ktAutoCode.projectRenameAnalysis",
       "项目改名",
@@ -94,18 +267,21 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
         localResourceRoots: [this.extensionUri],
       },
     );
+    const context: KtcProjectRenameSessionContext = { ...identity, panel };
     panel.webview.html = ktcProjectRenameViewHtml(panel.webview, this.extensionUri);
     panel.webview.onDidReceiveMessage((value: unknown) => {
+      if (!this.isLiveSession(context)) return;
       const message = ktcParseProjectRenameViewMessage(value);
-      if (message) void this.handleMessage(message).catch((error: unknown) => {
+      if (message) void this.handleMessage(message, context).catch((error: unknown) => {
         void vscode.window.showErrorMessage(`项目改名 View 操作失败：${ktcErrorMessage(error)}`);
       });
     });
-    panel.onDidDispose(() => {
+    panel.onDidChangeViewState(({ webviewPanel }) => {
       if (this.panel !== panel) return;
-      this.abortController?.abort();
-      this.abortController = undefined;
-      this.panel = undefined;
+      this.updateCompanionLifecycle(ktcProjectRenamePanelLifecycle(webviewPanel), "view-state");
+    });
+    panel.onDidDispose(() => {
+      this.closePanel(panel);
     });
     return panel;
   }
@@ -142,57 +318,58 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
     };
   }
 
-  private async handleMessage(message: KtcProjectRenameViewInboundMessage): Promise<void> {
+  private async handleMessage(
+    message: KtcProjectRenameViewInboundMessage,
+    context: KtcProjectRenameSessionContext,
+  ): Promise<void> {
+    if (!this.isLiveSession(context)) return;
     if (message.type === "ready") {
-      await this.postState();
+      this.companionReady = true;
+      await this.postState(context);
       return;
     }
     if (message.type === "cancel") {
-      await this.cancelAnalysis();
+      await this.cancelAnalysis(this.abortController, context);
       return;
     }
     if (message.type === "chooseRoot") {
-      await this.chooseRoot();
+      await this.chooseRoot(context);
       return;
     }
     if (message.type === "openGitChanges") {
-      if (!this.state.gitCompareAvailable || !this.state.completion?.appliedItems) {
-        void vscode.window.showWarningMessage("当前任务没有可用的 Git 写盘对比；请先在干净 Git 仓库中成功执行改名。");
-        return;
-      }
-      await vscode.commands.executeCommand("workbench.view.scm");
+      await this.openGitChanges(true, context);
       return;
     }
     if (message.type === "previewFirstDiff") {
-      await this.previewFirstDiff(message.reportId);
+      await this.previewFirstDiff(message.reportId, context);
       return;
     }
     if (message.type === "previewDiff") {
-      await this.previewTextDiff(message.reportId, message.rowId);
+      await this.previewTextDiff(message.reportId, message.rowId, context);
       return;
     }
     if (message.type === "loadProfile") {
-      await this.loadProfile(message.id);
+      await this.loadProfile(message.id, context);
       return;
     }
     if (message.type === "loadProjectHistory") {
-      await this.loadProjectHistory(message.id);
+      await this.loadProjectHistory(message.id, context);
       return;
     }
     if (message.type === "deleteHistory") {
-      await this.deleteHistory(message.entry);
+      await this.deleteHistory(message.entry, context);
       return;
     }
     if (message.type === "clearHistory") {
-      await this.clearHistory();
+      await this.clearHistory(context);
       return;
     }
     if (message.type === "saveProfile") {
-      await this.saveProfile(message);
+      await this.saveProfile(message, context);
       return;
     }
     if (message.type === "requestRulePicker") {
-      await this.openRulePicker(message);
+      await this.openRulePicker(message, context);
       return;
     }
     if (message.type === "derive") {
@@ -210,7 +387,7 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
         report: undefined,
         completion: undefined,
       };
-      await this.postState();
+      await this.postState(context);
       return;
     }
     if (message.type === "analyze") {
@@ -220,36 +397,42 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
         message.sourcePrefix,
         message.targetPrefix,
         message.rules,
+        false,
+        context,
       );
       return;
     }
     if (message.type === "apply") {
-      await this.applyReport(message.reportId);
+      await this.applyReport(message.reportId, context);
       return;
     }
     if (message.type === "finish") {
-      this.finishTask();
+      this.finishTask(context);
       return;
     }
     if (message.type === "loadMore") {
       if (!this.report || this.report.reportId !== message.reportId) return;
-      await this.panel?.webview.postMessage({
+      await context.panel.webview.postMessage({
         type: "page",
         page: ktcProjectRenameResultPage(this.report, message.offset, KTC_PROJECT_RENAME_PAGE_SIZE),
       });
       return;
     }
     if (message.type === "renameRoot") {
-      await this.renameRoot(message.reportId);
+      await this.renameRoot(message.reportId, context);
       return;
     }
-    await this.openResult(message.reportId, message.rowId);
+    await this.openResult(message.reportId, message.rowId, context);
   }
 
-  private async cancelAnalysis(controller = this.abortController): Promise<void> {
+  private async cancelAnalysis(
+    controller = this.abortController,
+    context = this.currentSessionContext(),
+  ): Promise<void> {
+    if (!context || !this.isLiveSession(context)) return;
     if (!controller || this.abortController !== controller || this.state.status !== "running") return;
     controller.abort();
-    if (this.abortController !== controller) return;
+    if (!this.isLiveSession(context) || this.abortController !== controller) return;
     this.abortController = undefined;
     this.report = undefined;
     this.state = {
@@ -260,10 +443,26 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       report: undefined,
       completion: undefined,
     };
-    await this.postState();
+    await this.postState(context);
   }
 
-  private async chooseRoot(): Promise<void> {
+  private async openGitChanges(
+    showUnavailableWarning: boolean,
+    context = this.currentSessionContext(),
+  ): Promise<boolean> {
+    if (!context || !this.isLiveSession(context)) return false;
+    if (!this.state.gitCompareAvailable || !this.state.completion?.appliedItems) {
+      if (showUnavailableWarning) {
+        void vscode.window.showWarningMessage("当前任务没有可用的 Git 写盘对比；请先在干净 Git 仓库中成功执行改名。");
+      }
+      return false;
+    }
+    await vscode.commands.executeCommand("workbench.view.scm");
+    return true;
+  }
+
+  private async chooseRoot(context: KtcProjectRenameSessionContext): Promise<void> {
+    if (!this.isLiveSession(context)) return;
     if (this.abortController) return;
     if (this.state.root) {
       void vscode.window.showInformationMessage("当前分析任务已绑定目录；请关闭此 View 后从搜索替换重新打开新任务。");
@@ -277,6 +476,7 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       openLabel: "选择项目目录",
       title: "项目改名",
     });
+    if (!this.isLiveSession(context)) return;
     const root = selected?.[0]?.fsPath;
     if (!root) return;
     const sourceName = basename(root);
@@ -300,10 +500,11 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       ...(profileSnapshot.error ? { profileError: profileSnapshot.error } : {}),
       completion: undefined,
     };
-    await this.postState();
+    await this.postState(context);
   }
 
-  private async loadProfile(id: string): Promise<void> {
+  private async loadProfile(id: string, context: KtcProjectRenameSessionContext): Promise<void> {
+    if (!this.isLiveSession(context)) return;
     const root = this.state.root;
     if (!root || this.abortController) return;
     try {
@@ -351,17 +552,18 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       const text = ktcErrorMessage(error);
       this.state = { ...this.state, status: "error", message: text, profileError: text };
     }
-    await this.postState();
+    await this.postState(context);
   }
 
-  private async loadProjectHistory(id: string): Promise<void> {
+  private async loadProjectHistory(id: string, context: KtcProjectRenameSessionContext): Promise<void> {
+    if (!this.isLiveSession(context)) return;
     const root = this.state.root;
     if (!root || this.abortController) return;
     const snapshot = this.host.historySnapshot(root);
     const entry = snapshot.projectPlans.find((candidate) => candidate.id === id);
     if (!entry) {
       this.state = { ...this.state, status: "error", message: "所选项目历史已过期或被清理。" };
-      await this.postState();
+      await this.postState(context);
       return;
     }
     this.report = undefined;
@@ -382,19 +584,24 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       completion: undefined,
       gitCompareAvailable: false,
     };
-    await this.postState();
+    await this.postState(context);
   }
 
   private async deleteHistory(
     entry: Extract<KtcProjectRenameViewInboundMessage, { type: "deleteHistory" }>["entry"],
+    context: KtcProjectRenameSessionContext,
   ): Promise<void> {
-    if (this.abortController) return;
+    if (!this.isLiveSession(context) || this.abortController) return;
     const root = this.state.root ?? "";
+    // The history methods persist user state. Revalidate the owning Editor
+    // session immediately before invoking either write.
+    if (!this.isLiveSession(context)) return;
     const snapshot = entry.kind === "project"
       ? root
         ? await this.host.forgetProjectPlan(root, entry.id)
         : this.host.historySnapshot(root)
       : await this.host.forgetRenamePair(root, entry.source, entry.target);
+    if (!this.isLiveSession(context)) return;
     this.state = {
       ...this.state,
       status: "idle",
@@ -402,11 +609,11 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       renameHistory: snapshot.pairs,
       projectHistory: snapshot.projectPlans,
     };
-    await this.postState();
+    await this.postState(context);
   }
 
-  private async clearHistory(): Promise<void> {
-    if (this.abortController) return;
+  private async clearHistory(context: KtcProjectRenameSessionContext): Promise<void> {
+    if (!this.isLiveSession(context) || this.abortController) return;
     const accepted = await vscode.window.showWarningMessage(
       "清空全部本机改名历史？",
       {
@@ -416,7 +623,9 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       "清空本机历史",
     );
     if (accepted !== "清空本机历史") return;
+    if (!this.isLiveSession(context)) return;
     const snapshot = await this.host.clearRenameHistory();
+    if (!this.isLiveSession(context)) return;
     this.state = {
       ...this.state,
       status: "idle",
@@ -424,20 +633,23 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       renameHistory: snapshot.pairs,
       projectHistory: snapshot.projectPlans,
     };
-    await this.postState();
+    await this.postState(context);
   }
 
   private async saveProfile(
     message: Extract<KtcProjectRenameViewInboundMessage, { type: "saveProfile" }>,
+    context: KtcProjectRenameSessionContext,
   ): Promise<void> {
+    if (!this.isLiveSession(context)) return;
     const root = this.state.root;
     if (!root || this.abortController) return;
     if (!message.sourceName.trim() || !message.targetName.trim()) {
       this.state = { ...this.state, status: "error", message: "保存规则前请填写原项目名和目标项目名。" };
-      await this.postState();
+      await this.postState(context);
       return;
     }
     try {
+      if (!this.isLiveSession(context)) return;
       const snapshot = await this.host.saveProfile(root, {
         search: message.sourceName,
         replace: message.targetName,
@@ -455,6 +667,7 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
           scope: "",
         },
       }, message.label);
+      if (!this.isLiveSession(context)) return;
       const profile = snapshot.selectedProfile;
       if (!profile) throw new Error("规则档案保存后未能重新载入。");
       this.report = undefined;
@@ -475,16 +688,18 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
         completion: undefined,
       };
     } catch (error) {
+      if (!this.isLiveSession(context)) return;
       const text = ktcErrorMessage(error);
       this.state = { ...this.state, status: "error", message: text, profileError: text };
     }
-    await this.postState();
+    await this.postState(context);
   }
 
   private async openRulePicker(
     message: Extract<KtcProjectRenameViewInboundMessage, { type: "requestRulePicker" }>,
+    context: KtcProjectRenameSessionContext,
   ): Promise<void> {
-    if (this.abortController) return;
+    if (!this.isLiveSession(context) || this.abortController) return;
     const picker = this.host.createRulePicker({
       mode: message.mode,
       search: message.sourceName,
@@ -493,7 +708,8 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       targetPrefix: message.targetPrefix,
       existingRules: message.rules.map(ktcProjectRenameRuleAsDraft),
     });
-    await this.panel?.webview.postMessage({ type: "rulePicker", picker });
+    if (!this.isLiveSession(context)) return;
+    await context.panel.webview.postMessage({ type: "rulePicker", picker });
   }
 
   private async analyze(
@@ -503,7 +719,9 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
     targetPrefix: string,
     rules: readonly KtcProjectRenameRule[],
     verifyingAfterApply = false,
+    context = this.currentSessionContext(),
   ): Promise<void> {
+    if (!context || !this.isLiveSession(context)) return;
     const root = this.state.root;
     if (!root || this.abortController) return;
     if (!sourceName.trim() || !targetName.trim()) {
@@ -517,7 +735,7 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
         targetPrefix,
         rules,
       };
-      await this.postState();
+      await this.postState(context);
       return;
     }
     if (!rules.some((rule) => rule.enabled && rule.search && rule.replace)) {
@@ -531,7 +749,7 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
         targetPrefix,
         rules,
       };
-      await this.postState();
+      await this.postState(context);
       return;
     }
     const reportId = this.nextReportId++;
@@ -552,17 +770,24 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       completion: undefined,
       ...(verifyingAfterApply ? {} : { gitCompareAvailable: false }),
     };
-    await this.postState();
+    await this.postState(context);
+    if (!this.isLiveSession(context) || this.abortController !== abortController) return;
     try {
       const report = await vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
         title: verifyingAfterApply ? "KT Auto Code：验证项目改名结果" : "KT Auto Code：项目改名",
         cancellable: !verifyingAfterApply,
       }, async (progress, token) => {
+        if (!this.isLiveSession(context) || this.abortController !== abortController) {
+          throw new KtcProjectRenameStaleSessionError();
+        }
         const cancellation = token.onCancellationRequested(() => {
-          void this.cancelAnalysis(abortController);
+          void this.cancelAnalysis(abortController, context);
         });
         try {
+          if (!this.isLiveSession(context) || this.abortController !== abortController) {
+            throw new KtcProjectRenameStaleSessionError();
+          }
           return await ktcAnalyzeProjectRename({
             reportId,
             root,
@@ -573,18 +798,21 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
             useBuiltInIgnore: this.ignoreSources.builtInIgnoreEnabled,
             signal: abortController.signal,
             onProgress: (scanProgress) => {
-              if (this.abortController !== abortController) return;
+              if (!this.isLiveSession(context) || this.abortController !== abortController) return;
               this.state = { ...this.state, progress: scanProgress };
               progress.report({ message: `已扫描 ${scanProgress.scannedFiles} 个文件` });
-              void this.postState();
+              void this.postState(context);
             },
           });
         } finally {
           cancellation.dispose();
         }
       });
-      if (this.abortController !== abortController) return;
+      if (!this.isLiveSession(context) || this.abortController !== abortController) return;
       if (abortController.signal.aborted) throw new KtcProjectRenameCancelledError();
+      // rememberProjectPlan persists user state. It must never be reached by a
+      // handler whose Editor session was disposed while analysis was awaiting.
+      if (!this.isLiveSession(context)) return;
       const history = verifyingAfterApply
         ? this.host.historySnapshot(root)
         : await this.host.rememberProjectPlan(root, {
@@ -597,7 +825,7 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       // History persistence is asynchronous. The View may be cancelled, closed,
       // or reopened for another task while it is in flight; never let that stale
       // completion publish its report into the replacement task.
-      if (this.abortController !== abortController) return;
+      if (!this.isLiveSession(context) || this.abortController !== abortController) return;
       if (abortController.signal.aborted) throw new KtcProjectRenameCancelledError();
       this.report = report;
       this.state = {
@@ -612,7 +840,8 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
         projectHistory: history.projectPlans,
       };
     } catch (error) {
-      if (this.abortController !== abortController) return;
+      if (error instanceof KtcProjectRenameStaleSessionError) return;
+      if (!this.isLiveSession(context) || this.abortController !== abortController) return;
       const cancelled = error instanceof KtcProjectRenameCancelledError || abortController.signal.aborted;
       this.state = {
         ...this.state,
@@ -629,47 +858,52 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
     } finally {
       if (this.abortController === abortController) this.abortController = undefined;
     }
-    await this.postState();
+    await this.postState(context);
   }
 
-  private async applyReport(reportId: number): Promise<void> {
+  private async applyReport(
+    reportId: number,
+    context: KtcProjectRenameSessionContext,
+  ): Promise<void> {
+    if (!this.isLiveSession(context)) return;
     const report = this.report;
     if (!report || report.reportId !== reportId || this.abortController || this.state.status === "applying") return;
     if (report.stats.truncated) {
-      await this.blockApply("分析结果达到安全上限，不能写盘；请缩小目录或规则范围后重新分析。");
+      await this.blockApply("分析结果达到安全上限，不能写盘；请缩小目录或规则范围后重新分析。", context);
       return;
     }
     if (report.workspaceReport.summary.errors > 0) {
-      await this.blockApply("报告中存在路径冲突或错误，不能写盘；请先修正规则并重新分析。");
+      await this.blockApply("报告中存在路径冲突或错误，不能写盘；请先修正规则并重新分析。", context);
       return;
     }
     if (report.workspaceReport.hits.length === 0) {
-      await this.blockApply("当前报告没有可执行的改名项。");
+      await this.blockApply("当前报告没有可执行的改名项。", context);
       return;
     }
     let preview;
     try {
       preview = this.host.preview(report);
     } catch (error) {
-      await this.blockApply(`执行前预检失败：${ktcErrorMessage(error)}`);
+      await this.blockApply(`执行前预检失败：${ktcErrorMessage(error)}`, context);
       return;
     }
     if (preview.summary.errors > 0) {
-      await this.blockApply("执行前预检发现路径冲突；没有修改任何内容，请重新分析。");
+      await this.blockApply("执行前预检发现路径冲突；没有修改任何内容，请重新分析。", context);
       return;
     }
     const drift = ktcProjectRenamePreviewDrift(report, preview);
     if (drift) {
-      await this.blockApply(`${drift} 没有修改任何内容，请重新分析。`);
+      await this.blockApply(`${drift} 没有修改任何内容，请重新分析。`, context);
       return;
     }
     const gitState = await this.host.gitState(report.root);
+    if (!this.isLiveReport(context, report)) return;
     if (gitState === "dirty") {
-      await this.blockApply("Git 工作区存在未提交或未跟踪改动；为保证可恢复性，本次写盘已阻止。请先提交、暂存到其他位置或清理后重新分析。");
+      await this.blockApply("Git 工作区存在未提交或未跟踪改动；为保证可恢复性，本次写盘已阻止。请先提交、暂存到其他位置或清理后重新分析。", context);
       return;
     }
     if (gitState === "unavailable") {
-      await this.blockApply("无法可靠检查 Git 工作区状态；为保证可恢复性，本次写盘已阻止。请确认 Git 可用后重新分析。");
+      await this.blockApply("无法可靠检查 Git 工作区状态；为保证可恢复性，本次写盘已阻止。请确认 Git 可用后重新分析。", context);
       return;
     }
     const accepted = await vscode.window.showWarningMessage(
@@ -686,13 +920,16 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       "执行全部已分析改名",
     );
     if (accepted !== "执行全部已分析改名") return;
+    if (!this.isLiveReport(context, report)) return;
+    this.setWritePhase(context, "apply-confirmed");
     this.state = {
       ...this.state,
       status: "applying",
       message: "正在执行冻结报告中的精确改名；请勿同时修改该目录。",
       completion: undefined,
     };
-    await this.postState();
+    await this.postState(context);
+    if (!this.isLiveReport(context, report)) return;
     let applied;
     try {
       applied = await vscode.window.withProgress({
@@ -701,26 +938,35 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
         cancellable: false,
       }, async () => {
         await new Promise<void>((resolveYield) => setImmediate(resolveYield));
+        // This is the final yield before the destructive host call. A disposed
+        // or replaced Editor session must not be allowed to commit its report.
+        if (!this.isLiveReport(context, report)) throw new KtcProjectRenameStaleSessionError();
+        this.setWritePhase(context, "apply-writing");
         return this.host.apply(report);
       });
     } catch (error) {
+      if (error instanceof KtcProjectRenameStaleSessionError || !this.isLiveSession(context)) return;
+      this.clearWritePhase(context);
       this.state = {
         ...this.state,
         status: "error",
         message: `执行改名失败：${ktcErrorMessage(error)}。请立即通过 Git diff 检查已发生的修改。`,
       };
-      await this.postState();
+      await this.postState(context);
       return;
     }
+    if (!this.isLiveReport(context, report)) return;
     if (!applied.applied || applied.summary.errors > 0) {
+      this.clearWritePhase(context);
       this.state = {
         ...this.state,
         status: "error",
         message: `改名执行未全部成功：${applied.summary.errors} 项错误。请通过 Git diff 检查，不要直接结束任务。`,
       };
-      await this.postState();
+      await this.postState(context);
       return;
     }
+    this.setWritePhase(context, "verify-after-apply");
     await this.analyze(
       report.sourceName,
       report.targetName,
@@ -728,9 +974,14 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       this.state.targetPrefix,
       report.rules,
       true,
+      context,
     );
+    if (!this.isLiveSession(context)) return;
     const remaining = this.report;
-    if (!remaining) return;
+    if (!remaining) {
+      this.clearWritePhase(context);
+      return;
+    }
     const completion = ktcProjectRenameCompletionAfterApply(preview, applied, remaining);
     this.state = {
       ...this.state,
@@ -738,16 +989,20 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       message: completion.message,
       gitCompareAvailable: gitState === "clean",
     };
-    await this.postState();
+    this.clearWritePhase(context);
+    await this.postState(context);
   }
 
-  private async blockApply(message: string): Promise<void> {
+  private async blockApply(message: string, context: KtcProjectRenameSessionContext): Promise<void> {
+    if (!this.isLiveSession(context)) return;
     this.state = { ...this.state, status: "error", message };
-    await this.postState();
+    await this.postState(context);
+    if (!this.isLiveSession(context)) return;
     void vscode.window.showWarningMessage(message);
   }
 
-  private finishTask(): void {
+  private finishTask(context: KtcProjectRenameSessionContext): void {
+    if (!this.isLiveSession(context)) return;
     if (!this.state.completion?.canFinish) {
       void vscode.window.showWarningMessage("尚未达到任务结束门禁；请先完成写盘或重新分析剩余命中。");
       return;
@@ -756,7 +1011,7 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       ? "项目改名任务已达到目标并结束。"
       : "本次冻结计划已全部完成，任务已按人工结束条件关闭。";
     void vscode.window.showInformationMessage(message);
-    this.panel?.dispose();
+    context.panel.dispose();
   }
 
   private reportSummary(report: KtcProjectRenameAnalysisReport): NonNullable<KtcProjectRenameViewState["report"]> {
@@ -777,7 +1032,11 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
     };
   }
 
-  private async renameRoot(reportId: number): Promise<void> {
+  private async renameRoot(
+    reportId: number,
+    context: KtcProjectRenameSessionContext,
+  ): Promise<void> {
+    if (!this.isLiveSession(context)) return;
     const report = this.report;
     if (!report || report.reportId !== reportId || !report.rootSuggestion || this.abortController) return;
     const plan = ktcPlanProjectRenameRootDirectory(
@@ -798,11 +1057,18 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       "重命名根目录",
     );
     if (accepted !== "重命名根目录") return;
+    if (!this.isLiveReport(context, report)) return;
     const previousState = this.state;
+    this.setWritePhase(context, "rename-confirmed");
     this.state = { ...this.state, status: "applying", message: "正在重命名仓库根目录…" };
-    await this.postState();
+    await this.postState(context);
+    if (!this.isLiveReport(context, report)) return;
     try {
+      // renameRoot performs filesystem writes after its own asynchronous safety
+      // probes, so guard the session immediately before entering that host call.
+      this.setWritePhase(context, "rename-writing");
       await this.host.renameRoot(plan.sourcePath, plan.destinationPath);
+      if (!this.isLiveReport(context, report)) return;
       this.report = undefined;
       this.state = {
         ...this.state,
@@ -823,18 +1089,26 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
           },
         } : { completion: undefined }),
       };
+      this.clearWritePhase(context);
       void vscode.window.showInformationMessage(`仓库根目录已重命名为：${report.rootSuggestion.suggestedName}`);
     } catch (error) {
+      if (!this.isLiveSession(context)) return;
+      this.clearWritePhase(context);
       this.state = {
         ...previousState,
         status: "error",
         message: `仓库根目录改名失败：${ktcErrorMessage(error)}`,
       };
     }
-    await this.postState();
+    await this.postState(context);
   }
 
-  private async openResult(reportId: number, rowId: string): Promise<void> {
+  private async openResult(
+    reportId: number,
+    rowId: string,
+    context: KtcProjectRenameSessionContext,
+  ): Promise<void> {
+    if (!this.isLiveSession(context)) return;
     const report = this.report;
     if (!report || report.reportId !== reportId) return;
     const row = ktcBuildRenameResultViewModel(report.workspaceReport).rows.find((candidate) => candidate.id === rowId);
@@ -846,10 +1120,15 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       ...(row.openLine === undefined ? {} : { line: row.openLine }),
       highlightTerms: row.editorHighlightTerms,
     });
+    if (!this.isLiveSession(context)) return;
     if (!opened) void vscode.window.showWarningMessage("无法打开工作区之外的分析结果。");
   }
 
-  private async previewFirstDiff(reportId: number): Promise<void> {
+  private async previewFirstDiff(
+    reportId: number,
+    context: KtcProjectRenameSessionContext,
+  ): Promise<void> {
+    if (!this.isLiveSession(context)) return;
     const report = this.report;
     if (!report || report.reportId !== reportId) return;
     const hits = report.workspaceReport.hits.filter((hit) => (
@@ -869,22 +1148,233 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
           title: "项目改名：预览写盘前差异",
           placeHolder: "选择一个文本文件，使用 VS Code 原生 Diff Editor 查看冻结计划",
         });
-    if (selected) await this.previewTextDiff(reportId, selected.rowId);
+    if (!this.isLiveReport(context, report)) return;
+    if (selected) await this.previewTextDiff(reportId, selected.rowId, context);
   }
 
-  private async previewTextDiff(reportId: number, rowId: string): Promise<void> {
+  private async previewTextDiff(
+    reportId: number,
+    rowId: string,
+    context: KtcProjectRenameSessionContext,
+  ): Promise<void> {
+    if (!this.isLiveSession(context)) return;
     const report = this.report;
     if (!report || report.reportId !== reportId) return;
     try {
       await this.host.openTextDiff(report, rowId);
     } catch (error) {
+      if (!this.isLiveSession(context)) return;
       void vscode.window.showWarningMessage(`无法预览写盘前差异：${ktcErrorMessage(error)}`);
     }
   }
 
-  private postState(): Promise<void> {
+  private closePanel(panel: vscode.WebviewPanel): void {
+    if (this.panel !== panel) return;
+    this.abortController?.abort();
+    this.abortController = undefined;
+    this.normalizeStateForDisposedSession();
+    this.panel = undefined;
+    this.report = undefined;
+    this.companionReady = false;
+    this.controllerEpoch += 1;
+    this.writeOperation = undefined;
+    const session = this.companionSession;
+    if (!session || session.lifecycle === "disposed") return;
+    this.companionSession = {
+      ...session,
+      revision: session.revision + 1,
+      lifecycle: "disposed",
+    };
+    this.emitCompanionEvent("disposed");
+  }
+
+  private normalizeStateForDisposedSession(): void {
+    if (this.state.status === "running") {
+      this.state = {
+        ...this.state,
+        status: "cancelled",
+        message: "项目改名分析已随 View 关闭而取消；只读分析没有修改任何文件。",
+        progress: undefined,
+        report: undefined,
+        completion: undefined,
+        gitCompareAvailable: false,
+      };
+      return;
+    }
+    if (this.state.status !== "applying") return;
+
+    const phase = this.writeOperation?.epoch === this.controllerEpoch
+      ? this.writeOperation.phase
+      : undefined;
+    const beforeWrite = phase === "apply-confirmed" || phase === "rename-confirmed";
+    const verifying = phase === "verify-after-apply";
+    this.state = {
+      ...this.state,
+      status: beforeWrite ? "cancelled" : "error",
+      message: beforeWrite
+        ? phase === "rename-confirmed"
+          ? "View 已关闭，仓库根目录改名尚未开始；没有修改目录。"
+          : "View 已关闭，项目改名写盘尚未开始；没有修改文件。"
+        : verifying
+          ? "项目改名已经写盘，但完成门禁复扫因 View 关闭而中断；请通过 Git diff 检查并重新分析。"
+          : phase === "rename-writing"
+            ? "仓库根目录改名执行期间 View 被关闭，最终结果未知；请检查磁盘目录后再继续。"
+            : "项目改名写盘期间 View 被关闭，最终结果未知；请立即通过 Git diff 检查。",
+      progress: undefined,
+      completion: undefined,
+    };
+  }
+
+  private updateCompanionLifecycle(
+    lifecycle: Exclude<KtcProjectRenameCompanionLifecycle, "disposed">,
+    reason: Extract<KtcProjectRenameCompanionEventReason, "shown" | "view-state">,
+  ): void {
+    const session = this.companionSession;
+    if (!session || session.lifecycle === "disposed") return;
+    this.companionSession = { ...session, lifecycle };
+    this.emitCompanionEvent(reason);
+  }
+
+  private companionSnapshot(): KtcProjectRenameCompanionSnapshot | undefined {
+    const session = this.companionSession;
+    if (!session) return undefined;
+    const report = this.state.report;
+    const liveReady = this.companionReady && session.lifecycle !== "disposed";
+    const gitCompareAvailable = Boolean(liveReady && this.state.gitCompareAvailable && this.state.completion?.appliedItems);
+    return {
+      toolId: "projectRename",
+      panelId: session.panelId,
+      sessionId: session.sessionId,
+      revision: session.revision,
+      lifecycle: session.lifecycle,
+      title: "项目改名",
+      status: ktcProjectRenameCompanionStatus(this.state.status),
+      projectStatus: this.state.status,
+      message: ktcEditorPrimaryCompanionStatusMessage(
+        ktcProjectRenameCompanionStatus(this.state.status),
+        this.state.message,
+      ),
+      ready: liveReady,
+      summary: this.companionSummary(),
+      enabledRuleCount: this.state.rules.filter((rule) => rule.enabled).length,
+      ...(this.state.progress ? { progress: { ...this.state.progress } } : {}),
+      ...(report ? {
+        report: {
+          reportId: report.reportId,
+          totalRows: report.page.totalRows,
+          replacements: report.summary.replacements,
+          highRisk: report.riskSummary.high,
+          mediumRisk: report.riskSummary.medium,
+          lowRisk: report.riskSummary.low,
+        },
+      } : {}),
+      actions: [
+        { id: "reveal", label: "回到 View", enabled: liveReady },
+        {
+          id: "cancel",
+          label: "取消分析",
+          enabled: liveReady && this.state.status === "running",
+          ...(liveReady && this.state.status === "running" ? {} : { disabledReason: "当前没有可取消的只读分析。" }),
+        },
+        {
+          id: "openGitChanges",
+          label: "Git 对比",
+          enabled: gitCompareAvailable,
+          ...(gitCompareAvailable ? {} : { disabledReason: "成功写盘且 Git 基线干净后可用。" }),
+        },
+      ],
+    };
+  }
+
+  private companionSummary(): readonly KtcEditorPrimaryCompanionSummaryItem[] {
+    const summary: KtcEditorPrimaryCompanionSummaryItem[] = [];
+    if (this.state.root) summary.push({ label: "目录", value: this.state.root });
+    if (this.state.sourceName || this.state.targetName) {
+      summary.push({ label: "改名", value: `${this.state.sourceName || "—"} → ${this.state.targetName || "—"}` });
+    }
+    summary.push({ label: "规则", value: `${this.state.rules.filter((rule) => rule.enabled).length} 条启用` });
+    if (this.state.progress) {
+      summary.push({
+        label: "扫描",
+        value: `${this.state.progress.scannedFiles} 文件 · ${this.state.progress.matchedItems} 命中`,
+      });
+    } else if (this.state.report) {
+      const risk = this.state.report.riskSummary;
+      summary.push({
+        label: "结果",
+        value: `${this.state.report.page.totalRows} 项 · ${this.state.report.summary.replacements} 处 · 风险 ${risk.high}/${risk.medium}/${risk.low}`,
+      });
+    }
+    return summary;
+  }
+
+  private emitCompanionEvent(reason: KtcProjectRenameCompanionEventReason): void {
+    const snapshot = this.companionSnapshot();
+    if (!snapshot) return;
+    this.callbacks.onCompanionEvent?.({ reason, snapshot });
+  }
+
+  private validateCompanionActionRequest(
+    request: KtcProjectRenameCompanionActionRequest,
+  ): KtcProjectRenameCompanionActionRejectionReason | undefined {
+    const session = this.companionSession;
+    if (!session) return "no-open-session";
+    if (request.toolId !== "projectRename") return "tool-mismatch";
+    if (session.lifecycle === "disposed") return "disposed";
+    if (!this.panel) return "no-open-session";
+    if (request.panelId !== session.panelId) return "panel-mismatch";
+    if (request.sessionId !== session.sessionId) return "session-mismatch";
+    if (request.revision !== session.revision) return "revision-mismatch";
+    return undefined;
+  }
+
+  private currentSessionContext(): KtcProjectRenameSessionContext | undefined {
+    const panel = this.panel;
+    const session = this.companionSession;
+    if (!panel || !session || session.lifecycle === "disposed") return undefined;
+    return {
+      panel,
+      epoch: this.controllerEpoch,
+      panelId: session.panelId,
+      sessionId: session.sessionId,
+    };
+  }
+
+  private isLiveSession(context: KtcProjectRenameSessionContext): boolean {
+    const session = this.companionSession;
+    if (!session) return false;
+    return this.controllerEpoch === context.epoch
+      && this.panel === context.panel
+      && session.lifecycle !== "disposed"
+      && session.panelId === context.panelId
+      && session.sessionId === context.sessionId;
+  }
+
+  private isLiveReport(
+    context: KtcProjectRenameSessionContext,
+    report: KtcProjectRenameAnalysisReport,
+  ): boolean {
+    return this.isLiveSession(context) && this.report === report;
+  }
+
+  private setWritePhase(context: KtcProjectRenameSessionContext, phase: KtcProjectRenameWritePhase): void {
+    if (!this.isLiveSession(context)) return;
+    this.writeOperation = { epoch: context.epoch, phase };
+  }
+
+  private clearWritePhase(context: KtcProjectRenameSessionContext): void {
+    if (this.writeOperation?.epoch === context.epoch) this.writeOperation = undefined;
+  }
+
+  private postState(context?: KtcProjectRenameSessionContext): Promise<void> {
+    if (context && !this.isLiveSession(context)) return Promise.resolve();
     const panel = this.panel;
     const state = this.state;
+    const session = this.companionSession;
+    if (panel && session && session.lifecycle !== "disposed") {
+      this.companionSession = { ...session, revision: session.revision + 1 };
+      this.emitCompanionEvent("state");
+    }
     this.postStateQueue = this.postStateQueue
       .catch(() => undefined)
       .then(async () => {
@@ -893,6 +1383,21 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       });
     return this.postStateQueue;
   }
+}
+
+function ktcProjectRenamePanelLifecycle(panel: vscode.WebviewPanel): Exclude<KtcProjectRenameCompanionLifecycle, "disposed"> {
+  if (panel.active) return "active";
+  if (panel.visible) return "visible";
+  return "open-inactive";
+}
+
+function ktcProjectRenameCompanionStatus(
+  status: KtcProjectRenameViewState["status"],
+): KtcEditorPrimaryCompanionStatus {
+  if (status === "running" || status === "applying") return "running";
+  if (status === "done") return "done";
+  if (status === "error") return "error";
+  return "idle";
 }
 
 function ktcParseProjectRenameOpenDraft(value: unknown): KtcProjectRenameOpenDraft {
