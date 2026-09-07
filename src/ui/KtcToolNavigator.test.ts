@@ -163,7 +163,10 @@ describe("KtcToolNavigator", () => {
     expect(style).toContain("container-type:inline-size");
     expect(style).toContain("repeat(auto-fit,minmax(min(96px,100%),1fr))");
     expect(style).toContain("repeat(auto-fit,minmax(min(32px,100%),1fr))");
+    expect(style).toContain(".compact.labels-hidden .tool-icon { width:22px; height:22px; flex-basis:22px; }");
     expect(shell.className).not.toContain("mode-outline");
+    expect(findNodes(element.shadow, (node) => node.className === "navigator-header")).toHaveLength(0);
+    expect(findNodes(element.shadow, (node) => node.className === "mode-switch")).toHaveLength(0);
     expect(byAria(element.shadow, "打开头文件 ASCII").title).toContain("头文件 ASCII");
     expect(byAria(element.shadow, "显示工具名称").attributes.get("aria-pressed")).toBe("false");
     expect(findNodes(element.shadow, (node) => node.className === "tool-description")).toHaveLength(0);

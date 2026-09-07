@@ -237,6 +237,7 @@ export function validatePreviewToolCatalog(
   }
 
   const toolIds = new Set<string>();
+  const rightPanelIds = new Set<string>();
   for (const [index, candidate] of value.entries()) {
     const context = `tool catalog #${index + 1}`;
     if (!isRecord(candidate)) {
@@ -251,10 +252,17 @@ export function validatePreviewToolCatalog(
     requiredNonEmptyString(candidate, "icon", context, issues);
     requiredNonEmptyString(candidate, "groupId", context, issues);
     validateInstancePolicy(candidate.instancePolicy, context, issues);
-    validateSurfaces(candidate.surfaces, context, issues);
+    const rightPanelId = validateSurfaces(candidate.surfaces, context, issues);
     if (toolId) {
       if (toolIds.has(toolId)) issues.push(`${context}: duplicate toolId ${toolId}`);
       else toolIds.add(toolId);
+    }
+    if (rightPanelId) {
+      if (rightPanelIds.has(rightPanelId)) {
+        issues.push(`${context}: duplicate right panelId ${rightPanelId}`);
+      } else {
+        rightPanelIds.add(rightPanelId);
+      }
     }
   }
 
@@ -325,10 +333,10 @@ function validateSurfaces(
   value: unknown,
   context: string,
   issues: string[],
-): void {
+): string | undefined {
   if (!isRecord(value)) {
     issues.push(`${context}: surfaces must be an object`);
-    return;
+    return undefined;
   }
 
   const hasPrimary = value.primary !== undefined;
@@ -349,17 +357,25 @@ function validateSurfaces(
     }
   }
 
+  let rightPanelId: string | undefined;
   if (hasRight) {
     if (!isRecord(value.right)) {
       issues.push(`${context} right surface: must be an object`);
     } else {
-      requiredNonEmptyString(value.right, "panelId", `${context} right surface`, issues);
+      rightPanelId = requiredNonEmptyString(
+        value.right,
+        "panelId",
+        `${context} right surface`,
+        issues,
+      );
     }
   }
 
   if (primaryKind === "companion" && !hasRight) {
     issues.push(`${context}: companion primary surface requires a right surface`);
   }
+
+  return rightPanelId;
 }
 
 function freezeSurfaces(surfaces: PreviewToolSurfaces): PreviewToolSurfaces {

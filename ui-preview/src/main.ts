@@ -9,6 +9,25 @@ import {
   type KtcOpenItemsBarActionDetail,
 } from "../../src/ui/KtcOpenItemsBar.js";
 import "../../src/ui/KtcOpenItemsBarEntry.js";
+import {
+  KTC_CURRENT_TOOL_REGION_ACTION,
+  type KtcCurrentToolRegion,
+  type KtcCurrentToolRegionActionDetail,
+} from "../../src/ui/KtcCurrentToolRegion.js";
+import "../../src/ui/KtcCurrentToolRegionEntry.js";
+import {
+  KTC_DIRECTORY_BAR_ACTION,
+  type KtcDirectoryBar,
+  type KtcDirectoryBarActionDetail,
+} from "../../src/ui/KtcDirectoryBar.js";
+import "../../src/ui/KtcDirectoryBarEntry.js";
+import "../../src/ui/KtcPrimaryShellEntry.js";
+import {
+  KTC_TOOLBAR_STRIP_ACTION,
+  type KtcToolbarStrip,
+  type KtcToolbarStripActionDetail,
+} from "../../src/ui/KtcToolbarStrip.js";
+import "../../src/ui/KtcToolbarStripEntry.js";
 import type { KtcRightViewShell } from "../../src/ui/KtcRightViewShell.js";
 import "../../src/ui/KtcRightViewShellEntry.js";
 import {
@@ -18,6 +37,7 @@ import {
 } from "../../src/ui/KtcSystemOutputBlock.js";
 import "../../src/ui/KtcSystemOutputBlockEntry.js";
 import {
+  describePrimaryVisibilityAction,
   findLatestMruItem,
   removeMruItem,
   resolvePreviewHostVisibility,
@@ -139,17 +159,12 @@ const workbench = required<HTMLElement>("#preview-workbench");
 const primaryHost = required<HTMLElement>(".preview-primary");
 const editorHost = required<HTMLElement>(".preview-editor");
 const splitter = required<HTMLElement>("#preview-splitter");
-const directoryRow = required<HTMLElement>("[data-directory-row]");
-const directoryName = required<HTMLElement>("[data-directory-name]");
+const directoryRow = required<KtcDirectoryBar>("[data-directory-row]");
 const directoryToggle = required<HTMLButtonElement>("[data-action='toggle-directory']");
 const outputToggle = required<HTMLButtonElement>("[data-action='toggle-output']");
 const directoryHeaderIcon = required<SVGUseElement>("[data-directory-header-icon]");
-const toolbarStrip = required<HTMLElement>("[data-toolbar-strip]");
-const ribbonToggle = required<HTMLButtonElement>("[data-action='toggle-ribbon']");
-const currentTool = required<HTMLElement>("[data-current-tool]");
-const currentToolTitle = required<HTMLElement>("[data-current-tool-title]");
-const currentToolIcon = required<SVGUseElement>("[data-current-tool-icon]");
-const codeAssistantMenu = required<HTMLElement>("[data-code-assistant-menu]");
+const toolbarStrip = required<KtcToolbarStrip>("[data-toolbar-strip]");
+const currentTool = required<KtcCurrentToolRegion>("[data-current-tool]");
 const codeAssistantSurface = required<HTMLElement>("[data-code-assistant-surface]");
 const groupPlaceholder = required<HTMLElement>("[data-group-placeholder]");
 const primaryContent = required<HTMLElement>("[data-primary-content]");
@@ -158,7 +173,6 @@ const openItemsBar = required<KtcOpenItemsBar>("#preview-open-items-bar");
 const editorTabsHost = required<HTMLElement>("[data-editor-tabs]");
 const editorEmpty = required<HTMLElement>("[data-editor-empty]");
 const systemOutput = required<KtcSystemOutputBlock>("#preview-system-output");
-const ribbonMoreButton = required<HTMLButtonElement>("[data-action='ribbon-more']");
 const ribbonMenu = required<HTMLElement>("[data-ribbon-menu]");
 
 document.querySelectorAll<KtcRightViewShell>("ktc-right-view-shell[data-editor-panel]").forEach((shell) => {
@@ -209,20 +223,23 @@ document.querySelectorAll<HTMLButtonElement>("[data-width-option]").forEach((but
   button.addEventListener("click", () => setPrimaryWidth(button.dataset.widthOption as PrimaryWidth));
 });
 required<HTMLButtonElement>("[data-action='toggle-primary']").addEventListener("click", () => {
-  setPrimaryVisibility(!primaryVisible);
+  const nextVisible = !primaryVisible;
+  recordPreviewOutput(`[界面] ${describePrimaryVisibilityAction(nextVisible)}`);
+  setPrimaryVisibility(nextVisible);
 });
-required<HTMLButtonElement>("[data-action='cycle-directory']").addEventListener("click", () => {
+directoryRow.addEventListener(KTC_DIRECTORY_BAR_ACTION, (event) => {
+  const detail = (event as CustomEvent<KtcDirectoryBarActionDetail>).detail;
+  if (detail.kind !== "select" && detail.kind !== "choose") return;
   directoryIndex = (directoryIndex + 1) % directoryChoices.length;
-  renderDirectoryVisibility();
-  persistPreviewState();
-});
-required<HTMLButtonElement>("[data-action='choose-directory']").addEventListener("click", () => {
-  directoryIndex = (directoryIndex + 1) % directoryChoices.length;
+  const directory = directoryChoices[directoryIndex] ?? directoryChoices[0]!;
+  recordPreviewOutput(`[界面] ${detail.kind === "select" ? "切换目录" : "选择目录（模拟）"}：${directory}`);
   renderDirectoryVisibility();
   persistPreviewState();
 });
 directoryToggle.addEventListener("click", () => {
-  directoryVisible = !directoryVisible;
+  const nextVisible = !directoryVisible;
+  recordPreviewOutput(`[界面] ${nextVisible ? "显示目录" : "隐藏目录"}`);
+  directoryVisible = nextVisible;
   renderDirectoryVisibility();
   persistPreviewState();
 });
@@ -240,10 +257,18 @@ systemOutput.addEventListener(KTC_SYSTEM_OUTPUT_BLOCK_ACTION, (event) => {
 });
 outputToggle.addEventListener("click", () => setOutputVisibility(!outputVisible));
 
-ribbonToggle.addEventListener("click", () => {
-  ribbonExpanded = !ribbonExpanded;
-  renderRibbon();
-  persistPreviewState();
+toolbarStrip.addEventListener(KTC_TOOLBAR_STRIP_ACTION, (event) => {
+  const detail = (event as CustomEvent<KtcToolbarStripActionDetail>).detail;
+  if (detail.kind === "setMode") {
+    ribbonExpanded = detail.mode === "expanded";
+    recordPreviewOutput(`[界面] 工具栏切换为${ribbonExpanded ? "图标和文字" : "仅图标"}`);
+    renderRibbon();
+    persistPreviewState();
+  } else if (detail.kind === "setOverflowOpen") {
+    recordPreviewOutput(`[界面] ${detail.open ? "打开" : "关闭"}全部工具与自定义`);
+    if (detail.open) showRibbonMenu();
+    else hideRibbonMenu();
+  }
 });
 document.querySelectorAll<HTMLButtonElement>("[data-ribbon-id]").forEach((button) => {
   button.addEventListener("click", () => activateRibbonItem(
@@ -251,7 +276,10 @@ document.querySelectorAll<HTMLButtonElement>("[data-ribbon-id]").forEach((button
     button.dataset.nodeKind === "group" ? undefined : button.dataset.toolId,
   ));
 });
-required<HTMLButtonElement>("[data-action='close-current']").addEventListener("click", closeCurrentPrimaryTool);
+currentTool.addEventListener(KTC_CURRENT_TOOL_REGION_ACTION, (event) => {
+  const detail = (event as CustomEvent<KtcCurrentToolRegionActionDetail>).detail;
+  if (detail.kind === "close") closeCurrentPrimaryTool(detail.itemId || undefined);
+});
 navigator.addEventListener("ktc-tool-navigator-action", (event) => {
   const detail = (event as CustomEvent<KtcToolNavigatorActionDetail>).detail;
   if (detail.kind === "activate") {
@@ -261,7 +289,7 @@ navigator.addEventListener("ktc-tool-navigator-action", (event) => {
     navigatorShowLabels = detail.showLabels;
   }
   renderNavigator();
-  codeAssistantMenu.hidden = activeGroupId !== "codeAssistant" || !navigatorExpanded;
+  renderRibbon();
   persistPreviewState();
 });
 
@@ -269,19 +297,23 @@ openItemsBar.addEventListener("ktc-open-items-bar-action", (event) => {
   const detail = (event as CustomEvent<KtcOpenItemsBarActionDetail>).detail;
   if (detail.kind === "activate") {
     const item = openItems.find((candidate) => candidate.id === detail.itemId);
-    if (item) activateOpenItem(item);
+    if (item) {
+      activateOpenItem(item);
+      queueMicrotask(restoreOpenItemsFocus);
+    }
   } else if (detail.kind === "close") {
     closeItem(detail.itemId);
-    queueMicrotask(() => openItemsBar.focusActiveItem());
+    queueMicrotask(restoreOpenItemsFocus);
   } else if (detail.kind === "closeOthers") {
     closeOtherItems(detail.itemId);
-    queueMicrotask(() => openItemsBar.focusActiveItem());
+    queueMicrotask(restoreOpenItemsFocus);
   }
 });
 document.addEventListener("pointerdown", (event) => {
+  const path = event.composedPath();
   if (!ribbonMenu.hidden
     && !ribbonMenu.contains(event.target as Node)
-    && !ribbonMoreButton.contains(event.target as Node)) hideRibbonMenu();
+    && !path.includes(toolbarStrip)) hideRibbonMenu();
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
@@ -301,10 +333,6 @@ ribbonMenu.addEventListener("keydown", (event) => {
   event.preventDefault();
   buttons[nextIndex]?.focus();
 });
-ribbonMoreButton.addEventListener("click", () => {
-  if (ribbonMenu.hidden) showRibbonMenu();
-  else hideRibbonMenu(true);
-});
 required<HTMLButtonElement>("[data-action='reset-preview']").addEventListener("click", () => {
   resetVolatilePreviewState();
   restorePreviewState(previewStateStore.reset());
@@ -317,6 +345,7 @@ document.addEventListener("click", (event) => {
     && candidate.type === "button"
   ));
   if (!button || button.dataset.previewOutput === "handled" || button.disabled) return;
+  if (button.getRootNode() === toolbarStrip.shadowRoot || button.getRootNode() === directoryRow.shadowRoot) return;
   const label = [button.getAttribute("aria-label"), button.title, button.textContent]
     .map((candidate) => candidate?.replace(/\s+/gu, " ").trim() ?? "")
     .find(Boolean);
@@ -409,9 +438,11 @@ function setPrimaryVisibility(visible: boolean, persist = true): void {
 }
 
 function renderRibbon(): void {
-  toolbarStrip.classList.toggle("is-compact", !ribbonExpanded);
-  ribbonToggle.setAttribute("aria-expanded", String(ribbonExpanded));
-  ribbonToggle.title = ribbonExpanded ? "收起工具栏" : "展开工具栏";
+  toolbarStrip.model = {
+    mode: ribbonExpanded ? "expanded" : "compact",
+    groupContentVisible: activeGroupId === "codeAssistant" && navigatorExpanded,
+    overflowOpen: !ribbonMenu.hidden,
+  };
   document.querySelectorAll<HTMLButtonElement>("[data-ribbon-id]").forEach((button) => {
     const active = button.dataset.ribbonId === activeGroupId;
     const label = button.getAttribute("aria-label") ?? "工具";
@@ -469,10 +500,11 @@ function renderSurface(): void {
   const title = currentSurfaceTitle();
   const surfaceMeta = PREVIEW_TOOL_CATALOG_BY_ID[activeSurfaceToolId];
   const surfaceGroupId = surfaceMeta?.groupId ?? activeGroupId;
-  currentTool.setAttribute("aria-label", `当前工具：${title}`);
-  currentToolTitle.textContent = title;
-  currentToolIcon.setAttribute("href", `#preview-icon-${currentSurfaceIcon()}`);
-  codeAssistantMenu.hidden = activeGroupId !== "codeAssistant" || !navigatorExpanded;
+  currentTool.model = {
+    itemId: surfaceMeta && isOpenTool(surfaceMeta.toolId) ? `tool:${surfaceMeta.toolId}` : "",
+    title,
+    icon: currentSurfaceIcon(),
+  };
   if (activeGroupId === "codeAssistant") renderNavigator();
   codeAssistantSurface.hidden = surfaceGroupId !== "codeAssistant" || !surfaceMeta;
   groupPlaceholder.hidden = surfaceGroupId === "codeAssistant" && Boolean(surfaceMeta);
@@ -1021,8 +1053,11 @@ function closeOtherItems(itemId: string): void {
   renderAll();
 }
 
-function closeCurrentPrimaryTool(): void {
-  const current = openItems.find((candidate) => candidate.toolId === activeSurfaceToolId);
+function closeCurrentPrimaryTool(itemId?: string): void {
+  const current = itemId
+    ? openItems.find((candidate) => candidate.id === itemId)
+    : openItems.find((candidate) => candidate.toolId === activeSurfaceToolId);
+  if (itemId && !current) return;
   if (!current) {
     clearSurface();
     renderSurface();
@@ -1120,7 +1155,10 @@ function renderAll(persist = true): void {
 
 function renderDirectoryVisibility(): void {
   directoryRow.hidden = !directoryVisible;
-  directoryName.textContent = directoryChoices[directoryIndex] ?? directoryChoices[0]!;
+  directoryRow.model = {
+    label: "目录",
+    value: directoryChoices[directoryIndex] ?? directoryChoices[0]!,
+  };
   directoryToggle.setAttribute("aria-pressed", String(directoryVisible));
   directoryToggle.title = directoryVisible ? "隐藏目录" : "显示目录";
   directoryHeaderIcon.setAttribute("href", directoryVisible ? "#preview-icon-folder-opened" : "#preview-icon-folder");
@@ -1192,6 +1230,14 @@ function renderOpenItems(): void {
   };
 }
 
+function restoreOpenItemsFocus(): void {
+  if (openItemsBar.focusActiveItem()) return;
+  const activeRibbonButton = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-ribbon-id]"))
+    .find((button) => button.dataset.ribbonId === activeGroupId);
+  if (activeRibbonButton) activeRibbonButton.focus();
+  else toolbarStrip.focusOverflowTrigger();
+}
+
 function showRibbonMenu(): void {
   ribbonMenu.replaceChildren();
   RIBBON_ITEMS.forEach((item) => {
@@ -1213,8 +1259,8 @@ function showRibbonMenu(): void {
   customize.title = "原型暂不保存排序或隐藏项";
   ribbonMenu.append(customize);
   ribbonMenu.hidden = false;
-  ribbonMoreButton.setAttribute("aria-expanded", "true");
-  const trigger = ribbonMoreButton.getBoundingClientRect();
+  renderRibbon();
+  const trigger = toolbarStrip.getOverflowAnchorRect();
   const menuWidth = 200;
   const menuHeight = Math.min(240, RIBBON_ITEMS.length * 30 + 38);
   ribbonMenu.style.left = `${Math.max(4, Math.min(window.innerWidth - menuWidth - 4, trigger.right - menuWidth))}px`;
@@ -1225,8 +1271,8 @@ function showRibbonMenu(): void {
 function hideRibbonMenu(restoreFocus = false): void {
   if (ribbonMenu.hidden) return;
   ribbonMenu.hidden = true;
-  ribbonMoreButton.setAttribute("aria-expanded", "false");
-  if (restoreFocus) ribbonMoreButton.focus();
+  renderRibbon();
+  if (restoreFocus) toolbarStrip.focusOverflowTrigger();
 }
 
 function renderEditor(): void {

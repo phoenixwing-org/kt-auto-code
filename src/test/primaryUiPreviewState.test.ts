@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  describePrimaryVisibilityAction,
   findLatestMruItem,
   removeMruItem,
   resolvePreviewHostVisibility,
@@ -10,6 +11,11 @@ describe("Primary UI preview state", () => {
   it("Right View 始终存在，只切换 Primary 与分隔条", () => {
     expect(resolvePreviewHostVisibility(true)).toEqual({ primary: true, editor: true, splitter: true });
     expect(resolvePreviewHostVisibility(false)).toEqual({ primary: false, editor: true, splitter: false });
+  });
+
+  it("记录 Primary 切换后的实际动作，不受按钮下一状态标签影响", () => {
+    expect(describePrimaryVisibilityAction(false)).toBe("隐藏 Primary");
+    expect(describePrimaryVisibilityAction(true)).toBe("显示 Primary");
   });
 
   it("重复激活只更新 MRU，不产生重复项", () => {

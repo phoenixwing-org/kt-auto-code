@@ -180,18 +180,30 @@ describe("KtcOpenItemsBar", () => {
     expect(fakeActiveElement).toBe(more);
   });
 
-  it("标签键盘支持漫游、删除和 Shift+F10 右键菜单", async () => {
+  it("标签键盘支持完整漫游、删除和两种右键菜单按键", async () => {
     installFakeDom();
     const browser = await import("./KtcOpenItemsBar.js");
     const element = new browser.KtcOpenItemsBar() as unknown as FakeElement & { model: KtcOpenItemsBarModel };
     element.model = MODEL;
     const rename = byAria(element.shadow, "打开项目改名");
+    rename.onkeydown?.(new FakeEvent("ArrowRight"));
+    expect(fakeActiveElement?.attributes.get("aria-label")).toBe("打开头文件引用修正");
+    rename.onkeydown?.(new FakeEvent("ArrowLeft"));
+    expect(fakeActiveElement?.attributes.get("aria-label")).toBe("打开C++ 成员排序");
+    byAria(element.shadow, "打开C++ 成员排序").onkeydown?.(new FakeEvent("Home"));
+    expect(fakeActiveElement).toBe(rename);
     rename.onkeydown?.(new FakeEvent("End"));
     expect(fakeActiveElement?.attributes.get("aria-label")).toBe("打开C++ 成员排序");
     rename.onkeydown?.(new FakeEvent("Delete"));
+    const contextMenu = new FakeEvent("ContextMenu");
+    rename.onkeydown?.(contextMenu);
+    expect(contextMenu.defaultPrevented).toBe(true);
+    expect(byAria(element.shadow, "项目改名菜单")).toBeTruthy();
+    byAria(element.shadow, "项目改名菜单").onkeydown?.(new FakeEvent("Escape"));
     const context = new FakeEvent("F10");
     context.shiftKey = true;
     rename.onkeydown?.(context);
+    expect(context.defaultPrevented).toBe(true);
     expect(byAria(element.shadow, "关闭项目改名")).toBeTruthy();
     expect(element.events.map((event) => event.detail)).toEqual([{ kind: "close", itemId: "rename" }]);
   });
@@ -201,7 +213,7 @@ describe("KtcOpenItemsBar", () => {
     const browser = await import("./KtcOpenItemsBar.js");
     const element = new browser.KtcOpenItemsBar() as unknown as FakeElement & {
       model: KtcOpenItemsBarModel;
-      focusActiveItem(): void;
+      focusActiveItem(): boolean;
     };
     element.model = {
       activeId: "sort",
@@ -212,7 +224,7 @@ describe("KtcOpenItemsBar", () => {
       ],
     };
 
-    element.focusActiveItem();
+    expect(element.focusActiveItem()).toBe(true);
     expect(fakeActiveElement).toBe(byAria(element.shadow, "打开成员排序"));
     const iconPaths = ["编译工具", "成员排序", "UUID 替换"].map((title) => (
       findNodes(byAria(element.shadow, `打开${title}`), (node) => node.tagName === "path")[0]
@@ -220,6 +232,11 @@ describe("KtcOpenItemsBar", () => {
     ));
     expect(new Set(iconPaths).size).toBe(3);
     expect(iconPaths.every(Boolean)).toBe(true);
+
+    element.model = { activeId: "", items: [] };
+    fakeActiveElement = undefined;
+    expect(element.focusActiveItem()).toBe(false);
+    expect(fakeActiveElement).toBeUndefined();
   });
 
   it("规范化可序列化模型但不重排项目或自行选择 active 项", async () => {

@@ -173,6 +173,23 @@ describe("Primary UI preview tool catalog", () => {
     expect(() => parsePreviewToolCatalog([primary, duplicate])).toThrow("duplicate toolId same");
   });
 
+  it("拒绝多个 Tool 复用同一个 Right panelId", () => {
+    const first = descriptor("first", {
+      primary: { kind: "companion" },
+      right: { panelId: "shared-panel" },
+    });
+    const duplicate = descriptor("second", {
+      primary: { kind: "full" },
+      right: { panelId: "shared-panel" },
+    });
+
+    const result = validatePreviewToolCatalog([first, duplicate]);
+
+    expect(result.issues).toContain("tool catalog #2: duplicate right panelId shared-panel");
+    expect(() => parsePreviewToolCatalog([first, duplicate]))
+      .toThrow("duplicate right panelId shared-panel");
+  });
+
   it("拒绝导航引用未注册工具", () => {
     const navigation: readonly PreviewToolNavigationNode[] = [
       { kind: "group", groupId: "sample", children: [{ kind: "tool", toolId: "missing" }] },

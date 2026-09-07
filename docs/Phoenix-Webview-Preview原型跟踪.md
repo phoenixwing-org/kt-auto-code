@@ -1,10 +1,26 @@
 # Phoenix Webview Preview 原型跟踪
 
-> 状态日期：2026-09-06  
-> 适用范围：KT Auto Code 内部 Webview UI 实验沙箱  
+> 状态日期：2026-09-07
+> 适用范围：KT Auto Code 内部 Webview UI 实验沙箱
 > 原型名称：**Phoenix Webview Preview**
+> 阶段状态：**Primary / Right 框架原型已由用户确认并归档；等待正式迁移契约确认**
 
 本文是本轮 Primary + Right View 原型的单一讨论与验收记录。它先固定用户已经确认的方向，再记录仍在原型中或待决策的事项；“已确认”表示设计方向已确认，不表示代码、自动测试或真实 Extension Host 验收已经完成。
+
+## 0. 归档结论
+
+2026-09-07，用户确认“Primary Right 框架的封装”可以归档，并同意进入正式应用阶段。本轮归档固定以下原型结果：
+
+- Primary 由 `KtcPrimaryShell` 编排 `Directory → Toolbar → Current Tool → Open Items` 四段，四段全宽相邻且只有 Current Tool Body 承担主要纵向滚动；
+- Directory、Toolbar、Current Tool 与 Open Items 分别使用 Host-neutral Web Components，消费者拥有 Store、MRU、路由和业务 Controller；
+- Right 使用 `KtcRightViewShell` 提供固定 Header、actions slot、Main slot 和明确的滚动模式，Tool 消费者只提供自己的内容；
+- Right 工作台底部使用唯一 `KtcSystemOutputBlock` 接收原型按钮反馈；Output 不属于任何 Tool，也不作为业务状态真源；
+- Preview Catalog 以同一 `toolId` 注册必需 Primary 和可选 Right Surface；两侧只交换可序列化快照与稳定 `actionId`；
+- Preview State Store 可恢复主题、宽度、区域显隐、导航、活动 Tool、打开项和 MRU，并对损坏、旧版、未来版及存储异常安全回退。
+
+“归档”表示结构与组件边界已经得到用户确认，预览代码和 `pnpm ui` 入口继续保留，作为正式迁移的视觉与行为金样本；不表示真实 Extension Host 已接入，也不把浏览器 fixture 当成正式业务实现。Ignore 图标候选、VS Code 字体 / 缩放 / forced-colors、真实生命周期与状态迁移继续列为正式迁移点检，不再阻塞本原型阶段收口。
+
+Phoenix Webview Preview 是长期保留的 UI 设计沙箱，不是迁移完成后删除的一次性页面。后续大区域、宿主交互或视觉基线调整继续遵循“先在 Preview 修改并通过浏览器注释确认，再进入正式 Host”的顺序；正式实现只同步已确认的原型结论，避免在真实 Extension Host 中反复试错。
 
 ## 1. 状态说明
 
@@ -12,11 +28,12 @@
 | --- | --- |
 | 已确认 | 原型应按此方向设计；实现后仍需点检 |
 | 原型中 | 已有局部代码或页面表现，但尚未形成完整验收证据 |
+| 原型已验证 | 原型已具备自动化或可复现的浏览器证据；不代表已迁入真实 VS Code 宿主 |
 | 待确认 | 需要继续通过浏览器注释或真实 VS Code 对比决定 |
 | 正式迁移点检 | 原型可以先试，迁入正式插件前必须集中确认契约、兼容和回归 |
 | 已完成 | 同时具备实现、所需自动验证和人工点检证据后才可使用 |
 
-当前不把任何视觉项标为“已完成”。
+原型框架整体使用“已确认并归档”；单项只有具备相应证据时才标为“原型已验证”。真实 VS Code 宿主中的视觉和行为仍不得写成“已完成”。
 
 ## 2. 原型目标与边界
 
@@ -45,7 +62,13 @@ Phoenix Webview Preview 允许先超越现行正式外壳契约，目的是低�
 3. 不据此直接修改正式插件契约、`AGENTS.md` 或权威前端规则；
 4. 准备迁入正式插件时，再集中确认契约、状态迁移、兼容策略和回归范围。
 
-当前最主要的差异是：现行正式契约为 `Toolbar → Directory → Current Tool` 三段，Header 只有 `Ignore → Settings`，Open Items 位于 Current Tool 内部实验 Footer，而且 Current Tool 可独立折叠；本轮原型已确认 `Directory → Toolbar → Current Tool → Open Items` 四个视觉区域、Header 的 `目录 → 忽略 → 设置`，并暂时禁止 Current Tool 一级 Block 折叠。Current Tool Header 左侧改为“Tool 图标 + 标题”，不显示 disclosure chevron。这些差异已是原型的冻结目标，但尚未自动成为正式产品规则。
+当前存在三份不同的外壳事实：
+
+1. 真实正式 Host 仍是 `Directory → Tool Area`，Toolbar 与当前 Surface 在 Tool Area 中；Native Header 仍有目录显隐、Ignore、Settings，当前 Surface 可折叠，Open Items 是其内部实验 Footer。
+2. 当前 `AGENTS.md` 和权威前端规则写的是 `Toolbar → Directory → Current Tool` 三段，Native Header 只有 `Ignore → Settings`。
+3. 本轮原型冻结为 `Directory → Toolbar → Current Tool → Open Items` 四个视觉区域、Header 的 `目录 → 忽略 → 设置`，并暂时禁止 Current Tool 一级 Block 折叠。
+
+2026-09-07 仓库审查确认：原型基线提交 `d25780b` 曾提前修改 `AGENTS.md` 与 `docs/前端开发规则.md`，但没有同步迁改真实 Host，因而第 3 条“原型不直接改正式治理契约”是本阶段的目标原则，却并非当前仓库的已达事实。本轮不再扩大这个偏差：未获得明确授权前，不继续修改正式 Host 或上述两份治理文件；是否先恢复治理文件至真实 Host 基线，记为单独点检点。
 
 ## 3. 总体布局
 
@@ -87,7 +110,9 @@ Phoenix Webview Preview 允许先超越现行正式外壳契约，目的是低�
 - 新的视觉、响应式、导航、工具内容和状态恢复实验只能发生在对应区域内部；
 - 如后续发现必须改变大区域才能解决的问题，先记录新的原型决策点，不通过局部 CSS 或重复 DOM 绕过冻结结构。
 
-“冻结”是本轮原型的产品结论。正式插件现行三段契约尚未在本阶段改动；真正迁移时仍需一次集中的契约、状态和回归更新。
+“冻结”是本轮原型的产品结论，不是对真实 Host 或正式治理契约的默认授权。正式 Host 尚未迁改；上述历史治理文件偏差需先单独确认，真正迁移时再集中更新契约、状态与回归。
+
+2026-09-07，用户对 `Run` fixture 的 Current Tool Header 截图确认“效果 OK”：左侧使用当前 Tool 图标与标题，右侧保留独立 `×`，不再显示折叠箭头。该视觉关系纳入本轮冻结目标。
 
 ### 3.3 响应式原则
 
@@ -105,6 +130,7 @@ Phoenix Webview Preview 允许先超越现行正式外壳契约，目的是低�
 
 - 窄 / 标准 / 宽控制的是 Primary 容器宽度，不是 Ribbon 按钮密度。
 - 拖动 Primary / Right View 分隔线时遵循同一原则。
+- 分隔条支持键盘左右键按 `20px` 调整，并同步维护 `separator` 的 `aria-valuemin`、`aria-valuemax`、`aria-valuenow` 与像素说明。
 - 页面本身不应成为日常纵向滚动边界；Current Tool 内容区负责主要纵向滚动。
 
 ## 4. 分区需求
@@ -139,10 +165,12 @@ Phoenix Webview Preview 允许先超越现行正式外壳契约，目的是低�
 | R-04 | 已确认 | 展开 / 折叠复用同一份 Ribbon 模型和激活通道，不复制第二套按钮或状态 |
 | R-05 | 已确认 | Toolbar 只有一个 Ribbon `…`；它同时承担隐藏项入口和后续工具栏定制入口 |
 | R-06 | 已确认 | 左侧 16px chevron 控制 Ribbon 展开 / 折叠；不增加密度按钮，不删除一级导航 |
-| R-07 | 原型中 | 需要验证窄 / 标准 / 宽与自定义拖拽宽度下，按钮尺寸均不变化、选中态不丢失 |
+| R-07 | 原型已验证 | 窄 / 标准 / 宽与自定义拖拽宽度下，按钮尺寸保持不变、选中态不丢失 |
 | R-08 | 已确认 | 有下级工具的 Group 只增加小型折叠箭头，不另造一套按钮样式；箭头表达可展开性，蓝色下划线表达当前选中 |
 
 `…` 不能只是视觉占位。菜单选择和可见 Ribbon 按钮选择必须进入同一激活逻辑，并在当前项上表达选中状态。
+
+原型浏览器在窄 / 标准 / 宽三档实测：紧凑态始终为 `34 × 32px`，展开态始终为 `68 × 58px`。CSS 回归同时锁定展开态换行、紧凑态单行和下级导航 `20px` 左缩进。这些数值是原型证据，正式宿主仍需用 VS Code 实际字体、缩放和主题复核。
 
 ### 4.4 Toolbar 下级导航
 
@@ -216,7 +244,9 @@ Host / Preview Store（状态、MRU、路由）
 5. 主题和密度使用 VS Code token 与组件自有 CSS，业务消费者不依赖 Shadow DOM 内部 selector；
 6. 不为每个小按钮创建组件；以稳定的区域责任、可复用行为和独立测试边界作为拆分依据。
 
-当前 `KtcToolNavigator` 和 `KtcOpenItemsBar` 已是该方向的首批共享组件。后续按 `Directory → Current Tool → Toolbar → 薄 Primary Shell` 的风险顺序提炼：每段都先固定契约与测试，再保真替换原型；Toolbar 自身拥有 Ribbon 与向下包住 child slot 的框，但不重写 slotted `KtcToolNavigator`；最外层 Shell 最后只固定四个 named slot 与滚动边界，不聚合业务状态。正式 Host 接入排在原型组件验证之后。
+当前原型已经由 `KtcPrimaryShell`、`KtcDirectoryBar`、`KtcToolbarStrip`、`KtcToolNavigator`、`KtcCurrentToolRegion` 和 `KtcOpenItemsBar` 组合，不再为四个一级区域维护第二套手写外壳。`KtcCurrentToolRegion` 已保真替换原型手写 Header：可序列化 model 只包含 `itemId / title / icon`，`itemId` 与 Open Items 的宿主无关实例身份对齐；关闭按钮只发出带 `itemId` 的语义 intent，MRU、Right View 和任务生命周期仍由 Host 决定。组件 Shadow DOM 只创建一次，同一 item 的标题 / 图标更新不重建 slot 或丢失滚动与焦点。
+
+`KtcDirectoryBar` 只投影 `label / value`，并用 `select / choose` intent 把目录动作交还 Host；`KtcToolbarStrip` 只投影 `mode / groupContentVisible / overflowOpen`，保留同一个 slotted Ribbon 与 `KtcToolNavigator`，唯一 `…` 的菜单内容和定位仍由 Host 管理；`KtcPrimaryShell` 则是零 model、零 action 的四 named-slot Grid，只固定顺序与唯一 Current Tool 弹性轨，不拥有边框、按钮、Store 或业务路由。三者都已先写组件契约与测试，再替换原型。正式 Host 接入仍排在整套原型确认之后。
 
 `KtcToolNavigator` 目前需要一层明确的兼容呈现契约：未声明 `presentation` 时继续使用正式 View 已有的标题、分组和大纲 / 网格行为；Phoenix Webview Preview 显式声明 `presentation: "compact"`，使用无标题、扁平紧凑网格。该适配避免原型视觉在正式迁移前通过共享组件意外改变正式 View，最终是否删除 legacy 呈现应在正式迁移完成后单独决定。
 
@@ -246,7 +276,7 @@ Tool Registration
 - 只有 Action 而没有 UI Surface 的能力由统一 Action Registry 管理，不伪装成可打开的 Tree Tool。
 - 可停靠对话框本轮不实现。未来可增加 `dialog` Surface Adapter，但不应修改既有 Tool identity、业务 intent 或 Shell 组件契约。
 
-当前架构是“协议原型接近、统一管理尚未形成”：已有工具注册、Primary companion、Editor session/revision 门禁和两个 Host-neutral Web Components；但 Registry 仍主要是工具数组，Primary / Right 工厂、实例策略、恢复和销毁尚未成为统一契约。本轮先在安全原型 Catalog 中验证分流与联动，再为正式 Registry 设计兼容 adapter，不推倒现有 companion。
+当前架构是“协议原型接近、统一管理尚未形成”：已有工具注册、Primary companion、Editor session/revision 门禁和三个 Host-neutral Web Components；但 Registry 仍主要是工具数组，Primary / Right 工厂、实例策略、恢复和销毁尚未成为统一契约。本轮先在安全原型 Catalog 中验证分流与联动，再为正式 Registry 设计兼容 adapter，不推倒现有 companion。
 
 原型现阶段仍把 Right 标签的 `×` 当作“关闭逻辑打开项”，并未实现独立的 Right detach 与最终 instance destroy。这是正式 Framework 迁移前的明确点检点，不得把当前简化行为固化为生命周期契约。
 
@@ -402,7 +432,7 @@ ktAutoCode.uiPreview.state.v1
 - 原型中：开发控制条已删除“联合 / Primary / Right View”三选一；顶部同一控制组保留 `Primary` 与“输出”两个独立显隐开关，Right View 始终存在。
 - 原型中：打开项身份已从 `primary:` / `editor:` 前缀归一为宿主无关的 `tool:<toolId>`；同 schema 内兼容读取早期前缀。正式多开前仍需升级为包含 `instanceId` 的引用。
 - 自动验证：Store 白名单、损坏数据回退、schema 拒绝和 reset 测试通过；浏览器已完成一次主题刷新恢复快速检查。
-- 待点检：停止后重启 `pnpm ui`、隐藏 / 恢复 Primary、改变宽度和混合 Primary / Right 打开项之后，场景能否完整恢复。
+- 原型已验证：停止后重启 `pnpm ui`、隐藏 / 恢复 Primary、改变宽度以及混合 Primary / Right 打开项之后，规范化 Store 快照仍能恢复一致场景；真实 Extension Host 重启和 Webview dispose 继续留作正式迁移点检。
 - 正式迁移点检：浏览器 `localStorage` 只是原型存储；迁入扩展时应按设置分类改用 VS Code `workspaceState`、Workspace Folder Settings 或 User Settings，不能原样照搬。
 
 ## 6. 真实场景恢复
@@ -497,7 +527,7 @@ Primary 隐藏：Right View 填满工作台，无残留焦点或不可见状态
 - [ ] `Aa` 在一行与多行紧凑网格中的最终固定位置和命中区，是否满足“区域右侧固定”的预期。
 - [ ] Ribbon 固定按钮的精确尺寸 token；原则是恢复原设定，不随宽模式拉伸。
 - [ ] Open Items 作为第四视觉区域时的分隔线、空状态和最小高度。
-- [ ] Directory 隐藏后，Toolbar 是否直接顶接 Header，且无空白分隔。
+- [x] Directory 隐藏后，Toolbar 直接顶接 Header，且无空白分隔。
 - [ ] 页面“重置预览状态”入口放在开发控制条还是二级菜单。
 - [x] 原型中的 Current Tool 暂时禁止折叠，Header 改为左侧 Tool 图标 + 标题、右侧独立 `×`；是否迁入正式插件仍需另行确认。
 - [x] 预览控制条取消三种宿主模式；同组保留 Primary 与“输出”的独立显隐开关，Right View 始终存在。
@@ -531,28 +561,28 @@ Primary 隐藏：Right View 填满工作台，无残留焦点或不可见状态
 
 - [ ] `pnpm ui` 与 `pnpm ui:dev` 都能启动同一预览入口并显示实际访问地址。
 - [ ] 修改受监视文件后热刷新可用，失败构建不会把上一份成功页面变成空白。
-- [ ] 切换若干状态后刷新页面，主题、宽度、Primary / Output 显隐、选择、打开项和 MRU 都恢复。
-- [ ] 关闭服务再重新运行 `pnpm ui`，仍能恢复同一安全 fixture 状态。
+- [x] 切换若干状态后刷新页面，主题、宽度、Primary / Output 显隐、选择、打开项和 MRU 都恢复。
+- [x] 关闭服务再重新运行 `pnpm ui`，仍能恢复同一安全 fixture 状态。
 - [ ] 注入损坏 JSON、旧 schema 和未来 schema 时安全回退，不出现白屏。
-- [ ] 重置后恢复统一默认场景，存储中不含路径、源码、命令或业务数据。
+- [x] 重置后恢复统一默认场景，存储中不含路径、源码、命令或业务数据。
 
 ### Header 与四段结构
 
 - [ ] Header 顺序为 `目录 → 忽略 → 设置`，图标与 VS Code 基线一致。
-- [ ] 目录按钮可隐藏 / 恢复 Directory，且不改变目录选择。
-- [ ] Ignore 与 Settings 只更新 Current Tool，Right View 标签数不增加。
-- [ ] 顶层 Git / Run 直达 Primary；AutoBuild 打开 Primary full + optional Right；顶层替换 / 自动代码和其他 companion 工具能打开 Right + Primary companion。
-- [ ] 视觉顺序严格为 `Directory → Toolbar → Current Tool → Open Items`。
-- [ ] 四段均全宽相邻；页面不出现卡片间隙或可拖拽的段间分隔条。
+- [x] 目录按钮可隐藏 / 恢复 Directory，且不改变目录选择。
+- [x] Ignore 与 Settings 只更新 Current Tool，Right View 标签数不增加。
+- [x] 顶层 Git / Run 直达 Primary；AutoBuild 打开 Primary full + optional Right；顶层替换 / 自动代码和其他 companion 工具能打开 Right + Primary companion。
+- [x] 视觉顺序严格为 `Directory → Toolbar → Current Tool → Open Items`。
+- [x] 四段均全宽相邻；页面不出现卡片间隙或可拖拽的段间分隔条。
 
 ### Ribbon 与下级导航
 
-- [ ] 窄 / 标准 / 宽下 Ribbon 按钮尺寸相同，宽模式只增加空余空间。
-- [ ] 展开 / 折叠使用同一 Ribbon；折叠态维持一行。
-- [ ] 当前宽度下隐藏的 Ribbon 项均可从唯一 `…` 激活。
-- [ ] 下级导航无标题、无大纲模式、无外框，相对 Ribbon 左缩进 20px。
-- [ ] `Aa` 只切名称；纯图标态为 22px，显示名称态仍紧凑且无裁切。
-- [ ] 无下级按钮的 Group 不显示导航空行、`Aa` 或遗留分隔线。
+- [x] 窄 / 标准 / 宽下 Ribbon 按钮尺寸相同，宽模式只增加空余空间。
+- [x] 展开 / 折叠使用同一 Ribbon；折叠态维持一行。
+- [x] 当前宽度下隐藏的 Ribbon 项均可从唯一 `…` 激活。
+- [x] 下级导航无标题、无大纲模式、无外框，相对 Ribbon 左缩进 20px。
+- [x] `Aa` 只切名称；纯图标态为 22px，显示名称态仍紧凑且无裁切。
+- [x] 无下级按钮的 Group 不显示导航空行、`Aa` 或遗留分隔线。
 
 ### Current Tool 与 Open Items
 
@@ -570,17 +600,17 @@ Primary 隐藏：Right View 填满工作台，无残留焦点或不可见状态
 - [ ] Primary 只显示运行概览 / 统计与快捷动作、含打开 / 保存的当前配置条、紧凑项目摘要、只读工程环境摘要，以及默认折叠的维护与清理预览。
 - [ ] Right 的完整构建配置、完整项目表及其工具栏 / 操作、任务树、详细库探测和脚本管理窗口只作结构占位，未被 Primary 复制，也未因原型布局而改变交互规格。
 - [ ] Primary 与 Right 的状态和动作来自同一个 AutoBuild Controller、snapshot 与语义 `actionId`；关闭 / reload 任一 Surface 不生成第二份业务状态。
-- [ ] Framework Output Block 只属于 Right 工作台框架；AutoBuild Tool 内没有重复的模拟输出区。
+- [x] Framework Output Block 只属于 Right 工作台框架；AutoBuild Tool 内没有重复的模拟输出区。
 
 ### Right Shell 与公共输出
 
 - [ ] Right Shell Header 保持约 44px、左右贴边；左侧只有 title，右侧 actions slot，不出现副标题或工具自建的重复 Header。
 - [ ] Tool 消费者的 Main default slot 在 `vertical` / `both` / `none` 三种 scrollMode 下边界正确，无意外双 scrollbar。
-- [ ] 所有原型按钮的模拟反馈进入 Right 工作台底部唯一 Framework Output Block；各 Tool 内不出现重复模拟输出框或第二份输出历史。
-- [ ] Output 无 chevron 和折叠态；显示时 Header 左侧为标题、右侧固定 `×`，日志内容始终展开。
-- [ ] 点击 Output 的 `×` 只隐藏；顶部同组“输出”开关能恢复，且不关闭 Tool、不清空日志、不停止任务、不销毁 Surface / Controller。
-- [ ] 刷新后 Preview Store 恢复 Output 显隐；切换 Right 标签不重置该状态。
-- [ ] 连续追加多条模拟日志时，每次都自动滚到最后一行并显示最新反馈。
+- [x] 所有原型按钮的模拟反馈进入 Right 工作台底部唯一 Framework Output Block；各 Tool 内不出现重复模拟输出框或第二份输出历史。
+- [x] Output 无 chevron 和折叠态；显示时 Header 左侧为标题、右侧固定 `×`，日志内容始终展开。
+- [x] 点击 Output 的 `×` 只隐藏；顶部同组“输出”开关能恢复，且不关闭 Tool、不清空日志、不停止任务、不销毁 Surface / Controller。
+- [x] 刷新后 Preview Store 恢复 Output 显隐；切换 Right 标签不重置该状态。
+- [x] 连续追加多条模拟日志时，每次都自动滚到最后一行并显示最新反馈。
 - [ ] 切换 Right 标签后，公共输出仍能标识反馈来源；关闭 Tool、隐藏 Primary 或刷新时，不把输出区误当作业务状态真源。
 
 ### 主题与无障碍
@@ -590,13 +620,31 @@ Primary 隐藏：Right View 填满工作台，无残留焦点或不可见状态
 - [ ] 键盘 Tab 顺序符合视觉顺序，隐藏区域不留下不可见焦点。
 - [ ] 文字放大和窄宽下没有重要动作被永久裁切。
 
+### 2026-09-07 浏览器点检证据
+
+- Primary 隐藏后，其 DOM / 可聚焦控件不再出现在无障碍快照中，Right View 与 Framework Output 保持显示；恢复 Primary 后原工具状态仍在。
+- Output 通过右侧 `×` 隐藏、顶部“输出”恢复后，已有日志逐行保持；组件测试同时覆盖追加日志自动滚底与相同快照不重建 DOM。
+- 分隔条键盘实测 `420 → 440 → 420px`，`aria-valuenow` 与 `aria-valuetext` 同步更新。
+- Ribbon `…` 菜单实测 `End` 聚焦末项、`Escape` 关闭并把焦点还给触发按钮。
+- Open Items 的 `Delete` 能关闭活动编译工具并恢复最近的头文件引用修正；Current Tool、Open Items 与 Right View 保持同一选择。关闭后 Host 优先恢复活动 Open Item 焦点；关闭最后一项时回退到当前 Ribbon Tool / Group，再以 Ribbon 展开按钮兜底。组件测试覆盖有 / 无活动项的返回值与焦点行为。
+- Current Tool `×` 实测采用同一 MRU 回退；重新打开编译工具后，Primary 与 Right View 再次一致。
+- Current Tool 已换成 `KtcCurrentToolRegion` 共享组件；深色 `Run` fixture 对照保持用户确认的“Tool 图标 + 标题 + 独立 ×”，点击 `×` 实测仍回退头文件引用修正，Open Items 与 Right View 保持一致。
+- 四段已由零状态 `KtcPrimaryShell` 编排；Directory 显示时保持 42px 单行，切换目录后刷新可恢复完整值；隐藏后对应 Grid 行收为零，Toolbar 直接贴合 Header，没有 ghost gap 或残留分隔。
+- Toolbar 已换成 `KtcToolbarStrip`；展开 / 紧凑切换继续复用同一个 Ribbon 与下级 Navigator。浏览器实测 Run 等无下级 Tool 会完全移除下展框，唯一 `…` 能列出全部一级工具，`Escape` 关闭外置菜单并恢复触发入口。
+- 窄宽下长目录保持单行整体截断，展开 Ribbon 固定尺寸换行；宽侧栏只增加空余空间，不拉伸按钮；高对比主题下边框、选中态与焦点仍可辨识。
+- 本轮全量门禁：`186` 个测试文件通过，`1049` 项通过、`1` 项跳过；`typecheck`、`docs:check`、`verify:architecture` 和 `git diff --check` 通过。使用受控 `PHOENIX_WING_ROOT + PHOENIX_WING_DEV_MODE=1` 的 `pnpm ext:dev:prepare` 也通过本地 Wing 来源门禁；新 Primary Shell / Directory / Toolbar / Current Tool 组件未进入正式 `dist/extension.js`。
+- 最终恢复场景为：浅色、标准宽度、Primary / Output 显示、Directory 隐藏、Ribbon 紧凑、下级名称隐藏、AutoBuild 活动。刷新后全部保持，浏览器 `warning/error` 日志为空。
+- 修正了 Primary 显隐反馈读取“切换后的按钮标签”造成的日志方向颠倒；现在记录实际动作，并有纯函数与静态接线回归测试。
+
 ## 12. 当前原型快照（不等同于验收）
 
 - 原型中：`package.json` 已出现 `ui` / `ui:dev` 命令入口。
 - 原型中：页面已出现 Directory、Toolbar、Current Tool、Open Items 等候选结构和代表 fixture。
-- 原型中：`KtcToolNavigator` 已有正式 legacy 默认呈现与原型 compact 显式呈现；紧凑网格、`Aa` 和纯图标 22px 仍需主题 / 宽度 / 键盘点检。
+- 原型已验证：`KtcToolNavigator` 保留正式 legacy 默认呈现，并由原型显式选择 compact；紧凑网格、`Aa`、纯图标 22px、无下级隐藏及窄 / 标准 / 宽呈现已有组件测试和浏览器证据，正式 VS Code 仍需另行保真点检。
 - 原型中：`KtcOpenItemsBar` 已完全替换预览页旧手写 Open Items DOM，并保持独立于 Current Tool 的第四段。
-- 原型中：`PreviewStateStore` 已接线，会将打开项、活动 Tool / Group / Editor、Navigator 和两份 MRU 归一为同一可解释快照；服务重启、完整场景矩阵和不可见焦点仍待手工点检。
+- 原型已验证：`KtcPrimaryShell`、`KtcDirectoryBar` 与 `KtcToolbarStrip` 已替换对应手写大区；四槽顺序、Directory 隐藏零空隙、固定 Ribbon 尺寸、同一 Ribbon DOM、无下级空框和外置 overflow 菜单都有自动或浏览器证据，且组件 Entry 仍只由 Preview 引入。
+- 原型已验证：`KtcCurrentToolRegion` 已替换手写 Current Tool Header / 滚动外壳，通过 `itemId` close intent 复用 Host 现有 MRU；同 item 更新不重建 slot，且仍未进入正式 Host bundle。
+- 原型已验证：`PreviewStateStore` 已接线，会将打开项、活动 Tool / Group / Editor、Navigator 和两份 MRU 归一为同一可解释快照；损坏 / 旧 / 未来 schema、存储 API 异常、服务重启和代表状态恢复均有自动或浏览器证据。正式 Webview 生命周期和隐藏焦点仍属于迁移点检。
 - 原型已确认：Current Tool 一级 Block 暂时禁止折叠，Header 使用“Tool 图标 + 标题 + 独立 `×`”；该变化仍是正式契约迁移 / 回归点检项。
 - 原型已验证：Code Assistant 目录、Tool Catalog、Current Tool 和 Open Items 共用稳定图标语义；AutoBuild 在 Current Tool Header 中显示 `build` 图标，不再显示折叠箭头。
 - 原型已验证：500 / 600 / 748px 桌面高度下由 Current Tool 和 Right Main 承担内部滚动，Open Items 与 Framework Output 保持可达；重复投影相同 Output 快照不再重建 DOM 或扰动焦点 / 滚动。

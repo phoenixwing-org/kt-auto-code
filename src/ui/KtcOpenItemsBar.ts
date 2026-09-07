@@ -140,11 +140,13 @@ export class KtcOpenItemsBar extends HTMLElement {
   get model(): KtcOpenItemsBarModel { return this.activeModel; }
 
   /** Restores keyboard focus to the active tab after a Host-driven rerender. */
-  focusActiveItem(): void {
+  focusActiveItem(): boolean {
     const activeIndex = this.activeModel.items.findIndex((item) => item.id === this.activeModel.activeId);
     const activeButton = activeIndex >= 0 ? this.activationButtons[activeIndex] : undefined;
-    activeButton?.focus();
-    activeButton?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (!activeButton) return false;
+    activeButton.focus();
+    activeButton.scrollIntoView({ block: "nearest", inline: "nearest" });
+    return true;
   }
 
   private render(): void {

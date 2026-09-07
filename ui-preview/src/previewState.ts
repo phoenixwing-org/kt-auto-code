@@ -12,6 +12,10 @@ export function resolvePreviewHostVisibility(primaryVisible: boolean): PreviewHo
   };
 }
 
+export function describePrimaryVisibilityAction(nextVisible: boolean): string {
+  return nextVisible ? "显示 Primary" : "隐藏 Primary";
+}
+
 export function touchMruItem(
   itemIds: readonly string[],
   itemId: string,

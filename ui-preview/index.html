@@ -15,7 +15,7 @@
     <span class="preview-connection" data-webview-preview-status role="status" aria-live="polite">正在连接热预览…</span>
     <span class="preview-devbar-spacer"></span>
     <div class="preview-segment" role="group" aria-label="区域显示">
-      <button type="button" data-action="toggle-primary" aria-label="隐藏 Primary" aria-pressed="true" title="隐藏 Primary">Primary</button><button type="button" data-action="toggle-output" data-preview-output="handled" aria-label="隐藏输出" aria-pressed="true" title="隐藏输出">输出</button>
+      <button type="button" data-action="toggle-primary" data-preview-output="handled" aria-label="隐藏 Primary" aria-pressed="true" title="隐藏 Primary">Primary</button><button type="button" data-action="toggle-output" data-preview-output="handled" aria-label="隐藏输出" aria-pressed="true" title="隐藏输出">输出</button>
     </div>
     <div class="preview-segment" role="group" aria-label="主题">
       <button type="button" data-theme-option="dark" aria-pressed="true">深色</button>
@@ -35,7 +35,7 @@
       <header class="preview-primary-header">
         <h1>KT Auto Code</h1>
         <div class="preview-header-actions">
-          <button class="preview-icon-button" type="button" data-action="toggle-directory" aria-pressed="true" title="隐藏目录">
+          <button class="preview-icon-button" type="button" data-action="toggle-directory" data-preview-output="handled" aria-pressed="true" title="隐藏目录">
             <svg class="preview-codicon" aria-hidden="true"><use data-directory-header-icon href="#preview-icon-folder-opened"></use></svg>
             <span class="preview-sr-only">显示或隐藏目录</span>
           </button>
@@ -50,25 +50,11 @@
         </div>
       </header>
 
-      <section class="preview-directory-row" data-directory-row aria-label="当前目录">
-        <span class="preview-directory-label">目录</span>
-        <button class="preview-directory-picker" type="button" data-action="cycle-directory" title="切换原型目录">
-          <span data-directory-name>PNXCaaStudy/PNXBomAnalysisWsp</span>
-          <svg aria-hidden="true"><use href="#preview-icon-chevron-down"></use></svg>
-        </button>
-        <button class="preview-icon-button preview-folder-button" type="button" data-action="choose-directory" title="选择目录">
-          <svg aria-hidden="true"><use href="#preview-icon-folder"></use></svg>
-          <span class="preview-sr-only">选择目录</span>
-        </button>
-      </section>
+      <ktc-primary-shell>
+        <ktc-directory-bar data-directory-row slot="directory"></ktc-directory-bar>
 
-      <section class="preview-toolbar-strip" data-toolbar-strip aria-label="工具栏">
-        <div class="preview-ribbon-strip">
-          <button class="preview-ribbon-toggle" type="button" data-action="toggle-ribbon" aria-expanded="true" title="收起工具栏">
-            <svg aria-hidden="true"><use href="#preview-icon-chevron-down"></use></svg>
-            <span class="preview-sr-only">展开或收起工具栏</span>
-          </button>
-          <nav class="preview-ribbon" aria-label="Code 工具">
+        <ktc-toolbar-strip data-toolbar-strip slot="toolbar">
+          <nav class="preview-ribbon" slot="ribbon" aria-label="Code 工具">
             <span class="preview-module-mark" aria-label="Code 模块">CODE</span>
             <button class="preview-ribbon-item is-active" type="button" data-ribbon-id="codeAssistant" data-node-kind="group" aria-label="代码辅助" aria-pressed="true" aria-expanded="true">
               <svg aria-hidden="true"><use href="#preview-icon-file-check"></use></svg>
@@ -92,37 +78,20 @@
               <span>自动代码</span>
             </button>
           </nav>
-          <button class="preview-icon-button preview-more-button" id="preview-ribbon-more" type="button" data-action="ribbon-more" title="全部工具与自定义" aria-haspopup="menu" aria-expanded="false" aria-controls="preview-ribbon-menu">
-            <svg aria-hidden="true"><use href="#preview-icon-more"></use></svg>
-            <span class="preview-sr-only">全部工具与自定义</span>
-          </button>
-        </div>
-        <div class="preview-toolbar-submenu" data-code-assistant-menu>
-          <ktc-tool-navigator id="preview-tool-navigator"></ktc-tool-navigator>
-        </div>
-      </section>
+          <ktc-tool-navigator id="preview-tool-navigator" slot="group-content"></ktc-tool-navigator>
+        </ktc-toolbar-strip>
 
-      <section class="preview-current-tool" data-current-tool aria-label="当前工具">
-        <header class="preview-current-tool-header">
-          <div class="preview-current-tool-label" role="heading" aria-level="2">
-            <svg aria-hidden="true"><use data-current-tool-icon href="#preview-icon-file-check"></use></svg>
-            <span data-current-tool-title>代码辅助</span>
-          </div>
-          <button class="preview-surface-close" type="button" data-action="close-current" title="关闭当前逻辑工具">
-            <svg aria-hidden="true"><use href="#preview-icon-close"></use></svg>
-            <span class="preview-sr-only">关闭当前逻辑工具</span>
-          </button>
-        </header>
-        <div class="preview-surface-scroll" id="preview-current-tool-body" data-tool-surface>
+        <ktc-current-tool-region data-current-tool slot="current">
+          <div class="preview-current-tool-body" id="preview-current-tool-body" data-tool-surface>
             <div data-code-assistant-surface>
               <section class="preview-primary-content" data-primary-content aria-live="polite"></section>
             </div>
             <section class="preview-group-placeholder" data-group-placeholder hidden aria-live="polite"></section>
-        </div>
+          </div>
+        </ktc-current-tool-region>
 
-      </section>
-
-      <ktc-open-items-bar id="preview-open-items-bar"></ktc-open-items-bar>
+        <ktc-open-items-bar id="preview-open-items-bar" slot="open-items"></ktc-open-items-bar>
+      </ktc-primary-shell>
     </aside>
 
     <div class="preview-splitter" id="preview-splitter" role="separator" aria-label="调整 Primary 宽度" aria-orientation="vertical" tabindex="0"></div>

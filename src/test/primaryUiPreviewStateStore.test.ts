@@ -194,4 +194,21 @@ describe("Primary UI preview persisted state", () => {
     expect(storage.removed).toEqual([PREVIEW_STATE_STORAGE_KEY]);
     expect(store.state).not.toBe(reset);
   });
+
+  it("存储读写和清除均失败时仍保持可用的内存状态", () => {
+    const storage: PreviewStateStorage = {
+      getItem() { throw new Error("blocked read"); },
+      setItem() { throw new Error("quota exceeded"); },
+      removeItem() { throw new Error("blocked remove"); },
+    };
+    const store = createPreviewStateStore({ storage });
+
+    expect(store.load()).toEqual(defaultPreviewPersistedState());
+    expect(store.save({ theme: "light", primaryWidth: "wide" })).toMatchObject({
+      theme: "light",
+      primaryWidth: "wide",
+    });
+    expect(store.state.theme).toBe("light");
+    expect(store.reset()).toEqual(defaultPreviewPersistedState());
+  });
 });
