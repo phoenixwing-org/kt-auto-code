@@ -23,6 +23,8 @@ export type KtcIgnorePrimaryActionDetail =
   | { readonly action: "setSourceEnabled"; readonly source: KtcIgnoreSourceId; readonly enabled: boolean }
   | { readonly action: "selectTarget"; readonly target: KtcIgnoreWriteTarget }
   | { readonly action: "openTarget"; readonly target: KtcIgnoreWriteTarget }
+  | { readonly action: "dedupeTarget"; readonly target: KtcIgnoreWriteTarget }
+  | { readonly action: "saveTarget"; readonly target: KtcIgnoreWriteTarget }
   | { readonly action: "analyze" }
   | {
       readonly action: "applyRules";
@@ -62,12 +64,13 @@ const KtcIgnorePrimaryPanelStyle = `
   .target-label { font-weight:650; }
   .target-status { color:var(--vscode-descriptionForeground); font-size:10px; }
   .toolbar, .selection-actions { display:flex; min-width:0; align-items:center; gap:5px; margin-top:7px; }
+  .toolbar { flex-wrap:wrap; }
   .toolbar button, .selection-actions button { min-height:26px; padding:2px 8px; border:1px solid var(--ktc-ui-border, var(--vscode-button-border, transparent)); border-radius:2px; color:var(--vscode-button-foreground); background:var(--vscode-button-background); cursor:pointer; }
   .toolbar button.secondary, .selection-actions button.secondary { color:var(--vscode-button-secondaryForeground); background:var(--vscode-button-secondaryBackground); }
   .toolbar button:hover:not(:disabled), .selection-actions button:hover:not(:disabled) { border-color:var(--ktc-ui-active-border, var(--vscode-focusBorder)); background:var(--vscode-button-hoverBackground); }
   .toolbar button.secondary:hover:not(:disabled), .selection-actions button.secondary:hover:not(:disabled) { background:var(--vscode-button-secondaryHoverBackground); }
   .toolbar button:disabled, .selection-actions button:disabled { opacity:.5; cursor:not-allowed; }
-  .toolbar button { flex:1 1 0; }
+  .toolbar button { min-width:0; flex:1 1 80px; }
   .selection-actions { justify-content:flex-end; }
   .selection-actions .selection-hint { min-width:0; margin-right:auto; color:var(--vscode-descriptionForeground); font-size:10px; }
   .preset-list, .recommendation-list, .rule-list { display:block; min-width:0; }
@@ -267,11 +270,37 @@ export class KtcIgnorePrimaryPanel extends HTMLElement {
     open.onclick = () => {
       if (canOpen && !view.running) this.emit({ action: "openTarget", target: view.selectedTarget });
     };
+
+    const duplicateCount = selectedTarget?.duplicateCount ?? 0;
+    const dedupe = this.button(`修正（${duplicateCount}）`, true);
+    const canDedupe = selectedTarget?.available === true && duplicateCount > 0;
+    dedupe.disabled = !canDedupe || view.running;
+    dedupe.title = !selectedTarget?.available
+      ? "当前写入目标不可用"
+      : duplicateCount === 0
+        ? `${selectedTarget.relativePath} 当前没有重复规则，无需修正`
+        : `将修正 ${selectedTarget.relativePath} 中的 ${duplicateCount} 条重复规则；只修改草稿，不会保存到磁盘`;
+    dedupe.onclick = () => {
+      if (canDedupe && !view.running) this.emit({ action: "dedupeTarget", target: view.selectedTarget });
+    };
+
+    const save = this.button("保存");
+    const canSave = selectedTarget?.available === true && selectedTarget.dirty;
+    save.disabled = !canSave || view.running;
+    save.title = !selectedTarget?.available
+      ? "当前写入目标不可用"
+      : !selectedTarget.dirty
+        ? `${selectedTarget.relativePath} 当前没有未保存编辑`
+        : `保存 ${selectedTarget.relativePath} 当前目标的全部未保存编辑到磁盘`;
+    save.onclick = () => {
+      if (canSave && !view.running) this.emit({ action: "saveTarget", target: view.selectedTarget });
+    };
+
     const analyze = this.button(view.running ? "分析中…" : "分析当前目录");
     analyze.disabled = !view.hasWorkspace || view.running;
     analyze.title = view.hasWorkspace ? "分析当前目录并生成推荐规则" : "请先打开工作区文件夹";
     analyze.onclick = () => this.emit({ action: "analyze" });
-    toolbar.append(open, analyze);
+    toolbar.append(open, dedupe, save, analyze);
     return toolbar;
   }
 

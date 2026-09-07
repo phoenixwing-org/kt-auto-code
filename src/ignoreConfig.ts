@@ -26,9 +26,11 @@ import {
 } from "./core/workspace/scanScope.js";
 import {
   ktcApplyIgnoreRuleMutation,
+  ktcDedupeIgnoreDocument,
   ktcDedupeIgnoreRules,
   ktcMergeIgnoreRuleSources,
   ktcRelocateGitIgnoreRules,
+  type KtcIgnoreDocumentDedupeResult,
   type KtcIgnoreRuleAction,
   type KtcIgnoreRuleMutationResult,
   type KtcIgnoreWriteTarget,
@@ -217,6 +219,7 @@ function readIgnoreTargetState(root: string, target: KtcIgnoreWriteTarget): Igno
       available: target === "phoenix" || !!file,
       dirty: document?.isDirty ?? false,
       patternCount: parseDotIgnoreText(text).length,
+      duplicateCount: ktcDedupeIgnoreDocument(text).removedRules.length,
     },
   };
 }
@@ -281,6 +284,16 @@ export interface KtcIgnoreDocumentMutationResult {
   readonly mutation: KtcIgnoreRuleMutationResult;
 }
 
+export interface KtcIgnoreDocumentDedupeMutationResult {
+  readonly summary: IgnoreConfigSummary;
+  readonly dedupe: KtcIgnoreDocumentDedupeResult;
+}
+
+export interface KtcIgnoreDocumentSaveResult {
+  readonly summary: IgnoreConfigSummary;
+  readonly saved: boolean;
+}
+
 export async function applyIgnoreRulesToDocument(
   root: string,
   target: KtcIgnoreWriteTarget,
@@ -293,6 +306,33 @@ export async function applyIgnoreRulesToDocument(
     return mutation.text;
   });
   return { summary, mutation };
+}
+
+/** Removes later exact-identity duplicates from the selected target's current buffer. */
+export async function dedupeIgnoreTargetDocument(
+  root: string,
+  target: KtcIgnoreWriteTarget,
+): Promise<KtcIgnoreDocumentDedupeMutationResult> {
+  let dedupe = ktcDedupeIgnoreDocument(readIgnoreTargetState(root, target).text);
+  const summary = await editIgnoreTargetDocument(root, target, (text) => {
+    dedupe = ktcDedupeIgnoreDocument(text);
+    return dedupe.text;
+  });
+  return { summary, dedupe };
+}
+
+/** Saves the selected target only after an explicit user action. */
+export async function saveIgnoreTargetDocument(
+  root: string,
+  target: KtcIgnoreWriteTarget,
+): Promise<KtcIgnoreDocumentSaveResult> {
+  const state = readIgnoreTargetState(root, target);
+  if (!state.summary.available) throw new Error("当前目录不在 Git 仓库内，无法保存根 .gitignore。");
+  const document = findOpenIgnoreTargetDocument(root, target);
+  if (!document?.isDirty) return { summary: buildIgnoreSummary(root), saved: false };
+  if (!await document.save()) throw new Error(`无法保存 ${state.summary.relativePath}`);
+  invalidateWorkspaceIgnorePatterns(root);
+  return { summary: refreshIgnoreConfig(root) ?? buildIgnoreSummary(root), saved: true };
 }
 
 export function applyIgnorePresetToDocument(

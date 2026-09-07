@@ -76,10 +76,12 @@ vi.mock("vscode", () => {
 import {
   applyIgnoreRulesToDocument,
   appendIgnorePresetToDocument,
+  dedupeIgnoreTargetDocument,
   invalidateWorkspaceIgnorePatterns,
   openIgnoreTargetFile,
   refreshIgnoreConfig,
   resolveWorkspaceIgnorePatterns,
+  saveIgnoreTargetDocument,
   savePrimaryCustomIgnorePatterns,
 } from "./ignoreConfig.js";
 import { KtcIgnoreController, ktcDefaultIgnoreGroupIds, ktcIsIgnoreMessage } from "./ignoreController.js";
@@ -111,6 +113,8 @@ describe("Ignore document host adapter", () => {
     expect(ktcIsIgnoreMessage({ type: "applyIgnorePreset", presetId: "cpp", action: "append" })).toBe(true);
     expect(ktcIsIgnoreMessage({ type: "applyIgnorePreset", presetId: "cpp", action: "append", target: "git" })).toBe(true);
     expect(ktcIsIgnoreMessage({ type: "openIgnoreTarget", target: "phoenix" })).toBe(true);
+    expect(ktcIsIgnoreMessage({ type: "dedupeIgnoreTarget", target: "git" })).toBe(true);
+    expect(ktcIsIgnoreMessage({ type: "saveIgnoreTarget", target: "phoenix" })).toBe(true);
     expect(ktcIsIgnoreMessage({ type: "applyIgnoreRules", target: "git", action: "remove", rules: ["build/"] })).toBe(true);
     expect(ktcIsIgnoreMessage({ type: "applyIgnoreRecommendations", groupIds: ["build-cache"] })).toBe(true);
     expect(ktcIsIgnoreMessage({
@@ -122,6 +126,8 @@ describe("Ignore document host adapter", () => {
     expect(ktcIsIgnoreMessage({ type: "applyIgnorePreset", presetId: "invalid", action: "append" } as never)).toBe(false);
     expect(ktcIsIgnoreMessage({ type: "applyIgnorePreset", presetId: "cpp", action: "replace" } as never)).toBe(false);
     expect(ktcIsIgnoreMessage({ type: "openIgnoreTarget", target: "workspace" } as never)).toBe(false);
+    expect(ktcIsIgnoreMessage({ type: "dedupeIgnoreTarget", target: "workspace" } as never)).toBe(false);
+    expect(ktcIsIgnoreMessage({ type: "saveIgnoreTarget", target: "workspace" } as never)).toBe(false);
     expect(ktcIsIgnoreMessage({ type: "applyIgnoreRules", target: "git", action: "append", rules: Array(501).fill("x") } as never)).toBe(false);
     expect(ktcIsIgnoreMessage({ type: "applyIgnoreRules", target: "git", action: "append", rules: ["x".repeat(501)] } as never)).toBe(false);
     expect(ktcIsIgnoreMessage({ type: "applyIgnoreRules", target: "git", action: "append", rules: ["build/\nsecret/"] } as never)).toBe(false);
@@ -171,6 +177,102 @@ describe("Ignore document host adapter", () => {
     expect(document.getText()).toContain("# >>> KT Auto Code preset:web");
     expect(summary.statusText).toContain("未保存");
     expect(fs.readFileSync(filename, "utf8")).toBe(diskText);
+  });
+
+  it("deduplicates the current dirty buffer while preserving exact-rule boundaries", async () => {
+    const root = workspaceRoot();
+    const filename = path.join(root, ".gitignore");
+    const diskText = [
+      "# keep handwritten layout",
+      " build_debug ",
+      "./build_debug",
+      "build_release",
+      "build_release",
+      "foo",
+      "foo/",
+      "Foo/",
+      "cache\\",
+      "cache/",
+      "",
+    ].join("\n");
+    fs.writeFileSync(filename, diskText, "utf8");
+
+    const dirty = await applyIgnoreRulesToDocument(root, "git", "append", ["dirty-only/"]);
+    expect(dirty.summary.targets[0]).toMatchObject({ dirty: true, duplicateCount: 3 });
+    fs.writeFileSync(filename, "stale-disk-only/\n", "utf8");
+
+    const result = await dedupeIgnoreTargetDocument(root, "git");
+    const document = documents.find((candidate) => candidate.uri.fsPath === filename)!;
+
+    expect(result.dedupe.removedRules).toEqual(["build_debug", "build_release", "cache/"]);
+    expect(document.getText()).toBe([
+      "# keep handwritten layout",
+      " build_debug ",
+      "build_release",
+      "foo",
+      "foo/",
+      "Foo/",
+      "cache\\",
+      "dirty-only/",
+      "",
+    ].join("\n"));
+    expect(document.isDirty).toBe(true);
+    expect(result.summary.targets[0]).toMatchObject({ dirty: true, duplicateCount: 0 });
+    expect(fs.readFileSync(filename, "utf8")).toBe("stale-disk-only/\n");
+  });
+
+  it("does not create a missing target when deduplication is a no-op", async () => {
+    const root = workspaceRoot();
+    const filename = path.join(root, ".gitignore");
+
+    const result = await dedupeIgnoreTargetDocument(root, "git");
+
+    expect(result.dedupe).toEqual({ text: "", removedRules: [] });
+    expect(result.summary.targets[0]).toMatchObject({ exists: false, dirty: false, duplicateCount: 0 });
+    expect(fs.existsSync(filename)).toBe(false);
+    expect(documents).toEqual([]);
+  });
+
+  it("saves the selected dirty buffer and treats a clean target as a no-op", async () => {
+    const root = workspaceRoot();
+    const filename = path.join(root, ".gitignore");
+    fs.writeFileSync(filename, "disk-only/\n", "utf8");
+    await applyIgnoreRulesToDocument(root, "git", "append", ["dirty-only/"]);
+    const document = documents.find((candidate) => candidate.uri.fsPath === filename)!;
+
+    const saved = await saveIgnoreTargetDocument(root, "git");
+
+    expect(saved.saved).toBe(true);
+    expect(document.isDirty).toBe(false);
+    expect(fs.readFileSync(filename, "utf8")).toBe("disk-only/\ndirty-only/\n");
+    expect(saved.summary.targets[0]).toMatchObject({ dirty: false, patternCount: 2, duplicateCount: 0 });
+
+    const clean = await saveIgnoreTargetDocument(root, "git");
+    expect(clean.saved).toBe(false);
+    expect(clean.summary.targets[0]).toMatchObject({ dirty: false, patternCount: 2, duplicateCount: 0 });
+  });
+
+  it("routes target deduplication and saving through the Controller", async () => {
+    const root = workspaceRoot();
+    const filename = path.join(root, ".gitignore");
+    fs.writeFileSync(filename, "build/\nbuild/\n", "utf8");
+    const controller = new KtcIgnoreController();
+
+    const deduped = await controller.handle({ type: "dedupeIgnoreTarget", target: "git" }, root);
+    expect(deduped.error).toBeUndefined();
+    expect(deduped.message).toContain("已修正 .gitignore 中 1 条重复规则");
+    expect(deduped.message).toContain("保存");
+    expect(deduped.summary?.targets[0]).toMatchObject({ dirty: true, duplicateCount: 0 });
+    expect(fs.readFileSync(filename, "utf8")).toBe("build/\nbuild/\n");
+
+    const saved = await controller.handle({ type: "saveIgnoreTarget", target: "git" }, root);
+    expect(saved.error).toBeUndefined();
+    expect(saved.message).toBe("已保存 .gitignore。");
+    expect(saved.summary?.targets[0]).toMatchObject({ dirty: false, duplicateCount: 0 });
+    expect(fs.readFileSync(filename, "utf8")).toBe("build/\n");
+
+    const clean = await controller.handle({ type: "saveIgnoreTarget", target: "git" }, root);
+    expect(clean.message).toContain("没有需要保存的更改");
   });
 
   it("routes gitignore sync through the Controller and reports the dirty buffer summary", async () => {
@@ -428,6 +530,27 @@ describe("Ignore document host adapter", () => {
     expect(fs.readFileSync(gitIgnore, "utf8")).toBe("");
     expect(documents.find((document) => document.uri.fsPath === gitIgnore)?.getText()).toBe("build/\nbuild\n");
     expect(appended.summary.targets[0]).toMatchObject({ exists: true, dirty: true, patternCount: 2 });
+  });
+
+  it("checks the latest target draft before append and never adds an existing rule twice", async () => {
+    const root = workspaceRoot();
+    const gitIgnore = path.join(root, ".gitignore");
+    fs.writeFileSync(gitIgnore, "build/\n", "utf8");
+    await applyIgnoreRulesToDocument(root, "git", "append", ["cache/"]);
+
+    const result = await new KtcIgnoreController().handle({
+      type: "applyIgnoreRules",
+      target: "git",
+      action: "append",
+      rules: ["./build/", "cache\\", "generated/", "generated/"],
+    }, root);
+
+    expect(result.error).toBeUndefined();
+    expect(result.message).toContain("已追加 1 条规则");
+    expect(result.message).toContain("已有 2 条，未重复添加");
+    expect(documents.find((document) => document.uri.fsPath === gitIgnore)?.getText())
+      .toBe("build/\ncache/\ngenerated/\n");
+    expect(fs.readFileSync(gitIgnore, "utf8")).toBe("build/\n");
   });
 
   it("uses exclusive target creation and never truncates an existing file", async () => {

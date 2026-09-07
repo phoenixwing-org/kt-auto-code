@@ -2,11 +2,13 @@ import {
   applyIgnorePresetToDocument,
   applyIgnoreRulesToDocument,
   appendIgnorePresetToDocument,
+  dedupeIgnoreTargetDocument,
   mergeGitIgnoreIntoDocument,
   openIgnoreConfigFile,
   openIgnoreTargetFile,
   refreshIgnoreConfig,
   removeIgnorePresetFromDocument,
+  saveIgnoreTargetDocument,
   savePrimaryCustomIgnorePatterns,
 } from "./ignoreConfig.js";
 import { KtcIgnoreRecommendationController } from "./ignoreRecommendationController.js";
@@ -21,6 +23,8 @@ import type {
 type KtcIgnoreMessageType =
   | "openIgnoreFile"
   | "openIgnoreTarget"
+  | "dedupeIgnoreTarget"
+  | "saveIgnoreTarget"
   | "savePrimaryCustomIgnore"
   | "syncIgnoreFromGit"
   | "applyIgnorePreset"
@@ -64,7 +68,9 @@ export function ktcIsIgnoreMessage(message: WebviewInboundMessage): message is K
   if (message.type === "openIgnoreFile"
     || message.type === "syncIgnoreFromGit"
     || message.type === "analyzeIgnore") return true;
-  if (message.type === "openIgnoreTarget") return isIgnoreTarget(message.target);
+  if (message.type === "openIgnoreTarget"
+    || message.type === "dedupeIgnoreTarget"
+    || message.type === "saveIgnoreTarget") return isIgnoreTarget(message.target);
   if (message.type === "applyIgnorePreset") {
     return ignorePresetIds.has(message.presetId)
       && isIgnoreAction(message.action)
@@ -103,6 +109,9 @@ function mutationMessage(
   const changed = action === "append" ? mutation.addedRules.length : mutation.removedRules.length;
   const targetLabel = target === "git" ? ".gitignore" : ".phoenix/.ignore";
   if (changed === 0) return `所选规则在 ${targetLabel} 中已是目标状态。`;
+  if (action === "append" && mutation.unchangedRules.length > 0) {
+    return `已追加 ${changed} 条规则到 ${targetLabel}；已有 ${mutation.unchangedRules.length} 条，未重复添加。文件保持未保存状态。`;
+  }
   return `已${action === "append" ? "追加" : "去除"} ${changed} 条规则到 ${targetLabel}，文件保持未保存状态。`;
 }
 
@@ -133,6 +142,19 @@ export class KtcIgnoreController {
       } else if (message.type === "openIgnoreTarget") {
         await openIgnoreTargetFile(root, message.target);
         summary = this.snapshot(root);
+      } else if (message.type === "dedupeIgnoreTarget") {
+        const result = await dedupeIgnoreTargetDocument(root, message.target);
+        summary = result.summary;
+        const removed = result.dedupe.removedRules.length;
+        const targetLabel = message.target === "git" ? ".gitignore" : ".phoenix/.ignore";
+        messageText = removed > 0
+          ? `已修正 ${targetLabel} 中 ${removed} 条重复规则；请检查后点击“保存”。`
+          : `${targetLabel} 没有需要修正的重复规则。`;
+      } else if (message.type === "saveIgnoreTarget") {
+        const result = await saveIgnoreTargetDocument(root, message.target);
+        summary = result.summary;
+        const targetLabel = message.target === "git" ? ".gitignore" : ".phoenix/.ignore";
+        messageText = result.saved ? `已保存 ${targetLabel}。` : `${targetLabel} 没有需要保存的更改。`;
       } else if (message.type === "savePrimaryCustomIgnore") {
         summary = await savePrimaryCustomIgnorePatterns(root, message.patterns);
       } else if (message.type === "syncIgnoreFromGit") {

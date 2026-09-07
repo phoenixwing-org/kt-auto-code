@@ -3,6 +3,7 @@ import { pnwCodeIsIgnoredPath, pnwCodeShouldSkipDirName } from "@phoenix-wing/co
 import { describe, expect, it } from "vitest";
 import {
   ktcApplyIgnoreRuleMutation,
+  ktcDedupeIgnoreDocument,
   ktcDedupeIgnoreRules,
   ktcMergeIgnoreRuleSources,
   ktcNormalizeIgnoreRule,
@@ -24,6 +25,50 @@ describe("ignoreManagerModel", () => {
   it("deduplicates exact semantic rules in stable order without collapsing directory intent", () => {
     expect(ktcDedupeIgnoreRules(["./build/", "build", "cache\\", "cache/", "*.obj"]))
       .toEqual(["build/", "build", "cache/", "*.obj"]);
+  });
+
+  it("deduplicates document rule lines while preserving the first spelling, comments, blanks, and LF", () => {
+    const source = [
+      "# keep handwritten layout",
+      " build_debug ",
+      "",
+      "build_release",
+      "# build_debug is documented here",
+      "./build_debug",
+      "build_release",
+      "build_debug",
+      "cache\\",
+      "cache/",
+      "",
+    ].join("\n");
+
+    expect(ktcDedupeIgnoreDocument(source)).toEqual({
+      text: [
+        "# keep handwritten layout",
+        " build_debug ",
+        "",
+        "build_release",
+        "# build_debug is documented here",
+        "cache\\",
+        "",
+      ].join("\n"),
+      removedRules: ["build_debug", "build_release", "build_debug", "cache/"],
+    });
+  });
+
+  it("preserves CRLF while deduplicating normalized ./ and backslash spellings", () => {
+    const source = "# note\r\n build/ \r\n\r\n./build/\r\ncache\\\r\ncache/\r\n";
+
+    expect(ktcDedupeIgnoreDocument(source)).toEqual({
+      text: "# note\r\n build/ \r\n\r\ncache\\\r\n",
+      removedRules: ["build/", "cache/"],
+    });
+  });
+
+  it("keeps directory intent and case distinct and returns the original text for a no-op", () => {
+    const source = "# distinct rules\nfoo\nfoo/\nFoo/\n";
+
+    expect(ktcDedupeIgnoreDocument(source)).toEqual({ text: source, removedRules: [] });
   });
 
   it("relocates repository path rules without widening their selected-root scope", () => {

@@ -40,12 +40,12 @@ function config(rules: readonly IgnoreMergedRuleSummary[] = []): IgnoreConfigSum
       {
         target: "git", label: "Git .gitignore", relativePath: ".gitignore",
         fullPath: "/repo/.gitignore", exists: true, available: true, dirty: false,
-        patternCount: rules.filter((item) => item.presentIn.git).length,
+        patternCount: rules.filter((item) => item.presentIn.git).length, duplicateCount: 0,
       },
       {
         target: "phoenix", label: "Phoenix .ignore", relativePath: ".phoenix/.ignore",
         fullPath: "/repo/.phoenix/.ignore", exists: true, available: true, dirty: false,
-        patternCount: rules.filter((item) => item.presentIn.phoenix).length,
+        patternCount: rules.filter((item) => item.presentIn.phoenix).length, duplicateCount: 0,
       },
     ],
     mergedRules: rules,
@@ -83,6 +83,7 @@ describe("Ignore Primary panel model", () => {
     expect(state.openSections).toEqual(["sources", "recommendations"]);
     expect(view.openSections).toEqual({ sources: true, builtIn: false, effective: false, recommendations: true });
     expect(view.targets.map((target) => target.target)).toEqual(["git", "phoenix"]);
+    expect(view.targets.map((target) => target.duplicateCount)).toEqual([0, 0]);
     expect(view.targets.find((target) => target.target === "git")?.selected).toBe(true);
     expect(view.builtInRules).toEqual([".git/", "build/", "build"]);
     expect(view.effectiveRules).toEqual([]);
@@ -100,6 +101,18 @@ describe("Ignore Primary panel model", () => {
 
     fallbackState = ktcReconcileIgnorePrimaryPanelState(fallbackState, { config: config() });
     expect(fallbackState).toMatchObject({ selectedTarget: "git", targetSelectionMode: "automatic" });
+  });
+
+  it("projects the selected target duplicate count for target-level cleanup", () => {
+    const inputConfig = config();
+    inputConfig.targets = inputConfig.targets.map((target) => target.target === "git"
+      ? { ...target, duplicateCount: 2 }
+      : target);
+    const input: KtcIgnorePrimaryPanelModel = { config: inputConfig };
+    const view = ktcBuildIgnorePrimaryPanelViewModel(input, ktcCreateIgnorePrimaryPanelState(input));
+
+    expect(view.targets.find((target) => target.target === "git")?.duplicateCount).toBe(2);
+    expect(view.targets.find((target) => target.target === "phoenix")?.duplicateCount).toBe(0);
   });
 
   it("keeps an explicit target in one directory and resets to Git-first when the directory changes", () => {
