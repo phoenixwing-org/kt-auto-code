@@ -138,6 +138,8 @@ export type WebviewInboundMessage =
   | { type: "openEncodingSettings"; toolId: "encodingFix" }
   | { type: "openIgnoreFile" }
   | { type: "openIgnoreTarget"; target: KtcIgnoreWriteTarget }
+  | { type: "dedupeIgnoreTarget"; target: KtcIgnoreWriteTarget }
+  | { type: "saveIgnoreTarget"; target: KtcIgnoreWriteTarget }
   | { type: "savePrimaryCustomIgnore"; patterns: string[] }
   | { type: "syncIgnoreFromGit" }
   | {
@@ -296,6 +298,8 @@ export interface IgnoreTargetSummary {
   available: boolean;
   dirty: boolean;
   patternCount: number;
+  /** Number of later rule lines that duplicate an earlier exact write identity. */
+  duplicateCount: number;
 }
 
 export type IgnoreMergedRuleSummary = KtcMergedIgnoreRule;

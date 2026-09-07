@@ -150,10 +150,13 @@ export class KtcIgnoreRecommendationController {
       : applied.mutation.removedRules.length;
     const targetLabel = target === "git" ? ".gitignore" : ".phoenix/.ignore";
     const verb = action === "append" ? "追加" : "去除";
+    const unchangedCount = action === "append" ? applied.mutation.unchangedRules.length : 0;
     return {
       summary: applied.summary,
       message: changedCount > 0
-        ? `已${verb} ${changedCount} 条推荐规则到 ${targetLabel}，文件保持未保存状态。`
+        ? `已${verb} ${changedCount} 条推荐规则到 ${targetLabel}${unchangedCount > 0
+          ? `；已有 ${unchangedCount} 条，未重复添加`
+          : ""}，文件保持未保存状态。`
         : `所选推荐规则在 ${targetLabel} 中已是目标状态。`,
     };
   }
