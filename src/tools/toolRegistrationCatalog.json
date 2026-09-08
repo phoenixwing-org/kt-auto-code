@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "tools": [
+    {
+      "toolId": "ignoreSettings",
+      "title": "Ignore 管理",
+      "shortTitle": "Ignore",
+      "description": "统一检查插件、Git 与 Phoenix 忽略",
+      "icon": "exclude",
+      "groupId": "ignoreSettings"
+    },
+    {
+      "toolId": "environmentSettings",
+      "title": "设置",
+      "shortTitle": "设置",
+      "description": "工作区策略与本机工具配置",
+      "icon": "settings",
+      "groupId": "environmentSettings"
+    },
+    {
+      "toolId": "git",
+      "title": "Git",
+      "shortTitle": "Git",
+      "description": "仓库、分支与提交操作",
+      "icon": "git",
+      "groupId": "git"
+    },
+    {
+      "toolId": "run",
+      "title": "Run",
+      "shortTitle": "Run",
+      "description": "运行配置与状态",
+      "icon": "play",
+      "groupId": "run"
+    },
+    {
+      "toolId": "codeRename",
+      "title": "搜索替换",
+      "shortTitle": "替换",
+      "description": "搜索并替换指定目录中的文本、文件名和文件夹名",
+      "icon": "replace",
+      "groupId": "replace"
+    },
+    {
+      "toolId": "codeAssistant",
+      "title": "代码辅助",
+      "shortTitle": "代码辅助",
+      "description": "低频代码迁移和修正工具",
+      "icon": "code-assistant",
+      "groupId": "codeAssistant"
+    },
+    {
+      "toolId": "reorderMembers",
+      "title": "C++ 成员排序",
+      "shortTitle": "成员排序",
+      "description": "扫描、预览并确认写回",
+      "icon": "sort",
+      "groupId": "codeAssistant"
+    },
+    {
+      "toolId": "headerAscii",
+      "title": "头文件 ASCII 修正",
+      "shortTitle": "ASCII 修正",
+      "description": "预检并修正问题字节",
+      "icon": "file",
+      "groupId": "codeAssistant"
+    },
+    {
+      "toolId": "encodingFix",
+      "title": "编码修正",
+      "shortTitle": "编码修正",
+      "description": "检查并无损转换项目编码",
+      "icon": "file",
+      "groupId": "codeAssistant"
+    },
+    {
+      "toolId": "uuidReplace",
+      "title": "UUID 替换",
+      "shortTitle": "UUID",
+      "description": "扫描映射并确认写入",
+      "icon": "uuid",
+      "groupId": "codeAssistant"
+    },
+    {
+      "toolId": "caaDialog",
+      "title": "CAA UI",
+      "shortTitle": "CAA UI",
+      "description": "扫描 CATDlg 并连接 Desk Tools",
+      "icon": "file",
+      "groupId": "codeAssistant"
+    },
+    {
+      "toolId": "projectRename",
+      "title": "项目改名",
+      "shortTitle": "项目改名",
+      "description": "复杂项目分析与写盘前 Diff",
+      "icon": "search",
+      "groupId": "replace"
+    },
+    {
+      "toolId": "packageIncludes",
+      "title": "头文件引用修正",
+      "shortTitle": "头文件修正",
+      "description": "平铺 include → <KtCore/...>",
+      "icon": "file",
+      "groupId": "codeAssistant"
+    },
+    {
+      "toolId": "autoBuild",
+      "title": "编译工具",
+      "shortTitle": "编译",
+      "description": "CAA / MSVC 批量构建",
+      "icon": "build",
+      "groupId": "codeAssistant"
+    },
+    {
+      "toolId": "codegen",
+      "title": "自动代码",
+      "shortTitle": "自动代码",
+      "description": "管理 Codegen JSON、控制符目录与应用报告",
+      "icon": "sliders",
+      "groupId": "codegen"
+    }
+  ]
+}

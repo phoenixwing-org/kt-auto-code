@@ -95,6 +95,7 @@ export interface KtcProjectRenameAnalysisReport {
   readonly root: string;
   readonly sourceName: string;
   readonly targetName: string;
+  /** Exact normalized active rules used by analysis, Diff preview and apply. */
   readonly rules: readonly KtcProjectRenameRule[];
   /** Ignore patterns frozen when this report was analyzed. */
   readonly ignorePatterns: readonly string[];
@@ -166,6 +167,14 @@ export type KtcProjectRenameViewInboundMessage =
     }
   | {
       readonly type: "analyze";
+      readonly sourceName: string;
+      readonly targetName: string;
+      readonly sourcePrefix: string;
+      readonly targetPrefix: string;
+      readonly rules: readonly KtcProjectRenameRule[];
+    }
+  | {
+      readonly type: "syncDraft";
       readonly sourceName: string;
       readonly targetName: string;
       readonly sourcePrefix: string;

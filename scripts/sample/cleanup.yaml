@@ -1,0 +1,14 @@
+# 取消指定目录链接；支持 * 和 ?，不会删除链接指向的源目录。
+unlinkDirectories:
+  - 'Demo*'
+  - SampleLibrary
+
+delete:
+  directories:
+    - objects
+    - build
+  files:
+    - '*.obj'
+    - '*.exp'
+    - '*.pdb'
+    - 'test_*.exe'

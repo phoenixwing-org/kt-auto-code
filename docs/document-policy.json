@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "owner": "KT Auto Code maintainers",
-  "lastVerified": "2026-09-06",
+  "lastVerified": "2026-09-08",
   "appliesTo": "0.8.x",
   "rules": [
     {
@@ -37,6 +37,24 @@
       "status": "current",
       "appliesTo": "0.9.0",
       "reason": "用户已确认的两区 Primary Shell、无 Header Tool Surface、当前 Ribbon 项显隐与悬浮关闭，以及双 Editor companion、Group/Tool 导航、Action Registry 与分阶段验证计划"
+    },
+    {
+      "match": "^docs/0\\.9\\.0-Right工具Primary迁移点检\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.0",
+      "reason": "0.9.0 Right 工具向 Primary 分阶段迁移的 Preview-first 决策、AutoBuild 状态安全契约与正式接线验收清单"
+    },
+    {
+      "match": "^docs/0\\.9\\.0-Primary迁移需求归档\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.0",
+      "reason": "2026-09-08 连续 UI 决策、PnwCombo、脚本同步、TypeScript Root 清理与未完成验收的集中记录"
+    },
+    {
+      "match": "^docs/PnwCombo组件提炼TODO\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.0",
+      "reason": "本地 PnwCombo 已接入消费者，记录下版迁入 Wing 前必须保留的模型、事件与验收边界"
     },
     {
       "match": "^docs/Phoenix-Auto统一Ignore方案\\.md$",

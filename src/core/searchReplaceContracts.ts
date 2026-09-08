@@ -14,6 +14,7 @@ export interface KtcSearchReplaceRequest {
   scopeLabel?: string;
   includeIgnored?: boolean;
   pluginIgnoreEnabled?: boolean;
+  ignoreEnabled?: boolean;
   builtInIgnoreEnabled?: boolean;
   gitIgnoreEnabled?: boolean;
   customIgnoreEnabled?: boolean;

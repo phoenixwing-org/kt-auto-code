@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ktcReadModuleContribution, ktcReadModuleToolDefinitions } from "./moduleTools.js";
 
 const optionalCadModuleFixture = {
+  version: "0.2.0",
   ktAutoCodeModule: {
     id: "cad",
     title: "CAD",
@@ -36,8 +37,27 @@ describe("shared Ribbon module tool definitions", () => {
     });
   });
 
+  it("保留可选扩展版本管理 manifest 中已验证的显示文案", () => {
+    const tool = ktcReadModuleToolDefinitions(optionalCadModuleFixture, "cad")[0]!;
+
+    expect(tool).toEqual({
+      id: "cadFilename",
+      moduleId: "cad",
+      shortTitle: "文件名",
+      title: "CAD 文件名",
+      description: "文件名",
+      command: "ktAutoCad.block.filename",
+      icon: undefined,
+      requirement: "none",
+    });
+    expect(Object.isFrozen(tool)).toBe(true);
+    expect(Reflect.set(tool, "title", "Shell 二次改名")).toBe(false);
+    expect(tool.title).toBe("CAD 文件名");
+  });
+
   it("rejects duplicate, unsafe and cross-module commands", () => {
     const packageJson = {
+      version: "0.2.0",
       ktAutoCodeModule: {
         id: "cad",
         title: "CAD",
@@ -47,6 +67,9 @@ describe("shared Ribbon module tool definitions", () => {
           { id: "safe", shortTitle: "重复", title: "重复", description: "重复", command: "ktAutoCad.open", requirement: "none" },
           { id: "bad-id", shortTitle: "错误", title: "错误", description: "错误", command: "ktAutoCad.open", requirement: "none" },
           { id: "foreign", shortTitle: "越界", title: "越界", description: "越界", command: "workbench.action.closeWindow", requirement: "none" },
+          { id: "missingShortTitle", shortTitle: "", title: "缺少短名", description: "错误", command: "ktAutoCad.open", requirement: "none" },
+          { id: "missingTitle", shortTitle: "错误", title: "", description: "错误", command: "ktAutoCad.open", requirement: "none" },
+          { id: "missingDescription", shortTitle: "错误", title: "错误", description: "", command: "ktAutoCad.open", requirement: "none" },
         ],
       },
     };
@@ -55,6 +78,7 @@ describe("shared Ribbon module tool definitions", () => {
 
   it("parses an unrelated future module through the same contract", () => {
     const contribution = ktcReadModuleContribution({
+      version: "1.0.0",
       ktAutoCodeModule: {
         id: "drawing-review",
         title: "Review",

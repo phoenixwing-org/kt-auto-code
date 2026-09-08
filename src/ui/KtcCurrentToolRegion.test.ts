@@ -23,6 +23,8 @@ class FakeNode {
   textContent = "";
   title = "";
   type = "";
+  hidden = false;
+  disabled = false;
   tabIndex = 0;
   scrollTop = 0;
   onclick?: () => void;
@@ -32,6 +34,7 @@ class FakeNode {
   append(...nodes: FakeNode[]): void { this.children.push(...nodes); }
   replaceChildren(...nodes: FakeNode[]): void { this.children.splice(0, this.children.length, ...nodes); }
   setAttribute(name: string, value: string): void { this.attributes.set(name, value); }
+  removeAttribute(name: string): void { this.attributes.delete(name); }
   focus(): void { fakeActiveElement = this; }
 }
 
@@ -133,7 +136,7 @@ describe("KtcCurrentToolRegion", () => {
     const identity = byClass(element.shadow, "identity");
     const title = byClass(element.shadow, "title");
     const icon = byClass(identity, "icon");
-    const close = byAria(element.shadow, "关闭当前逻辑工具");
+    const close = byAria(element.shadow, "关闭 编译工具完整标题");
     expect(region.attributes.get("aria-labelledby")).toBe("ktc-current-tool-region-title");
     expect(identity.tagName).toBe("div");
     expect(title.textContent).toBe("编译工具完整标题");
@@ -143,11 +146,66 @@ describe("KtcCurrentToolRegion", () => {
     expect(findNodes(icon, (node) => node.tagName === "path")[0]?.attributes.get("d"))
       .toBe("M2 4h12v8H2zM4 6h4M4 9h7");
     expect(close.title).toBe("关闭 编译工具完整标题");
+    expect(close.hidden).toBe(false);
+    expect(close.disabled).toBe(false);
+    expect(close.tabIndex).toBe(0);
+    expect(close.attributes.has("aria-hidden")).toBe(false);
     expect(findNodes(element.shadow, (node) => node.tagName === "button")).toEqual([close]);
 
     const style = findNodes(element.shadow, (node) => node.tagName === "style")[0]!.textContent;
     expect(style).toContain("grid-template-rows:34px minmax(0,1fr)");
     expect(style).toContain("height:34px; min-height:34px");
+    expect(style).toContain(".close[hidden] { display:none; }");
+  });
+
+  it("自动代码使用统一的 Element Plus Operation 实心图标", async () => {
+    installFakeDom();
+    const browser = await import("./KtcCurrentToolRegion.js");
+    const element = new browser.KtcCurrentToolRegion() as unknown as FakeElement & {
+      model: KtcCurrentToolRegionModel;
+    };
+    element.model = { itemId: "tool:codegen", title: "自动代码", icon: "sliders" };
+
+    const icon = byClass(element.shadow, "icon");
+    expect(icon.attributes.get("data-icon")).toBe("sliders");
+    expect(icon.attributes.get("viewBox")).toBe("0 0 1024 1024");
+    expect(findNodes(icon, (node) => node.tagName === "path")[0]?.attributes.get("d"))
+      .toContain("M389.44 768");
+    expect(findNodes(element.shadow, (node) => node.tagName === "style")[0]?.textContent)
+      .toContain('.icon[data-icon="sliders"] path { fill:currentColor; stroke:none; }');
+  });
+
+  it("欢迎或空 itemId 隐藏并禁用关闭按钮，且不会暴露焦点或 close intent", async () => {
+    installFakeDom();
+    const browser = await import("./KtcCurrentToolRegion.js");
+    const element = new browser.KtcCurrentToolRegion() as unknown as FakeElement & {
+      model: KtcCurrentToolRegionModel;
+    };
+    element.model = { itemId: "  ", title: "欢迎", icon: "layout" };
+
+    const close = byClass(element.shadow, "close");
+    expect(close.hidden).toBe(true);
+    expect(close.disabled).toBe(true);
+    expect(close.tabIndex).toBe(-1);
+    expect(close.attributes.get("aria-hidden")).toBe("true");
+    expect(close.attributes.has("aria-label")).toBe(false);
+    expect(close.title).toBe("");
+
+    close.onclick?.();
+    expect(element.events).toEqual([]);
+
+    element.model = { itemId: "tool:run", title: "Run", icon: "play" };
+    expect(close.hidden).toBe(false);
+    expect(close.disabled).toBe(false);
+    expect(close.tabIndex).toBe(0);
+    expect(close.attributes.get("aria-label")).toBe("关闭 Run");
+    expect(close.attributes.has("aria-hidden")).toBe(false);
+
+    element.model = { itemId: "", title: "欢迎", icon: "layout" };
+    expect(close.hidden).toBe(true);
+    expect(close.disabled).toBe(true);
+    expect(close.tabIndex).toBe(-1);
+    expect(close.attributes.has("aria-label")).toBe(false);
   });
 
   it("默认插槽所在 Body 是唯一纵向滚动边界且具备完整可访问名称", async () => {
@@ -207,7 +265,7 @@ describe("KtcCurrentToolRegion", () => {
     element.model = { itemId: "tool:run", title: "Run", icon: "play" };
     const before = element.model;
 
-    byAria(element.shadow, "关闭当前逻辑工具").onclick?.();
+    byAria(element.shadow, "关闭 Run").onclick?.();
 
     expect(element.events).toHaveLength(1);
     expect(element.events[0]).toMatchObject({

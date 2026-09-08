@@ -37,7 +37,7 @@ export function ktcParseProjectRenameViewMessage(value: unknown): KtcProjectRena
       targetPrefix: value.targetPrefix,
     };
   }
-  if (value.type === "analyze"
+  if ((value.type === "analyze" || value.type === "syncDraft")
     && ktcIsBoundedString(value.sourceName)
     && ktcIsBoundedString(value.targetName)
     && ktcIsBoundedString(value.sourcePrefix)
@@ -45,7 +45,7 @@ export function ktcParseProjectRenameViewMessage(value: unknown): KtcProjectRena
     const rules = ktcParseProjectRenameRules(value.rules);
     if (!rules) return undefined;
     return {
-      type: "analyze",
+      type: value.type,
       sourceName: value.sourceName,
       targetName: value.targetName,
       sourcePrefix: value.sourcePrefix,

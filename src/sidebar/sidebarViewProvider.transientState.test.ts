@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const vscodeHost = vi.hoisted(() => ({
   executeCommand: vi.fn(async () => undefined),
   openExternal: vi.fn<(uri: unknown) => Promise<boolean>>(async () => true),
+  showQuickPick: vi.fn<(items: readonly unknown[], options?: unknown) => Promise<unknown>>(async () => undefined),
   configurationValues: new Map<string, unknown>(),
   outputLines: [] as string[],
 }));
@@ -60,6 +61,7 @@ vi.mock("vscode", () => {
       })),
       showInformationMessage: vi.fn(),
       showErrorMessage: vi.fn(),
+      showQuickPick: vscodeHost.showQuickPick,
     },
   };
 });
@@ -79,7 +81,8 @@ import {
   ktcIgnoreController,
   type KtcIgnoreControllerResult,
 } from "../ignoreController.js";
-import { registerTool } from "../tools/registry.js";
+import { registerNavigationDescriptor, registerTool } from "../tools/registry.js";
+import { ktcRequireToolRegistration } from "../tools/toolRegistrationCatalog.js";
 import { encodingFixTool } from "../tools/encodingFix/index.js";
 import { reorderMembersTool } from "../tools/reorderMembers/index.js";
 import {
@@ -130,15 +133,30 @@ const testTool: KtTool = {
 registerTool(testTool);
 registerTool(encodingFixTool);
 registerTool(reorderMembersTool);
-registerTool({
-  ...testTool,
+registerNavigationDescriptor({
   id: "codeAssistant",
   title: "代码辅助",
-  getPanelModel() {
-    return { summary: { id: "codeAssistant", title: this.title, description: this.description } };
-  },
+  description: "代码辅助导航",
+  kind: "group",
 });
 const runEditorCompanionAction = vi.fn(async () => undefined);
+registerTool({
+  ...testTool,
+  id: "packageIncludes",
+  title: "头文件引用修正",
+  ribbonVisible: false,
+  getPanelModel() {
+    return {
+      summary: {
+        id: "packageIncludes",
+        title: this.title,
+        description: this.description,
+        ribbonVisible: false,
+      },
+    };
+  },
+  runEditorCompanionAction,
+});
 registerTool({
   ...testTool,
   id: "autoBuild",
@@ -197,6 +215,16 @@ interface ProviderInternals {
   moduleView?: vscode.WebviewView;
   activeToolId: string;
   codeAssistantFeatureId?: string;
+  codeAssistantTreeUiState: {
+    navigatorMode: "outline" | "grid";
+    showLabels: boolean;
+    treeExpanded: boolean;
+    cppOrganizeExpanded: boolean;
+    fileToolsExpanded: boolean;
+    caaExpanded: boolean;
+    reorderActionsExpanded: boolean;
+    reorderResultsExpanded: boolean;
+  };
   directoryVisible: boolean;
   openToolIds: string[];
   toolStates: Map<string, ToolUiState>;
@@ -229,6 +257,7 @@ function workingContext(resolvedDirectory: string): KtcWorkingContext {
     resolvedDirectory,
     label: resolvedDirectory.split("/").at(-1) ?? resolvedDirectory,
     pluginIgnoreEnabled: false,
+    ignoreEnabled: true,
     builtInIgnoreEnabled: true,
     gitIgnoreEnabled: true,
     customIgnoreEnabled: false,
@@ -272,6 +301,7 @@ function webviewView(viewType: string): FakeWebviewView {
         messages.push(message);
         return Promise.resolve(true);
       }),
+      onDidReceiveMessage: vi.fn(() => ({ dispose: vi.fn() })),
     },
     show: vi.fn(),
     onDidChangeVisibility: vi.fn(() => ({ dispose: vi.fn() })),
@@ -284,13 +314,15 @@ function createProvider(options?: { globalState?: vscode.Memento }): {
   internals: ProviderInternals;
   module: FakeWebviewView;
   globalState: vscode.Memento;
+  workspaceState: vscode.Memento;
 } {
   const globalState = options?.globalState ?? memory();
-  const provider = new SidebarViewProvider(extensionUri(), globalState, memory());
+  const workspaceState = memory();
+  const provider = new SidebarViewProvider(extensionUri(), globalState, workspaceState);
   const internals = provider as unknown as ProviderInternals;
   const module = webviewView(SidebarViewProvider.moduleViewType);
   internals.moduleView = module;
-  return { provider, internals, module, globalState };
+  return { provider, internals, module, globalState, workspaceState };
 }
 
 function stateMessages(view: FakeWebviewView): Extract<WebviewOutboundMessage, { type: "state" }>[] {
@@ -300,7 +332,7 @@ function stateMessages(view: FakeWebviewView): Extract<WebviewOutboundMessage, {
 }
 
 function companionSnapshot(
-  toolId: "autoBuild" | "projectRename",
+  toolId: KtcEditorPrimaryCompanionSnapshot["toolId"],
   panelId: string,
   overrides: Partial<KtcEditorPrimaryCompanionSnapshot> = {},
 ): KtcEditorPrimaryCompanionSnapshot {
@@ -310,7 +342,9 @@ function companionSnapshot(
     sessionId: `${panelId}-session`,
     revision: 0,
     lifecycle: "visible",
-    title: toolId === "autoBuild" ? "自动编译" : "项目改名",
+    title: toolId === "autoBuild"
+      ? "自动编译"
+      : toolId === "packageIncludes" ? "头文件引用修正" : "项目改名",
     status: "idle",
     message: "已连接",
     ready: true,
@@ -328,8 +362,11 @@ function setInstalledExtensions(...extensions: readonly unknown[]): void {
 describe("SidebarViewProvider transient tool state", () => {
   beforeEach(() => {
     setInstalledExtensions();
+    (vscode.workspace as unknown as { workspaceFolders?: unknown }).workspaceFolders = undefined;
     vscodeHost.executeCommand.mockClear();
     vscodeHost.openExternal.mockClear();
+    vscodeHost.showQuickPick.mockReset();
+    vscodeHost.showQuickPick.mockResolvedValue(undefined);
     vscodeHost.configurationValues.clear();
     vscodeHost.outputLines.length = 0;
     runEditorCompanionAction.mockClear();
@@ -344,7 +381,177 @@ describe("SidebarViewProvider transient tool state", () => {
 
   afterEach(() => {
     setInstalledExtensions();
+    (vscode.workspace as unknown as { workspaceFolders?: unknown }).workspaceFolders = undefined;
     vi.restoreAllMocks();
+  });
+
+  it("Primary Webview 允许已安装可选模块加载自己的 extension: 图标资源", () => {
+    setInstalledExtensions({
+      id: "kuntai.kt-auto-cad",
+      extensionUri: vscode.Uri.file("/cad-extension"),
+      packageJSON: {
+        ktAutoCodeModule: {
+          id: "cad",
+          title: "CAD",
+          order: 20,
+          commandPrefix: "ktAutoCad.",
+          tools: [{
+            id: "cadFilename",
+            shortTitle: "文件名",
+            title: "CAD 文件名",
+            description: "CAD 文件名工具",
+            command: "ktAutoCad.block.filename",
+            requirement: "none",
+            icon: "extension:media/cad-filename.svg",
+          }],
+        },
+      },
+    });
+    const provider = new SidebarViewProvider(extensionUri(), memory(), memory());
+    const module = webviewView(SidebarViewProvider.moduleViewType);
+
+    provider.resolveWebviewView(
+      module as unknown as vscode.WebviewView,
+      {} as vscode.WebviewViewResolveContext,
+      {} as vscode.CancellationToken,
+    );
+
+    expect(module.webview.options).toMatchObject({ enableScripts: true });
+    expect((module.webview.options.localResourceRoots as vscode.Uri[]).map((uri) => uri.fsPath)).toEqual([
+      "/extension",
+      "/cad-extension",
+    ]);
+  });
+
+  it("卸载可选模块会原子清理 stale MRU 并保留 Code 与 Editor companion", async () => {
+    setInstalledExtensions({
+      id: "kuntai.kt-auto-cad",
+      extensionUri: vscode.Uri.file("/cad-extension"),
+      packageJSON: {
+        ktAutoCodeModule: {
+          id: "cad",
+          title: "CAD",
+          order: 20,
+          commandPrefix: "ktAutoCad.",
+          tools: [{
+            id: "cadFilename",
+            shortTitle: "文件名",
+            title: "CAD 文件名",
+            description: "CAD 文件名工具",
+            command: "ktAutoCad.block.filename",
+            requirement: "none",
+            icon: "extension:media/cad-filename.svg",
+          }],
+        },
+      },
+    });
+    const { provider, internals, module } = createProvider();
+    await provider.showTool(TEST_TOOL_ID);
+    const autoBuild = companionSnapshot("autoBuild", "auto-build-survives-cad-uninstall", {
+      sessionId: "auto-build-survives-cad-uninstall-session",
+      revision: 4,
+      lifecycle: "active",
+      status: "running",
+      message: "编译仍在运行",
+    });
+    await internals.updateEditorCompanion(autoBuild);
+    await provider.showModuleTool("cad", "cadFilename");
+    expect(internals.openToolIds).toEqual([TEST_TOOL_ID, "autoBuild", "cadFilename"]);
+    expect(internals.activeToolId).toBe("cadFilename");
+    const companionBefore = internals.editorCompanionState.companions[0];
+    const snapshotBefore = internals.editorCompanionSnapshots.get(autoBuild.panelId);
+    const taskStateBefore = internals.toolStates.get("autoBuild");
+    const didShowCountBeforeRefresh = testToolDidShow.mock.calls.length;
+    module.messages.length = 0;
+    vscodeHost.executeCommand.mockClear();
+
+    setInstalledExtensions();
+    await provider.refreshInstalledModules();
+
+    expect(internals.openToolIds).toEqual([TEST_TOOL_ID, "autoBuild"]);
+    expect(internals.activeToolId).toBe("autoBuild");
+    expect(internals.editorCompanionState).toMatchObject({
+      openToolIds: [TEST_TOOL_ID, "autoBuild"],
+      activeToolId: "autoBuild",
+    });
+    expect(internals.editorCompanionState.companions).toContain(companionBefore);
+    expect(internals.editorCompanionSnapshots.get(autoBuild.panelId)).toBe(snapshotBefore);
+    expect(internals.toolStates.get("autoBuild")).toBe(taskStateBefore);
+    expect(runEditorCompanionAction).not.toHaveBeenCalled();
+    expect(testToolDidShow).toHaveBeenCalledTimes(didShowCountBeforeRefresh);
+    expect(provider.getModuleState()).toMatchObject({ installed: ["code"], active: "code" });
+    expect((module.webview.options.localResourceRoots as vscode.Uri[]).map((uri) => uri.fsPath))
+      .toEqual(["/extension"]);
+    const init = module.messages.find((message) => message.type === "init");
+    expect(init?.type).toBe("init");
+    if (!init || init.type !== "init") throw new Error("缺少 init 消息");
+    expect(init.activeToolId).toBe("autoBuild");
+    expect(init.openToolIds).toEqual([TEST_TOOL_ID, "autoBuild"]);
+    expect(init.tools.some(({ id }) => id === "cadFilename")).toBe(false);
+    expect(init.moduleState).toMatchObject({ installed: ["code"], active: "code" });
+    expect(vscodeHost.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "ktAutoCode.modulePanel.activeTool",
+      "autoBuild",
+    );
+    expect(vscodeHost.executeCommand).not.toHaveBeenCalledWith("ktAutoCad.block.filename");
+  });
+
+  it("sendInit 在同模块贡献消失时过滤唯一 stale 项并进入一致的 Welcome 状态", async () => {
+    const extension = {
+      id: "kuntai.kt-auto-cad",
+      extensionUri: vscode.Uri.file("/cad-extension"),
+      packageJSON: {
+        ktAutoCodeModule: {
+          id: "cad",
+          title: "CAD",
+          order: 20,
+          commandPrefix: "ktAutoCad.",
+          tools: [{
+            id: "cadFilename",
+            shortTitle: "文件名",
+            title: "CAD 文件名",
+            description: "CAD 文件名工具",
+            command: "ktAutoCad.block.filename",
+            requirement: "none",
+          }],
+        },
+      },
+    };
+    setInstalledExtensions(extension);
+    const { provider, internals, module } = createProvider();
+    await provider.showModuleTool("cad", "cadFilename");
+    module.messages.length = 0;
+    setInstalledExtensions({
+      ...extension,
+      packageJSON: {
+        ktAutoCodeModule: {
+          ...extension.packageJSON.ktAutoCodeModule,
+          tools: [{
+            id: "cadLayer",
+            shortTitle: "图层",
+            title: "CAD 图层",
+            description: "CAD 图层工具",
+            command: "ktAutoCad.block.layer",
+            requirement: "none",
+          }],
+        },
+      },
+    });
+
+    await internals.sendInit(module);
+
+    expect(internals.openToolIds).toEqual([]);
+    expect(internals.activeToolId).toBe("");
+    expect(internals.editorCompanionState).toMatchObject({ openToolIds: [], activeToolId: undefined });
+    const init = module.messages.find((message) => message.type === "init");
+    expect(init?.type).toBe("init");
+    if (!init || init.type !== "init") throw new Error("缺少 init 消息");
+    expect(init.activeToolId).toBe("");
+    expect(init.openToolIds).toEqual([]);
+    expect(init.tools.map(({ id }) => id)).toContain("cadLayer");
+    expect(init.tools.map(({ id }) => id)).not.toContain("cadFilename");
+    expect(vscodeHost.executeCommand).toHaveBeenCalledWith("setContext", "ktAutoCode.modulePanelVisible", false);
   });
 
   it("欢迎页固定列出 Code/CAD 的安装状态与版本", () => {
@@ -404,6 +611,98 @@ describe("SidebarViewProvider transient tool state", () => {
     expect(module.messages.find((message) => message.type === "init")).toMatchObject({
       type: "init",
       directoryVisible: true,
+    });
+  });
+
+  it("init 主动展开旧 Webview 中遗留的 Current Tool 折叠状态", async () => {
+    const { provider, internals, module } = createProvider();
+    await provider.showTool(TEST_TOOL_ID);
+    module.messages.length = 0;
+
+    await internals.sendInit(module);
+
+    expect(module.messages.filter((message) => message.type === "revealToolSurface")).toEqual([
+      { type: "revealToolSurface", toolId: TEST_TOOL_ID },
+    ]);
+  });
+
+  it("目录行通过 Host QuickPick 复用工作区与最近目录并切换选择", async () => {
+    const directory = process.cwd();
+    const externalDirectory = "/tmp";
+    const workspace = vscode.workspace as unknown as {
+      workspaceFolders?: Array<{ name: string; uri: vscode.Uri }>;
+    };
+    workspace.workspaceFolders = [{ name: "kt-auto-code", uri: vscode.Uri.file(directory) }];
+    const globalState = memory();
+    await globalState.update("ktAutoCode.searchReplace.recentWorkingDirectories", [externalDirectory]);
+    const { internals, module } = createProvider({ globalState });
+    vscodeHost.showQuickPick.mockImplementationOnce(async (items) => {
+      const rows = items as Array<{ label: string; directory: string }>;
+      expect(rows).toEqual(expect.arrayContaining([
+        expect.objectContaining({ label: "当前目录 · kt-auto-code", directory: "" }),
+        expect.objectContaining({ label: `外部 · ${externalDirectory}`, directory: externalDirectory }),
+      ]));
+      return rows.find((item) => item.directory === externalDirectory);
+    });
+
+    await internals.onMessage({ type: "showWorkingDirectoryQuickPick" }, module);
+
+    expect(vscodeHost.showQuickPick).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.objectContaining({ title: "切换 KT Auto Code 工作目录" }),
+    );
+    expect(internals.getWorkingContext()).toMatchObject({
+      selectedDirectory: externalDirectory,
+      resolvedDirectory: externalDirectory,
+    });
+    expect(module.messages.filter((message) => message.type === "workingContext").at(-1))
+      .toMatchObject({ type: "workingContext", context: { selectedDirectory: externalDirectory } });
+    workspace.workspaceFolders = undefined;
+  });
+
+  it("Ignore 总开关只切换使用策略并保留三个来源选择", async () => {
+    const { internals, module, workspaceState } = createProvider();
+    await workspaceState.update("ktAutoCode.workingContext.builtInIgnoreEnabled.v1", false);
+    await workspaceState.update("ktAutoCode.workingContext.gitIgnoreEnabled.v1", true);
+    await workspaceState.update("ktAutoCode.workingContext.customIgnoreEnabled.v1", true);
+
+    await internals.onMessage({ type: "setIgnoreEnabled", enabled: false }, module);
+
+    expect(workspaceState.get("ktAutoCode.workingContext.ignoreEnabled.v1")).toBe(false);
+    expect(internals.getWorkingContext()).toMatchObject({
+      ignoreEnabled: false,
+      builtInIgnoreEnabled: false,
+      gitIgnoreEnabled: true,
+      customIgnoreEnabled: true,
+    });
+    expect(module.messages.filter((message) => message.type === "workingContext").at(-1))
+      .toMatchObject({ type: "workingContext", context: { ignoreEnabled: false } });
+
+    await internals.onMessage({ type: "setIgnoreEnabled", enabled: true }, module);
+    expect(internals.getWorkingContext()).toMatchObject({
+      ignoreEnabled: true,
+      builtInIgnoreEnabled: false,
+      gitIgnoreEnabled: true,
+      customIgnoreEnabled: true,
+    });
+  });
+
+  it("Ignore 使用策略变化会使搜索替换旧结果失效", async () => {
+    const { internals, module } = createProvider();
+    internals.setToolState("codeRename", {
+      status: "done",
+      message: "旧预览",
+      codeRenameResults: {} as never,
+    });
+    internals.postWorkingContext();
+    module.messages.length = 0;
+
+    await internals.onMessage({ type: "setIgnoreEnabled", enabled: false }, module);
+
+    expect(internals.toolStates.get("codeRename")).toMatchObject({
+      status: "idle",
+      message: "Ignore 使用策略已改变；旧结果已过期，请重新搜索。",
+      codeRenameResults: undefined,
     });
   });
 
@@ -470,8 +769,15 @@ describe("SidebarViewProvider transient tool state", () => {
     if (!init || init.type !== "init") throw new Error("缺少 init 消息");
     const ids = init.tools.map(({ id }) => id);
     expect(new Set(ids).size).toBe(ids.length);
+    const autoBuildRegistration = ktcRequireToolRegistration("autoBuild");
     expect(init.tools).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: "autoBuild", title: "自动编译", ribbonVisible: false }),
+      expect.objectContaining({
+        id: "autoBuild",
+        title: autoBuildRegistration.title,
+        shortTitle: autoBuildRegistration.shortTitle,
+        description: autoBuildRegistration.description,
+        ribbonVisible: false,
+      }),
       expect.objectContaining({ id: "projectRename", title: "项目改名", ribbonVisible: false }),
     ]));
     expect(init.ribbonLayout.toolOrder).not.toContain("autoBuild");
@@ -590,10 +896,11 @@ describe("SidebarViewProvider transient tool state", () => {
     expect(JSON.stringify(module.messages)).not.toContain("旧目录迟到的分析结果");
   });
 
-  it("代码辅助 Navigator 布局与折叠状态保存到用户级 globalState 并在 init 时回传", async () => {
+  it("代码辅助 Navigator 布局、标题与折叠状态保存到用户级 globalState 并在 init 时回传", async () => {
     const { internals, module, globalState } = createProvider();
     const state = {
       navigatorMode: "grid" as const,
+      showLabels: false,
       treeExpanded: false,
       cppOrganizeExpanded: false,
       fileToolsExpanded: true,
@@ -612,7 +919,7 @@ describe("SidebarViewProvider transient tool state", () => {
     });
   });
 
-  it("旧版 Tree 偏好没有布局字段时迁移为大纲模式", async () => {
+  it("旧版 Tree 偏好没有布局与标题字段时迁移为大纲且显示标题", async () => {
     const globalState = memory();
     await globalState.update("ktAutoCode.codeAssistant.treeUi.v1", {
       treeExpanded: false,
@@ -628,6 +935,7 @@ describe("SidebarViewProvider transient tool state", () => {
       type: "init",
       codeAssistantTreeUiState: {
         navigatorMode: "outline",
+        showLabels: true,
         treeExpanded: false,
         cppOrganizeExpanded: true,
         fileToolsExpanded: false,
@@ -673,30 +981,82 @@ describe("SidebarViewProvider transient tool state", () => {
     ]);
   });
 
+  it("Open Items 只激活已打开工具并更新 MRU，不重新执行 Tool onDidShow", async () => {
+    const { provider, internals, module } = createProvider();
+    await provider.showTool(TEST_TOOL_ID);
+    await provider.showTool(SECOND_TEST_TOOL_ID);
+    const didShowCountBeforeActivation = testToolDidShow.mock.calls.length;
+    module.messages.length = 0;
+
+    await internals.onMessage({ type: "activateOpenTool", toolId: TEST_TOOL_ID }, module);
+
+    expect(internals.activeToolId).toBe(TEST_TOOL_ID);
+    expect(internals.openToolIds).toEqual([SECOND_TEST_TOOL_ID, TEST_TOOL_ID]);
+    expect(testToolDidShow).toHaveBeenCalledTimes(didShowCountBeforeActivation);
+    expect(module.messages.filter((message) => message.type === "init").at(-1)).toMatchObject({
+      type: "init",
+      activeToolId: TEST_TOOL_ID,
+      openToolIds: [SECOND_TEST_TOOL_ID, TEST_TOOL_ID],
+    });
+  });
+
+  it("Open Items 激活已打开的可选模块工具时不重新执行模块 command", async () => {
+    setInstalledExtensions({
+      id: "kuntai.kt-auto-cad",
+      extensionUri: vscode.Uri.file("/cad-extension"),
+      packageJSON: {
+        ktAutoCodeModule: {
+          id: "cad",
+          title: "CAD",
+          order: 20,
+          commandPrefix: "ktAutoCad.",
+          tools: [{
+            id: "cadFilename",
+            shortTitle: "文件名",
+            title: "CAD 文件名",
+            description: "CAD 文件名工具",
+            command: "ktAutoCad.block.filename",
+            requirement: "none",
+          }],
+        },
+      },
+    });
+    const { provider, internals, module } = createProvider();
+    await provider.showModuleTool("cad", "cadFilename");
+    await provider.showTool(TEST_TOOL_ID);
+    vscodeHost.executeCommand.mockClear();
+
+    await internals.onMessage({ type: "activateOpenTool", toolId: "cadFilename" }, module);
+
+    expect(internals.activeToolId).toBe("cadFilename");
+    expect(internals.openToolIds).toEqual([TEST_TOOL_ID, "cadFilename"]);
+    expect(vscodeHost.executeCommand).not.toHaveBeenCalledWith("ktAutoCad.block.filename");
+  });
+
   it("独立编辑器 View 叶子不会自动收起功能目录", async () => {
     const { internals, module } = createProvider();
 
     await internals.onMessage({ type: "openCodeAssistantFeature", feature: "packageIncludes" }, module);
 
-    expect(module.messages.filter((message) => message.type === "init").at(-1)).toMatchObject({
-      type: "init",
-      activeToolId: TEST_TOOL_ID,
-      codeAssistantFeature: "packageIncludes",
-      codeAssistantTreeUiState: { treeExpanded: true },
-    });
+    expect(vscodeHost.executeCommand).toHaveBeenCalledWith("ktAutoCode.codeAssistant.packageIncludes");
+    expect(internals.codeAssistantTreeUiState.treeExpanded).toBe(true);
+    expect(internals.codeAssistantFeatureId).toBeUndefined();
+    expect(module.messages.filter((message) => message.type === "init")).toEqual([]);
   });
 
-  it("先打开 packageIncludes 再激活 direct leaf 时清理 legacy inner feature", async () => {
+  it("Group 命令没有独立 View，Right leaf 消息只交给 owning support", async () => {
     const { provider, internals, module } = createProvider();
     await provider.showTool("codeAssistant");
+    expect(internals.activeToolId).not.toBe("codeAssistant");
+    expect(internals.openToolIds).not.toContain("codeAssistant");
     vscodeHost.executeCommand.mockClear();
 
     await internals.onMessage({ type: "openCodeAssistantFeature", feature: "packageIncludes" }, module);
     expect(vscodeHost.executeCommand).toHaveBeenCalledWith("ktAutoCode.codeAssistant.packageIncludes");
     expect(module.messages.filter((message) => message.type === "init").at(-1)).toMatchObject({
       type: "init",
-      activeToolId: "codeAssistant",
-      codeAssistantFeature: "packageIncludes",
+      activeToolId: TEST_TOOL_ID,
+      codeAssistantFeature: undefined,
     });
 
     await internals.onMessage({ type: "selectTool", toolId: "encodingFix" }, module);
@@ -707,6 +1067,101 @@ describe("SidebarViewProvider transient tool state", () => {
       codeAssistantFeature: undefined,
     });
     expect(internals.codeAssistantFeatureId).toBeUndefined();
+  });
+
+  it("Group 入口展开目录；已有子工具时恢复组内 MRU，且不执行 Group 或叶子业务入口", async () => {
+    const { provider, internals, globalState } = createProvider();
+    await provider.showTool("encodingFix");
+    await provider.showTool(TEST_TOOL_ID);
+    internals.codeAssistantTreeUiState = {
+      ...internals.codeAssistantTreeUiState,
+      treeExpanded: false,
+    };
+    testToolDidShow.mockClear();
+    vscodeHost.executeCommand.mockClear();
+
+    await provider.showTool("codeAssistant");
+
+    expect(internals.codeAssistantTreeUiState.treeExpanded).toBe(true);
+    expect(globalState.get("ktAutoCode.codeAssistant.treeUi.v1")).toMatchObject({ treeExpanded: true });
+    expect(internals.activeToolId).toBe("encodingFix");
+    expect(internals.openToolIds).toEqual([TEST_TOOL_ID, "encodingFix"]);
+    expect(internals.openToolIds).not.toContain("codeAssistant");
+    expect(testToolDidShow).not.toHaveBeenCalled();
+    expect(vscodeHost.executeCommand).not.toHaveBeenCalledWith("ktAutoCode.codeAssistant.open");
+  });
+
+  it("没有已打开子工具时 Group 只展开目录，不替换当前 Tool", async () => {
+    const { provider, internals } = createProvider();
+    await provider.showTool(TEST_TOOL_ID);
+    internals.codeAssistantTreeUiState = {
+      ...internals.codeAssistantTreeUiState,
+      treeExpanded: false,
+    };
+    testToolDidShow.mockClear();
+
+    await provider.showTool("codeAssistant");
+
+    expect(internals.codeAssistantTreeUiState.treeExpanded).toBe(true);
+    expect(internals.activeToolId).toBe(TEST_TOOL_ID);
+    expect(internals.openToolIds).toEqual([TEST_TOOL_ID]);
+    expect(testToolDidShow).not.toHaveBeenCalled();
+  });
+
+  it("旧 MRU 中的 Group 被原子过滤并回退有效叶子；仅 Group 时回到 Welcome", async () => {
+    const first = createProvider();
+    first.internals.openToolIds = ["encodingFix", "codeAssistant", TEST_TOOL_ID];
+    first.internals.activeToolId = "codeAssistant";
+    first.internals.editorCompanionState = {
+      ...first.internals.editorCompanionState,
+      openToolIds: ["encodingFix", "codeAssistant", TEST_TOOL_ID],
+      activeToolId: "codeAssistant",
+    };
+
+    await first.internals.sendInit(first.module);
+
+    expect(first.internals.openToolIds).toEqual(["encodingFix", TEST_TOOL_ID]);
+    expect(first.internals.activeToolId).toBe(TEST_TOOL_ID);
+    expect(first.internals.editorCompanionState).toMatchObject({
+      openToolIds: ["encodingFix", TEST_TOOL_ID],
+      activeToolId: TEST_TOOL_ID,
+    });
+    expect(first.module.messages.find((message) => message.type === "init")).toMatchObject({
+      type: "init",
+      openToolIds: ["encodingFix", TEST_TOOL_ID],
+      activeToolId: TEST_TOOL_ID,
+    });
+
+    const second = createProvider();
+    second.internals.openToolIds = ["codeAssistant"];
+    second.internals.activeToolId = "codeAssistant";
+    second.internals.editorCompanionState = {
+      ...second.internals.editorCompanionState,
+      openToolIds: ["codeAssistant"],
+      activeToolId: "codeAssistant",
+    };
+
+    await second.internals.sendInit(second.module);
+
+    expect(second.internals.openToolIds).toEqual([]);
+    expect(second.internals.activeToolId).toBe("");
+    expect(second.internals.editorCompanionState).toMatchObject({ openToolIds: [], activeToolId: undefined });
+    expect(second.module.messages.find((message) => message.type === "init")).toMatchObject({
+      type: "init",
+      openToolIds: [],
+      activeToolId: "",
+    });
+  });
+
+  it("stale Group 业务信号不会调用 handleMessage 或创建 Tool Block", async () => {
+    const { internals, module } = createProvider();
+    testToolDidShow.mockClear();
+
+    await internals.onMessage({ type: "run", toolId: "codeAssistant", action: "openPackageIncludes" }, module);
+
+    expect(internals.openToolIds).not.toContain("codeAssistant");
+    expect(testToolDidShow).not.toHaveBeenCalled();
+    expect(vscodeHost.outputLines.at(-1)).toContain("已忽略导航 Group");
   });
 
   it("从功能目录启动自动编译只调用 Editor 命令，不写入 legacy inner feature", async () => {
@@ -722,6 +1177,39 @@ describe("SidebarViewProvider transient tool state", () => {
     expect(internals.codeAssistantFeatureId).toBeUndefined();
     expect(internals.activeToolId).toBe(TEST_TOOL_ID);
     expect(internals.openToolIds).toEqual([TEST_TOOL_ID]);
+  });
+
+  it("packageIncludes 作为真实叶子进入 Current、Open Items、MRU 与 companion", async () => {
+    const { provider, internals, module } = createProvider();
+    await provider.showTool(TEST_TOOL_ID);
+
+    await provider.activateEditorCompanionTool("packageIncludes");
+
+    expect(internals.activeToolId).toBe("packageIncludes");
+    expect(internals.openToolIds).toEqual([TEST_TOOL_ID, "packageIncludes"]);
+    expect(internals.openToolIds).not.toContain("codeAssistant");
+
+    const snapshot = companionSnapshot("packageIncludes", "package-includes-primary", {
+      revision: 2,
+      lifecycle: "active",
+      status: "done",
+      message: "预览完成",
+    });
+    await internals.updateEditorCompanion(snapshot);
+
+    expect(internals.editorCompanionState).toMatchObject({
+      openToolIds: [TEST_TOOL_ID, "packageIncludes"],
+      activeToolId: "packageIncludes",
+    });
+    expect(internals.toolStates.get("packageIncludes")?.editorCompanion).toMatchObject({
+      panelId: snapshot.panelId,
+      toolId: "packageIncludes",
+    });
+    expect(module.messages.filter((message) => message.type === "openTools").at(-1)).toMatchObject({
+      type: "openTools",
+      activeToolId: "packageIncludes",
+      openToolIds: [TEST_TOOL_ID, "packageIncludes"],
+    });
   });
 
   it("visible 与 open-inactive 生命周期只更新摘要，不激活 Primary 或抢焦点", async () => {
@@ -847,6 +1335,7 @@ describe("SidebarViewProvider transient tool state", () => {
       const projected = internals.toolStates.get(toolId)?.editorCompanion;
       expect(projected).toMatchObject({
         toolId,
+        title: ktcRequireToolRegistration(toolId).title,
         lifecycle: "disposed",
         status: "error",
         ready: false,
@@ -1034,19 +1523,14 @@ describe("SidebarViewProvider transient tool state", () => {
     expect(runEditorCompanionAction).toHaveBeenCalledOnce();
   });
 
-  it("run 信号必须使用真实叶子和受支持动作", async () => {
+  it("run 信号必须使用真实叶子和受支持动作，Group 信号在业务校验前丢弃", async () => {
     expect(ktcRunSignalContractError({ type: "run", toolId: "headerAscii", action: "scan" }, ["scan", "fix"])).toBeUndefined();
-    expect(ktcRunSignalContractError({ type: "run", toolId: "codeAssistant", action: "scan" }, ["openPackageIncludes"]))
-      .toContain("不支持动作");
 
     const { internals, module } = createProvider();
     await internals.onMessage({ type: "run", toolId: "codeAssistant", action: "scan" }, module);
 
-    expect(vscodeHost.outputLines).toContainEqual(expect.stringContaining("[Primary][信号][ERROR]"));
-    expect(stateMessages(module).at(-1)).toMatchObject({
-      toolId: "codeAssistant",
-      state: { status: "error" },
-    });
+    expect(vscodeHost.outputLines).toContainEqual(expect.stringContaining("[Primary][信号][WARN] 已忽略导航 Group"));
+    expect(stateMessages(module).filter(({ toolId }) => toolId === "codeAssistant")).toEqual([]);
   });
 
   it("Tool Surface × 关闭 direct companion leaf 时恢复 MRU，但保留任务与 Editor 会话", async () => {
@@ -1063,6 +1547,7 @@ describe("SidebarViewProvider transient tool state", () => {
     const taskStateBefore = internals.toolStates.get("autoBuild");
     const sessionBefore = internals.editorCompanionState.companions[0];
     const snapshotBefore = internals.editorCompanionSnapshots.get(autoBuild.panelId);
+    const didShowCountBeforeClose = testToolDidShow.mock.calls.length;
     module.messages.length = 0;
 
     await internals.onMessage({ type: "closeToolBlock" }, module);
@@ -1072,12 +1557,81 @@ describe("SidebarViewProvider transient tool state", () => {
     expect(internals.toolStates.get("autoBuild")).toBe(taskStateBefore);
     expect(internals.editorCompanionState.companions).toContain(sessionBefore);
     expect(internals.editorCompanionSnapshots.get(autoBuild.panelId)).toBe(snapshotBefore);
+    expect(testToolDidShow).toHaveBeenCalledTimes(didShowCountBeforeClose);
     expect(module.messages.filter((message) => message.type === "init").at(-1)).toMatchObject({
       type: "init",
       activeToolId: TEST_TOOL_ID,
       openToolIds: [TEST_TOOL_ID],
       moduleState: { active: "code" },
     });
+  });
+
+  it("Open Items 可按 toolId 关闭后台逻辑工具而不改变当前工具", async () => {
+    const { provider, internals, module } = createProvider();
+    await provider.showTool(TEST_TOOL_ID);
+    await provider.showTool(SECOND_TEST_TOOL_ID);
+    const didShowCountBeforeClose = testToolDidShow.mock.calls.length;
+    module.messages.length = 0;
+
+    await internals.onMessage({ type: "closeToolBlock", toolId: TEST_TOOL_ID }, module);
+
+    expect(internals.activeToolId).toBe(SECOND_TEST_TOOL_ID);
+    expect(internals.openToolIds).toEqual([SECOND_TEST_TOOL_ID]);
+    expect(testToolDidShow).toHaveBeenCalledTimes(didShowCountBeforeClose);
+    expect(module.messages.filter((message) => message.type === "init").at(-1)).toMatchObject({
+      type: "init",
+      activeToolId: SECOND_TEST_TOOL_ID,
+      openToolIds: [SECOND_TEST_TOOL_ID],
+    });
+  });
+
+  it("Open Items 关闭其他项会激活保留项且不销毁 Editor companion", async () => {
+    const { provider, internals, module } = createProvider();
+    await provider.showTool(TEST_TOOL_ID);
+    await provider.showTool(SECOND_TEST_TOOL_ID);
+    const autoBuild = companionSnapshot("autoBuild", "auto-build-close-others", {
+      sessionId: "auto-build-close-others-session",
+      revision: 2,
+      lifecycle: "active",
+      status: "running",
+      message: "编译中",
+    });
+    await internals.updateEditorCompanion(autoBuild);
+    const companionBefore = internals.editorCompanionState.companions[0];
+    const snapshotBefore = internals.editorCompanionSnapshots.get(autoBuild.panelId);
+    const taskStateBefore = internals.toolStates.get("autoBuild");
+    module.messages.length = 0;
+
+    await internals.onMessage({ type: "closeOtherToolBlocks", toolId: TEST_TOOL_ID }, module);
+
+    expect(internals.activeToolId).toBe(TEST_TOOL_ID);
+    expect(internals.openToolIds).toEqual([TEST_TOOL_ID]);
+    expect(internals.editorCompanionState.companions).toContain(companionBefore);
+    expect(internals.editorCompanionSnapshots.get(autoBuild.panelId)).toBe(snapshotBefore);
+    expect(internals.toolStates.get("autoBuild")).toBe(taskStateBefore);
+    expect(module.messages.filter((message) => message.type === "init").at(-1)).toMatchObject({
+      type: "init",
+      activeToolId: TEST_TOOL_ID,
+      openToolIds: [TEST_TOOL_ID],
+    });
+  });
+
+  it("Open Items 的未知 activate/close 目标不会退化为操作当前工具", async () => {
+    const { provider, internals, module } = createProvider();
+    await provider.showTool(TEST_TOOL_ID);
+    const stateBefore = {
+      activeToolId: internals.activeToolId,
+      openToolIds: [...internals.openToolIds],
+    };
+    module.messages.length = 0;
+
+    await internals.onMessage({ type: "activateOpenTool", toolId: "missing" }, module);
+    await internals.onMessage({ type: "closeToolBlock", toolId: "missing" }, module);
+    await internals.onMessage({ type: "closeOtherToolBlocks", toolId: "missing" }, module);
+
+    expect(internals.activeToolId).toBe(stateBefore.activeToolId);
+    expect(internals.openToolIds).toEqual(stateBefore.openToolIds);
+    expect(module.messages).toEqual([]);
   });
 
   it("Tool Surface × 跨 Code/CAD 恢复 MRU 时同步激活模块并刷新 Webview", async () => {

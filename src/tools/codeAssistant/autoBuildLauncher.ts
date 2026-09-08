@@ -1,4 +1,4 @@
-import { ktcSelectAutoBuildProjects, type KtcAutoBuildConfiguration } from "./autoBuildContracts.js";
+import { ktcAutoBuildRootEnabled, ktcAutoBuildThirdPartyEnabled, ktcSelectAutoBuildProjects, type KtcAutoBuildConfiguration } from "./autoBuildContracts.js";
 
 const ps = (value: string): string => `'${value.replaceAll("'", "''")}'`;
 const psArray = (values: readonly string[]): string => `@(${values.map(ps).join(", ")})`;
@@ -46,7 +46,7 @@ foreach ($project in $linkCaaProjects) {
 }
 $linkCaaSource = Join-Path $toolRootDirectory 'sample\\linkCAA.ps1'
 if ($linkCaaProjects.Count -gt 0 -and -not (Test-Path -LiteralPath $linkCaaSource -PathType Leaf)) { throw "未找到 linkCAA 源脚本：$linkCaaSource" }
-$repositoryArgs = @{ RootDirectory=$rootDirectory; ThirdPartyDirectory=$thirdPartyDirectory; RootBranch=${ps(configuration.rootBranch)}; Branch=${ps(configuration.branch)}; CmakeBranch=${ps(configuration.cmakeBranch)}; UpdateRoot=$${!!configuration.updateRoot}; UpdateThirdParty=$${!!configuration.updateThirdParty}; UpdateCmakeRepositories=$false; RepositorySpecsJson=$repositorySpecsJson; CmakeProjectPaths=$cmakeProjects; CaaProjectPaths=$caaProjects; SkipBuild=$true }
+$repositoryArgs = @{ RootDirectory=$rootDirectory; ThirdPartyDirectory=$thirdPartyDirectory; RootBranch=${ps(configuration.rootBranch)}; Branch=${ps(configuration.branch)}; CmakeBranch=${ps(configuration.cmakeBranch)}; EnableRoot=$${ktcAutoBuildRootEnabled(configuration)}; EnableThirdParty=$${ktcAutoBuildThirdPartyEnabled(configuration)}; UpdateRoot=$${ktcAutoBuildRootEnabled(configuration) && !!configuration.updateRoot}; UpdateThirdParty=$${ktcAutoBuildThirdPartyEnabled(configuration) && !!configuration.updateThirdParty}; UpdateCmakeRepositories=$false; RepositorySpecsJson=$repositorySpecsJson; CmakeProjectPaths=$cmakeProjects; CaaProjectPaths=$caaProjects; SkipBuild=$true }
 ${configuration.clean ? "$repositoryArgs.Clean = $true\n$repositoryArgs.ForceClean = $true" : ""}
 & $autoBuildScript @repositoryArgs
 if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw "仓库预检与更新失败：$LASTEXITCODE" }

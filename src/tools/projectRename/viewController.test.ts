@@ -73,6 +73,7 @@ import type * as vscode from "vscode";
 import { KtcRenameHistoryStore } from "../../core/renameHistory.js";
 import type { WorkspaceRenameHit } from "../../core/workspaceRename.js";
 import { KtcProjectRenameHost } from "../../projectRenameHost.js";
+import { ktcRequireToolRegistration } from "../toolRegistrationCatalog.js";
 import type { KtcProjectRenameAnalysisReport, KtcProjectRenameViewState } from "./contracts.js";
 import {
   KtcProjectRenameViewController,
@@ -128,7 +129,7 @@ describe("project rename analysis View", () => {
     executeCommand.mockReset();
   });
 
-  it("复用单个独立 WebviewPanel，并加载受 CSP 约束的浏览器 bundle", () => {
+  it("复用单个独立 WebviewPanel，并用共享 Right Shell 加载受 CSP 约束的浏览器 bundle", async () => {
     const panel = fakePanel();
     createWebviewPanel.mockReturnValue(panel);
     const extensionUri = { fsPath: "/extension" } as vscode.Uri;
@@ -140,19 +141,28 @@ describe("project rename analysis View", () => {
     expect(createWebviewPanel).toHaveBeenCalledTimes(1);
     expect(createWebviewPanel).toHaveBeenCalledWith(
       "ktAutoCode.projectRenameAnalysis",
-      "项目改名",
+      ktcRequireToolRegistration("projectRename").title,
       { viewColumn: 1, preserveFocus: false },
       { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [extensionUri] },
     );
     expect(panel.reveal).toHaveBeenCalledTimes(2);
     expect(panel.webview.html).toContain("Content-Security-Policy");
+    expect(panel.webview.html).toContain("ktc-right-view-shell.js");
     expect(panel.webview.html).toContain("project-rename-analysis.js");
-    expect(panel.webview.html).toContain("command-header");
-    expect(panel.webview.html).toMatch(/\.command-header\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0;/u);
+    expect(panel.webview.html).toContain('<ktc-right-view-shell id="right-shell">');
+    expect(panel.webview.html).toContain('class="header-actions" slot="actions"');
+    expect(panel.webview.html).toContain('class="analysis-context" hidden><strong>分析目录</strong><span id="root"');
+    expect(panel.webview.html).not.toContain("command-header");
+    expect(panel.webview.html).toMatch(/body\s*\{[^}]*margin:\s*0;[^}]*padding:\s*0;[^}]*overflow:\s*hidden;/u);
+    expect(panel.webview.html).toMatch(/ktc-right-view-shell\s*\{[^}]*width:\s*100%;[^}]*height:\s*100%;/u);
+    expect(panel.webview.html).toMatch(/main\s*\{[^}]*max-width:\s*1240px;[^}]*padding:\s*8px;/u);
+    expect(panel.webview.html.indexOf("ktc-right-view-shell.js")).toBeLessThan(
+      panel.webview.html.indexOf("project-rename-analysis.js"),
+    );
     expect(panel.webview.html).toMatch(/th\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0;/u);
     expect(panel.webview.html).toMatch(/\.col-action\s*\{[^}]*position:\s*sticky;[^}]*right:\s*0;/u);
     expect(panel.webview.html).toMatch(/\.results\s*\{[^}]*max-height:\s*min\(60vh,\s*720px\);[^}]*overflow:\s*auto;/u);
-    expect(panel.webview.html).toMatch(/@media \(max-width:\s*760px\)[\s\S]*?\.header-actions\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;[^}]*flex-wrap:\s*wrap;/u);
+    expect(panel.webview.html).toMatch(/\.header-actions\s*\{[^}]*overflow-x:\s*auto;/u);
     expect(panel.webview.html).toContain(".results:focus-visible");
     expect(panel.webview.html).toContain('class="results" role="region" aria-label="项目改名命中结果" tabindex="0"');
     expect(panel.webview.html).toContain("var(--vscode-button-border, var(--vscode-contrastBorder, transparent))");
@@ -179,19 +189,25 @@ describe("project rename analysis View", () => {
     expect(panel.webview.html).toContain('默认：文本 · 文件名 · 文件夹名 · UTF-8');
     expect(panel.webview.html).toContain('id="toggle-rules"');
     expect(panel.webview.html).toContain('aria-label="取消勾选全部规则">全不选</button>');
-    expect(panel.webview.html).toContain('.scheme-grid,.rule { display: grid;');
+    expect(panel.webview.html).toContain('.scheme-table-row,.rule { display: grid;');
+    expect(panel.webview.html).toContain('aria-label="改名方案表格"');
+    expect(panel.webview.html).toContain('<span role="columnheader">启用</span><span role="columnheader">类型</span><span role="columnheader">原来</span><span role="columnheader">目标</span><span role="columnheader">操作</span>');
     expect(panel.webview.html).toContain('id="profile"');
     expect(panel.webview.html).toContain('class="profile-panel"');
-    expect(panel.webview.html).toContain('class="profile-actions"');
+    expect(panel.webview.html).toContain('id="profile-panel" class="profile-panel" hidden');
     expect(panel.webview.html).toContain('aria-label="添加自定义规则">+ 规则</button>');
     expect(panel.webview.html).toContain('aria-label="选择常用规则">常用</button>');
     expect(panel.webview.html).toContain('aria-label="选择 CAA 规则">CAA</button>');
     expect(panel.webview.html).toContain("项目规则档案");
     expect(panel.webview.html).toContain('title="保存到当前项目 .phoenix/search-replace.json">保存</button>');
-    expect(panel.webview.html).toContain("源前缀（可选）");
+    expect(panel.webview.html).toContain('aria-label="原前缀（可选）"');
     expect(panel.webview.html).toContain("例如 Pnx / KTC");
     expect(panel.webview.html).toContain('id="rule-picker"');
     expect(panel.webview.html).toContain('class="col-action"');
+    const entrySource = await readFile(new URL("./viewEntry.ts", import.meta.url), "utf8");
+    expect(entrySource).toContain('const rightShell = ktcRequiredElement<KtcRightViewShell>("right-shell")');
+    expect(entrySource).toContain('ktcRequireToolRegistration("projectRename").title');
+    expect(entrySource).not.toContain('rightShell.model = { title: "项目改名" };');
   });
 
   it("重复打开只聚焦现有任务，关闭后才用新目录创建任务", async () => {
@@ -257,10 +273,19 @@ describe("project rename analysis View", () => {
         { label: "目录", value: "/workspace/project-a" },
         { label: "改名", value: "project-a → —" },
       ]),
+      primary: {
+        kind: "projectRename",
+        model: {
+          root: "/workspace/project-a",
+          rootName: "project-a",
+          rootParent: "/workspace",
+        },
+      },
     });
     expect(events[0]?.snapshot).not.toHaveProperty("root");
     expect(events[0]?.snapshot).not.toHaveProperty("sourceName");
     expect(events[0]?.snapshot).not.toHaveProperty("targetName");
+    expect(events[0]?.snapshot).not.toHaveProperty("title");
     expect(events[0]?.snapshot.panelId).toMatch(/^projectRename-panel-/u);
     expect(events[0]?.snapshot.sessionId).toMatch(/^projectRename-session-/u);
 
@@ -671,6 +696,89 @@ describe("project rename analysis View", () => {
     );
   });
 
+  it("Primary 方案下拉可载入、删除所选并确认清空本机方案", async () => {
+    const values = new Map<string, unknown>();
+    const history = new KtcRenameHistoryStore({
+      get: <T>(key: string) => values.get(key) as T | undefined,
+      update: async (key: string, value: unknown) => { values.set(key, value); },
+    } as never);
+    await history.rememberPair("Phoenix Old", "Phoenix New");
+    await history.rememberProjectPlan("/workspace/project-a", {
+      sourceName: "Phoenix Old",
+      targetName: "Phoenix New",
+      sourcePrefix: "PO",
+      targetPrefix: "PN",
+      rules: [{ id: "display", style: "display", search: "Phoenix Old", replace: "Phoenix New", enabled: true }],
+    });
+    const panel = fakePanel();
+    createWebviewPanel.mockReturnValue(panel);
+    const controller = new KtcProjectRenameViewController(
+      { fsPath: "/extension" } as vscode.Uri,
+      new KtcProjectRenameHost(history),
+    );
+    controller.show("/workspace/project-a");
+    const receiver = vi.mocked(panel.webview.onDidReceiveMessage).mock.calls[0]![0];
+    receiver({ type: "ready" });
+    await vi.waitFor(() => expect(controller.getCompanionSnapshot()?.ready).toBe(true));
+    const ready = controller.getCompanionSnapshot()!;
+    const projectOption = ready.primary?.kind === "projectRename"
+      ? ready.primary.model.schemeOptions.find((option) => option.id.startsWith("project:"))
+      : undefined;
+    expect(projectOption).toBeDefined();
+    expect(ready.actions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "deleteScheme", enabled: true }),
+      expect.objectContaining({ id: "clearSchemes", enabled: true }),
+    ]));
+
+    await expect(controller.runCompanionAction({
+      toolId: "projectRename",
+      panelId: ready.panelId,
+      sessionId: ready.sessionId,
+      revision: ready.revision,
+      actionId: "loadScheme",
+      value: "project:not-present",
+    })).resolves.toEqual({ accepted: false, reason: "action-unavailable" });
+
+    const loaded = await controller.runCompanionAction({
+      toolId: "projectRename",
+      panelId: ready.panelId,
+      sessionId: ready.sessionId,
+      revision: ready.revision,
+      actionId: "loadScheme",
+      value: projectOption!.id,
+    });
+    expect(loaded).toMatchObject({
+      accepted: true,
+      snapshot: {
+        primary: { kind: "projectRename", model: { selectedSchemeId: projectOption!.id } },
+        actions: expect.arrayContaining([expect.objectContaining({ id: "deleteScheme", enabled: true })]),
+      },
+    });
+    if (!loaded.accepted) throw new Error("方案载入失败");
+
+    const deleted = await controller.runCompanionAction({
+      toolId: "projectRename",
+      panelId: loaded.snapshot.panelId,
+      sessionId: loaded.snapshot.sessionId,
+      revision: loaded.snapshot.revision,
+      actionId: "deleteScheme",
+      value: projectOption!.id,
+    });
+    expect(deleted).toMatchObject({ accepted: true });
+    expect(history.snapshot("/workspace/project-a").projectPlans).toEqual([]);
+    if (!deleted.accepted) throw new Error("方案删除失败");
+
+    showWarningMessage.mockResolvedValue("清空本机历史");
+    await expect(controller.runCompanionAction({
+      toolId: "projectRename",
+      panelId: deleted.snapshot.panelId,
+      sessionId: deleted.snapshot.sessionId,
+      revision: deleted.snapshot.revision,
+      actionId: "clearSchemes",
+    })).resolves.toMatchObject({ accepted: true });
+    expect(history.snapshot("/workspace/project-a")).toEqual({ pairs: [], projectPlans: [] });
+  });
+
   it("旧会话等待确认时关闭并重开，不会执行清空历史提交或污染新会话", async () => {
     const first = fakePanel();
     const second = fakePanel();
@@ -878,6 +986,102 @@ describe("project rename analysis View", () => {
     receiver({ type: "previewDiff", reportId: 7, rowId: "text:src/index.ts" });
 
     await vi.waitFor(() => expect(openTextDiff).toHaveBeenCalledWith(report, "text:src/index.ts"));
+  });
+
+  it("差异预览气泡同步写入 Output 日志", async () => {
+    const panel = fakePanel();
+    createWebviewPanel.mockReturnValue(panel);
+    const host = new KtcProjectRenameHost();
+    vi.spyOn(host, "openTextDiff").mockRejectedValue(new Error("文本命中次数与冻结报告不一致"));
+    const log = vi.fn();
+    const controller = new KtcProjectRenameViewController(
+      { fsPath: "/extension" } as vscode.Uri,
+      host,
+      { log },
+    );
+    controller.show("/workspace/project-a");
+    const report = fakeReport("/workspace/project-a");
+    (report.workspaceReport.hits as WorkspaceRenameHit[]).push({
+      id: "text:src/index.ts",
+      relativePath: "src/index.ts",
+      fullPath: "/workspace/project-a/src/index.ts",
+      originalFullPath: "/workspace/project-a/src/index.ts",
+      plannedFullPath: "/workspace/project-a/src/index.ts",
+      level: "text",
+      occurrences: 1,
+      status: "preview",
+    });
+    (controller as unknown as { report: KtcProjectRenameAnalysisReport }).report = report;
+    const receiver = vi.mocked(panel.webview.onDidReceiveMessage).mock.calls[0]![0];
+    receiver({ type: "previewDiff", reportId: 7, rowId: "text:src/index.ts" });
+
+    await vi.waitFor(() => expect(showWarningMessage).toHaveBeenCalledWith(
+      "无法预览写盘前差异：文本命中次数与冻结报告不一致",
+    ));
+    expect(log).toHaveBeenCalledWith(
+      "[项目改名][通知][WARN] 无法预览写盘前差异：文本命中次数与冻结报告不一致",
+    );
+  });
+
+  it("Git 工作区有既有改动时改为明确确认，确认后继续写盘", async () => {
+    const panel = fakePanel();
+    createWebviewPanel.mockReturnValue(panel);
+    withProgress.mockImplementation(async (_options, task) => task(
+      { report: vi.fn() },
+      { onCancellationRequested: vi.fn(() => ({ dispose: vi.fn() })) },
+    ));
+    const root = "/workspace/project-a";
+    const report = fakeReport(root, "OldProject", "NewProject");
+    const hit: WorkspaceRenameHit = {
+      id: "text:src/index.ts",
+      relativePath: "src/index.ts",
+      fullPath: `${root}/src/index.ts`,
+      originalFullPath: `${root}/src/index.ts`,
+      plannedFullPath: `${root}/src/index.ts`,
+      level: "text",
+      occurrences: 1,
+      sourceHash: "a".repeat(64),
+      status: "preview",
+    };
+    (report.workspaceReport.hits as WorkspaceRenameHit[]).push(hit);
+    Object.assign(report.workspaceReport.summary, { rules: 1, matchedRules: 1, textFiles: 1, replacements: 1 });
+    const host = new KtcProjectRenameHost();
+    vi.spyOn(host, "preview").mockReturnValue(report.workspaceReport);
+    vi.spyOn(host, "gitState").mockResolvedValue("dirty");
+    const apply = vi.spyOn(host, "apply").mockReturnValue({
+      ...report.workspaceReport,
+      applied: true,
+      hits: [{ ...hit, status: "applied" }],
+    });
+    analyzeProjectRename.mockResolvedValue(fakeReport(root, "OldProject", "NewProject"));
+    showWarningMessage.mockResolvedValue("保留现有改动并执行");
+    const log = vi.fn();
+    const controller = new KtcProjectRenameViewController(
+      { fsPath: "/extension" } as vscode.Uri,
+      host,
+      { log },
+    );
+    controller.show(root);
+    const mutable = controller as unknown as {
+      report: KtcProjectRenameAnalysisReport;
+      state: KtcProjectRenameViewState;
+    };
+    mutable.report = report;
+    mutable.state = { ...mutable.state, status: "done" };
+    const receiver = vi.mocked(panel.webview.onDidReceiveMessage).mock.calls[0]![0];
+    receiver({ type: "apply", reportId: report.reportId });
+
+    await vi.waitFor(() => expect(apply).toHaveBeenCalledWith(report));
+    expect(showWarningMessage).toHaveBeenCalledWith(
+      "执行项目改名：1 项、1 处精确替换？",
+      expect.objectContaining({
+        modal: true,
+        detail: expect.stringContaining("Git 工作区已有未提交或未跟踪改动"),
+      }),
+      "保留现有改动并执行",
+    );
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("Git 工作区已有未提交或未跟踪改动"));
+    expect(log).toHaveBeenCalledWith("[项目改名][通知][选择] 保留现有改动并执行");
   });
 
   it("仅在外部根目录通过确认且目标不存在时执行单层改名", async () => {

@@ -51,6 +51,7 @@ const STYLE = `
   .icon path {
     fill:none; stroke:currentColor; stroke-linecap:round; stroke-linejoin:round; stroke-width:1.2;
   }
+  .icon[data-icon="sliders"] path { fill:currentColor; stroke:none; }
   .title {
     min-width:0; overflow:hidden; margin:0; font-weight:600; text-overflow:ellipsis; white-space:nowrap;
   }
@@ -58,6 +59,7 @@ const STYLE = `
     display:grid; width:28px; height:32px; min-width:28px; place-items:center;
     margin:0; padding:0; border:0; color:inherit; background:transparent; cursor:pointer;
   }
+  .close[hidden] { display:none; }
   .close:hover { background:var(--vscode-toolbar-hoverBackground,var(--vscode-list-hoverBackground)); }
   .close-icon { width:16px; height:16px; color:currentColor; }
   .close-icon path {
@@ -136,7 +138,10 @@ export class KtcCurrentToolRegion extends HTMLElement {
     close.type = "button";
     close.className = "close";
     close.setAttribute("part", "close");
-    close.setAttribute("aria-label", "关闭当前逻辑工具");
+    close.hidden = true;
+    close.disabled = true;
+    close.tabIndex = -1;
+    close.setAttribute("aria-hidden", "true");
     const closeIcon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     closeIcon.classList.add("close-icon");
     closeIcon.setAttribute("viewBox", "0 0 16 16");
@@ -170,8 +175,22 @@ export class KtcCurrentToolRegion extends HTMLElement {
     this.titleElement.textContent = this.activeModel.title;
     this.titleElement.title = this.activeModel.title;
     this.iconElement.setAttribute("data-icon", this.activeModel.icon);
+    this.iconElement.setAttribute("viewBox", this.activeModel.icon === "sliders" ? "0 0 1024 1024" : "0 0 16 16");
     this.iconPathElement.setAttribute("d", iconPath(this.activeModel.icon));
-    this.closeButton.title = `关闭 ${this.activeModel.title}`;
+    const closable = Boolean(this.activeModel.itemId);
+    this.closeButton.hidden = !closable;
+    this.closeButton.disabled = !closable;
+    this.closeButton.tabIndex = closable ? 0 : -1;
+    if (closable) {
+      const closeLabel = `关闭 ${this.activeModel.title}`;
+      this.closeButton.setAttribute("aria-label", closeLabel);
+      this.closeButton.removeAttribute("aria-hidden");
+      this.closeButton.title = closeLabel;
+    } else {
+      this.closeButton.removeAttribute("aria-label");
+      this.closeButton.setAttribute("aria-hidden", "true");
+      this.closeButton.title = "";
+    }
     this.body.setAttribute("aria-label", `${this.activeModel.title}内容`);
   }
 
@@ -189,6 +208,7 @@ export class KtcCurrentToolRegion extends HTMLElement {
   }
 
   private emitClose(): void {
+    if (!this.activeModel.itemId) return;
     this.dispatchEvent(new CustomEvent<KtcCurrentToolRegionActionDetail>(
       KTC_CURRENT_TOOL_REGION_ACTION,
       {
@@ -245,7 +265,7 @@ function iconPath(kind: string): string {
   }
   if (kind === "layout") return "M1.5 2h13v12h-13zM5.5 2v12M5.5 5.5h9";
   if (kind === "sliders") {
-    return "M2 4h12M2 8h12M2 12h12M4.7 4a1.3 1.3 0 112.6 0 1.3 1.3 0 01-2.6 0zM8.7 8a1.3 1.3 0 112.6 0 1.3 1.3 0 01-2.6 0zM3.7 12a1.3 1.3 0 112.6 0 1.3 1.3 0 01-2.6 0z";
+    return "M389.44 768a96.064 96.064 0 0 1 181.12 0H896v64H570.56a96.064 96.064 0 0 1-181.12 0H128v-64zm192-288a96.064 96.064 0 0 1 181.12 0H896v64H762.56a96.064 96.064 0 0 1-181.12 0H128v-64zm-320-288a96.064 96.064 0 0 1 181.12 0H896v64H442.56a96.064 96.064 0 0 1-181.12 0H128v-64z";
   }
   if (kind === "window") return "M2.5 3h11v10h-11zM2.5 6h11M6 6v7";
   return "M3 2.5h6l3.5 3.5v7.5H3zM9 2.5V6h3.5M5.5 9h4.5M5.5 11h3.5";

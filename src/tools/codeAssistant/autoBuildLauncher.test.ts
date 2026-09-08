@@ -5,7 +5,7 @@ describe("Auto Build launcher export", () => {
   it("writes an editable standalone UI configuration with all selected operations", () => {
     const source = ktcCreateAutoBuildLauncher({
       schemaVersion: 2, rootDirectory: "E:/Root", thirdPartyDirectory: "E:/Third", workingDirectory: "E:/work",
-      updateRoot: true, updateThirdParty: false, rootBranch: "develop", branch: "master", cmakeBranch: "develop", clean: false, buildExecutionMode: "parallel",
+      rootEnabled: false, thirdPartyEnabled: true, updateRoot: true, updateThirdParty: false, rootBranch: "develop", branch: "master", cmakeBranch: "develop", clean: false, buildExecutionMode: "parallel",
       projects: [
         { id: "cpp", enabled: true, name: "Cpp", path: "Cpp", branch: "develop", operations: { update: true, cmake: true, caa: false, linkCaa: false } },
         { id: "caa", enabled: true, name: "Caa", path: "Caa", branch: "master", operations: { update: false, cmake: false, caa: true, linkCaa: true } },
@@ -20,6 +20,7 @@ describe("Auto Build launcher export", () => {
     expect(source).toContain("$cmakeProjects = @('E:\\work\\Cpp')");
     expect(source).toContain("$caaProjects = @('E:\\work\\Caa')");
     expect(source).toContain("$parallelBuild = $true");
+    expect(source).toContain("EnableRoot=$false; EnableThirdParty=$true; UpdateRoot=$false; UpdateThirdParty=$false");
     expect(source).toContain("function Assert-FullyQualifiedWindowsPath");
     expect(source).toContain("Assert-FullyQualifiedWindowsPath $toolRootDirectory '脚本 Root'");
     expect(source).toContain("Assert-FullyQualifiedWindowsPath $project '项目目录'");

@@ -1,7 +1,10 @@
 import {
   KTC_CODE_ASSISTANT_NAVIGATION,
-  KTC_CODE_ASSISTANT_TOOL_ICONS,
 } from "../../src/tools/codeAssistant/navigation.js";
+import {
+  ktcRequireToolRegistration,
+  type KtcToolRegistrationMetadata,
+} from "../../src/tools/toolRegistrationCatalog.js";
 import type { KtcToolNavigatorNode } from "../../src/ui/KtcToolNavigatorModel.js";
 
 export type PreviewPrimarySurface =
@@ -62,138 +65,112 @@ export interface PreviewToolCatalogValidationResult {
 
 export type PreviewToolCatalogIndex = Readonly<Record<string, PreviewToolDescriptor>>;
 
-const RAW_PREVIEW_TOOL_CATALOG: readonly unknown[] = [
+interface PreviewRibbonItemMetadata {
+  readonly title: string;
+  readonly shortTitle: string;
+  readonly description: string;
+  readonly icon: string;
+  readonly ribbonId: string;
+}
+
+export type PreviewRibbonItem = PreviewRibbonItemMetadata & (
+  | { readonly kind: "group" }
+  | { readonly kind: "tool"; readonly toolId: string }
+);
+
+type PreviewToolRegistration = Pick<PreviewToolDescriptor, "toolId" | "instancePolicy" | "surfaces">;
+
+/** Surface ownership is preview-only; all user-facing identity comes from the registration JSON. */
+const PREVIEW_TOOL_REGISTRATIONS: readonly PreviewToolRegistration[] = [
   {
     toolId: "ignoreSettings",
-    title: "Ignore 管理",
-    shortTitle: "Ignore",
-    description: "统一检查插件、Git 与 Phoenix 忽略",
-    icon: "exclude",
-    groupId: "ignoreSettings",
     instancePolicy: { kind: "single" },
     surfaces: { primary: { kind: "full" } },
   },
   {
     toolId: "environmentSettings",
-    title: "设置",
-    shortTitle: "设置",
-    description: "工作区策略与本机工具配置",
-    icon: "settings",
-    groupId: "environmentSettings",
     instancePolicy: { kind: "single" },
     surfaces: { primary: { kind: "full" } },
   },
   {
     toolId: "git",
-    title: "Git",
-    shortTitle: "Git",
-    description: "仓库、分支与提交操作",
-    icon: "git",
-    groupId: "git",
     instancePolicy: { kind: "single" },
     surfaces: { primary: { kind: "full" } },
   },
   {
     toolId: "run",
-    title: "Run",
-    shortTitle: "Run",
-    description: "运行配置与状态",
-    icon: "play",
-    groupId: "run",
+    instancePolicy: { kind: "single" },
+    surfaces: { primary: { kind: "full" } },
+  },
+  {
+    toolId: "codeRename",
     instancePolicy: { kind: "single" },
     surfaces: { primary: { kind: "full" } },
   },
   {
     toolId: "reorderMembers",
-    title: "C++ 成员排序",
-    shortTitle: "成员排序",
-    description: "Primary 内的紧凑操作与结果",
-    icon: KTC_CODE_ASSISTANT_TOOL_ICONS.reorderMembers,
-    groupId: "codeAssistant",
     instancePolicy: { kind: "single" },
     surfaces: { primary: { kind: "full" } },
   },
   {
     toolId: "headerAscii",
-    title: "头文件 ASCII 修正",
-    shortTitle: "ASCII 修正",
-    description: "Primary 内预检问题字节",
-    icon: KTC_CODE_ASSISTANT_TOOL_ICONS.headerAscii,
-    groupId: "codeAssistant",
     instancePolicy: { kind: "single" },
     surfaces: { primary: { kind: "full" } },
   },
   {
     toolId: "encodingFix",
-    title: "编码修正",
-    shortTitle: "编码修正",
-    description: "Primary 内检查项目编码",
-    icon: KTC_CODE_ASSISTANT_TOOL_ICONS.encodingFix,
-    groupId: "codeAssistant",
     instancePolicy: { kind: "single" },
     surfaces: { primary: { kind: "full" } },
   },
   {
     toolId: "uuidReplace",
-    title: "UUID 替换",
-    shortTitle: "UUID",
-    description: "Primary 内扫描映射并确认",
-    icon: KTC_CODE_ASSISTANT_TOOL_ICONS.uuidReplace,
-    groupId: "codeAssistant",
     instancePolicy: { kind: "single" },
     surfaces: { primary: { kind: "full" } },
   },
   {
     toolId: "caaDialog",
-    title: "CAA UI",
-    shortTitle: "CAA UI",
-    description: "Primary 摘要与 Desk Tools 联动",
-    icon: KTC_CODE_ASSISTANT_TOOL_ICONS.caaDialog,
-    groupId: "codeAssistant",
     instancePolicy: { kind: "single" },
     surfaces: { primary: { kind: "full" } },
   },
   {
     toolId: "projectRename",
-    title: "项目改名",
-    shortTitle: "项目改名",
-    description: "复杂项目分析与写盘前 Diff",
-    icon: "search",
-    groupId: "replace",
     instancePolicy: { kind: "single" },
     surfaces: { primary: { kind: "companion" }, right: { panelId: "projectRename" } },
   },
   {
     toolId: "packageIncludes",
-    title: "头文件引用修正",
-    shortTitle: "头文件修正",
-    description: "在 Right UI 中预览 include 修正",
-    icon: KTC_CODE_ASSISTANT_TOOL_ICONS.packageIncludes,
-    groupId: "codeAssistant",
     instancePolicy: { kind: "single" },
     surfaces: { primary: { kind: "companion" }, right: { panelId: "packageIncludes" } },
   },
   {
     toolId: "autoBuild",
-    title: "编译工具",
-    shortTitle: "编译",
-    description: "Primary 选择目标与运行；Right UI 配置环境并查看长日志",
-    icon: KTC_CODE_ASSISTANT_TOOL_ICONS.autoBuild,
-    groupId: "codeAssistant",
     instancePolicy: { kind: "single" },
     surfaces: { primary: { kind: "full" }, right: { panelId: "autoBuild" } },
   },
   {
     toolId: "codegen",
-    title: "自动代码",
-    shortTitle: "自动代码",
-    description: "在 Right UI 中配置生成并由 Primary 显示摘要",
-    icon: "sliders",
-    groupId: "codegen",
     instancePolicy: { kind: "single" },
-    surfaces: { primary: { kind: "companion" }, right: { panelId: "codegen" } },
+    surfaces: { primary: { kind: "full" }, right: { panelId: "codegen" } },
   },
 ];
+
+const RAW_PREVIEW_TOOL_CATALOG: readonly unknown[] = PREVIEW_TOOL_REGISTRATIONS.map(
+  (registration) => previewDescriptorFromRegistration(
+    ktcRequireToolRegistration(registration.toolId),
+    registration,
+  ),
+);
+
+function previewDescriptorFromRegistration(
+  metadata: KtcToolRegistrationMetadata,
+  registration: PreviewToolRegistration,
+): PreviewToolDescriptor {
+  return {
+    ...metadata,
+    instancePolicy: registration.instancePolicy,
+    surfaces: registration.surfaces,
+  };
+}
 
 /**
  * Converts the current Code Assistant tree into the prototype's deliberately
@@ -306,6 +283,30 @@ export const PREVIEW_TOOL_CATALOG = parsePreviewToolCatalog(
 export const PREVIEW_TOOL_CATALOG_BY_ID: PreviewToolCatalogIndex = Object.freeze(
   Object.fromEntries(PREVIEW_TOOL_CATALOG.map((descriptor) => [descriptor.toolId, descriptor])),
 );
+
+/**
+ * The ribbon only owns ordering and whether an entry navigates a group or opens
+ * a leaf. Every visible identity field is projected from the registration JSON.
+ */
+export const PREVIEW_RIBBON_ITEMS: readonly PreviewRibbonItem[] = Object.freeze(([
+  { kind: "group", registrationId: "codeAssistant" },
+  { kind: "tool", registrationId: "git" },
+  { kind: "tool", registrationId: "run" },
+  { kind: "tool", registrationId: "codeRename" },
+  { kind: "tool", registrationId: "codegen" },
+] as const).map(({ kind, registrationId }): PreviewRibbonItem => {
+  const metadata = ktcRequireToolRegistration(registrationId);
+  const identity = {
+    title: metadata.title,
+    shortTitle: metadata.shortTitle,
+    description: metadata.description,
+    icon: metadata.icon,
+    ribbonId: metadata.groupId,
+  };
+  return Object.freeze(kind === "group"
+    ? { ...identity, kind }
+    : { ...identity, kind, toolId: metadata.toolId });
+}));
 
 export function resolvePreviewTool(
   toolId: string,

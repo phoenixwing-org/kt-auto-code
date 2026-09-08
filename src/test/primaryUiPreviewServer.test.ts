@@ -68,7 +68,7 @@ describe("Primary UI preview server helpers", () => {
     expect(html.indexOf("data-action=\"open-ignore\"")).toBeLessThan(html.indexOf("data-action=\"open-settings\""));
   });
 
-  it("锁定 Ribbon 固定尺寸与下级导航缩进，不随 Primary 宽度均分拉伸", async () => {
+  it("展开 Ribbon 按短标题收缩且不均分，紧凑态仍使用共享固定尺寸", async () => {
     const [css, toolbarSource] = await Promise.all([
       readFile(path.resolve("ui-preview/styles.css"), "utf8"),
       readFile(path.resolve("src/ui/KtcToolbarStrip.ts"), "utf8"),
@@ -77,12 +77,70 @@ describe("Primary UI preview server helpers", () => {
     const ribbonRule = css.match(/\.preview-ribbon\s*\{(?<body>[^}]*)\}/u)?.groups?.body ?? "";
 
     expect(expandedRule).toMatch(/width:\s*var\(--ktc-ribbon-item-width, 68px\)/u);
+    expect(expandedRule).toMatch(/min-width:\s*var\(--ktc-ribbon-item-min-width, 46px\)/u);
     expect(expandedRule).toMatch(/flex:\s*0 0 var\(--ktc-ribbon-item-flex-basis, 68px\)/u);
     expect(ribbonRule).toMatch(/flex-wrap:\s*var\(--ktc-ribbon-wrap, wrap\)/u);
-    expect(toolbarSource).toContain("--ktc-ribbon-item-width:68px");
+    expect(toolbarSource).toContain("--ktc-ribbon-item-width:max-content");
+    expect(toolbarSource).toContain("--ktc-ribbon-item-min-width:var(--ktc-toolbar-expanded-item-min-width,46px)");
+    expect(toolbarSource).toContain("--ktc-ribbon-item-flex-basis:auto");
     expect(toolbarSource).toContain("--ktc-ribbon-item-width:34px");
+    expect(toolbarSource).toContain("--ktc-ribbon-item-min-width:34px");
     expect(toolbarSource).toContain("--ktc-ribbon-wrap:nowrap");
+    expect(toolbarSource).toContain("var(--ktc-toolbar-compact-module-min-width,18px)");
+    expect(toolbarSource).toContain("var(--ktc-toolbar-expanded-module-min-width,18px)");
+    expect(toolbarSource).toContain("var(--ktc-toolbar-toggle-track-width,24px)");
+    expect(toolbarSource).toContain("var(--ktc-toolbar-compact-module-writing-mode,vertical-rl)");
+    expect(toolbarSource).toContain("var(--ktc-toolbar-compact-module-font-size,8px)");
+    expect(toolbarSource).toContain("var(--ktc-toolbar-compact-module-letter-spacing,.7px)");
+    expect(css).not.toMatch(/--ktc-toolbar-(?:toggle-track-width|expanded-item-min-width|expanded-module-min-width|compact-module-[\w-]+):/u);
     expect(toolbarSource).toContain("margin:0 4px 4px 20px; padding:4px");
+  });
+
+  it("Preview 外框模拟 VS Code 的双侧圆角与宿主间隙", async () => {
+    const css = await readFile(path.resolve("ui-preview/styles.css"), "utf8");
+    const workbenchRule = css.match(/\.preview-workbench\s*\{(?<body>[^}]*)\}/u)?.groups?.body ?? "";
+    const primaryRule = css.match(/\.preview-primary\s*\{(?<body>[^}]*)\}/u)?.groups?.body ?? "";
+    const editorRule = css.match(/\.preview-editor\s*\{(?<body>[^}]*)\}/u)?.groups?.body ?? "";
+    expect(workbenchRule).toMatch(/grid-template-columns:[^;]*8px/u);
+    expect(workbenchRule).toMatch(/padding:\s*6px/u);
+    expect(primaryRule).toMatch(/padding-bottom:\s*6px/u);
+    expect(primaryRule).toMatch(/border-radius:\s*8px/u);
+    expect(editorRule).toMatch(/border-radius:\s*8px/u);
+    expect(css).not.toContain('.preview-icon-button[aria-pressed="true"]');
+    expect(css).toMatch(/\.preview-primary-header\s*\{[^}]*height:\s*35px;[^}]*min-height:\s*35px/u);
+    expect(css).toMatch(/\.preview-icon-button\s*\{[^}]*width:\s*24px;[^}]*height:\s*24px/u);
+  });
+
+  it("代码辅助图标和空白欢迎态跟随正式 Host", async () => {
+    const [html, source, formalGroup, catalog] = await Promise.all([
+      readFile(path.resolve("ui-preview/index.html"), "utf8"),
+      readFile(path.resolve("ui-preview/src/main.ts"), "utf8"),
+      readFile(path.resolve("src/tools/codeAssistant/index.ts"), "utf8"),
+      readFile(path.resolve("src/tools/toolRegistrationCatalog.json"), "utf8"),
+    ]);
+
+    expect(JSON.parse(catalog).tools.find((tool: { toolId: string }) => tool.toolId === "codeAssistant")?.icon)
+      .toBe("code-assistant");
+    expect(formalGroup).toContain('`media/tools/${CODE_ASSISTANT_GROUP_REGISTRATION.icon}.svg`');
+    expect(html).toContain('id="preview-icon-code-assistant" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"');
+    expect(source).toContain('?? "KT Auto Code"');
+    expect(source).toContain('welcome.setAttribute("aria-label", "KT Auto Code 欢迎")');
+    expect(source).toContain('intro.textContent = "从上方工具栏选择功能，对应的 Block 会在这里打开。"');
+    expect(source).toContain('["Gitee 主页", "安装说明", "快速开始", "插件设置", "运行诊断"]');
+    expect(source).not.toContain('welcome.textContent = "从工具栏或代码辅助目录选择一个工具。"');
+  });
+
+  it("自动代码深色选中行复制正式 Host 的高亮层级", async () => {
+    const css = await readFile(path.resolve("ui-preview/styles.css"), "utf8");
+    const rule = css.match(
+      /:root\[data-preview-theme="dark"\] \.preview-codegen-primary kt-codegen-primary-panel\s*\{(?<body>[^}]*)\}/u,
+    )?.groups?.body ?? "";
+
+    expect(rule).toContain("--vscode-sideBar-background: #1e1e1e");
+    expect(rule).toContain("--vscode-descriptionForeground: #94a0ab");
+    expect(rule).toContain("--vscode-list-activeSelectionBackground: #04395e");
+    expect(rule).toContain("--vscode-list-activeSelectionForeground: #ffffff");
+    expect(rule).toContain("--vscode-focusBorder: #007fd4");
   });
 
   it("Catalog 的 Right panelId 与 HTML Shell 严格一一对应", async () => {
@@ -100,47 +158,143 @@ describe("Primary UI preview server helpers", () => {
     expect(htmlPanelIds).toEqual(catalogPanelIds);
   });
 
-  it("Current Tool 共享组件只由原型注册，不静默迁改正式 Host", async () => {
-    const [previewSource, panelSource, buildSource] = await Promise.all([
+  it("Ribbon 静态 DOM 不复制 Catalog 文案，且没有 Group placeholder Surface", async () => {
+    const [html, source] = await Promise.all([
+      readFile(path.resolve("ui-preview/index.html"), "utf8"),
       readFile(path.resolve("ui-preview/src/main.ts"), "utf8"),
-      readFile(path.resolve("src/sidebar/panelHtml.ts"), "utf8"),
-      readFile(path.resolve("esbuild.mjs"), "utf8"),
     ]);
+
+    expect(html).toContain("data-preview-ribbon");
+    expect(html).not.toContain("data-ribbon-id");
+    expect(html).not.toContain("项目改名与替换");
+    expect(html).not.toContain("group-placeholder");
+    expect(source).toContain("PREVIEW_RIBBON_ITEMS.forEach");
+    expect(source).not.toContain("GROUP_COPY");
+    expect(source).not.toContain("renderGroupPlaceholder");
+    expect(source).not.toContain("groupPlaceholder");
+  });
+
+  it("共享外壳组件在原型中通过公开 Entry 注册", async () => {
+    const previewSource = await readFile(path.resolve("ui-preview/src/main.ts"), "utf8");
 
     expect(previewSource).toContain("KtcCurrentToolRegionEntry.js");
     expect(previewSource).toContain("KtcDirectoryBarEntry.js");
     expect(previewSource).toContain("KtcPrimaryShellEntry.js");
     expect(previewSource).toContain("KtcToolbarStripEntry.js");
     expect(previewSource).toContain("KTC_CURRENT_TOOL_REGION_ACTION");
-    expect(panelSource).not.toContain("KtcCurrentToolRegion");
-    expect(panelSource).not.toContain("ktc-current-tool-region");
-    expect(panelSource).not.toContain("KtcDirectoryBar");
-    expect(panelSource).not.toContain("ktc-directory-bar");
-    expect(panelSource).not.toContain("KtcToolbarStrip");
-    expect(panelSource).not.toContain("ktc-toolbar-strip");
-    expect(buildSource).not.toContain("KtcCurrentToolRegionEntry");
-    expect(buildSource).not.toContain("KtcPrimaryShellEntry");
-    expect(buildSource).not.toContain("KtcDirectoryBarEntry");
-    expect(buildSource).not.toContain("KtcToolbarStripEntry");
   });
 
-  it("只把已确认的 AutoBuild 摘要与维护入口移入 Primary", async () => {
-    const [html, source] = await Promise.all([
-      readFile(path.resolve("ui-preview/index.html"), "utf8"),
-      readFile(path.resolve("ui-preview/src/main.ts"), "utf8"),
+  it("原型与正式 Primary 适配器使用同一紧凑 Open Items 尺寸", async () => {
+    const [css, panelSource, openItemsSource] = await Promise.all([
+      readFile(path.resolve("ui-preview/styles.css"), "utf8"),
+      readFile(path.resolve("src/sidebar/panelHtml.ts"), "utf8"),
+      readFile(path.resolve("src/ui/KtcOpenItemsBar.ts"), "utf8"),
     ]);
 
+    const previewRule = css.match(/#preview-open-items-bar\s*\{(?<body>[^}]*)\}/u)?.groups?.body ?? "";
+    const formalRule = panelSource.match(/#open-items-bar\s*\{(?<body>[^}]*)\}/u)?.groups?.body ?? "";
+    expect(previewRule).toMatch(/--ktc-open-items-bar-height:\s*27px/u);
+    expect(previewRule).toMatch(/--ktc-open-items-track-gap:\s*0/u);
+    expect(previewRule).toMatch(/margin:\s*0/u);
+    expect(formalRule).toMatch(/--ktc-open-items-bar-height:\s*27px/u);
+    expect(formalRule).toMatch(/--ktc-open-items-track-gap:\s*0/u);
+    expect(formalRule).toMatch(/margin:\s*0/u);
+    expect(openItemsSource).toContain("var(--ktc-open-items-bar-height,31px)");
+    expect(openItemsSource).toContain("var(--ktc-open-items-track-gap,1px)");
+  });
+
+  it("搜索替换 Preview 以正式功能为准补齐 Primary 控件和默认值", async () => {
+    const [source, css] = await Promise.all([
+      readFile(path.resolve("ui-preview/src/main.ts"), "utf8"),
+      readFile(path.resolve("ui-preview/styles.css"), "utf8"),
+    ]);
+    const replaceStart = source.indexOf("function createSearchReplacePrimary");
+    const replaceEnd = source.indexOf("function renderAutoBuildSampleRows", replaceStart);
+    const replaceSource = source.slice(replaceStart, replaceEnd);
+
+    expect(replaceStart).toBeGreaterThan(0);
+    expect(replaceEnd).toBeGreaterThan(replaceStart);
+    expect(replaceSource).toContain('queryToggle.textContent = "⌄"');
+    expect(replaceSource).toContain('searchAction.textContent = "搜索"');
+    expect(replaceSource).toContain('replaceAction.textContent = "替换"');
+    expect(replaceSource).toContain('document.createElement("pnw-combo")');
+    expect(replaceSource).toContain('ariaLabel: "最近改名记录"');
+    expect(replaceSource).toContain('clearLabel: "全部清空"');
+    expect(replaceSource).not.toContain('clearHistory.textContent = "清空"');
+    expect(replaceSource).toContain('variantsToggle.textContent = "常用变形"');
+    expect(replaceSource).toContain('projectRename.textContent = "项目改名"');
+    expect(replaceSource).toContain('[["文本", true], ["文件名", false], ["文件夹名", false]]');
+    expect(replaceSource).toContain('["gbk", "GBK（本地）"]');
+    expect(replaceSource).toContain('document.createElement("ktc-rename-results-panel")');
+    expect(replaceSource).not.toContain('textContent = "预览"');
+    expect(replaceSource).not.toContain('textContent = "应用所选"');
+    expect(css).toMatch(/\.preview-search-replace-primary\s*\{[^}]*gap:\s*0/u);
+    expect(css).toMatch(/\.preview-search-replace-helpers > \.preview-search-replace-project\s*\{[^}]*border-color:[^}]*background:\s*var\(--vscode-button-background\)/u);
+    expect(css).toMatch(/\.preview-search-replace-variant-row\s*\{[^}]*grid-template-columns:\s*18px minmax\(0, 1fr\) minmax\(0, 1fr\) 18px 18px 18px/u);
+  });
+
+  it("AutoBuild Preview 由单一样例驱动，并锁定 Primary/Right 的迁移边界", async () => {
+    const [html, source, stateSource, sampleSource, css] = await Promise.all([
+      readFile(path.resolve("ui-preview/index.html"), "utf8"),
+      readFile(path.resolve("ui-preview/src/main.ts"), "utf8"),
+      readFile(path.resolve("ui-preview/src/previewAutoBuildState.ts"), "utf8"),
+      readFile(path.resolve("ui-preview/src/previewAutoBuildSample.ts"), "utf8"),
+      readFile(path.resolve("ui-preview/styles.css"), "utf8"),
+    ]);
+    const rightStart = html.indexOf('data-editor-panel="autoBuild"');
+    const rightEnd = html.indexOf("</ktc-right-view-shell>", rightStart);
+    const autoBuildRight = html.slice(rightStart, rightEnd);
+
+    expect(source).toContain("./previewAutoBuildState.js");
+    expect(source).toContain("derivePreviewAutoBuildState(autoBuildState)");
+    expect(source).toContain("reducePreviewAutoBuildState(autoBuildState");
+    expect(source).toContain("preview-auto-build-primary");
+    expect(source).toContain('activeToolId: isOpenTool(activeNavigatorToolId) ? activeNavigatorToolId : ""');
     expect(source).toContain("preview-primary-config-bar");
+    expect(source).toContain("configRegion.append(configBar, recentConfig)");
+    expect(source).toContain("section.append(configRegion, heading, actions, executionOptions, statusLine, metrics, maintenance, environment)");
     expect(source).toContain("preview-primary-maintenance");
-    expect(source).toContain("运行概览");
-    expect(source).toContain("项目摘要");
-    expect(source).toContain("工程环境");
-    expect(source.indexOf("section.append(heading, metrics, actions, configBar")).toBeGreaterThan(0);
-    expect(html).not.toContain("preview-build-config-bar");
-    expect(html).not.toContain("手动清理 Root");
-    expect(html).toContain("构建配置");
-    expect(html).toContain("项目表");
-    expect(html).toContain("任务列表");
-    expect(html).toContain("库探测结果");
+    expect(stateSource).toContain('actionId: "openCleanup"');
+    expect(source).toContain("openAutoBuildCleanupDialog()");
+    expect(source).toContain("preview-cleanup-dialog");
+    expect(source).not.toContain("preview-primary-repository-cleanup");
+    expect(source).not.toContain("preview-primary-cleanup-block");
+    expect(source).not.toContain("preview-primary-project-list");
+    expect(source).not.toContain("preview-primary-subheading");
+    expect(source).not.toContain("/workspace/Phoenix");
+    expect(source).not.toContain("auto-build.local.json");
+    expect(sampleSource).toContain('../fixtures/auto-build.sample.json');
+    expect(stateSource).toContain("PREVIEW_AUTO_BUILD_SAMPLE");
+    expect(rightStart).toBeGreaterThan(0);
+    expect(rightEnd).toBeGreaterThan(rightStart);
+    expect(autoBuildRight).not.toContain("preview-build-config-bar");
+    expect(autoBuildRight).not.toContain("手动清理 Root");
+    expect(autoBuildRight).not.toContain("并行 CMake / CAA");
+    expect(autoBuildRight).not.toContain("运行前清理仓库");
+    expect(autoBuildRight).not.toContain("库探测结果");
+    expect(autoBuildRight).not.toContain('data-auto-build-action="openScript"');
+    expect(autoBuildRight).toContain("项目与仓库");
+    expect(autoBuildRight).toContain('<div class="preview-build-config-row is-head" aria-hidden="true"><span>角色</span><span>目录</span><span>分支</span></div>');
+    expect(autoBuildRight).toContain("<strong>当前 ROOT_DIR</strong>");
+    expect(autoBuildRight).toContain("<strong>工作目录</strong>");
+    expect(autoBuildRight).toContain("<strong>ROOT_DIR_3rdParty</strong>");
+    expect(autoBuildRight).toContain("<strong>CMake 项目</strong>");
+    expect(css).toMatch(/\.preview-build-config-row\s*\{[^}]*grid-template-columns:\s*150px minmax\(220px, 1fr\) 150px/u);
+    expect(autoBuildRight).toContain("data-auto-build-update-root");
+    expect(autoBuildRight).toContain("data-auto-build-update-third-party");
+    expect(autoBuildRight).toContain("data-auto-build-project-tool=\"选择目录…\"");
+    expect(autoBuildRight).toContain("data-auto-build-project-tool=\"导入…\"");
+    expect(autoBuildRight).toContain("data-auto-build-project-tool=\"探测当前目录\"");
+    expect(autoBuildRight).toContain("data-auto-build-project-tool=\"移除未启用项\"");
+    expect(autoBuildRight).toContain("data-auto-build-probe-columns");
+    expect(autoBuildRight).toContain("data-auto-build-project-rows");
+    expect(autoBuildRight).toContain("data-auto-build-mode");
+    expect(source).toContain('path.setAttribute("d", "m10 10 3 3")');
+    expect(source).toContain('path.setAttribute("d", "M5 3.5 12 8l-7 4.5z")');
+    expect(source).toContain("openAutoBuildManifestImportDialog()");
+    expect(source).toContain("preview-manifest-dialog");
+    expect(css).toMatch(/\.preview-build-table\s*\{[^}]*border-collapse:\s*separate/u);
+    expect(css).toMatch(/\.preview-build-table th:last-child,\s*\n\.preview-build-table td:last-child\s*\{[^}]*position:\s*sticky;[^}]*right:\s*0/u);
+    expect(css).toMatch(/\.preview-build-table th:nth-child\(9\)\s*\{\s*width:\s*92px/u);
   });
 });

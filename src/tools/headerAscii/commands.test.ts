@@ -22,7 +22,10 @@ vi.mock("../../worksets.js", () => ({
   ktcResolveWorkspaceFileScope: vi.fn(async () => ({ kind: "workspace", label: "整个工作区" })),
 }));
 
-vi.mock("../../ignoreConfig.js", () => ({ resolveWorkspaceIgnorePatterns: vi.fn(() => []) }));
+vi.mock("../../ignoreConfig.js", () => ({
+  ktcUseBuiltInIgnore: vi.fn(() => true),
+  resolveWorkspaceIgnorePatterns: vi.fn(() => []),
+}));
 vi.mock("../../workbench/editorMatchHighlight.js", () => ({ ktcHighlightHeaderIssues: vi.fn() }));
 
 import type { ToolRunContext, ToolUiState } from "../types.js";

@@ -90,7 +90,7 @@ async function runPreview(ctx: ToolRunContext): Promise<void> {
   let scope;
   try { scope = await ktcResolveWorkspaceFileScope(root, ctx.workspaceFileScopeId); }
   catch (error) { ctx.postState({ status: "error", message: error instanceof Error ? error.message : String(error) }); return; }
-  const ignorePatterns = resolveWorkspaceIgnorePatterns(ctx.workspaceRoot, ctx.pluginIgnoreEnabled);
+  const ignorePatterns = resolveWorkspaceIgnorePatterns(ctx.workspaceRoot, ctx);
   const candidates = (await vscode.workspace.findFiles(new vscode.RelativePattern(root, INCLUDE), EXCLUDE))
     .filter((uri) => ktcFileInWorkspaceScope(uri, scope))
     .filter((uri) => !isIgnoredPath(relative(ctx.workspaceRoot!, uri.fsPath).replace(/\\/g, "/"), ignorePatterns))

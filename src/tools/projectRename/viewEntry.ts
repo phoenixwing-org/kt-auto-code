@@ -9,11 +9,15 @@ import type {
   KtcAssociatedRulePicker,
   KtcAssociatedRulePickerActionDetail,
 } from "../../sidebar/associatedRulePicker.js";
+import type { KtcRightViewShell } from "../../ui/KtcRightViewShell.js";
+import { ktcRequireToolRegistration } from "../toolRegistrationCatalog.js";
 import { ktcProjectRenameVariantStyleLabel } from "./nameVariants.js";
 
 declare function acquireVsCodeApi(): { postMessage(message: unknown): void };
 
 const vscode = acquireVsCodeApi();
+const rightShell = ktcRequiredElement<KtcRightViewShell>("right-shell");
+rightShell.model = { title: ktcRequireToolRegistration("projectRename").title };
 let currentReportId: number | undefined;
 let nextOffset: number | undefined;
 let renderedRows = 0;
@@ -90,6 +94,7 @@ toggleRulesButton.addEventListener("click", () => {
   }
   ktcUpdateRuleToggleButton(false);
   ktcMarkReportDirty();
+  ktcSyncDraft();
 });
 addRuleButton.addEventListener("click", () => ktcRequestRulePicker("custom"));
 commonRulesButton.addEventListener("click", () => ktcRequestRulePicker("common"));
@@ -188,6 +193,7 @@ rulePicker.addEventListener("ktc-associated-rule-picker-action", (event: Event) 
   if (additions.length === 0) return;
   ktcRenderRules([...current, ...additions], false);
   ktcMarkReportDirty();
+  ktcSyncDraft();
 });
 rootRenameButton.addEventListener("click", () => {
   if (currentReportId === undefined) return;
@@ -204,6 +210,7 @@ rulesElement.addEventListener("click", (event) => {
   target.closest(".rule")?.remove();
   ktcUpdateRuleToggleButton(false);
   ktcMarkReportDirty();
+  ktcSyncDraft();
 });
 document.addEventListener("input", (event) => {
   const target = event.target;
@@ -220,10 +227,16 @@ document.addEventListener("input", (event) => {
 });
 document.addEventListener("change", (event) => {
   const target = event.target;
+  const draftControl = target === sourceInput
+    || target === targetInput
+    || target === sourcePrefixInput
+    || target === targetPrefixInput
+    || (target instanceof HTMLElement && rulesElement.contains(target));
   if (target instanceof HTMLElement && rulesElement.contains(target)) {
     ktcUpdateRuleToggleButton(false);
     ktcMarkReportDirty();
   }
+  if (draftControl) ktcSyncDraft();
 });
 relatedCandidatesElement.addEventListener("click", (event) => {
   const target = event.target;
@@ -241,6 +254,7 @@ relatedCandidatesElement.addEventListener("click", (event) => {
       enabled: false,
     }], false);
     ktcMarkReportDirty();
+    ktcSyncDraft();
   }
   target.disabled = true;
   target.textContent = "已加入（未启用）";
@@ -273,6 +287,17 @@ function ktcRequestRulePicker(mode: "custom" | "common" | "caa"): void {
   vscode.postMessage({
     type: "requestRulePicker",
     mode,
+    sourceName: sourceInput.value,
+    targetName: targetInput.value,
+    sourcePrefix: sourcePrefixInput.value,
+    targetPrefix: targetPrefixInput.value,
+    rules: ktcReadRules(),
+  });
+}
+
+function ktcSyncDraft(): void {
+  vscode.postMessage({
+    type: "syncDraft",
     sourceName: sourceInput.value,
     targetName: targetInput.value,
     sourcePrefix: sourcePrefixInput.value,
@@ -365,19 +390,20 @@ function ktcRenderState(state: KtcProjectRenameViewState): void {
   ktcRenderProfiles(state);
   rootElement.textContent = state.root ?? "未选择";
   rootElement.title = state.root
-    ? `${state.root}\n分析目录已绑定；如需更换，请关闭此 View 后重新打开新任务。`
+    ? `${state.root}\n分析目录由 Primary 管理。`
     : "尚未选择分析目录";
   noticeElement.textContent = state.message;
   noticeElement.className = `notice${state.status === "error" ? " error" : state.status === "running" || state.status === "applying" ? " running" : " quiet"}`;
+  noticeElement.hidden = state.status === "idle" || state.status === "done";
   const busy = state.status === "running" || state.status === "applying";
   sourceInput.disabled = busy;
   targetInput.disabled = busy;
   sourcePrefixInput.disabled = busy;
   targetPrefixInput.disabled = busy;
-  chooseRootButton.hidden = !!state.root;
+  chooseRootButton.hidden = true;
   chooseRootButton.disabled = busy;
   chooseRootButton.title = state.root
-    ? "当前任务已绑定目录；关闭此 View 后可从搜索替换为另一目录新建任务"
+    ? "分析目录由 Primary 管理；切换前会确认并清空当前草稿和报告"
     : "为当前分析任务选择目录";
   deriveButton.disabled = busy;
   toggleRulesButton.disabled = busy;
@@ -402,6 +428,7 @@ function ktcRenderState(state: KtcProjectRenameViewState): void {
     ? state.completion.message
     : "达到目标或本次冻结计划全部完成后才能结束任务";
   gitChangesButton.disabled = busy || !state.gitCompareAvailable || !state.completion || state.completion.appliedItems === 0;
+  gitChangesButton.hidden = true;
   gitChangesButton.title = gitChangesButton.disabled
     ? "执行改名后可在 VS Code 源代码管理中逐文件对比"
     : "打开 VS Code 源代码管理，用内置 Git diff 验收写盘结果";
@@ -423,6 +450,7 @@ function ktcRenderState(state: KtcProjectRenameViewState): void {
   currentReportId = state.report.reportId;
   ktcRenderRelatedCandidates(state.report.relatedCandidates, state.rules);
   ktcRenderSummary(state.report, busy);
+  ktcRequiredElement("summary-section").hidden = !state.completion;
   const applyBlockedReason = ktcApplyBlockedReason(state);
   applyButton.disabled = !!applyBlockedReason;
   applyButton.title = applyBlockedReason ?? "写盘执行当前冻结报告中的全部精确改名";
@@ -526,9 +554,6 @@ function ktcRenderRules(rules: readonly KtcProjectRenameRule[], disabled: boolea
       ? ktcCustomRuleLabel(rule.relationKind)
       : ktcProjectRenameVariantStyleLabel(rule.style);
     const search = ktcTextInput("search", rule.search, disabled);
-    const arrow = document.createElement("span");
-    arrow.className = "arrow muted";
-    arrow.textContent = "→";
     const replace = ktcTextInput("replace", rule.replace, disabled);
     const tail = rule.style === "custom" ? document.createElement("button") : document.createElement("span");
     if (tail instanceof HTMLButtonElement) {
@@ -541,7 +566,8 @@ function ktcRenderRules(rules: readonly KtcProjectRenameRule[], disabled: boolea
     } else {
       tail.setAttribute("aria-hidden", "true");
     }
-    row.append(checkbox, style, search, arrow, replace, tail);
+    row.setAttribute("role", "row");
+    row.append(checkbox, style, search, replace, tail);
     return row;
   }));
   ktcUpdateRuleToggleButton(disabled);
@@ -633,7 +659,6 @@ function ktcRenderSummary(report: NonNullable<KtcProjectRenameViewState["report"
   rootRenameButton.hidden = !report.rootSuggestion?.canRename;
   rootRenameButton.disabled = running;
   renameReason.textContent = report.rootSuggestion?.renameReason ?? "";
-  ktcRequiredElement("summary-section").hidden = false;
   ktcRequiredElement("results-section").hidden = false;
 }
 

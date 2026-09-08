@@ -2,21 +2,21 @@ import { describe, expect, it } from "vitest";
 import { ktcResolveToolSurfaceIntent } from "./toolSurfaceState.js";
 
 describe("Tool Surface presentation state", () => {
-  it("toggles only for a repeated click on the current open Ribbon tool", () => {
+  it("treats a repeated click on the current open Ribbon tool as activation", () => {
     expect(ktcResolveToolSurfaceIntent({
       requestedToolId: "git",
       activeToolId: "git",
       openToolIds: ["codeRename", "git"],
       source: "ribbon",
       collapsed: false,
-    })).toEqual({ kind: "toggle", collapsed: true });
+    })).toEqual({ kind: "activate", collapsed: false });
     expect(ktcResolveToolSurfaceIntent({
       requestedToolId: "git",
       activeToolId: "git",
       openToolIds: ["git"],
       source: "ribbon",
       collapsed: true,
-    })).toEqual({ kind: "toggle", collapsed: false });
+    })).toEqual({ kind: "activate", collapsed: false });
   });
 
   it("reveals the Surface for a different tool or menu activation", () => {
@@ -36,7 +36,7 @@ describe("Tool Surface presentation state", () => {
     })).toEqual({ kind: "activate", collapsed: false });
   });
 
-  it("does not treat a stale active id without an open logical tool as a repeat", () => {
+  it("ignores stale active/open/collapsed presentation state", () => {
     expect(ktcResolveToolSurfaceIntent({
       requestedToolId: "git",
       activeToolId: "git",

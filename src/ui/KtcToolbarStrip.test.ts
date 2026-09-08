@@ -170,8 +170,8 @@ describe("KtcToolbarStrip", () => {
     expect(overflow.attributes.get("aria-expanded")).toBe("false");
 
     const style = findNodes(element.shadow, (node) => node.tagName === "style")[0]!.textContent;
-    expect(style).toContain("grid-template-columns:28px minmax(0,1fr) 30px");
-    expect(style).toContain("width:28px; min-width:28px; height:40px; align-self:start");
+    expect(style).toContain("grid-template-columns:var(--ktc-toolbar-toggle-track-width,24px) minmax(0,1fr) 30px");
+    expect(style).toContain("width:var(--ktc-toolbar-toggle-track-width,24px); min-width:var(--ktc-toolbar-toggle-track-width,24px); height:40px; align-self:start");
     expect(style).toContain("height:30px; align-self:start");
     expect(style).toContain("width:16px; height:16px");
     expect(style).not.toMatch(/\.title\b/u);
@@ -297,17 +297,26 @@ describe("KtcToolbarStrip", () => {
     element.model = { mode: "expanded", groupContentVisible: false, overflowOpen: false };
     const style = findNodes(element.shadow, (node) => node.tagName === "style")[0]!.textContent;
 
-    expect(style).toContain("--ktc-ribbon-item-width:68px");
+    expect(style).toContain("--ktc-ribbon-item-width:max-content");
+    expect(style).toContain("--ktc-ribbon-item-min-width:var(--ktc-toolbar-expanded-item-min-width,46px)");
     expect(style).toContain("--ktc-ribbon-item-height:58px");
-    expect(style).toContain("--ktc-ribbon-item-flex-basis:68px");
+    expect(style).toContain("--ktc-ribbon-item-flex-basis:auto");
     expect(style).toContain("--ktc-ribbon-icon-size:22px");
     expect(style).toContain("--ktc-ribbon-label-display:block");
     expect(style).toContain("--ktc-ribbon-wrap:wrap");
+    expect(style).toContain("grid-template-columns:var(--ktc-toolbar-toggle-track-width,24px) minmax(0,1fr) 30px");
+    expect(style).toContain("width:var(--ktc-toolbar-toggle-track-width,24px); min-width:var(--ktc-toolbar-toggle-track-width,24px)");
     expect(style).toContain("--ktc-ribbon-item-width:34px");
+    expect(style).toContain("--ktc-ribbon-item-min-width:34px");
     expect(style).toContain("--ktc-ribbon-item-height:32px");
     expect(style).toContain("--ktc-ribbon-item-flex-basis:34px");
     expect(style).toContain("--ktc-ribbon-label-display:none");
     expect(style).toContain("--ktc-ribbon-wrap:nowrap");
+    expect(style).toContain("--ktc-ribbon-module-min-width:var(--ktc-toolbar-compact-module-min-width,18px)");
+    expect(style).toContain("--ktc-ribbon-module-min-width:var(--ktc-toolbar-expanded-module-min-width,18px)");
+    expect(style).toContain("--ktc-ribbon-module-writing-mode:var(--ktc-toolbar-compact-module-writing-mode,vertical-rl)");
+    expect(style).toContain("--ktc-ribbon-module-font-size:var(--ktc-toolbar-compact-module-font-size,8px)");
+    expect(style).toContain("--ktc-ribbon-module-letter-spacing:var(--ktc-toolbar-compact-module-letter-spacing,.7px)");
     expect(style).toContain("overflow-x:auto; overflow-y:hidden");
     expect(style).toContain("width:max-content; min-width:100%");
     expect(style).toContain("@media (prefers-reduced-motion:reduce)");

@@ -71,7 +71,13 @@ export type WebviewInboundMessage =
   | ({ type: "editorCompanionAction" } & KtcEditorPrimaryCompanionActionToken)
   | { type: "openCodeAssistantFeature"; feature: "packageIncludes" | "autoBuild" }
   | { type: "setCodeAssistantTreeUiState"; state: KtcCodeAssistantTreeUiState }
-  | { type: "closeToolBlock" }
+  /** Omitting toolId preserves the legacy Current Tool close behavior. */
+  | { type: "closeToolBlock"; toolId?: string }
+  | { type: "closeOtherToolBlocks"; toolId: string }
+  /** Activates an already-open logical Tool without opening or running it again. */
+  | { type: "activateOpenTool"; toolId: string }
+  /** Opens the Host-owned recent/workspace directory QuickPick. */
+  | { type: "showWorkingDirectoryQuickPick" }
   | {
       type: "runAction";
       toolId: "run";
@@ -118,6 +124,7 @@ export type WebviewInboundMessage =
   | { type: "selectWorkingDirectory"; directory: string }
   | { type: "pickWorkingDirectory" }
   | { type: "setPluginIgnoreEnabled"; enabled: boolean }
+  | { type: "setIgnoreEnabled"; enabled: boolean }
   | { type: "setIgnoreSourceEnabled"; source: "builtIn" | "git" | "custom"; enabled: boolean }
   | {
       type: "run";
@@ -265,6 +272,8 @@ export type KtcCodeAssistantFeatureId =
 export interface KtcCodeAssistantTreeUiState {
   /** 同一导航数据的显示方式；只影响呈现，不改变工具激活。 */
   navigatorMode: "outline" | "grid";
+  /** Compact Tool Navigator 是否显示标题；旧状态缺失时默认显示。 */
+  showLabels: boolean;
   /** 整个功能目录的用户级展开状态；不影响已打开的功能会话。 */
   treeExpanded: boolean;
   cppOrganizeExpanded: boolean;
@@ -319,12 +328,28 @@ export interface ToolSummary {
   title: string;
   description: string;
   icon?: string;
+  /** Navigation-only parent; it never owns a Current Tool or Right View surface. */
+  kind?: "tool" | "group";
   /** False keeps a runnable tool out of the first-level Ribbon and its overflow menu. */
   ribbonVisible?: boolean;
   moduleId?: KtcModuleId;
   moduleTitle?: string;
   command?: string;
   shortTitle?: string;
+}
+
+/**
+ * Navigation-only metadata consumed by Ribbon/Toolbar projections. It cannot
+ * own commands, messages, actions, or Tool visibility lifecycle callbacks.
+ */
+export interface KtcNavigationDescriptor {
+  readonly id: string;
+  readonly title: string;
+  readonly shortTitle?: string;
+  readonly description: string;
+  readonly icon?: string;
+  readonly kind: "group";
+  readonly ribbonVisible?: boolean;
 }
 
 export interface KtcRecentWorkingDirectories {
@@ -339,6 +364,7 @@ export interface KtcWorkingContext {
   resolvedDirectory?: string;
   label: string;
   pluginIgnoreEnabled: boolean;
+  ignoreEnabled?: boolean;
   builtInIgnoreEnabled?: boolean;
   gitIgnoreEnabled?: boolean;
   customIgnoreEnabled?: boolean;
@@ -481,6 +507,7 @@ export interface ToolRunContext {
   workspaceLabel: string;
   workspaceFileScopeId: string;
   pluginIgnoreEnabled: boolean;
+  ignoreEnabled?: boolean;
   builtInIgnoreEnabled?: boolean;
   gitIgnoreEnabled?: boolean;
   customIgnoreEnabled?: boolean;
@@ -491,6 +518,7 @@ export interface ToolRunContext {
 export interface KtTool {
   readonly id: string;
   readonly title: string;
+  readonly shortTitle?: string;
   readonly description: string;
   readonly icon?: string;
   /** Tool remains command-addressable but is surfaced from a parent feature tree. */

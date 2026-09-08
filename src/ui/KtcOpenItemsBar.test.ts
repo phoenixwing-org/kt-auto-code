@@ -25,6 +25,7 @@ class FakeNode {
   onclick?: (event: FakeEvent) => void;
   onkeydown?: (event: FakeEvent) => void;
   oncontextmenu?: (event: FakeEvent) => void;
+  readonly ownerDocument = fakeOwnerDocument;
 
   constructor(readonly tagName = "") {}
 
@@ -55,21 +56,39 @@ class FakeEvent {
   defaultPrevented = false;
   propagationStopped = false;
   shiftKey = false;
-  constructor(readonly key = "") {}
+  constructor(readonly key = "", private readonly eventPath: readonly unknown[] = []) {}
   preventDefault(): void { this.defaultPrevented = true; }
   stopPropagation(): void { this.propagationStopped = true; }
+  composedPath(): readonly unknown[] { return this.eventPath; }
 }
 
 let fakeActiveElement: FakeNode | undefined;
+let fakeOwnerDocument: FakeDocument;
+
+class FakeDocument {
+  readonly listeners = new Map<string, Set<(event: FakeEvent) => void>>();
+
+  createElement(tagName: string): FakeNode { return new FakeNode(tagName); }
+  createElementNS(_namespace: string, tagName: string): FakeNode { return new FakeNode(tagName); }
+  addEventListener(type: string, listener: (event: FakeEvent) => void): void {
+    const listeners = this.listeners.get(type) ?? new Set();
+    listeners.add(listener);
+    this.listeners.set(type, listeners);
+  }
+  removeEventListener(type: string, listener: (event: FakeEvent) => void): void {
+    this.listeners.get(type)?.delete(listener);
+  }
+  dispatch(type: string, event: FakeEvent): void {
+    this.listeners.get(type)?.forEach((listener) => listener(event));
+  }
+}
 
 function installFakeDom(): Map<string, CustomElementConstructor> {
   const registry = new Map<string, CustomElementConstructor>();
   fakeActiveElement = undefined;
+  fakeOwnerDocument = new FakeDocument();
   vi.stubGlobal("HTMLElement", FakeElement);
-  vi.stubGlobal("document", {
-    createElement: (tagName: string) => new FakeNode(tagName),
-    createElementNS: (_namespace: string, tagName: string) => new FakeNode(tagName),
-  });
+  vi.stubGlobal("document", fakeOwnerDocument);
   vi.stubGlobal("CustomEvent", class<T> {
     readonly bubbles: boolean;
     readonly composed: boolean;
@@ -126,10 +145,32 @@ describe("KtcOpenItemsBar", () => {
     expect(byAria(element.shadow, "打开C++ 成员排序").attributes.get("aria-current")).toBe("page");
     expect(findNodes(element.shadow, (node) => node.className === "more")).toHaveLength(1);
     const style = findNodes(element.shadow, (node) => node.tagName === "style")[0]!.textContent;
-    expect(style).toContain("height:31px");
+    expect(style).toContain("height:var(--ktc-open-items-bar-height,31px)");
+    expect(style).toContain("var(--ktc-open-items-more-width,29px)");
+    expect(style).toContain("var(--ktc-open-items-close-width,22px)");
     expect(style).toContain("overflow-x:auto");
     expect(style).toContain("max-width:clamp(82px,42cqi,220px)");
     expect(style).toContain("var(--vscode-list-activeSelectionForeground");
+  });
+
+  it("自动代码打开项使用统一的 Element Plus Operation 实心图标", async () => {
+    installFakeDom();
+    const browser = await import("./KtcOpenItemsBar.js");
+    const element = new browser.KtcOpenItemsBar() as unknown as FakeElement & { model: KtcOpenItemsBarModel };
+    element.model = {
+      activeId: "codegen",
+      overflowLabel: "全部打开项",
+      items: [{ id: "codegen", title: "自动代码", icon: "sliders" }],
+    };
+
+    const trigger = byAria(element.shadow, "打开自动代码");
+    const icon = findNodes(trigger, (node) => node.className === "icon")[0]!;
+    expect(icon.attributes.get("data-icon")).toBe("sliders");
+    expect(icon.attributes.get("viewBox")).toBe("0 0 1024 1024");
+    expect(findNodes(icon, (node) => node.tagName === "path")[0]?.attributes.get("d"))
+      .toContain("M389.44 768");
+    expect(findNodes(element.shadow, (node) => node.tagName === "style")[0]?.textContent)
+      .toContain('.icon[data-icon="sliders"] path { fill:currentColor; stroke:none; }');
   });
 
   it("仅发出 activate、close、closeOthers 语义，不拥有 MRU 或 Host 状态", async () => {
@@ -178,6 +219,74 @@ describe("KtcOpenItemsBar", () => {
     expect(escape.defaultPrevented).toBe(true);
     expect(menu.hidden).toBe(true);
     expect(fakeActiveElement).toBe(more);
+  });
+
+  it("在 ownerDocument 监听点外 pointerdown，并排除菜单与当前 trigger", async () => {
+    installFakeDom();
+    const browser = await import("./KtcOpenItemsBar.js");
+    const element = new browser.KtcOpenItemsBar() as unknown as FakeElement & {
+      model: KtcOpenItemsBarModel;
+      connectedCallback(): void;
+      disconnectedCallback(): void;
+    };
+    element.connectedCallback();
+    element.connectedCallback();
+    element.model = MODEL;
+
+    expect(fakeOwnerDocument.listeners.get("pointerdown")?.size).toBe(1);
+    const more = byAria(element.shadow, "全部打开项（3）");
+    more.onclick?.(new FakeEvent());
+    const menu = findNodes(element.shadow, (node) => node.attributes.get("role") === "menu")[0]!;
+
+    fakeOwnerDocument.dispatch("pointerdown", new FakeEvent("", [menu, element.shadow, element]));
+    expect(menu.hidden).toBe(false);
+    fakeOwnerDocument.dispatch("pointerdown", new FakeEvent("", [more, element.shadow, element]));
+    expect(menu.hidden).toBe(false);
+
+    // A real pointer click reaches document before the trigger's click handler.
+    // Keeping pointerdown open lets the following click close instead of reopen it.
+    more.onclick?.(new FakeEvent());
+    expect(menu.hidden).toBe(true);
+    expect(more.attributes.get("aria-expanded")).toBe("false");
+
+    more.onclick?.(new FakeEvent());
+    fakeActiveElement = undefined;
+    const outside = new FakeNode("button");
+    fakeOwnerDocument.dispatch("pointerdown", new FakeEvent("", [outside, fakeOwnerDocument]));
+    expect(menu.hidden).toBe(true);
+    expect(fakeActiveElement).toBeUndefined();
+
+    element.disconnectedCallback();
+    expect(fakeOwnerDocument.listeners.get("pointerdown")?.size).toBe(0);
+  });
+
+  it("右键菜单同样在 composedPath 外关闭，断开时关闭且不恢复旧 trigger 焦点", async () => {
+    installFakeDom();
+    const browser = await import("./KtcOpenItemsBar.js");
+    const element = new browser.KtcOpenItemsBar() as unknown as FakeElement & {
+      model: KtcOpenItemsBarModel;
+      connectedCallback(): void;
+      disconnectedCallback(): void;
+    };
+    element.connectedCallback();
+    element.model = MODEL;
+    const rename = byAria(element.shadow, "打开项目改名");
+    const wrapper = findNodes(element.shadow, (node) => node.dataset.itemId === "rename")[0]!;
+    wrapper.oncontextmenu?.(new FakeEvent());
+    const menu = findNodes(element.shadow, (node) => node.attributes.get("role") === "menu")[0]!;
+
+    fakeOwnerDocument.dispatch("pointerdown", new FakeEvent("", [rename, wrapper, element.shadow, element]));
+    expect(menu.hidden).toBe(false);
+    fakeOwnerDocument.dispatch("pointerdown", new FakeEvent("", [new FakeNode("main"), fakeOwnerDocument]));
+    expect(menu.hidden).toBe(true);
+    expect(fakeActiveElement).not.toBe(rename);
+
+    wrapper.oncontextmenu?.(new FakeEvent());
+    fakeActiveElement = undefined;
+    element.disconnectedCallback();
+    expect(menu.hidden).toBe(true);
+    expect(fakeActiveElement).toBeUndefined();
+    expect(fakeOwnerDocument.listeners.get("pointerdown")?.size).toBe(0);
   });
 
   it("标签键盘支持完整漫游、删除和两种右键菜单按键", async () => {

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { KTC_TOOL_REGISTRATION_CATALOG } from "./tools/toolRegistrationCatalog.js";
 
 const extensionSource = readFileSync(new URL("./extension.ts", import.meta.url), "utf8");
 const manifest = JSON.parse(
@@ -7,8 +8,8 @@ const manifest = JSON.parse(
 ) as { contributes?: { commands?: Array<{ command?: string }> } };
 
 describe("Editor / Primary companion 生产注册", () => {
-  it("生产 catalog 的 descriptor 名称唯一并包含两个 hidden companion", () => {
-    const descriptorNames = [...extensionSource.matchAll(/registerTool\((\w+)\);/gu)]
+  it("生产 catalog 的 KtTool 名称唯一并包含三个 hidden companion leaf", () => {
+    const descriptorNames = [...extensionSource.matchAll(/registerBuiltInTool\((\w+)\);/gu)]
       .map((match) => match[1]!);
 
     expect(descriptorNames.length).toBeGreaterThan(0);
@@ -16,15 +17,51 @@ describe("Editor / Primary companion 生产注册", () => {
     expect(descriptorNames.filter((name) => name === "autoBuildCompanionTool")).toEqual([
       "autoBuildCompanionTool",
     ]);
+    expect(descriptorNames.filter((name) => name === "packageIncludesCompanionTool")).toEqual([
+      "packageIncludesCompanionTool",
+    ]);
     expect(descriptorNames.filter((name) => name === "projectRenameCompanionTool")).toEqual([
       "projectRenameCompanionTool",
     ]);
+  });
+
+  it("14 个正式 KtTool 注册与 Catalog 一一对应，Group 只注册为 navigation descriptor", () => {
+    const toolIdByDescriptorName: Readonly<Record<string, string>> = {
+      headerAsciiTool: "headerAscii",
+      encodingFixTool: "encodingFix",
+      ignoreSettingsTool: "ignoreSettings",
+      environmentSettingsTool: "environmentSettings",
+      codeRenameTool: "codeRename",
+      codegenTool: "codegen",
+      reorderMembersTool: "reorderMembers",
+      packageIncludesCompanionTool: "packageIncludes",
+      autoBuildCompanionTool: "autoBuild",
+      projectRenameCompanionTool: "projectRename",
+      uuidReplaceTool: "uuidReplace",
+      caaDialogTool: "caaDialog",
+      KtcGitTool: "git",
+      KtcRunTool: "run",
+    };
+    const registeredDescriptorNames = [...extensionSource.matchAll(/registerBuiltInTool\((\w+)\);/gu)]
+      .map((match) => match[1]!);
+    const registeredToolIds = registeredDescriptorNames.map((name) => toolIdByDescriptorName[name]);
+    const catalogToolIds = KTC_TOOL_REGISTRATION_CATALOG.tools
+      .map(({ toolId }) => toolId)
+      .filter((toolId) => toolId !== "codeAssistant");
+
+    expect(registeredToolIds).not.toContain(undefined);
+    expect(new Set(registeredToolIds).size).toBe(14);
+    expect([...registeredToolIds].sort()).toEqual([...catalogToolIds].sort());
+    expect(extensionSource).toContain("registerNavigationDescriptor(codeAssistantNavigationDescriptor)");
+    expect(extensionSource).not.toContain("registerBuiltInTool(codeAssistantNavigationDescriptor)");
+    expect(extensionSource).not.toContain("registerTool(codeAssistantNavigationDescriptor)");
   });
 
   it("用户命令各贡献一次，实际注册由唯一 owning support 负责", () => {
     const commands = manifest.contributes?.commands ?? [];
     for (const command of [
       "ktAutoCode.codeAssistant.autoBuild",
+      "ktAutoCode.codeAssistant.packageIncludes",
       "ktAutoCode.projectRenameAnalysis.open",
     ]) {
       expect(commands.filter((candidate) => candidate.command === command)).toHaveLength(1);

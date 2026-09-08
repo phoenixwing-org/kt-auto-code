@@ -8,7 +8,6 @@ import {
   replaceBufferByRules,
   replaceStringByRules,
   resolveReplacementRules,
-  type ReplacementRule,
   type ReplacementTextEncoding,
   type ResolvedReplacementRule,
 } from "../../core/replacementRules.js";
@@ -204,7 +203,10 @@ export async function ktcAnalyzeProjectRename(
     root,
     sourceName: options.sourceName,
     targetName: options.targetName,
-    rules: options.rules.map((rule) => ({ ...rule })),
+    // Freeze the exact normalized rule set used by this analysis. Keeping
+    // incomplete enabled drafts here would make Diff/apply interpret an empty
+    // replacement as a deletion even though the analyzer skipped that draft.
+    rules: activeRules.map((rule) => ({ ...rule })),
     ignorePatterns,
     useBuiltInIgnore,
     ...(rootSuggestion ? {
@@ -228,13 +230,13 @@ export async function ktcAnalyzeProjectRename(
   };
 }
 
-function ktcActiveProjectRenameRules(rules: readonly KtcProjectRenameRule[]): ReplacementRule[] {
+function ktcActiveProjectRenameRules(rules: readonly KtcProjectRenameRule[]): KtcProjectRenameRule[] {
   const searches = new Set<string>();
-  const result: ReplacementRule[] = [];
+  const result: KtcProjectRenameRule[] = [];
   for (const rule of rules) {
     if (!rule.enabled || !rule.search || !rule.replace || searches.has(rule.search)) continue;
     searches.add(rule.search);
-    result.push({ id: rule.id, search: rule.search, replace: rule.replace, enabled: true });
+    result.push({ ...rule, enabled: true });
   }
   return result;
 }

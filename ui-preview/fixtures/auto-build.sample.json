@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "initial": {
+    "phase": "preflightPassed",
+    "status": "准备就绪",
+    "tone": "success",
+    "parallelBuild": false,
+    "probeColumnsVisible": true
+  },
+  "configuration": {
+    "currentConfigName": "未保存",
+    "recentConfigs": [
+      "auto-build.local.json",
+      "auto-build.release.json"
+    ],
+    "draftLabel": "当前草稿 · 尚未写盘",
+    "rootDirectory": "/workspace/Phoenix",
+    "thirdPartyDirectory": "/workspace/Phoenix-3rdParty",
+    "workingDirectory": "/workspace/Phoenix/projects",
+    "rootBranch": "develop",
+    "projectBranch": "develop",
+    "cmakeBranch": "master",
+    "updateRootDirectory": false,
+    "updateThirdParty": true
+  },
+  "environment": {
+    "hint": "macOS（检查）",
+    "platform": "macOS（检查）→ Windows 执行",
+    "sequentialExecution": "顺序：CMake → CAA",
+    "parallelExecution": "并行：CMake + CAA"
+  },
+  "maintenance": {
+    "rootScriptStatus": "脚本一致",
+    "repositoryCleanupStatus": "仅手动触发",
+    "rootCleanupStatus": "待确认规则",
+    "rootCleanupPatternsYaml": "delete:\n  directories:\n    - objects\n    - build\n  files:\n    - '*.obj'\n    - '*.exp'\n    - '*.pdb'\n    - 'test_*.exe'",
+    "rootCleanupPreviewCount": 12
+  },
+  "primaryBlocks": {
+    "environmentExpanded": true,
+    "maintenanceExpanded": true
+  },
+  "repositories": [
+    {
+      "id": "root",
+      "enabled": true,
+      "kind": "Root",
+      "branch": "develop",
+      "name": "Phoenix",
+      "path": "/workspace/Phoenix",
+      "commit": "4e12a890",
+      "origin": "origin…/phoenix.git",
+      "originTitle": "origin.example/phoenix/phoenix.git",
+      "status": "干净",
+      "operations": [{ "id": "update", "label": "更新", "enabled": false }],
+      "runnable": false
+    },
+    {
+      "id": "third-party",
+      "enabled": true,
+      "kind": "3rdParty",
+      "branch": "develop",
+      "name": "Phoenix-3rdParty",
+      "path": "/workspace/Phoenix-3rdParty",
+      "commit": "8c11b20e",
+      "origin": "origin…/third-party.git",
+      "originTitle": "origin.example/phoenix/third-party.git",
+      "status": "待检查",
+      "operations": [{ "id": "update", "label": "更新", "enabled": true }],
+      "runnable": false
+    },
+    {
+      "id": "ktcore",
+      "enabled": true,
+      "kind": "项目",
+      "branch": "develop",
+      "name": "KtCore",
+      "path": "/workspace/Phoenix/projects/KtCore",
+      "commit": "a4c19b3d12f0",
+      "origin": "origin…/kt-core.git",
+      "originTitle": "origin.example/phoenix/kt-core.git",
+      "status": "干净",
+      "operations": [
+        { "id": "update", "label": "更新", "enabled": true },
+        { "id": "cmake", "label": "CMake", "enabled": true }
+      ],
+      "runnable": true
+    },
+    {
+      "id": "bom",
+      "enabled": true,
+      "kind": "项目",
+      "branch": "develop",
+      "name": "PNXBomAnalysisWsp",
+      "path": "/workspace/Phoenix/projects/PNXBomAnalysisWsp",
+      "commit": "7b928a10e4c2",
+      "origin": "origin…/pnx-bom.git",
+      "originTitle": "origin.example/customer/pnx-bom-analysis.git",
+      "status": "有修改",
+      "operations": [
+        { "id": "update", "label": "更新", "enabled": true },
+        { "id": "caa", "label": "CAA", "enabled": true },
+        { "id": "link-caa", "label": "linkCAA", "enabled": true }
+      ],
+      "runnable": true
+    }
+  ],
+  "tasks": [
+    { "id": "gate", "name": "仓库门禁", "detail": "Root · 3rdParty · 2 个项目", "status": "等待", "tone": "idle" },
+    { "id": "link", "name": "linkCAA", "detail": "PNXBomAnalysisWsp", "status": "等待", "tone": "idle" },
+    { "id": "arguments", "name": "导出构建参数", "detail": "当前配置快照", "status": "等待", "tone": "idle" },
+    { "id": "build", "name": "CMake → CAA", "detail": "KtCore → PNXBomAnalysisWsp", "status": "等待", "tone": "idle" }
+  ]
+}

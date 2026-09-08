@@ -14,21 +14,21 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "CHANGELOG.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/0.1.0-插件市场发布归档.md",
       "status": "archived",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "historical",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "旧版本、已完成点检或阶段性共享提取证据"
     },
@@ -37,7 +37,7 @@
       "status": "archived",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "historical",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "旧版本、已完成点检或阶段性共享提取证据"
     },
@@ -46,7 +46,7 @@
       "status": "archived",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "historical",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "旧版本、已完成点检或阶段性共享提取证据"
     },
@@ -55,7 +55,7 @@
       "status": "archived",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "historical",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "旧版本、已完成点检或阶段性共享提取证据"
     },
@@ -64,7 +64,7 @@
       "status": "archived",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "historical",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "旧版本、已完成点检或阶段性共享提取证据"
     },
@@ -73,7 +73,7 @@
       "status": "archived",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "historical",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "旧版本、已完成点检或阶段性共享提取证据"
     },
@@ -82,7 +82,7 @@
       "status": "archived",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "historical",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "旧版本、已完成点检或阶段性共享提取证据"
     },
@@ -91,7 +91,7 @@
       "status": "archived",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "historical",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "旧版本、已完成点检或阶段性共享提取证据"
     },
@@ -100,21 +100,21 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/0.7.3发布准备.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/0.7.4发布准备.md",
       "status": "superseded",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/0.8.1发布准备.md",
       "reason": "0.7.4 未单独发布，补丁内容已进入 0.8.1 测试候选"
     },
@@ -123,7 +123,7 @@
       "status": "superseded",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/0.8.1发布准备.md",
       "reason": "0.8.0 初始候选已由完成职责迁移、历史恢复与写盘前 Diff 的 0.8.1 取代"
     },
@@ -132,7 +132,7 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "reason": "已发布项目改名版本与发布门禁归档"
     },
     {
@@ -140,14 +140,14 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/0.8.3发布准备.md",
       "status": "archived",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "historical",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "0.8.3 发布准备历史快照；当前界面与发布目标以现行规则和路线为准"
     },
@@ -156,72 +156,95 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "reason": "避开 0.8.2 重叠文件的下一发布目标简表"
+    },
+    {
+      "path": "docs/0.9.0-Primary迁移需求归档.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.9.0",
+      "lastVerified": "2026-09-08",
+      "reason": "2026-09-08 连续 UI 决策、PnwCombo、脚本同步、TypeScript Root 清理与未完成验收的集中记录"
     },
     {
       "path": "docs/0.9.0-Primary与Editor联动讨论稿.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.9.0",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "reason": "用户已确认的两区 Primary Shell、无 Header Tool Surface、当前 Ribbon 项显隐与悬浮关闭，以及双 Editor companion、Group/Tool 导航、Action Registry 与分阶段验证计划"
+    },
+    {
+      "path": "docs/0.9.0-Right工具Primary迁移点检.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.9.0",
+      "lastVerified": "2026-09-08",
+      "reason": "0.9.0 Right 工具向 Primary 分阶段迁移的 Preview-first 决策、AutoBuild 状态安全契约与正式接线验收清单"
+    },
+    {
+      "path": "docs/0.9.0-Wing控件与自动代码整改目标.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.8.x",
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/2026-07-20-功能修复人工点检表.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/本地Wing并列开发.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/必要日志输出规则.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/编码修正.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/编译工具/README.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/仓库结构与扁平化迁移计划.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/产品功能归属矩阵.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/成员排序整合POC记录.md",
       "status": "archived",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "historical",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "旧版本、已完成点检或阶段性共享提取证据"
     },
@@ -230,14 +253,14 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/代码辅助入口整合TODO.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "reason": "代码辅助入口、首项头文件引用修正与 C++ 成员排序用户参与迁移边界"
     },
     {
@@ -245,21 +268,21 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/工程配置与隐藏状态存储规则.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/工作集退场与多目录范围调查.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "reason": "已确认的工作集退场决策、消费者审计与多目录替代方案"
     },
     {
@@ -267,42 +290,42 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/固定与排序菜单控件.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/关联规则选择器组件化Baseline点检表.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/开发与测试.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/可选模块接入契约.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/跨产品共享算法与UI适配计划.md",
       "status": "draft",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "尚未晋升为当前承诺的方案"
     },
@@ -311,7 +334,7 @@
       "status": "superseded",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "重叠路线已合并为当前 roadmap"
     },
@@ -320,7 +343,7 @@
       "status": "archived",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "historical",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "完成态旧 UI/插件规划"
     },
@@ -329,7 +352,7 @@
       "status": "superseded",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "重叠路线已合并为当前 roadmap"
     },
@@ -338,7 +361,7 @@
       "status": "superseded",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "重叠路线已合并为当前 roadmap"
     },
@@ -347,14 +370,14 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/历史/vscode插件规划.md",
       "status": "archived",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "historical",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "完成态旧 UI/插件规划"
     },
@@ -363,14 +386,14 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/三库共享整改执行计划.md",
       "status": "archived",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "historical",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "旧版本、已完成点检或阶段性共享提取证据"
     },
@@ -379,28 +402,28 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/搜索替换编码规则.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/搜索替换算法审计.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/文件克隆与改名计划.md",
       "status": "draft",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "尚未晋升为当前承诺的方案"
     },
@@ -409,14 +432,14 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/项目改名第二阶段-结构化规则与正则可行性.md",
       "status": "draft",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/搜索替换.md",
       "reason": "0.8.3 仅建立结构化名称纯算法基线；遗漏探测交互、候选升级与任何动态写盘仍待评审"
     },
@@ -425,7 +448,7 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/搜索替换.md",
       "reason": "0.8.1 已实现的项目改名职责迁移、布局和写盘前 Diff 设计证据"
     },
@@ -434,14 +457,14 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/运行模块/README.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "reason": "Run Primary Block 0.6.0 实现与验收基线"
     },
     {
@@ -449,7 +472,7 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/运行模块/README.md",
       "reason": "Run Primary Block 0.6.0 实施计划"
     },
@@ -458,7 +481,7 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/运行模块/README.md",
       "reason": "Run Primary Block 0.6.0 实施计划"
     },
@@ -467,14 +490,14 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/真实工作区只读验收.md",
       "status": "archived",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "historical",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "旧版本、已完成点检或阶段性共享提取证据"
     },
@@ -483,21 +506,21 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/CAA对话框-DeskTools交接契约.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/catdlg-core-迁入准备清单.md",
       "status": "archived",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "historical",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "旧版本、已完成点检或阶段性共享提取证据"
     },
@@ -506,14 +529,14 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/codegen-plan/Codegen第二轮执行评分.md",
       "status": "archived",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "historical",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "阶段评分证据，不代表当前全工程成熟度"
     },
@@ -522,7 +545,7 @@
       "status": "archived",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "historical",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "阶段评分证据，不代表当前全工程成熟度"
     },
@@ -531,7 +554,7 @@
       "status": "archived",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "historical",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "阶段评分证据，不代表当前全工程成熟度"
     },
@@ -540,7 +563,7 @@
       "status": "archived",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "historical",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "阶段评分证据，不代表当前全工程成熟度"
     },
@@ -549,56 +572,56 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/codegen-plan/Codegen控制符未闭合呈现.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/codegen-plan/Codegen控制面板滚动筛选点检表.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/codegen-plan/Codegen全部应用点检表.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/codegen-plan/Codegen全部应用与批量报告计划.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/codegen-plan/Codegen手工验收.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/codegen-plan/Codegen应用报告与View生命周期改进计划.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/codegen-plan/Codegen执行评分.md",
       "status": "archived",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "historical",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "阶段评分证据，不代表当前全工程成熟度"
     },
@@ -607,28 +630,28 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/Codegen快速原型.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/current-roadmap.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/DeskTools-Code共享提取审计.md",
       "status": "archived",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "historical",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "旧版本、已完成点检或阶段性共享提取证据"
     },
@@ -637,14 +660,14 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/git/Git-Primary-Block可行性与实施计划.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/git/README.md",
       "reason": "Git Primary Block 0.6.0 实施计划"
     },
@@ -653,7 +676,7 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "reason": "Git Primary Block 0.6.0 实现与验收基线"
     },
     {
@@ -661,7 +684,7 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "reason": "Phoenix Auto 插件内置、Git 与项目自定义 Ignore 的统一产品和跨仓契约"
     },
     {
@@ -669,42 +692,50 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/Phoenix三形态产品架构计划.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
+    },
+    {
+      "path": "docs/PnwCombo组件提炼TODO.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.9.0",
+      "lastVerified": "2026-09-08",
+      "reason": "本地 PnwCombo 已接入消费者，记录下版迁入 Wing 前必须保留的模型、事件与验收边界"
     },
     {
       "path": "docs/PNXCaaStudy-CAA命名规则调查.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/PNXCaaStudy-Ignore规则总结.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/README.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/Ribbon与基础上下文Block改进计划.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "reason": "已确认的单 View Ribbon、无 Header Tool Surface、用户定制与共享工作目录实施计划"
     },
     {
@@ -712,42 +743,42 @@
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "docs/VS Code 插件发布.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "README.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "scripts/auto-build/README.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "scripts/webview-preview/README.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-08"
     },
     {
       "path": "tests/fixtures/codegen-manual-workspace/README.md",
       "status": "current",
       "owner": "Auto Code test maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "reason": "fixture 说明与样例内容"
     },
     {
@@ -755,7 +786,7 @@
       "status": "current",
       "owner": "Auto Code test maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "reason": "fixture 说明与样例内容"
     },
     {
@@ -763,7 +794,7 @@
       "status": "current",
       "owner": "Auto Code test maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "reason": "fixture 说明与样例内容"
     },
     {
@@ -771,7 +802,7 @@
       "status": "current",
       "owner": "Auto Code test maintainers",
       "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-06",
+      "lastVerified": "2026-09-08",
       "reason": "fixture 说明与样例内容"
     }
   ]

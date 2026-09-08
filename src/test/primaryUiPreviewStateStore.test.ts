@@ -120,7 +120,7 @@ describe("Primary UI preview persisted state", () => {
     expect(saved).toMatchObject({ schemaVersion: 1, state: { theme: "hc" } });
   });
 
-  it("把不一致的打开项、宿主选择和 MRU 修复为同一逻辑工具快照", () => {
+  it("修复打开项、宿主选择和 MRU，同时保留独立的 Group 导航选择", () => {
     const store = createPreviewStateStore({ storage: new MemoryStorage() });
 
     const state = store.save({
@@ -140,7 +140,7 @@ describe("Primary UI preview persisted state", () => {
       surfaceMruToolIds: ["autoBuild"],
       activeItemId: "tool:autoBuild",
       activeToolId: "autoBuild",
-      activeGroupId: "codeAssistant",
+      activeGroupId: "git",
       activeNavigatorToolId: "autoBuild",
       activeEditorId: "autoBuild",
     });

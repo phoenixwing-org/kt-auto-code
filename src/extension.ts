@@ -6,7 +6,12 @@ import {
 } from "./buildProvenance.js";
 import { appendOutputLine } from "./output.js";
 import { SidebarViewProvider } from "./sidebar/sidebarViewProvider.js";
-import { clearRegisteredTools, registerTool, getTools } from "./tools/registry.js";
+import {
+  clearRegisteredTools,
+  getTools,
+  registerBuiltInTool,
+  registerNavigationDescriptor,
+} from "./tools/registry.js";
 import { headerAsciiTool } from "./tools/headerAscii/index.js";
 import { encodingFixTool } from "./tools/encodingFix/index.js";
 import { codeRenameTool } from "./tools/codeRename/index.js";
@@ -19,7 +24,8 @@ import { KtcRunTool } from "./tools/run/KtcRunTool.js";
 import { environmentSettingsTool } from "./tools/environmentSettings/index.js";
 import {
   autoBuildCompanionTool,
-  codeAssistantTool,
+  codeAssistantNavigationDescriptor,
+  packageIncludesCompanionTool,
   registerCodeAssistantSupport,
   setCodeAssistantPrimaryCompanionHost,
 } from "./tools/codeAssistant/index.js";
@@ -70,20 +76,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<KtcAut
   registerCodegenSupport(context);
   registerCodeAssistantSupport(context);
   ktcRegisterProjectRenameAnalysis(context);
-  registerTool(headerAsciiTool);
-  registerTool(encodingFixTool);
-  registerTool(ignoreSettingsTool);
-  registerTool(environmentSettingsTool);
-  registerTool(codeRenameTool);
-  registerTool(codegenTool);
-  registerTool(reorderMembersTool);
-  registerTool(codeAssistantTool);
-  registerTool(autoBuildCompanionTool);
-  registerTool(projectRenameCompanionTool);
-  registerTool(uuidReplaceTool);
-  registerTool(caaDialogTool);
-  registerTool(KtcGitTool);
-  registerTool(KtcRunTool);
+  registerBuiltInTool(headerAsciiTool);
+  registerBuiltInTool(encodingFixTool);
+  registerBuiltInTool(ignoreSettingsTool);
+  registerBuiltInTool(environmentSettingsTool);
+  registerBuiltInTool(codeRenameTool);
+  registerBuiltInTool(codegenTool);
+  registerBuiltInTool(reorderMembersTool);
+  registerNavigationDescriptor(codeAssistantNavigationDescriptor);
+  registerBuiltInTool(packageIncludesCompanionTool);
+  registerBuiltInTool(autoBuildCompanionTool);
+  registerBuiltInTool(projectRenameCompanionTool);
+  registerBuiltInTool(uuidReplaceTool);
+  registerBuiltInTool(caaDialogTool);
+  registerBuiltInTool(KtcGitTool);
+  registerBuiltInTool(KtcRunTool);
 
   sidebarProvider = new SidebarViewProvider(context.extensionUri, context.globalState, context.workspaceState);
   setCodeAssistantPrimaryCompanionHost({

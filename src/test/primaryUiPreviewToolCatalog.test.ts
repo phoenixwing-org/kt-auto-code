@@ -2,10 +2,12 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { KTC_CODE_ASSISTANT_NAVIGATION } from "../tools/codeAssistant/navigation.js";
+import { KTC_TOOL_REGISTRATION_BY_ID } from "../tools/toolRegistrationCatalog.js";
 import type { KtcToolNavigatorNode } from "../ui/KtcToolNavigatorModel.js";
 import {
   PREVIEW_TOOL_CATALOG,
   PREVIEW_TOOL_NAVIGATION,
+  PREVIEW_RIBBON_ITEMS,
   parsePreviewToolCatalog,
   previewToolIdsFromNavigation,
   resolvePreviewTool,
@@ -22,6 +24,7 @@ const PRIMARY_TOOL_IDS = [
   "environmentSettings",
   "git",
   "run",
+  "codeRename",
   "reorderMembers",
   "headerAscii",
   "encodingFix",
@@ -32,10 +35,51 @@ const PRIMARY_TOOL_IDS = [
 const RIGHT_TOOL_IDS = [
   "projectRename",
   "packageIncludes",
-  "codegen",
 ] as const;
 
 describe("Primary UI preview tool catalog", () => {
+  it("所有 Preview Surface 只从工具注册 JSON 取得显示元数据", () => {
+    for (const descriptor of PREVIEW_TOOL_CATALOG) {
+      const registration = KTC_TOOL_REGISTRATION_BY_ID[descriptor.toolId];
+      expect(registration).toBeDefined();
+      expect({
+        title: descriptor.title,
+        shortTitle: descriptor.shortTitle,
+        description: descriptor.description,
+        icon: descriptor.icon,
+        groupId: descriptor.groupId,
+      }).toEqual({
+        title: registration?.title,
+        shortTitle: registration?.shortTitle,
+        description: registration?.description,
+        icon: registration?.icon,
+        groupId: registration?.groupId,
+      });
+    }
+    expect(resolvePreviewTool("autoBuild")?.title).toBe("编译工具");
+  });
+
+  it("Ribbon 与 overflow 的全部显示字段来自工具注册 JSON", () => {
+    for (const item of PREVIEW_RIBBON_ITEMS) {
+      const registrationId = item.kind === "tool" ? item.toolId : item.ribbonId;
+      const registration = KTC_TOOL_REGISTRATION_BY_ID[registrationId];
+      expect(registration).toBeDefined();
+      expect(item).toMatchObject({
+        title: registration?.title,
+        shortTitle: registration?.shortTitle,
+        description: registration?.description,
+        icon: registration?.icon,
+        ribbonId: registration?.groupId,
+      });
+    }
+
+    const group = PREVIEW_RIBBON_ITEMS.find(({ kind }) => kind === "group");
+    expect(group).not.toHaveProperty("toolId");
+    expect(resolvePreviewTool("codeAssistant")).toBeUndefined();
+    expect(PREVIEW_RIBBON_ITEMS.find((item) => item.kind === "tool" && item.toolId === "codeRename"))
+      .toMatchObject({ title: "搜索替换", shortTitle: "替换" });
+  });
+
   it("用唯一 toolId 注册 Primary 和 Right 两种 surface", () => {
     const toolIds = PREVIEW_TOOL_CATALOG.map(({ toolId }) => toolId);
 
@@ -61,6 +105,13 @@ describe("Primary UI preview tool catalog", () => {
       surfaces: {
         primary: { kind: "full" },
         right: { panelId: "autoBuild" },
+      },
+    });
+    expect(resolvePreviewTool("codegen")).toMatchObject({
+      instancePolicy: { kind: "single" },
+      surfaces: {
+        primary: { kind: "full" },
+        right: { panelId: "codegen" },
       },
     });
   });
@@ -126,7 +177,11 @@ describe("Primary UI preview tool catalog", () => {
   it("Code Assistant 目录、Catalog 与 Current Tool SVG 使用同一图标语义", async () => {
     const navigationLeaves = collectKtcLeaves(KTC_CODE_ASSISTANT_NAVIGATION);
     for (const leaf of navigationLeaves) {
-      expect(resolvePreviewTool(leaf.toolId)?.icon).toBe(leaf.icon);
+      const registration = KTC_TOOL_REGISTRATION_BY_ID[leaf.toolId];
+      expect(leaf.label).toBe(registration?.title);
+      expect(leaf.description).toBe(registration?.description);
+      expect(leaf.icon).toBe(registration?.icon);
+      expect(resolvePreviewTool(leaf.toolId)?.icon).toBe(registration?.icon);
     }
 
     const html = await readFile(path.resolve("ui-preview/index.html"), "utf8");

@@ -124,8 +124,10 @@ import {
   type KtcCodegenApplyOutcome,
   type KtcCodegenApplyReasonCode,
 } from "./applyOutcome.js";
+import { ktcRequireToolRegistration } from "../toolRegistrationCatalog.js";
 
 const TOOL_ID = "codegen";
+const CODEGEN_TOOL_REGISTRATION = ktcRequireToolRegistration(TOOL_ID);
 
 const CODEGEN_META_FIELDS = new Set<KtcCodegenMetaField>([
   "namePrefix",
@@ -328,6 +330,39 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     this.documentSessions.clear();
     this.discovered.clear();
     this.staleSourceRoots.clear();
+  }
+
+  ignorePolicyChanged(): void {
+    const ctx = currentContext();
+    const hadDerivedState = this.candidateIndexReady
+      || this.candidates.length > 0
+      || this.candidatePreview !== undefined
+      || this.preflightTasks.size > 0
+      || [...this.sessions.values()].some((session) => !!session.preflight || !!session.preflightSnapshot);
+    if (ctx) {
+      for (const root of this.workspaceRoots(ctx)) this.staleSourceRoots.add(root.fsPath);
+    }
+    if (this.workspaceOperations.kind === "candidates") this.workspaceOperations.cancelCurrent();
+    this.candidateIndexReady = false;
+    this.candidates = [];
+    for (const [uri, task] of this.preflightTasks) {
+      this.preflightTasks.delete(uri);
+      task.cancel();
+    }
+    for (const session of this.sessions.values()) {
+      if (!session.preflight && !session.preflightSnapshot) continue;
+      session.setPreflight(undefined);
+      this.sessionPresenter.post(session, { type: "codegenPreflightState", running: false });
+      this.sessionPresenter.post(session, {
+        type: "codegenStatus",
+        status: "idle",
+        message: "Ignore 使用策略已改变；原预检计划已失效，请重新预检。",
+      });
+      this.sessionPresenter.publishControls(session);
+    }
+    if (ctx && hadDerivedState) {
+      this.publish(ctx, "Ignore 使用策略已改变；候选列表与预检计划已失效，请重新扫描。");
+    }
   }
 
   async activate(ctx: ToolRunContext): Promise<void> {
@@ -821,6 +856,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
         const result = await ktcScanCodegenCandidates({
           workspaceRoot: root.fsPath,
           scopeId: ctx.workspaceFileScopeId,
+          ignoreSources: ctx,
           forceRefresh: this.staleSourceRoots.has(root.fsPath),
           cancellationToken: cancellation.token,
           reportProgress: (message) => this.postWorkspaceOperationProgress(
@@ -1406,6 +1442,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       const result = await ktcRunCodegenPreflight({
         workspaceRoot,
         scopeId: ctx.workspaceFileScopeId,
+        ignoreSources: ctx,
         documentUri: vscode.Uri.file(session.identity.fsPath),
         controller: session.controller,
         blockKeys: session.selectedBlockKeys,
@@ -2137,15 +2174,19 @@ export function notifyCodegenWorkspaceFoldersChanged(): void {
   codegenController.workspaceFoldersChanged();
 }
 
+export function notifyCodegenIgnorePolicyChanged(): void {
+  codegenController.ignorePolicyChanged();
+}
+
 export function getCodegenRuntimeDiagnosticsSnapshot(): KtcCodegenRuntimeDiagnostics {
   return codegenController.getRuntimeDiagnosticsSnapshot();
 }
 
 export const codegenTool: KtTool = {
   id: TOOL_ID,
-  title: "自动代码",
-  description: "左侧管理 Codegen JSON，当前编辑区用一 JSON 一表格标签编辑17列参数。",
-  icon: "media/tools/codegen.svg",
+  title: CODEGEN_TOOL_REGISTRATION.title,
+  description: CODEGEN_TOOL_REGISTRATION.description,
+  icon: CODEGEN_TOOL_REGISTRATION.icon,
   getPanelModel(): ToolPanelModel {
     return { summary: { id: this.id, title: this.title, description: this.description, icon: this.icon } };
   },

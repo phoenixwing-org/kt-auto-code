@@ -33,5 +33,7 @@ describe("KT Auto Code output", () => {
     logOutput("normal");
     expect(output.appendLine).toHaveBeenCalledWith("normal");
     expect(output.show).toHaveBeenCalledWith(true);
+    expect(output.createOutputChannel).toHaveBeenCalledTimes(1);
+    expect(output.createOutputChannel).toHaveBeenCalledWith("KT Auto Code");
   });
 });

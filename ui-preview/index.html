@@ -54,29 +54,8 @@
         <ktc-directory-bar data-directory-row slot="directory"></ktc-directory-bar>
 
         <ktc-toolbar-strip data-toolbar-strip slot="toolbar">
-          <nav class="preview-ribbon" slot="ribbon" aria-label="Code 工具">
+          <nav class="preview-ribbon" slot="ribbon" aria-label="Code 工具" data-preview-ribbon>
             <span class="preview-module-mark" aria-label="Code 模块">CODE</span>
-            <button class="preview-ribbon-item is-active" type="button" data-ribbon-id="codeAssistant" data-node-kind="group" aria-label="代码辅助" aria-pressed="true" aria-expanded="true">
-              <svg aria-hidden="true"><use href="#preview-icon-file-check"></use></svg>
-              <span>代码辅助</span>
-              <svg class="preview-ribbon-group-chevron" aria-hidden="true"><use href="#preview-icon-chevron-down"></use></svg>
-            </button>
-            <button class="preview-ribbon-item" type="button" data-ribbon-id="git" data-node-kind="tool" data-tool-id="git" aria-label="Git" aria-pressed="false">
-              <svg aria-hidden="true"><use href="#preview-icon-git"></use></svg>
-              <span>Git</span>
-            </button>
-            <button class="preview-ribbon-item" type="button" data-ribbon-id="run" data-node-kind="tool" data-tool-id="run" aria-label="Run" aria-pressed="false">
-              <svg aria-hidden="true"><use href="#preview-icon-play"></use></svg>
-              <span>Run</span>
-            </button>
-            <button class="preview-ribbon-item" type="button" data-ribbon-id="replace" data-node-kind="tool" data-tool-id="projectRename" aria-label="项目改名与替换" aria-pressed="false">
-              <svg aria-hidden="true"><use href="#preview-icon-search"></use></svg>
-              <span>替换</span>
-            </button>
-            <button class="preview-ribbon-item" type="button" data-ribbon-id="codegen" data-node-kind="tool" data-tool-id="codegen" aria-label="自动代码" aria-pressed="false">
-              <svg aria-hidden="true"><use href="#preview-icon-sliders"></use></svg>
-              <span>自动代码</span>
-            </button>
           </nav>
           <ktc-tool-navigator id="preview-tool-navigator" slot="group-content"></ktc-tool-navigator>
         </ktc-toolbar-strip>
@@ -86,7 +65,7 @@
             <div data-code-assistant-surface>
               <section class="preview-primary-content" data-primary-content aria-live="polite"></section>
             </div>
-            <section class="preview-group-placeholder" data-group-placeholder hidden aria-live="polite"></section>
+            <section class="preview-standalone-surface" data-standalone-surface hidden aria-live="polite"></section>
           </div>
         </ktc-current-tool-region>
 
@@ -101,30 +80,30 @@
       <div class="preview-editor-body">
         <ktc-right-view-shell class="preview-editor-panel" data-editor-panel="projectRename">
           <div class="preview-editor-actions" slot="actions">
-            <button type="button">预览 Diff</button>
-            <button class="is-primary" type="button">开始分析</button>
+            <button class="is-primary" type="button">重新分析</button>
+            <button type="button">预览差异…</button>
+            <button type="button">执行改名</button>
+            <button type="button" disabled>结束任务</button>
           </div>
-          <div class="preview-editor-content">
-            <div class="preview-editor-section preview-editor-directory">
-              <span>分析目录</span>
-              <span class="preview-path">/workspace/phoenix-open-issue</span>
-              <button type="button">选择目录…</button>
-            </div>
+          <div class="preview-editor-content preview-project-rename-right">
             <details class="preview-editor-section" open>
-              <summary>改名方案 <span>8 条启用</span></summary>
-              <div class="preview-rename-form">
-                <label>原项目名<input value="PhoenixOpenIssue" /></label>
-                <span aria-hidden="true">→</span>
-                <label>目标项目名<input value="PhoenixIssue" /></label>
-              </div>
-              <div class="preview-rule-grid" aria-label="改名规则预览">
-                <span>Display</span><code>Phoenix Open Issue</code><span>→</span><code>Phoenix Issue</code>
-                <span>kebab-case</span><code>phoenix-open-issue</code><span>→</span><code>phoenix-issue</code>
-                <span>PascalCase</span><code>PhoenixOpenIssue</code><span>→</span><code>PhoenixIssue</code>
+              <summary class="preview-rename-section-header"><strong>改名方案</strong><span>8 条启用</span><small>默认：文本 · 文件名 · 文件夹名 · UTF-8</small><span class="preview-rename-section-actions"><button type="button">+ 规则</button><button type="button">常用</button><button type="button">CAA</button><button type="button">全不选</button><button type="button">派生</button></span></summary>
+              <div class="preview-rename-table-scroll" role="region" aria-label="改名方案表格" tabindex="0">
+                <table class="preview-rename-table">
+                  <colgroup><col class="is-enabled" /><col class="is-kind" /><col /><col /><col class="is-action" /></colgroup>
+                  <thead><tr><th>启用</th><th>类型</th><th>原来</th><th>目标</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr><td></td><th scope="row">项目名</th><td><input value="PhoenixOpenIssue" aria-label="原来的项目名" /></td><td><input value="PhoenixIssue" aria-label="目标项目名" /></td><td></td></tr>
+                    <tr><td></td><th scope="row">前缀</th><td><input value="PNX" aria-label="原来的前缀" /></td><td><input value="PHX" aria-label="目标前缀" /></td><td></td></tr>
+                    <tr><td><input type="checkbox" checked aria-label="启用 Display 规则" /></td><th scope="row">Display</th><td><input value="Phoenix Open Issue" aria-label="Display 原值" /></td><td><input value="Phoenix Issue" aria-label="Display 目标值" /></td><td><button type="button" disabled aria-label="删除 Display 规则">×</button></td></tr>
+                    <tr><td><input type="checkbox" checked aria-label="启用 kebab-case 规则" /></td><th scope="row">kebab-case</th><td><input value="phoenix-open-issue" aria-label="kebab-case 原值" /></td><td><input value="phoenix-issue" aria-label="kebab-case 目标值" /></td><td><button type="button" disabled aria-label="删除 kebab-case 规则">×</button></td></tr>
+                    <tr><td><input type="checkbox" checked aria-label="启用 PascalCase 规则" /></td><th scope="row">PascalCase</th><td><input value="PhoenixOpenIssue" aria-label="PascalCase 原值" /></td><td><input value="PhoenixIssue" aria-label="PascalCase 目标值" /></td><td><button type="button" disabled aria-label="删除 PascalCase 规则">×</button></td></tr>
+                  </tbody>
+                </table>
               </div>
             </details>
             <details class="preview-editor-section" open>
-              <summary>分析结果 <span>18 个文件 · 42 处命中</span></summary>
+              <summary><strong>命中与风险</strong><span>18 个文件 · 42 处命中</span></summary>
               <div class="preview-result-row"><span class="preview-risk is-low">低</span><span><strong>README.md</strong><small>文档 · 文本</small></span><span>9</span><button type="button">打开</button></div>
               <div class="preview-result-row"><span class="preview-risk is-medium">中</span><span><strong>src/config/project.ts</strong><small>代码 · 标识符</small></span><span>4</span><button type="button">打开</button></div>
               <div class="preview-result-row"><span class="preview-risk is-high">高</span><span><strong>package.json</strong><small>包名与发布契约</small></span><span>2</span><button type="button">打开</button></div>
@@ -138,60 +117,63 @@
         </ktc-right-view-shell>
 
         <ktc-right-view-shell class="preview-editor-panel" data-editor-panel="autoBuild" hidden>
-          <div class="preview-editor-actions" slot="actions"><button type="button" data-auto-build-action="preflight" data-preview-output="handled">预检</button><button type="button" data-auto-build-action="openScript" data-preview-output="handled">脚本</button><button class="is-primary" type="button" data-auto-build-action="toggleRun" data-preview-output="handled">运行</button></div>
+          <div class="preview-editor-actions" slot="actions"><button type="button" data-auto-build-action="preflight" data-preview-output="handled">预检</button><button class="is-primary" type="button" data-auto-build-action="toggleRun" data-preview-output="handled">运行</button></div>
           <div class="preview-editor-content preview-auto-build-right">
             <details class="preview-editor-section" open>
-              <summary>构建配置 <span>当前草稿 · 尚未写盘</span></summary>
+              <summary class="preview-build-config-header">
+                <strong>构建配置</strong>
+                <small data-auto-build-config-draft></small>
+                <span class="preview-build-config-toggles">
+                  <label><input type="checkbox" data-auto-build-update-root />更新 ROOT_DIR</label>
+                  <label><input type="checkbox" data-auto-build-update-third-party />更新 3rdParty</label>
+                </span>
+              </summary>
               <div class="preview-build-config-grid">
-                <label><span>ROOT_DIR</span><input value="/workspace/Phoenix" readonly title="从当前工程环境探测，只读" /></label>
-                <label><span>工作目录</span><input value="/workspace/Phoenix/projects" /></label>
-                <label><span>ROOT_DIR_3rdParty</span><input value="/workspace/Phoenix-3rdParty" /></label>
-                <label><span>Root 分支</span><input value="develop" /></label>
-                <label><span>项目分支</span><input value="develop" /></label>
-                <label><span>CMake 分支</span><input value="master" /></label>
-              </div>
-              <div class="preview-build-option-row">
-                <label><input type="checkbox" />更新 ROOT_DIR</label>
-                <label><input type="checkbox" checked />更新 3rdParty</label>
-                <label><input type="checkbox" />并行 CMake / CAA</label>
-                <label><input type="checkbox" />运行前清理仓库</label>
+                <div class="preview-build-config-row is-head" aria-hidden="true"><span>角色</span><span>目录</span><span>分支</span></div>
+                <div class="preview-build-config-row">
+                  <strong>当前 ROOT_DIR</strong>
+                  <input data-auto-build-config-field="rootDirectory" readonly title="从当前工程环境探测，只读" aria-label="当前 ROOT_DIR" />
+                  <input data-auto-build-config-field="rootBranch" aria-label="Root 分支" />
+                </div>
+                <div class="preview-build-config-row">
+                  <strong>工作目录</strong>
+                  <input data-auto-build-config-field="workingDirectory" aria-label="工作目录" />
+                  <span aria-hidden="true"></span>
+                </div>
+                <div class="preview-build-config-row">
+                  <strong>ROOT_DIR_3rdParty</strong>
+                  <input data-auto-build-config-field="thirdPartyDirectory" aria-label="ROOT_DIR_3rdParty" />
+                  <input data-auto-build-config-field="projectBranch" aria-label="项目分支" />
+                </div>
+                <div class="preview-build-config-row">
+                  <strong>CMake 项目</strong>
+                  <span class="preview-build-config-note">使用下方目录列表</span>
+                  <input data-auto-build-config-field="cmakeBranch" aria-label="CMake 分支" />
+                </div>
               </div>
             </details>
             <details class="preview-editor-section" open>
-              <summary>项目表 <span>2 个启用 · 顺序执行</span></summary>
-              <div class="preview-build-table-tools"><button type="button">选择目录…</button><button type="button">探测当前目录</button><button type="button">移除未启用项</button></div>
+              <summary class="preview-project-table-header">
+                <strong>项目与仓库</strong>
+                <small data-auto-build-mode></small>
+                <span class="preview-build-table-tools">
+                  <button type="button" data-auto-build-project-tool="导入…" data-preview-output="handled">导入…</button>
+                  <button type="button" data-auto-build-project-tool="选择目录…" data-preview-output="handled">选择目录…</button>
+                  <button type="button" data-auto-build-project-tool="探测当前目录" data-preview-output="handled">探测当前目录</button>
+                  <button type="button" data-auto-build-project-tool="移除未启用项" data-preview-output="handled">移除未启用项</button>
+                  <label class="preview-build-probe-toggle"><input type="checkbox" data-auto-build-probe-columns />探测列</label>
+                </span>
+              </summary>
               <div class="preview-build-table-wrap">
-                <table class="preview-build-table">
-                  <thead><tr><th>启用</th><th>分支</th><th>仓库</th><th>Commit</th><th>Origin</th><th>状态</th><th>构建</th><th>操作</th></tr></thead>
-                  <tbody>
-                    <tr>
-                      <td><input type="checkbox" checked aria-label="启用 KtCore" /></td><td><input value="develop" aria-label="KtCore 分支" /></td><td><input value="KtCore" aria-label="KtCore 仓库" /></td><td><code>a4c19b3d12f0</code></td><td><span title="origin.example/phoenix/kt-core.git">origin…/kt-core.git</span></td><td>干净</td>
-                      <td><span class="preview-build-options"><label><input type="checkbox" checked />更新</label><label><input type="checkbox" checked />CMake</label></span></td><td><button type="button">探测</button><button type="button">运行</button></td>
-                    </tr>
-                    <tr>
-                      <td><input type="checkbox" checked aria-label="启用 PNXBomAnalysisWsp" /></td><td><input value="develop" aria-label="PNXBomAnalysisWsp 分支" /></td><td><input value="PNXBomAnalysisWsp" aria-label="PNXBomAnalysisWsp 仓库" /></td><td><code>7b928a10e4c2</code></td><td><span title="origin.example/customer/pnx-bom-analysis.git">origin…/pnx-bom.git</span></td><td>有修改</td>
-                      <td><span class="preview-build-options"><label><input type="checkbox" checked />更新</label><label><input type="checkbox" checked />CAA</label><label><input type="checkbox" checked />linkCAA</label></span></td><td><button type="button">探测</button><button type="button">运行</button></td>
-                    </tr>
-                  </tbody>
+                <table class="preview-build-table" data-auto-build-project-table>
+                  <thead><tr><th>启用</th><th>类型</th><th>分支</th><th>仓库 / 目录</th><th data-auto-build-probe-column>Commit</th><th data-auto-build-probe-column>Origin</th><th data-auto-build-probe-column>状态</th><th>构建</th><th>操作</th></tr></thead>
+                  <tbody data-auto-build-project-rows></tbody>
                 </table>
               </div>
             </details>
             <details class="preview-editor-section" open>
-              <summary>任务列表 <span data-auto-build-status>等待预检</span></summary>
-              <div class="preview-build-task-list">
-                <div><span>1</span><strong>仓库门禁</strong><small>Root · 3rdParty · 2 个项目</small><em data-auto-build-task-status>等待</em></div>
-                <div><span>2</span><strong>linkCAA</strong><small>PNXBomAnalysisWsp</small><em>等待</em></div>
-                <div><span>3</span><strong>导出构建参数</strong><small>当前配置快照</small><em>等待</em></div>
-                <div><span>4</span><strong>CMake → CAA</strong><small>KtCore → PNXBomAnalysisWsp</small><em>等待</em></div>
-              </div>
-            </details>
-            <details class="preview-editor-section">
-              <summary>库探测结果 <span>4 个仓库 · 1 个有修改</span></summary>
-              <div class="preview-build-probe-table" role="table" aria-label="库探测结果">
-                <div role="row"><strong role="columnheader">类型</strong><strong role="columnheader">目录</strong><strong role="columnheader">状态</strong><strong role="columnheader">分支</strong><strong role="columnheader">Commit</strong><strong role="columnheader">Origin</strong></div>
-                <div role="row"><span>ROOT_DIR</span><span>/workspace/Phoenix</span><span>干净</span><span>develop</span><span>4e12a890</span><span>origin…/phoenix.git</span></div>
-                <div role="row"><span>项目</span><span>/workspace/Phoenix/projects/PNXBomAnalysisWsp</span><span>有修改</span><span>develop</span><span>7b928a10</span><span>origin…/pnx-bom.git</span></div>
-              </div>
+              <summary>任务列表 <span data-auto-build-status></span></summary>
+              <div class="preview-build-task-list" data-auto-build-task-list></div>
             </details>
           </div>
         </ktc-right-view-shell>
@@ -230,14 +212,16 @@
     <symbol id="preview-icon-file-check" viewBox="0 0 16 16"><path d="M3 1.5h6l3 3v10H3zM9 1.5v3h3M5.2 9l1.7 1.7 3.4-3.5"/></symbol>
     <symbol id="preview-icon-git" viewBox="0 0 16 16"><circle cx="5" cy="3" r="1.5"/><circle cx="5" cy="13" r="1.5"/><circle cx="12" cy="5" r="1.5"/><path d="M5 4.5v7M6.5 7.5c3 0 5.5-.4 5.5-1"/></symbol>
     <symbol id="preview-icon-play" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M6.5 5l4 3-4 3z"/></symbol>
-    <symbol id="preview-icon-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5l3.5 3.5M7 4.8v4.4M4.8 7h4.4"/></symbol>
-    <symbol id="preview-icon-sliders" viewBox="0 0 16 16"><path d="M2 4h12M2 8h12M2 12h12"/><circle cx="6" cy="4" r="1.3"/><circle cx="10" cy="8" r="1.3"/><circle cx="5" cy="12" r="1.3"/></symbol>
+     <symbol id="preview-icon-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5l3.5 3.5M7 4.8v4.4M4.8 7h4.4"/></symbol>
+     <symbol id="preview-icon-replace" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5l3.5 3.5M7 4.8v4.4M4.8 7h4.4"/></symbol>
+    <symbol id="preview-icon-sliders" viewBox="0 0 1024 1024"><path fill="currentColor" stroke="none" d="M389.44 768a96.064 96.064 0 0 1 181.12 0H896v64H570.56a96.064 96.064 0 0 1-181.12 0H128v-64zm192-288a96.064 96.064 0 0 1 181.12 0H896v64H762.56a96.064 96.064 0 0 1-181.12 0H128v-64zm-320-288a96.064 96.064 0 0 1 181.12 0H896v64H442.56a96.064 96.064 0 0 1-181.12 0H128v-64z"/></symbol>
     <symbol id="preview-icon-file" viewBox="0 0 16 16"><path d="M3 1.5h6l3 3v10H3zM9 1.5v3h3"/></symbol>
     <symbol id="preview-icon-file-code" viewBox="0 0 16 16"><path d="M3 1.5h6l3 3v10H3zM9 1.5v3h3M6.2 8l-1.5 1.5L6.2 11M8.8 8l1.5 1.5L8.8 11"/></symbol>
     <symbol id="preview-icon-build" viewBox="0 0 16 16"><path d="M2 4h12v8H2zM4 6h4M4 9h7"/></symbol>
     <symbol id="preview-icon-sort" viewBox="0 0 16 16"><path d="M3 4h7M3 8h10M3 12h5M11 2v10M9 4l2-2 2 2M13 10l-2 2-2-2"/></symbol>
     <symbol id="preview-icon-uuid" viewBox="0 0 16 16"><path d="M3 5l2-2 2 2-2 2zM9 3l2-2 2 2-2 2zM9 11l2-2 2 2-2 2zM3 11l2-2 2 2-2 2z"/></symbol>
     <symbol id="preview-icon-layout" viewBox="0 0 16 16"><rect x="1.5" y="2" width="13" height="12" rx="1"/><path d="M5.5 2v12M5.5 5.5h9"/></symbol>
+    <symbol id="preview-icon-code-assistant" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3.5h9l5 5v12H5z"/><path d="M14 3.5v5h5"/><path d="m8.2 14 1.5 1.5 2.6-3"/><path d="M16.4 14.8v3.5"/><path d="M14.7 16.55h3.5"/></symbol>
   </svg>
 </body>
 </html>

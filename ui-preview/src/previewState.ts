@@ -16,6 +16,24 @@ export function describePrimaryVisibilityAction(nextVisible: boolean): string {
   return nextVisible ? "显示 Primary" : "隐藏 Primary";
 }
 
+export interface PreviewGroupNavigationResolution {
+  readonly activateToolId: string;
+  readonly surfaceToolId: string;
+}
+
+/** A group may restore an open leaf, but the group itself never becomes a surface. */
+export function resolvePreviewGroupNavigation(
+  currentSurfaceToolId: string,
+  activeOpenLeafToolId: string,
+  latestOpenLeafToolId: string,
+): PreviewGroupNavigationResolution {
+  const activateToolId = activeOpenLeafToolId || latestOpenLeafToolId;
+  return Object.freeze({
+    activateToolId,
+    surfaceToolId: activateToolId || currentSurfaceToolId,
+  });
+}
+
 export function touchMruItem(
   itemIds: readonly string[],
   itemId: string,

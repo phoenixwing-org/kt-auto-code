@@ -1,4 +1,6 @@
-export const KTC_EDITOR_PRIMARY_COMPANION_TOOL_IDS = ["projectRename", "autoBuild"] as const;
+import type { KtcAutoBuildPrimaryViewModel } from "./autoBuildPrimaryContracts.js";
+
+export const KTC_EDITOR_PRIMARY_COMPANION_TOOL_IDS = ["projectRename", "packageIncludes", "autoBuild"] as const;
 
 export type KtcEditorPrimaryCompanionToolId = typeof KTC_EDITOR_PRIMARY_COMPANION_TOOL_IDS[number];
 
@@ -48,6 +50,38 @@ export interface KtcEditorPrimaryCompanionAction {
   readonly disabledReason?: string;
 }
 
+export interface KtcProjectRenamePrimaryOption {
+  readonly id: string;
+  readonly label: string;
+  readonly group: "当前项目方案" | "用户最近输入" | "共享档案";
+}
+
+export interface KtcProjectRenamePrimaryViewModel {
+  /** Full trusted workspace path, retained for titles and action context. */
+  readonly root: string;
+  /** Compact display pair: `<rootName> @ <rootParent>`. */
+  readonly rootName: string;
+  readonly rootParent: string;
+  readonly schemeOptions: readonly KtcProjectRenamePrimaryOption[];
+  readonly selectedSchemeId?: string;
+  readonly profileName: string;
+  readonly profileError?: string;
+  readonly overview?: {
+    readonly items: number;
+    readonly replacements: number;
+    readonly lowRisk: number;
+    readonly mediumRisk: number;
+    readonly highRisk: number;
+    readonly categories: number;
+  };
+  readonly rootRename?: {
+    readonly sourcePath: string;
+    readonly targetPath: string;
+    readonly enabled: boolean;
+    readonly disabledReason?: string;
+  };
+}
+
 /** Host-owned projection of one Editor session into the Primary Tool Surface. */
 export interface KtcEditorPrimaryCompanionSnapshot {
   readonly panelId: string;
@@ -56,12 +90,17 @@ export interface KtcEditorPrimaryCompanionSnapshot {
   /** Monotonic within one session; Primary actions must echo this exact value. */
   readonly revision: number;
   readonly lifecycle: KtcEditorPrimaryCompanionLifecycle;
-  readonly title: string;
+  /** @deprecated Compatibility-only input. Host display copy is resolved from toolId registration. */
+  readonly title?: string;
   readonly status: KtcEditorPrimaryCompanionStatus;
   readonly message: string;
   readonly ready: boolean;
   readonly summary: readonly KtcEditorPrimaryCompanionSummaryItem[];
   readonly actions: readonly KtcEditorPrimaryCompanionAction[];
+  /** Optional typed projection for a dedicated Primary renderer. */
+  readonly primary?:
+    | { readonly kind: "autoBuild"; readonly model: KtcAutoBuildPrimaryViewModel }
+    | { readonly kind: "projectRename"; readonly model: KtcProjectRenamePrimaryViewModel };
 }
 
 export interface KtcEditorPrimaryCompanionActionToken {
@@ -70,4 +109,6 @@ export interface KtcEditorPrimaryCompanionActionToken {
   readonly sessionId: string;
   readonly revision: number;
   readonly actionId: string;
+  /** Optional bounded UI value; the receiving tool remains responsible for validation. */
+  readonly value?: string;
 }

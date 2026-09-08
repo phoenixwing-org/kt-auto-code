@@ -78,6 +78,7 @@ import {
   appendIgnorePresetToDocument,
   dedupeIgnoreTargetDocument,
   invalidateWorkspaceIgnorePatterns,
+  ktcUseBuiltInIgnore,
   openIgnoreTargetFile,
   refreshIgnoreConfig,
   resolveWorkspaceIgnorePatterns,
@@ -697,6 +698,27 @@ describe("Ignore document host adapter", () => {
       gitIgnoreEnabled: true,
       customIgnoreEnabled: true,
     })).toEqual([...SAFETY_IGNORE_PATTERNS, "git-cache/", "custom-cache/"]);
+  });
+
+  it("turns off every selectable Ignore source with one master switch but retains safety boundaries", () => {
+    const root = workspaceRoot();
+    fs.writeFileSync(path.join(root, ".gitignore"), "git-cache/\n", "utf8");
+    fs.writeFileSync(path.join(root, ".phoenix", ".ignore"), "custom-cache/\n", "utf8");
+    const sources = {
+      ignoreEnabled: false,
+      builtInIgnoreEnabled: true,
+      gitIgnoreEnabled: true,
+      customIgnoreEnabled: true,
+    };
+
+    expect(resolveWorkspaceIgnorePatterns(root, sources)).toEqual(SAFETY_IGNORE_PATTERNS);
+    expect(ktcUseBuiltInIgnore(sources)).toBe(false);
+    expect(sources).toEqual({
+      ignoreEnabled: false,
+      builtInIgnoreEnabled: true,
+      gitIgnoreEnabled: true,
+      customIgnoreEnabled: true,
+    });
   });
 
   it("does not create .phoenix/.ignore for an empty Primary custom draft", async () => {

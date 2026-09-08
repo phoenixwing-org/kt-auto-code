@@ -9,7 +9,7 @@ import {
 } from "@phoenix-wing/kt-codegen";
 import type { KtcCodegenPreflightResult } from "./contracts.js";
 import { isIgnoredPath } from "../../core/dotIgnore.js";
-import { resolveWorkspaceIgnorePatterns } from "../../ignoreConfig.js";
+import { resolveWorkspaceIgnorePatterns, type KtcWorkspaceIgnoreSourceOptions } from "../../ignoreConfig.js";
 import {
   ktcFileInWorkspaceScope,
   ktcResolveWorkspaceFileScope,
@@ -78,6 +78,7 @@ async function buildMarkerIndex(
   workspaceRoot: string,
   scopeId: string,
   indexUri: vscode.Uri,
+  ignoreSources: boolean | KtcWorkspaceIgnoreSourceOptions = {},
   forceRefresh = false,
   cancellationToken?: vscode.CancellationToken,
   reportProgress?: (message: string) => void,
@@ -86,7 +87,7 @@ async function buildMarkerIndex(
   const root = vscode.Uri.file(workspaceRoot);
   const scope = await ktcResolveWorkspaceFileScope(root, scopeId);
   const resolvedScopeId = scope.kind === "workset" ? scope.worksetId ?? scopeId : "workspace";
-  const ignorePatterns = resolveWorkspaceIgnorePatterns(workspaceRoot);
+  const ignorePatterns = resolveWorkspaceIgnorePatterns(workspaceRoot, ignoreSources);
   const ignoreFingerprint = hash(JSON.stringify(ignorePatterns));
   const previousValue = await readJson<KtcCodegenMarkerIndex>(indexUri);
   const previous = ktcValidCodegenMarkerIndex(
@@ -180,6 +181,7 @@ export interface KtcCodegenCandidateScanResult {
 export async function ktcScanCodegenCandidates(options: {
   readonly workspaceRoot: string;
   readonly scopeId: string;
+  readonly ignoreSources?: KtcWorkspaceIgnoreSourceOptions;
   readonly forceRefresh?: boolean;
   readonly cancellationToken?: vscode.CancellationToken;
   readonly reportProgress?: (message: string) => void;
@@ -195,6 +197,7 @@ export async function ktcScanCodegenCandidates(options: {
     options.workspaceRoot,
     options.scopeId,
     indexUri,
+    options.ignoreSources,
     options.forceRefresh,
     options.cancellationToken,
     options.reportProgress,
@@ -253,6 +256,7 @@ async function sourceSnapshots(
 export async function ktcRunCodegenPreflight(options: {
   readonly workspaceRoot: string;
   readonly scopeId: string;
+  readonly ignoreSources?: KtcWorkspaceIgnoreSourceOptions;
   readonly documentUri: vscode.Uri;
   readonly controller: KtCodegenController;
   readonly blockKeys: readonly KtCodegenBlockKey[];
@@ -276,6 +280,7 @@ export async function ktcRunCodegenPreflight(options: {
     options.workspaceRoot,
     options.scopeId,
     indexUri,
+    options.ignoreSources,
     options.forceRefresh,
     options.cancellationToken,
     options.reportProgress,

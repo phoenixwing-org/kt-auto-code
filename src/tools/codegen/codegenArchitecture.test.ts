@@ -57,6 +57,15 @@ describe("Codegen MVC dependency boundary", () => {
     expect(coordinator).toContain("pendingKinds");
   });
 
+  it("候选扫描与单文档预检逐 Workspace Root 使用统一 Ignore 策略", () => {
+    const controller = source("./index.ts");
+    const preflight = source("./preflight.ts");
+    expect(controller.match(/ignoreSources: ctx/g)).toHaveLength(2);
+    expect(preflight).toContain("resolveWorkspaceIgnorePatterns(workspaceRoot, ignoreSources)");
+    expect(preflight).toContain("readonly ignoreSources?: KtcWorkspaceIgnoreSourceOptions");
+    expect(preflight).toContain("ignoreFingerprint = hash(JSON.stringify(ignorePatterns))");
+  });
+
   it("控制符源码导航在纯边界中校验当前预检 region", () => {
     const controller = source("./index.ts");
     const navigation = source("./controlNavigation.ts");

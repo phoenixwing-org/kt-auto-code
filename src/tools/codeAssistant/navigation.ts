@@ -1,14 +1,18 @@
-import type { KtcToolNavigatorNode } from "../../ui/KtcToolNavigatorModel.js";
+import type {
+  KtcToolNavigatorNode,
+  KtcToolNavigatorToolNode,
+} from "../../ui/KtcToolNavigatorModel.js";
+import { ktcRequireToolRegistration } from "../toolRegistrationCatalog.js";
 
 /** Shared semantic icon identifiers for every Code Assistant leaf projection. */
 export const KTC_CODE_ASSISTANT_TOOL_ICONS = Object.freeze({
-  autoBuild: "build",
-  packageIncludes: "file",
-  reorderMembers: "sort",
-  headerAscii: "file",
-  encodingFix: "file",
-  uuidReplace: "uuid",
-  caaDialog: "file",
+  autoBuild: codeAssistantTool("autoBuild", "auto-build").icon,
+  packageIncludes: codeAssistantTool("packageIncludes", "package-includes").icon,
+  reorderMembers: codeAssistantTool("reorderMembers", "reorder-members").icon,
+  headerAscii: codeAssistantTool("headerAscii", "header-ascii").icon,
+  encodingFix: codeAssistantTool("encodingFix", "encoding-fix").icon,
+  uuidReplace: codeAssistantTool("uuidReplace", "uuid-replace").icon,
+  caaDialog: codeAssistantTool("caaDialog", "caa-dialog").icon,
 } as const);
 
 /**
@@ -23,36 +27,16 @@ export const KTC_CODE_ASSISTANT_NAVIGATION: readonly KtcToolNavigatorNode[] = Ob
     label: "C++ 整理",
     children: [
       {
-        kind: "tool",
-        id: "auto-build",
-        toolId: "autoBuild",
-        label: "编译工具",
-        description: "CAA / MSVC 批量构建",
-        icon: KTC_CODE_ASSISTANT_TOOL_ICONS.autoBuild,
+        ...codeAssistantTool("autoBuild", "auto-build"),
       },
       {
-        kind: "tool",
-        id: "package-includes",
-        toolId: "packageIncludes",
-        label: "头文件引用修正",
-        description: "平铺 include → <KtCore/...>",
-        icon: KTC_CODE_ASSISTANT_TOOL_ICONS.packageIncludes,
+        ...codeAssistantTool("packageIncludes", "package-includes"),
       },
       {
-        kind: "tool",
-        id: "reorder-members",
-        toolId: "reorderMembers",
-        label: "C++ 成员排序",
-        description: "扫描、预览并确认写回",
-        icon: KTC_CODE_ASSISTANT_TOOL_ICONS.reorderMembers,
+        ...codeAssistantTool("reorderMembers", "reorder-members"),
       },
       {
-        kind: "tool",
-        id: "header-ascii",
-        toolId: "headerAscii",
-        label: "头文件 ASCII 修正",
-        description: "预检并修正问题字节",
-        icon: KTC_CODE_ASSISTANT_TOOL_ICONS.headerAscii,
+        ...codeAssistantTool("headerAscii", "header-ascii"),
       },
     ],
   },
@@ -62,20 +46,10 @@ export const KTC_CODE_ASSISTANT_NAVIGATION: readonly KtcToolNavigatorNode[] = Ob
     label: "文件工具",
     children: [
       {
-        kind: "tool",
-        id: "encoding-fix",
-        toolId: "encodingFix",
-        label: "编码修正",
-        description: "检查并无损转换项目编码",
-        icon: KTC_CODE_ASSISTANT_TOOL_ICONS.encodingFix,
+        ...codeAssistantTool("encodingFix", "encoding-fix"),
       },
       {
-        kind: "tool",
-        id: "uuid-replace",
-        toolId: "uuidReplace",
-        label: "UUID 替换",
-        description: "扫描映射并确认写入",
-        icon: KTC_CODE_ASSISTANT_TOOL_ICONS.uuidReplace,
+        ...codeAssistantTool("uuidReplace", "uuid-replace"),
       },
     ],
   },
@@ -85,13 +59,30 @@ export const KTC_CODE_ASSISTANT_NAVIGATION: readonly KtcToolNavigatorNode[] = Ob
     label: "CAA",
     children: [
       {
-        kind: "tool",
-        id: "caa-dialog",
-        toolId: "caaDialog",
-        label: "CAA UI",
-        description: "扫描 CATDlg 并连接 Desk Tools",
-        icon: KTC_CODE_ASSISTANT_TOOL_ICONS.caaDialog,
+        ...codeAssistantTool("caaDialog", "caa-dialog"),
       },
     ],
   },
 ]);
+
+function codeAssistantTool(toolId: string, id: string): KtcToolNavigatorToolNode {
+  const metadata = ktcRequireToolRegistration(toolId);
+  if (metadata.groupId !== "codeAssistant") {
+    throw new Error(`工具 ${toolId} 不属于 codeAssistant：${metadata.groupId}`);
+  }
+  if (!isToolNavigatorIcon(metadata.icon)) {
+    throw new Error(`工具 ${toolId} 的 Navigator 图标无效：${metadata.icon}`);
+  }
+  return Object.freeze({
+    kind: "tool",
+    id,
+    toolId: metadata.toolId,
+    label: metadata.title,
+    description: metadata.description,
+    icon: metadata.icon,
+  });
+}
+
+function isToolNavigatorIcon(icon: string): icon is NonNullable<KtcToolNavigatorToolNode["icon"]> {
+  return icon === "build" || icon === "file" || icon === "sort" || icon === "uuid";
+}

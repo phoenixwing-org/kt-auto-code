@@ -14,6 +14,8 @@ extension/**
 src/**
 scripts/**
 !scripts/auto-build/**
+!scripts/sample/cleanup.ps1
+!scripts/sample/cleanup.yaml
 tests/**
 ui-preview/**
 docs/**
@@ -27,4 +29,5 @@ AGENTS.md
 **/*.map
 dist/test/**
 dist/vsix/**
+dist/ktc-system-output-block.js
 *.local-wing.json

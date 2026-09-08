@@ -13,7 +13,7 @@ import {
 } from "../../core/fileEncoding.js";
 import type { EncodingFileResultSummary, ToolRunContext } from "../types.js";
 import { getFileScope, isScopeEmpty, scopeSummary } from "../../scopeOptions.js";
-import { resolveWorkspaceIgnorePatterns, type KtcWorkspaceIgnoreSourceOptions } from "../../ignoreConfig.js";
+import { ktcUseBuiltInIgnore, resolveWorkspaceIgnorePatterns, type KtcWorkspaceIgnoreSourceOptions } from "../../ignoreConfig.js";
 import { ktcResolveWorkspaceFileScope, type KtcWorkspaceFileScope } from "../../worksets.js";
 import { ktcClearEditorMatchHighlights } from "../../workbench/editorMatchHighlight.js";
 import { getEncodingTargetPolicy } from "./options.js";
@@ -52,7 +52,7 @@ export async function scanEncodings(
     root,
     scope: getFileScope(),
     ignorePatterns: resolveWorkspaceIgnorePatterns(root, ignoreSources),
-    useBuiltInIgnore: typeof ignoreSources === "boolean" ? true : ignoreSources.builtInIgnoreEnabled !== false,
+    useBuiltInIgnore: ktcUseBuiltInIgnore(ignoreSources),
     includePaths: workspaceScope?.relativeFiles,
     targetPolicy,
     convert: false,
@@ -90,7 +90,7 @@ export async function convertEncodings(
     root,
     scope: getFileScope(),
     ignorePatterns: resolveWorkspaceIgnorePatterns(root, ignoreSources),
-    useBuiltInIgnore: typeof ignoreSources === "boolean" ? true : ignoreSources.builtInIgnoreEnabled !== false,
+    useBuiltInIgnore: ktcUseBuiltInIgnore(ignoreSources),
     includePaths: workspaceScope?.relativeFiles,
     targetPolicy,
     convert: true,

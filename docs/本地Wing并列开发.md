@@ -24,6 +24,23 @@ phoenix/
 
 默认目录名必须是 `phoenix-wing` 与 `kt-auto-cad`。Wing 非标准位置可在运行命令时显式设置 `PHOENIX_WING_ROOT=/absolute/path/to/phoenix-wing`；不能把这个路径写进仓库。CAD 联调固定使用并列 `../kt-auto-cad`，避免把产品仓路径固化到 manifest 或 lockfile。
 
+### `worktrees/` 中的并列链接规则
+
+当消费者检出位于 `phoenix/worktrees/<repo>` 时，`../phoenix-wing` 会解析为
+`phoenix/worktrees/phoenix-wing`，而不是根目录下的正式 Wing 检出。开始本地联调前必须：
+
+1. 明确本轮正在开发的 Wing 检出，读取其真实路径、当前分支和 package 版本；不得在多个
+   checkout 中猜测。
+2. 若 `phoenix/worktrees/phoenix-wing` 不存在，在文件系统中创建到该检出的符号链接；若该位置
+   已是链接则先核对真实目标，若是普通文件或目录则停止并请求人工处理，不能覆盖。
+3. 完整 Code + CAD 联调同理检查 `phoenix/worktrees/kt-auto-cad`；仅 Code 联调不要求创建 CAD 链接。
+4. 链接属于共享开发环境，不进入 Git，不写入 `package.json`、`pnpm-lock.yaml` 或任何发布制品。
+5. 切换本轮活动 Wing/CAD 检出时，先显式确认新目标再调整链接；正式 Registry 对照仍使用
+   `pnpm dev:registry`，不能借链接绕过依赖门禁。
+
+建立链接后，worktree 内仍直接运行普通 `pnpm ext:dev:*` 命令，不需要长期保留
+`PHOENIX_WING_ROOT`。临时非标准路径只有在不适合建立并列链接时才通过受控 wrapper 显式传入。
+
 ## 日常命令
 
 在 `kt-auto-code` 根目录执行：

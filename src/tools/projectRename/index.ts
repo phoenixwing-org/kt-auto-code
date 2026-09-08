@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { appendOutputLine } from "../../output.js";
 import { KtcProjectRenameHost } from "../../projectRenameHost.js";
 import {
   KtcProjectRenameViewController,
@@ -14,8 +15,10 @@ import type {
   KtcEditorPrimaryCompanionActionToken,
   KtcEditorPrimaryCompanionSnapshot,
 } from "../../core/editorPrimaryCompanionContracts.js";
+import { ktcRequireToolRegistration } from "../toolRegistrationCatalog.js";
 
 export const KTC_PROJECT_RENAME_OPEN_COMMAND = "ktAutoCode.projectRenameAnalysis.open";
+const PROJECT_RENAME_TOOL_REGISTRATION = ktcRequireToolRegistration("projectRename");
 let projectRenameController: KtcProjectRenameViewController | undefined;
 let primaryCompanionHost: KtcProjectRenamePrimaryCompanionHost | undefined;
 
@@ -29,7 +32,10 @@ export function ktcRegisterProjectRenameAnalysis(context: vscode.ExtensionContex
   const controller = new KtcProjectRenameViewController(
     context.extensionUri,
     new KtcProjectRenameHost(new KtcRenameHistoryStore(context.globalState), diffDocuments),
-    { onCompanionEvent: ({ snapshot }) => { void primaryCompanionHost?.onDidChange(snapshot); } },
+    {
+      log: appendOutputLine,
+      onCompanionEvent: ({ snapshot }) => { void primaryCompanionHost?.onDidChange(snapshot); },
+    },
   );
   projectRenameController = controller;
   context.subscriptions.push(
@@ -46,10 +52,10 @@ export function ktcRegisterProjectRenameAnalysis(context: vscode.ExtensionContex
 
 /** Hidden Ribbon leaf used by the shared Primary Tool Surface runtime. */
 export const projectRenameCompanionTool: KtTool = {
-  id: "projectRename",
-  title: "项目改名",
-  description: "在 Primary 查看改名任务摘要；规则、风险和长结果保留在右侧 View。",
-  icon: "media/tools/search-replace.svg",
+  id: PROJECT_RENAME_TOOL_REGISTRATION.toolId,
+  title: PROJECT_RENAME_TOOL_REGISTRATION.title,
+  description: PROJECT_RENAME_TOOL_REGISTRATION.description,
+  icon: PROJECT_RENAME_TOOL_REGISTRATION.icon,
   ribbonVisible: false,
 
   getPanelModel(): ToolPanelModel {
@@ -57,6 +63,7 @@ export const projectRenameCompanionTool: KtTool = {
       summary: {
         id: this.id,
         title: this.title,
+        shortTitle: PROJECT_RENAME_TOOL_REGISTRATION.shortTitle,
         description: this.description,
         icon: this.icon,
         ribbonVisible: false,
@@ -101,5 +108,13 @@ export function setProjectRenamePrimaryCompanionHost(
 }
 
 function isProjectRenameCompanionAction(value: string): value is KtcProjectRenameCompanionActionId {
-  return value === "reveal" || value === "cancel" || value === "openGitChanges";
+  return value === "chooseRoot"
+    || value === "reveal"
+    || value === "cancel"
+    || value === "openGitChanges"
+    || value === "renameRoot"
+    || value === "loadScheme"
+    || value === "deleteScheme"
+    || value === "clearSchemes"
+    || value === "saveProfile";
 }

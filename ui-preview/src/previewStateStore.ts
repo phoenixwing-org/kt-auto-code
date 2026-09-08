@@ -131,8 +131,13 @@ export function normalizePreviewPersistedState(value: unknown): PreviewPersisted
   if (activeToolId) surfaceMruToolIds = moveToEnd(surfaceMruToolIds, activeToolId);
 
   const activeDescriptor = PREVIEW_TOOL_CATALOG_BY_ID[activeToolId];
-  const activeGroupId = activeDescriptor?.groupId
-    ?? idOr(input.activeGroupId, GROUP_IDS, DEFAULT_STATE.activeGroupId);
+  // Group selection is navigation state. It may intentionally differ from the
+  // preserved Current Tool when the selected group has no open leaf.
+  const activeGroupId = idOr(
+    input.activeGroupId,
+    GROUP_IDS,
+    activeDescriptor?.groupId ?? DEFAULT_STATE.activeGroupId,
+  );
   const requestedNavigatorToolId = openNavigatorToolId(input.activeNavigatorToolId, openToolIdSet);
   const latestNavigatorToolId = [...surfaceMruToolIds].reverse().find((toolId) => (
     NAVIGATOR_TOOL_IDS.has(toolId)

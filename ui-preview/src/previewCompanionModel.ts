@@ -1,5 +1,5 @@
-export const PREVIEW_COMPANION_MAX_FACTS = 4;
-export const PREVIEW_COMPANION_MAX_ACTIONS = 3;
+export const PREVIEW_COMPANION_MAX_FACTS = 6;
+export const PREVIEW_COMPANION_MAX_ACTIONS = 4;
 
 export type PreviewCompanionStatusTone = "idle" | "progress" | "success" | "warning" | "error";
 

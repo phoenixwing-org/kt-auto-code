@@ -37,13 +37,14 @@ const STYLE = `
   button { font:inherit; }
   button:focus-visible { outline:1px solid var(--vscode-focusBorder); outline-offset:-1px; }
   .bar {
-    position:relative; display:grid; width:100%; min-width:0; height:31px; min-height:31px;
-    grid-template-columns:minmax(0,1fr) 29px; align-items:stretch;
+    position:relative; display:grid; width:100%; min-width:0;
+    height:var(--ktc-open-items-bar-height,31px); min-height:var(--ktc-open-items-bar-height,31px);
+    grid-template-columns:minmax(0,1fr) var(--ktc-open-items-more-width,29px); align-items:stretch;
     border-top:1px solid var(--ktc-ui-border,var(--vscode-panel-border));
     background:var(--vscode-sideBar-background);
   }
   .track {
-    display:flex; min-width:0; align-items:stretch; gap:1px; overflow-x:auto; overflow-y:hidden;
+    display:flex; min-width:0; align-items:stretch; gap:var(--ktc-open-items-track-gap,1px); overflow-x:auto; overflow-y:hidden;
     overscroll-behavior-inline:contain; scrollbar-width:thin;
   }
   .empty {
@@ -65,22 +66,26 @@ const STYLE = `
     border:0; color:inherit; background:transparent; cursor:pointer;
   }
   .activate {
-    display:flex; min-width:38px; max-width:100%; flex:0 1 auto; align-items:center; gap:5px;
-    overflow:hidden; padding:0 4px 0 7px; text-align:left;
+    display:flex; min-width:38px; max-width:100%; flex:0 1 auto; align-items:center;
+    gap:var(--ktc-open-items-activate-gap,5px); overflow:hidden;
+    padding:var(--ktc-open-items-activate-padding,0 4px 0 7px); text-align:left;
   }
   .label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .icon { width:16px; height:16px; flex:0 0 16px; color:currentColor; }
   .icon path, .icon rect, .icon circle {
     fill:none; stroke:currentColor; stroke-linecap:round; stroke-linejoin:round; stroke-width:1.2;
   }
+  .icon[data-icon="sliders"] path { fill:currentColor; stroke:none; }
   .close {
-    display:grid; width:22px; min-width:22px; flex:0 0 22px; place-items:center; padding:0;
+    display:grid; width:var(--ktc-open-items-close-width,22px); min-width:var(--ktc-open-items-close-width,22px);
+    flex:0 0 var(--ktc-open-items-close-width,22px); place-items:center; padding:0;
     color:inherit; opacity:.72;
   }
   .close:hover, .more:hover { opacity:1; background:var(--vscode-toolbar-hoverBackground,var(--vscode-list-hoverBackground)); }
   .close-glyph { width:14px; height:14px; line-height:13px; text-align:center; }
   .more {
-    display:grid; width:29px; min-width:29px; place-items:center; padding:0;
+    display:grid; width:var(--ktc-open-items-more-width,29px); min-width:var(--ktc-open-items-more-width,29px);
+    place-items:center; padding:0;
     border-left:1px solid var(--ktc-ui-border,var(--vscode-panel-border));
     color:var(--vscode-foreground);
   }
@@ -128,8 +133,23 @@ export class KtcOpenItemsBar extends HTMLElement {
   private overflowButton?: HTMLButtonElement;
   private menuTrigger?: HTMLElement;
   private openMenuKind?: MenuKind;
+  private pointerDownDocument?: Document;
+  private readonly handleOwnerDocumentPointerDown = (event: PointerEvent): void => {
+    if (!this.menu || this.menu.hidden) return;
+    const path = event.composedPath();
+    if (path.includes(this.menu) || (this.menuTrigger && path.includes(this.menuTrigger))) return;
+    this.closeMenu(false);
+  };
 
-  connectedCallback(): void { this.render(); }
+  connectedCallback(): void {
+    this.render();
+    this.listenForOutsidePointerDown();
+  }
+
+  disconnectedCallback(): void {
+    this.stopListeningForOutsidePointerDown();
+    this.closeMenu(false);
+  }
 
   set model(value: KtcOpenItemsBarModel) {
     this.activeModel = normalizeModel(value);
@@ -330,6 +350,19 @@ export class KtcOpenItemsBar extends HTMLElement {
     }
   }
 
+  private listenForOutsidePointerDown(): void {
+    const ownerDocument = this.ownerDocument;
+    if (this.pointerDownDocument === ownerDocument) return;
+    this.stopListeningForOutsidePointerDown();
+    ownerDocument.addEventListener("pointerdown", this.handleOwnerDocumentPointerDown, true);
+    this.pointerDownDocument = ownerDocument;
+  }
+
+  private stopListeningForOutsidePointerDown(): void {
+    this.pointerDownDocument?.removeEventListener("pointerdown", this.handleOwnerDocumentPointerDown, true);
+    this.pointerDownDocument = undefined;
+  }
+
   private closeMenu(restoreFocus: boolean): void {
     if (this.menu) {
       this.menu.hidden = true;
@@ -389,8 +422,9 @@ export class KtcOpenItemsBar extends HTMLElement {
   private icon(kind?: string): SVGSVGElement {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.classList.add("icon");
-    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("viewBox", kind === "sliders" ? "0 0 1024 1024" : "0 0 16 16");
     svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("data-icon", kind ?? "");
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.setAttribute("d", iconPath(kind));
     svg.append(path);
@@ -445,7 +479,7 @@ function iconPath(kind?: string): string {
   if (kind === "file") return "M3 1.5h6l3 3v10H3zM9 1.5v3h3";
   if (kind === "file-code") return "M3 1.5h6l3 3v10H3zM9 1.5v3h3M6.2 8l-1.5 1.5L6.2 11M8.8 8l1.5 1.5L8.8 11";
   if (kind === "layout") return "M1.5 2h13v12h-13zM5.5 2v12M5.5 5.5h9";
-  if (kind === "sliders") return "M2 4h12M2 8h12M2 12h12M4.7 4a1.3 1.3 0 112.6 0 1.3 1.3 0 01-2.6 0zM8.7 8a1.3 1.3 0 112.6 0 1.3 1.3 0 01-2.6 0zM3.7 12a1.3 1.3 0 112.6 0 1.3 1.3 0 01-2.6 0z";
+  if (kind === "sliders") return "M389.44 768a96.064 96.064 0 0 1 181.12 0H896v64H570.56a96.064 96.064 0 0 1-181.12 0H128v-64zm192-288a96.064 96.064 0 0 1 181.12 0H896v64H762.56a96.064 96.064 0 0 1-181.12 0H128v-64zm-320-288a96.064 96.064 0 0 1 181.12 0H896v64H442.56a96.064 96.064 0 0 1-181.12 0H128v-64z";
   if (kind === "window") return "M2.5 3h11v10h-11zM2.5 6h11M6 6v7";
   return "M3 2.5h6l3.5 3.5v7.5H3zM9 2.5V6h3.5M5.5 9h4.5M5.5 11h3.5";
 }

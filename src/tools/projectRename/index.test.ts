@@ -1,12 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  appendOutputLine: vi.fn(),
   registerCommand: vi.fn(),
   registerProvider: vi.fn(() => ({ dispose: vi.fn() })),
   show: vi.fn(),
   runCompanionAction: vi.fn(async () => ({ accepted: true })),
-  callbacks: undefined as { onCompanionEvent?: (event: unknown) => void } | undefined,
+  callbacks: undefined as {
+    log?: (message: string) => void;
+    onCompanionEvent?: (event: unknown) => void;
+  } | undefined,
 }));
+
+vi.mock("../../output.js", () => ({ appendOutputLine: mocks.appendOutputLine }));
 
 vi.mock("vscode", () => ({
   commands: { registerCommand: mocks.registerCommand },
@@ -68,6 +74,7 @@ describe("项目改名 Primary companion 接线", () => {
     mocks.registerProvider.mockClear();
     mocks.show.mockReset();
     mocks.runCompanionAction.mockClear();
+    mocks.appendOutputLine.mockReset();
     mocks.callbacks = undefined;
     setProjectRenamePrimaryCompanionHost(undefined);
   });
@@ -93,6 +100,8 @@ describe("项目改名 Primary companion 接线", () => {
     const onDidChange = vi.fn();
     setProjectRenamePrimaryCompanionHost({ activate: vi.fn(), onDidChange });
     ktcRegisterProjectRenameAnalysis(context());
+    mocks.callbacks?.log?.("项目改名通知");
+    expect(mocks.appendOutputLine).toHaveBeenCalledWith("项目改名通知");
     const snapshot = { toolId: "projectRename", panelId: "panel-1", sessionId: "session-1", revision: 2 };
     mocks.callbacks?.onCompanionEvent?.({ reason: "state", snapshot });
     expect(onDidChange).toHaveBeenCalledWith(snapshot);
@@ -106,6 +115,10 @@ describe("项目改名 Primary companion 接线", () => {
     };
     await projectRenameCompanionTool.runEditorCompanionAction?.(token, runContext());
     expect(mocks.runCompanionAction).toHaveBeenCalledWith(token);
+
+    const deleteToken = { ...token, actionId: "deleteScheme", value: "project:one" };
+    await projectRenameCompanionTool.runEditorCompanionAction?.(deleteToken, runContext());
+    expect(mocks.runCompanionAction).toHaveBeenLastCalledWith(deleteToken);
   });
 
   it("项目改名 hidden descriptor 在 Registry 中唯一可寻址且不重复注册打开命令", () => {

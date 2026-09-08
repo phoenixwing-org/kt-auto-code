@@ -3,6 +3,7 @@ import {
   describePrimaryVisibilityAction,
   findLatestMruItem,
   removeMruItem,
+  resolvePreviewGroupNavigation,
   resolvePreviewHostVisibility,
   touchMruItem,
 } from "../../ui-preview/src/previewState.js";
@@ -24,6 +25,25 @@ describe("Primary UI preview state", () => {
     mru = touchMruItem(mru, "B");
     expect(mru).toEqual(["C", "A", "B"]);
     expect(new Set(mru).size).toBe(mru.length);
+  });
+
+  it("Group 只恢复已打开叶子；无叶子时保留 Current Tool 或 Welcome", () => {
+    expect(resolvePreviewGroupNavigation("git", "", "")).toEqual({
+      activateToolId: "",
+      surfaceToolId: "git",
+    });
+    expect(resolvePreviewGroupNavigation("", "", "")).toEqual({
+      activateToolId: "",
+      surfaceToolId: "",
+    });
+    expect(resolvePreviewGroupNavigation("git", "", "autoBuild")).toEqual({
+      activateToolId: "autoBuild",
+      surfaceToolId: "autoBuild",
+    });
+    expect(resolvePreviewGroupNavigation("git", "packageIncludes", "autoBuild")).toEqual({
+      activateToolId: "packageIncludes",
+      surfaceToolId: "packageIncludes",
+    });
   });
 
   it("关闭当前项后恢复真正的最近项，并可按宿主类型筛选", () => {
