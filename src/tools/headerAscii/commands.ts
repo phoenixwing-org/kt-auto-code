@@ -9,7 +9,7 @@ import type { FileResultSummary, ToolRunContext } from "../types.js";
 import { dedupeIssuesByOffset, formatIssueTransform } from "./formatIssue.js";
 import { getModeLabel, getPreserveGbk, getStripBom, isAsciiOnly } from "./options.js";
 import { getFileScope, isScopeEmpty, scopeSummary } from "../../scopeOptions.js";
-import { resolveWorkspaceIgnorePatterns, type KtcWorkspaceIgnoreSourceOptions } from "../../ignoreConfig.js";
+import { ktcUseBuiltInIgnore, resolveWorkspaceIgnorePatterns, type KtcWorkspaceIgnoreSourceOptions } from "../../ignoreConfig.js";
 import { ktcHighlightHeaderIssues } from "../../workbench/editorMatchHighlight.js";
 import { ktcResolveWorkspaceFileScope, type KtcWorkspaceFileScope } from "../../worksets.js";
 
@@ -26,7 +26,7 @@ function walkOptions(
     stripBom: getStripBom(),
     scope: { ...scope, includeMarkdown: false },
     ignorePatterns: resolveWorkspaceIgnorePatterns(root, ignoreSources),
-    useBuiltInIgnore: typeof ignoreSources === "boolean" ? true : ignoreSources.builtInIgnoreEnabled !== false,
+    useBuiltInIgnore: ktcUseBuiltInIgnore(ignoreSources),
     includePaths: workspaceScope?.relativeFiles,
   };
 }

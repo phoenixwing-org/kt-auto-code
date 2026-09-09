@@ -119,6 +119,10 @@ describe("本地 Wing 并列开发解析", () => {
       resolve(root, "scripts/verify-local-wing-marker-runtime.mjs"),
       "utf8",
     );
+    const cleanupRuntimeCheck = readFileSync(
+      resolve(root, "scripts/verify-local-wing-cleanup-runtime.mjs"),
+      "utf8",
+    );
     expect(manifest.scripts.dev).toBe("pnpm ext:dev");
     expect(manifest.scripts["dev:registry"]).toBe("pnpm ext:dev:registry");
     expect(manifest.scripts["ext:dev:code:prepare"]).toContain("--code-only --prepare-only");
@@ -130,13 +134,23 @@ describe("本地 Wing 并列开发解析", () => {
     expect(cadSiblingResolution).toContain('resolve(repoRoot, "..", "kt-auto-cad")');
     expect(localLauncher).toContain('run(pnpm, ["--dir", cadRoot, "dev:prepare"]');
     expect(localLauncher).toContain("verify-local-wing-marker-runtime.mjs");
+    expect(localLauncher).toContain("verify-local-wing-cleanup-runtime.mjs");
     expect(localLauncher.indexOf("verify-local-wing-marker-runtime.mjs")).toBeLessThan(
+      localLauncher.indexOf("const localEnvironment"),
+    );
+    expect(localLauncher.indexOf("verify-local-wing-cleanup-runtime.mjs")).toBeLessThan(
       localLauncher.indexOf("const localEnvironment"),
     );
     expect(markerRuntimeCheck).toContain("bom-analysis-two-missing-ends.cpp");
     expect(markerRuntimeCheck).toContain('code === "marker.missing-end"');
     expect(markerRuntimeCheck).toContain('code === "marker.nested-start"');
     expect(markerRuntimeCheck).toContain('code === "marker.mismatched-end"');
+    for (const name of [
+      "pnwPreviewRecursiveCleanupArtifacts",
+      "pnwCleanPreviewedRecursiveArtifacts",
+      "pnwPreviewGitUntrackedCleanup",
+      "pnwExecuteGitUntrackedCleanup",
+    ]) expect(cleanupRuntimeCheck).toContain(name);
     expect(registryLauncher).toContain("delete environment[LOCAL_WING_ENV]");
     expect(registryLauncher).toContain("delete environment[LOCAL_WING_MODE_ENV]");
   });

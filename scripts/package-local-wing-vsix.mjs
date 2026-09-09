@@ -58,4 +58,7 @@ const receipt = {
   note: "Local sibling Wing candidate only; rebuild from Registry packages before Marketplace publication.",
 };
 writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, "utf8");
+// A new internal candidate must not retain a stale Registry receipt for the same version filename.
+const registryReceipt = `${output}.build-provenance.json`;
+if (existsSync(registryReceipt)) unlinkSync(registryReceipt);
 process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`);

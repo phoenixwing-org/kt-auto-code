@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { dirname } from "node:path";
 import type {
   KtcCodegenEditorInboundMessage,
   KtcCodegenEditorModel,
@@ -10,6 +11,9 @@ import {
   KTC_CODEGEN_EDITOR_LAYOUT_STATE_KEY,
   ktcNormalizeCodegenEditorLayout,
 } from "./editorLayoutState.js";
+import { ktcRequireToolRegistration } from "../toolRegistrationCatalog.js";
+
+const CODEGEN_TOOL_REGISTRATION = ktcRequireToolRegistration("codegen");
 
 export interface KtcCodegenEditorViewCallbacks {
   readonly onMessage: (uri: string, message: KtcCodegenEditorInboundMessage) => void;
@@ -37,7 +41,7 @@ export class KtcCodegenEditorViewController implements vscode.Disposable {
     }
     const panel = vscode.window.createWebviewPanel(
       "ktAutoCode.codegenEditor",
-      this.title(model.fileName, model.dirty),
+      CODEGEN_TOOL_REGISTRATION.title,
       { viewColumn: vscode.ViewColumn.Active, preserveFocus: false },
       {
         enableScripts: true,
@@ -50,7 +54,9 @@ export class KtcCodegenEditorViewController implements vscode.Disposable {
       KTC_CODEGEN_EDITOR_LAYOUT_STATE_KEY,
       KTC_CODEGEN_DEFAULT_EDITOR_LAYOUT,
     ));
-    panel.webview.html = getCodegenEditorHtml(panel.webview, this.extensionUri, model, layout);
+    const documentUri = vscode.Uri.parse(model.uri);
+    const contextPath = documentUri.scheme === "file" ? dirname(documentUri.fsPath) : "";
+    panel.webview.html = getCodegenEditorHtml(panel.webview, this.extensionUri, model, layout, contextPath);
     panel.webview.onDidReceiveMessage((message: KtcCodegenEditorInboundMessage) => {
       if (message.type === "codegenEditorLayout") {
         if (message.uri === model.uri) {
@@ -77,9 +83,9 @@ export class KtcCodegenEditorViewController implements vscode.Disposable {
     void this.panels.get(uri)?.webview.postMessage(message);
   }
 
-  setDocumentState(uri: string, fileName: string, dirty: boolean, conflict: boolean): void {
+  setDocumentState(uri: string, _fileName: string, _dirty: boolean, _conflict: boolean): void {
     const panel = this.panels.get(uri);
-    if (panel) panel.title = this.title(fileName, dirty, conflict);
+    if (panel) panel.title = CODEGEN_TOOL_REGISTRATION.title;
   }
 
   isOpen(uri: string): boolean {
@@ -94,9 +100,5 @@ export class KtcCodegenEditorViewController implements vscode.Disposable {
     this.disposing = true;
     for (const panel of this.panels.values()) panel.dispose();
     this.panels.clear();
-  }
-
-  private title(fileName: string, dirty: boolean, conflict = false): string {
-    return `${conflict ? "⚠ " : dirty ? "● " : ""}${fileName} · Codegen`;
   }
 }

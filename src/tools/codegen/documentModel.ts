@@ -30,6 +30,12 @@ export interface KtcCodegenControlSelectionChange {
   readonly selectionChanged: boolean;
   readonly modeChanged: boolean;
 }
+export interface KtcCodegenSaveSnapshot {
+  readonly json: string;
+  readonly table: KtCodegenTableData;
+  readonly editVersion: number;
+  readonly revision: number;
+}
 
 /**
  * 单份 Codegen JSON 的 Model。
@@ -41,6 +47,8 @@ export class KtcCodegenDocumentModel {
   public readonly tableCore: KtCodegenTableCore;
   private currentDirty = false;
   private currentRevision = 0;
+  private currentInputVersion = 0;
+  private currentEditVersion = 0;
   private currentDraftItemCount: number | undefined;
   private currentDiagnosticCount: number;
   private currentPreflight: KtcCodegenPreflightResult | undefined;
@@ -70,6 +78,37 @@ export class KtcCodegenDocumentModel {
 
   get revision(): number {
     return this.currentRevision;
+  }
+
+  /** 异步预检绑定的输入版本；与仅在保存/重载推进的文档 revision 不同。 */
+  get inputVersion(): number {
+    return this.currentInputVersion;
+  }
+
+  captureSaveSnapshot(json: string): KtcCodegenSaveSnapshot {
+    return { json, table: this.getTableData(), editVersion: this.currentEditVersion, revision: this.revision };
+  }
+
+  capturePreflightInput(): {
+    readonly version: number;
+    readonly controller: KtCodegenController;
+    readonly blockKeys: readonly KtCodegenBlockKey[];
+  } {
+    const serialized = this.controller.writeJson();
+    if (!serialized.ok || typeof serialized.value !== "string") {
+      throw new Error("当前 Codegen JSON 无法通过预检输入校验");
+    }
+    const controller = new KtCodegenController();
+    const parsed = controller.readJson(serialized.value);
+    if (!parsed.ok || !parsed.value) throw new Error("无法冻结 Codegen 预检输入");
+    return { version: this.inputVersion, controller, blockKeys: this.selectedBlockKeys };
+  }
+
+  /** 只接收相同输入版本的预检；旧结果不能把已失效计划复活。 */
+  acceptPreflight(preflight: KtcCodegenPreflightResult, inputVersion: number): boolean {
+    if (inputVersion !== this.currentInputVersion) return false;
+    this.setPreflight(preflight);
+    return true;
   }
 
   get draftItemCount(): number | undefined {
@@ -172,6 +211,7 @@ export class KtcCodegenDocumentModel {
         message: preflight.reused ? "缓存计划可应用" : "新计划可应用",
       };
     } else {
+      this.currentInputVersion += 1;
       this.markPreflightSnapshotStale("执行计划已失效，需重新预检");
     }
   }
@@ -206,11 +246,24 @@ export class KtcCodegenDocumentModel {
   }
 
   /** 写盘成功后推进 revision，并把整表设为新 checkpoint。 */
-  markSaved(diagnosticCount: number, diskFingerprint = this.currentDiskFingerprint): void {
+  markSaved(
+    diagnosticCount: number,
+    diskFingerprint = this.currentDiskFingerprint,
+    snapshot?: KtcCodegenSaveSnapshot,
+  ): void {
+    const currentTable = this.getTableData();
+    const savedCurrent = !snapshot || (snapshot.editVersion === this.currentEditVersion
+      && snapshot.revision === this.currentRevision
+      && snapshot.json === this.controller.writeJson().value);
     this.currentRevision += 1;
-    this.tableCore.markCheckpoint(this.currentRevision);
-    this.currentDirty = false;
-    this.currentDraftItemCount = undefined;
+    // Host 只使用既有 Wing API 建立已写出 checkpoint，再恢复较新草稿。
+    this.tableCore.setData({ ...(snapshot?.table ?? currentTable), documentRevision: this.currentRevision });
+    if (snapshot && JSON.stringify(snapshot.table.items) !== JSON.stringify(currentTable.items)) {
+      this.tableCore.replaceData({ ...currentTable, documentRevision: this.currentRevision });
+    }
+    this.tableCore.select(currentTable.selectedRow);
+    this.currentDirty = !savedCurrent;
+    this.currentDraftItemCount = savedCurrent ? undefined : currentTable.items.length;
     this.currentDiagnosticCount = diagnosticCount;
     this.currentDiskFingerprint = diskFingerprint;
     this.currentExternalState = "current";
@@ -259,11 +312,13 @@ export class KtcCodegenDocumentModel {
   }
 
   private markDirty(): void {
+    this.currentEditVersion += 1;
     this.currentDirty = true;
     this.invalidatePreflight("JSON 参数已修改，需重新预检");
   }
 
   private invalidatePreflight(message: string): void {
+    this.currentInputVersion += 1;
     this.currentPreflight = undefined;
     this.markPreflightSnapshotStale(message);
   }

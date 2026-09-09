@@ -56,7 +56,12 @@ describe("codegen editor HTML", () => {
       dirty: false,
       externalConflict: false,
       externalState: "current",
-    });
+    }, undefined, "/workspace");
+    expect(html).toContain('<ktc-right-view-shell id="codegen-right-shell">');
+    expect(html).toContain("test-webview:/extension/dist/ktc-right-view-shell.js");
+    expect(html).toContain('title: "自动代码"');
+    expect(html).toContain('contextPath: "/workspace"');
+    expect(html).toContain('scrollMode: "none"');
     expect(html).toContain("Codegen JSON 编辑 View");
     expect(html).toContain('<kt-codegen-table id="codegen-table" layout="page" collapsible>');
     expect(html).not.toContain('<kt-codegen-table id="codegen-table" layout="contained"');
@@ -98,7 +103,7 @@ describe("codegen editor HTML", () => {
     expect(html).toContain("overflow-y: auto");
     expect(html.match(/overflow-y: auto/g)).toHaveLength(1);
     expect(html).toContain("scrollbar-gutter: stable");
-    expect(html).toContain("body::-webkit-scrollbar-thumb");
+    expect(html).toContain(".codegen-main::-webkit-scrollbar-thumb");
     expect(html).toContain("rgba(121, 121, 121, .7)");
     expect(html).toContain("kt-codegen-table { flex: 0 0 auto; min-height: 0; }");
     expect(html).not.toContain("kt-codegen-table { flex: 1 1 auto");
@@ -156,7 +161,8 @@ describe("codegen editor HTML", () => {
     expect(html).not.toContain('id="namePrefix"');
     expect(html).not.toContain('class="properties"');
     expect(html).not.toContain("PrivateWidget");
-    expect(html).toContain("Apply 可自动执行");
+    expect(html).toContain("应用可自动执行预检");
+    expect(html).toContain('id="apply" type="button" title="没有缓存时会先自动预检；写入前重验源码指纹">应用</button>');
     expect(html).toContain("没有缓存时会先自动预检");
     const script = html.match(/<script nonce="[^"]+">([\s\S]*?)<\/script>/)?.[1];
     expect(script).toBeTruthy();

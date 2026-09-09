@@ -6,7 +6,12 @@ import {
 } from "./buildProvenance.js";
 import { appendOutputLine } from "./output.js";
 import { SidebarViewProvider } from "./sidebar/sidebarViewProvider.js";
-import { registerTool, getTools } from "./tools/registry.js";
+import {
+  clearRegisteredTools,
+  getTools,
+  registerBuiltInTool,
+  registerNavigationDescriptor,
+} from "./tools/registry.js";
 import { headerAsciiTool } from "./tools/headerAscii/index.js";
 import { encodingFixTool } from "./tools/encodingFix/index.js";
 import { codeRenameTool } from "./tools/codeRename/index.js";
@@ -17,7 +22,13 @@ import { caaDialogTool } from "./tools/caaDialog/index.js";
 import { getGitRuntimeDiagnosticsSnapshot, KtcGitTool } from "./tools/git/KtcGitTool.js";
 import { KtcRunTool } from "./tools/run/KtcRunTool.js";
 import { environmentSettingsTool } from "./tools/environmentSettings/index.js";
-import { codeAssistantTool, registerCodeAssistantSupport } from "./tools/codeAssistant/index.js";
+import {
+  autoBuildCompanionTool,
+  codeAssistantNavigationDescriptor,
+  packageIncludesCompanionTool,
+  registerCodeAssistantSupport,
+  setCodeAssistantPrimaryCompanionHost,
+} from "./tools/codeAssistant/index.js";
 import {
   codegenTool,
   getCodegenRuntimeDiagnosticsSnapshot,
@@ -30,7 +41,11 @@ import { ktcMigrateLegacyDeskToolsSettings } from "./deskToolsSettingsMigration.
 import { ktcRegisterResultAccordion } from "./workbench/resultAccordion.js";
 import { ktcRegisterEditorMatchHighlight } from "./workbench/editorMatchHighlight.js";
 import { ktcRegisterRuntimeDiagnostics } from "./runtimeDiagnostics.js";
-import { ktcRegisterProjectRenameAnalysis } from "./tools/projectRename/index.js";
+import {
+  ktcRegisterProjectRenameAnalysis,
+  projectRenameCompanionTool,
+  setProjectRenamePrimaryCompanionHost,
+} from "./tools/projectRename/index.js";
 import type { KtcAutoCodeShellApiV2 } from "./core/moduleShellContract.js";
 
 let sidebarProvider: SidebarViewProvider | undefined;
@@ -61,20 +76,37 @@ export async function activate(context: vscode.ExtensionContext): Promise<KtcAut
   registerCodegenSupport(context);
   registerCodeAssistantSupport(context);
   ktcRegisterProjectRenameAnalysis(context);
-  registerTool(headerAsciiTool);
-  registerTool(encodingFixTool);
-  registerTool(ignoreSettingsTool);
-  registerTool(environmentSettingsTool);
-  registerTool(codeRenameTool);
-  registerTool(codegenTool);
-  registerTool(reorderMembersTool);
-  registerTool(codeAssistantTool);
-  registerTool(uuidReplaceTool);
-  registerTool(caaDialogTool);
-  registerTool(KtcGitTool);
-  registerTool(KtcRunTool);
+  registerBuiltInTool(headerAsciiTool);
+  registerBuiltInTool(encodingFixTool);
+  registerBuiltInTool(ignoreSettingsTool);
+  registerBuiltInTool(environmentSettingsTool);
+  registerBuiltInTool(codeRenameTool);
+  registerBuiltInTool(codegenTool);
+  registerBuiltInTool(reorderMembersTool);
+  registerNavigationDescriptor(codeAssistantNavigationDescriptor);
+  registerBuiltInTool(packageIncludesCompanionTool);
+  registerBuiltInTool(autoBuildCompanionTool);
+  registerBuiltInTool(projectRenameCompanionTool);
+  registerBuiltInTool(uuidReplaceTool);
+  registerBuiltInTool(caaDialogTool);
+  registerBuiltInTool(KtcGitTool);
+  registerBuiltInTool(KtcRunTool);
 
   sidebarProvider = new SidebarViewProvider(context.extensionUri, context.globalState, context.workspaceState);
+  setCodeAssistantPrimaryCompanionHost({
+    activate: (toolId) => sidebarProvider!.activateEditorCompanionTool(toolId),
+    onDidChange: (snapshot) => sidebarProvider!.updateEditorCompanion(snapshot),
+  });
+  setProjectRenamePrimaryCompanionHost({
+    activate: (toolId) => sidebarProvider!.activateEditorCompanionTool(toolId),
+    onDidChange: (snapshot) => sidebarProvider!.updateEditorCompanion(snapshot),
+  });
+  context.subscriptions.push({
+    dispose: () => {
+      setCodeAssistantPrimaryCompanionHost(undefined);
+      setProjectRenamePrimaryCompanionHost(undefined);
+    },
+  });
   await sidebarProvider.initializeModuleState();
   ktcRegisterRuntimeDiagnostics(
     context,
@@ -121,6 +153,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<KtcAut
     vscode.commands.registerCommand("ktAutoCode.modulePanel.close", () => {
       void sidebarProvider?.closeToolBlock();
     }),
+    vscode.commands.registerCommand("ktAutoCode.directory.show", () => (
+      sidebarProvider?.setDirectoryVisible(true)
+    )),
+    vscode.commands.registerCommand("ktAutoCode.directory.hide", () => (
+      sidebarProvider?.setDirectoryVisible(false)
+    )),
     vscode.commands.registerCommand("ktAutoCode.module.activate", (moduleId: unknown) => {
       if (typeof moduleId !== "string") return false;
       return sidebarProvider?.activateModule(moduleId) ?? false;
@@ -205,7 +243,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<KtcAut
 }
 
 export function deactivate(): void {
+  // Editor controllers may emit their final `disposed` snapshot while VS Code
+  // tears down ExtensionContext subscriptions. Detach the bridge before
+  // clearing the Provider reference so no late callback can dereference it.
+  setCodeAssistantPrimaryCompanionHost(undefined);
+  setProjectRenamePrimaryCompanionHost(undefined);
   sidebarProvider = undefined;
+  clearRegisteredTools();
 }
 
 function ignoreRootForDocument(document: vscode.TextDocument): string | undefined {

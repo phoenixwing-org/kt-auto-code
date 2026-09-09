@@ -105,7 +105,7 @@ async function scan(ctx: ToolRunContext): Promise<void> {
     ctx.postState({ status: "error", message });
     return;
   }
-  const ignorePatterns = resolveWorkspaceIgnorePatterns(ctx.workspaceRoot, ctx.pluginIgnoreEnabled);
+  const ignorePatterns = resolveWorkspaceIgnorePatterns(ctx.workspaceRoot, ctx);
   const files = (await vscode.workspace.findFiles(new vscode.RelativePattern(root, INCLUDE), EXCLUDE))
     .filter((uri) => ktcFileInWorkspaceScope(uri, scope))
     .filter((uri) => !isIgnoredPath(relative(ctx.workspaceRoot!, uri.fsPath).replace(/\\/g, "/"), ignorePatterns))

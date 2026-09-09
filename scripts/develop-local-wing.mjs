@@ -80,6 +80,10 @@ run(process.execPath, [
   resolve(repoRoot, "scripts/verify-local-wing-marker-runtime.mjs"),
   wingRoot,
 ]);
+run(process.execPath, [
+  resolve(repoRoot, "scripts/verify-local-wing-cleanup-runtime.mjs"),
+  wingRoot,
+]);
 
 const localEnvironment = {
   ...process.env,
@@ -99,4 +103,5 @@ if (prepareOnly) {
 
 const launchArgs = [resolve(repoRoot, "scripts/launch-extension-host.mjs")];
 if (codeOnly) launchArgs.push("--code-only");
+launchArgs.push("--local-dev-summary");
 run(process.execPath, launchArgs, { env: localEnvironment });

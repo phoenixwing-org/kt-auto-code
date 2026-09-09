@@ -49,9 +49,18 @@ const BUILT_IN_IGNORE_COUNT = BUILT_IN_IGNORE_RULES.length;
 const PHOENIX_IGNORE_INITIAL_TEXT = "# KT Auto Code custom scan ignore rules\n# Primary 自定义忽略；每行一条规则\n\n";
 
 export interface KtcWorkspaceIgnoreSourceOptions {
+  /** Master switch for optional user-selected sources. Safety exclusions remain active. */
+  ignoreEnabled?: boolean;
   builtInIgnoreEnabled?: boolean;
   gitIgnoreEnabled?: boolean;
   customIgnoreEnabled?: boolean;
+}
+
+export function ktcUseBuiltInIgnore(
+  sources: boolean | KtcWorkspaceIgnoreSourceOptions = {},
+): boolean {
+  if (typeof sources === "boolean") return true;
+  return sources.ignoreEnabled !== false && sources.builtInIgnoreEnabled !== false;
 }
 
 export function toIgnoreSummary(root: string, info: IgnoreConfigInfo): IgnoreConfigSummary {
@@ -74,8 +83,9 @@ export function resolveWorkspaceIgnorePatterns(
   sources: boolean | KtcWorkspaceIgnoreSourceOptions = {},
 ): string[] {
   const options = typeof sources === "boolean"
-    ? { builtInIgnoreEnabled: true, gitIgnoreEnabled: true, customIgnoreEnabled: sources }
+    ? { ignoreEnabled: true, builtInIgnoreEnabled: true, gitIgnoreEnabled: true, customIgnoreEnabled: sources }
     : sources;
+  if (options.ignoreEnabled === false) return [...SCAN_SAFETY_IGNORE_PATTERNS];
   const gitPatterns = options.gitIgnoreEnabled === false
     ? []
     : resolveGitIgnorePatterns(root);

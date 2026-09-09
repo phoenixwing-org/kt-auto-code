@@ -1,10 +1,15 @@
 import { statSync } from "node:fs";
+import { ktcSelectCmakeBuildTypes, type KtcCmakeBuildType } from "./autoBuildNativePlan.js";
 import { ktcCanAccessAutoBuildPathOnHost, ktcIsAbsoluteAutoBuildPath, ktcJoinAutoBuildPath, ktcResolveAutoBuildPath, type KtcAutoBuildProjectRow } from "./autoBuildProjectTable.js";
 
 export interface KtcAutoBuildConfiguration {
   schemaVersion: 2;
   rootDirectory: string;
   thirdPartyDirectory: string;
+  /** Missing in legacy schema-v2 files means enabled. */
+  rootEnabled?: boolean;
+  /** Missing in legacy schema-v2 files means enabled. */
+  thirdPartyEnabled?: boolean;
   updateRoot?: boolean;
   updateThirdParty?: boolean;
   workingDirectory?: string;
@@ -13,11 +18,23 @@ export interface KtcAutoBuildConfiguration {
   cmakeBranch: string;
   projects: KtcAutoBuildProjectRow[];
   clean: boolean;
+  /** Primary manual cleanup YAML. Missing in older schema-v2 files uses the safe current default. */
+  rootCleanupYaml?: string;
   buildExecutionMode?: "sequential" | "parallel";
+  /** Project build profile, persisted in AutoBuild JSON; omitted legacy value means both. */
+  cmakeBuildTypes?: KtcCmakeBuildType[];
   repositorySnapshot?: {
     capturedAt: string;
     repositories: Array<{ role: string; path: string; branch: string; commit: string; origin: string; hasChanges?: boolean; error?: string }>;
   };
+}
+
+export function ktcAutoBuildRootEnabled(configuration: KtcAutoBuildConfiguration): boolean {
+  return configuration.rootEnabled !== false;
+}
+
+export function ktcAutoBuildThirdPartyEnabled(configuration: KtcAutoBuildConfiguration): boolean {
+  return configuration.thirdPartyEnabled !== false;
 }
 
 export interface KtcAutoBuildRuntimeSelection {
@@ -51,21 +68,34 @@ export function ktcSelectAutoBuildProjects(configuration: KtcAutoBuildConfigurat
   };
 }
 
-export type KtcAutoBuildTaskStatus = "waiting" | "in_progress" | "done" | "error";
+export type KtcAutoBuildTaskStatus = "waiting" | "in_progress" | "done" | "error" | "skipped" | "cancelled";
 export interface KtcAutoBuildTaskChild { id: string; name: string; commandSummary: string; detail?: string; status: KtcAutoBuildTaskStatus; }
 export interface KtcAutoBuildTask { id: string; name: string; commandSummary: string; phase: "repository" | "link" | "export" | "cmake" | "caa"; path?: string; status: KtcAutoBuildTaskStatus; children?: KtcAutoBuildTaskChild[]; }
 
 export function ktcPlanAutoBuildTasks(configuration: KtcAutoBuildConfiguration): KtcAutoBuildTask[] {
   const selected = ktcSelectAutoBuildProjects(configuration);
+  const fixedRepositories: KtcAutoBuildTaskChild[] = [
+    ...(ktcAutoBuildRootEnabled(configuration) ? [{
+      id: "repository-root",
+      name: `ROOT_DIR · ${configuration.rootDirectory}`,
+      commandSummary: configuration.updateRoot || configuration.clean ? "更新" : "跳过更新",
+      status: "waiting" as const,
+    }] : []),
+    ...(ktcAutoBuildThirdPartyEnabled(configuration) ? [{
+      id: "repository-third",
+      name: `ROOT_DIR_3rdParty · ${configuration.thirdPartyDirectory}`,
+      commandSummary: configuration.updateThirdParty || configuration.clean ? "更新" : "跳过更新",
+      status: "waiting" as const,
+    }] : []),
+  ];
   return [
-    { id: "repositories", name: "仓库预检与更新", commandSummary: `Invoke-AutoBuild.ps1 -SkipBuild${configuration.clean ? " -Clean" : ""}`, phase: "repository" as const, status: "waiting" as const, children: [
-      { id: "repository-root", name: `ROOT_DIR · ${configuration.rootDirectory}`, commandSummary: configuration.updateRoot || configuration.clean ? "更新" : "跳过更新", status: "waiting" as const },
-      { id: "repository-third", name: `ROOT_DIR_3rdParty · ${configuration.thirdPartyDirectory}`, commandSummary: configuration.updateThirdParty || configuration.clean ? "更新" : "跳过更新", status: "waiting" as const },
+    { id: "repositories", name: "仓库预检与更新", commandSummary: "TypeScript · Git 探测 / fetch / checkout / pull", phase: "repository" as const, status: "waiting" as const, children: [
+      ...fixedRepositories,
       ...configuration.projects.filter((project) => project.enabled && project.operations.update).map((project) => ({ id: `repository-${project.id}`, name: `${project.name} · ${project.path}`, commandSummary: `更新到 ${project.branch}`, status: "waiting" as const })),
     ] },
     ...selected.linkCaaPaths.map((path, index) => ({ id: `link-caa-${index}`, name: `链接 CAA · ${path}`, commandSummary: "linkCAA.ps1", phase: "link" as const, path, status: "waiting" as const })),
     ...selected.cmakeProjectPaths.filter((path) => ktcCanAccessAutoBuildPathOnHost(path, process.platform) && ktcIsHostFile(ktcJoinAutoBuildPath(path, "export.ps1"), process.platform)).map((path, index) => ({ id: `export-${index}`, name: `Export · ${path}`, commandSummary: "export.ps1", phase: "export" as const, path, status: "waiting" as const })),
-    ...selected.cmakeProjectPaths.map((path, index) => ({ id: `cmake-${index}`, name: `CMake · ${path}`, commandSummary: "mk.ps1", phase: "cmake" as const, path, status: "waiting" as const })),
+    ...selected.cmakeProjectPaths.map((path, index) => ({ id: `cmake-${index}`, name: `CMake · ${path}`, commandSummary: `cmake · ${ktcSelectCmakeBuildTypes(configuration.cmakeBuildTypes).join(" + ")}`, phase: "cmake" as const, path, status: "waiting" as const })),
     ...selected.caaProjectPaths.map((path, index) => ({ id: `caa-${index}`, name: `CAA · ${path}`, commandSummary: "mk.ps1", phase: "caa" as const, path, status: "waiting" as const })),
   ];
 }
@@ -89,13 +119,54 @@ export function ktcAutoBuildArguments(configuration: KtcAutoBuildConfiguration, 
     `-RootBranch ${ps(configuration.rootBranch)}`,
     `-Branch ${ps(configuration.branch || "develop")}`,
     `-CmakeBranch ${ps(configuration.cmakeBranch || "master")}`,
-    `-UpdateRoot:$${!!configuration.updateRoot}`,
-    `-UpdateThirdParty:$${!!configuration.updateThirdParty}`,
+    `-EnableRoot:$${ktcAutoBuildRootEnabled(configuration)}`,
+    `-EnableThirdParty:$${ktcAutoBuildThirdPartyEnabled(configuration)}`,
+    `-UpdateRoot:$${ktcAutoBuildRootEnabled(configuration) && !!configuration.updateRoot}`,
+    `-UpdateThirdParty:$${ktcAutoBuildThirdPartyEnabled(configuration) && !!configuration.updateThirdParty}`,
     "-UpdateCmakeRepositories:$false",
     configuration.clean ? "-Clean -ForceClean" : "",
     selected.cmakeProjectPaths.length ? `-CmakeProjectPaths ${psArray(selected.cmakeProjectPaths)}` : "",
     selected.caaProjectPaths.length ? `-CaaProjectPaths ${psArray(selected.caaProjectPaths)}` : "",
     selected.updateRepositories.length ? `-RepositorySpecsJson ${ps(JSON.stringify(selected.updateRepositories))}` : "",
+  ].filter(Boolean).join(" ");
+  const command = `${psUtf8Preamble} try { ${invocation} } catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }`;
+  return ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command];
+}
+
+export function ktcAutoBuildCleanupArguments(
+  configuration: KtcAutoBuildConfiguration,
+  script: string,
+  confirmedPlan?: {
+    readonly repositories: readonly string[];
+    readonly repositoryIdentities: readonly {
+      readonly path: string;
+      readonly head: string;
+      readonly gitDir: string;
+      readonly origin: string;
+      readonly worktree: { readonly path: string; readonly creationTimeUtcMs: string };
+      readonly gitDirectory: { readonly path: string; readonly creationTimeUtcMs: string };
+    }[];
+    readonly cmakeBuildTargets: readonly {
+      readonly path: string;
+      readonly action: "delete" | "empty-and-preserve";
+      readonly identity: {
+        readonly target: { readonly path: string; readonly exists: boolean; readonly creationTimeUtcMs: string; readonly lastWriteTimeUtcMs: string };
+        readonly parent: { readonly path: string; readonly exists: boolean; readonly creationTimeUtcMs: string; readonly lastWriteTimeUtcMs: string };
+      };
+    }[];
+  },
+): string[] {
+  const selected = ktcSelectAutoBuildProjects(configuration);
+  const invocation = [
+    `& ${ps(script)}`,
+    `-RootDirectory ${ps(configuration.rootDirectory)}`,
+    `-ThirdPartyDirectory ${ps(configuration.thirdPartyDirectory)}`,
+    `-RootBranch ${ps(configuration.rootBranch)}`,
+    `-EnableRoot:$${ktcAutoBuildRootEnabled(configuration)}`,
+    `-EnableThirdParty:$${ktcAutoBuildThirdPartyEnabled(configuration)}`,
+    "-Clean -ForceClean -CleanOnly",
+    confirmedPlan ? `-CleanupPlanJson ${ps(JSON.stringify(confirmedPlan))}` : "",
+    selected.cmakeProjectPaths.length ? `-CmakeProjectPaths ${psArray(selected.cmakeProjectPaths)}` : "",
   ].filter(Boolean).join(" ");
   const command = `${psUtf8Preamble} try { ${invocation} } catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }`;
   return ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command];
@@ -146,6 +217,8 @@ export function ktcValidateAutoBuildConfiguration(configuration: KtcAutoBuildCon
   if (!configuration.rootBranch.trim()) errors.push("Root 分支必须单独指定，不会自动选择分支。");
   if (!configuration.branch.trim()) errors.push("其他仓库分支不能为空。");
   if (!configuration.cmakeBranch.trim()) errors.push("CMake 仓库分支不能为空。");
+  if (configuration.projects.some((project) => project.enabled && project.operations.cmake)
+    && !ktcSelectCmakeBuildTypes(configuration.cmakeBuildTypes).length) errors.push("请至少选择一种 CMake 配置：Debug 或 Release。");
   let selected: KtcAutoBuildRuntimeSelection;
   try { selected = ktcSelectAutoBuildProjects(configuration); }
   catch (error) { errors.push(`项目路径无效：${error instanceof Error ? error.message : String(error)}`); return errors; }

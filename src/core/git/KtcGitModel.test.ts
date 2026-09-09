@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { KtcCreateGitModel, ktcGitRepositoryOptionLabels, type KtcGitIdentity } from "./KtcGitModel.js";
+import {
+  KtcCreateGitModel,
+  ktcGitRepositoryOptionLabels,
+  type KtcGitIdentity,
+  type KtcGitSummaryDraft,
+} from "./KtcGitModel.js";
 
 const identity: KtcGitIdentity = {
   name: "Phoenix Wing",
@@ -87,7 +92,7 @@ describe("Git Primary model", () => {
     expect(model.projects[0]?.repository.branchLabel).toBe("detached/abcdef0");
   });
 
-  it("默认只显示 20 条，并按仓库限制增量显示更多 commit", () => {
+  it("默认只显示 2 条，并按仓库限制增量显示更多 commit", () => {
     const commits = Array.from({ length: 45 }, (_, index) => ({
       oid: String(index).padStart(40, "0"),
       parentOids: index === 0 ? [] : [String(index - 1).padStart(40, "0")],
@@ -101,8 +106,8 @@ describe("Git Primary model", () => {
     const expanded = KtcCreateGitModel({
       repositories: [{ id: "repo", name: "repo", clean: true, commits, recentCommitLimit: 40 }],
     });
-    expect(initial.projects[0]).toMatchObject({ visibleCommitLimit: 20, totalCommitCount: 45, hasMoreCommits: true });
-    expect(initial.projects[0]?.commits).toHaveLength(20);
+    expect(initial.projects[0]).toMatchObject({ visibleCommitLimit: 2, totalCommitCount: 45, hasMoreCommits: true });
+    expect(initial.projects[0]?.commits).toHaveLength(2);
     expect(expanded.projects[0]).toMatchObject({ visibleCommitLimit: 40, totalCommitCount: 45, hasMoreCommits: true });
     expect(expanded.projects[0]?.commits).toHaveLength(40);
   });
@@ -114,7 +119,35 @@ describe("Git Primary model", () => {
     ];
     expect(KtcCreateGitModel({ repositories, selectedRepositoryId: "repo-b" }).selectedRepositoryId).toBe("repo-b");
     expect(KtcCreateGitModel({ repositories, selectedRepositoryId: "missing" }).selectedRepositoryId).toBe("repo-a");
-    expect(KtcCreateGitModel({ repositories: [] }).statusText).toBe("当前工作区未发现 Git 仓库。");
+    expect(KtcCreateGitModel({ repositories: [] }).statusText).toBe("请选择 Git 仓库。");
+  });
+
+  it("简报只投影到 Combo 当前有效且已读取的仓库", () => {
+    const summaryDraft: KtcGitSummaryDraft = {
+      repositoryId: "repo-a",
+      selectedOids: ["a"],
+      text: "repo-a summary",
+      includeRemoteUrl: false,
+      includeCommitTime: true,
+      mentionReviewer: false,
+      reviewer: "",
+      reviewerChoices: [],
+    };
+    const repositories = [
+      { id: "repo-a", name: "A", loaded: true, clean: true },
+      { id: "repo-b", name: "B", loaded: true, clean: true },
+    ];
+
+    expect(KtcCreateGitModel({ repositories, selectedRepositoryId: "repo-a", summaryDraft }).summaryDraft)
+      .toEqual(summaryDraft);
+    expect(KtcCreateGitModel({ repositories, selectedRepositoryId: "repo-b", summaryDraft }).summaryDraft)
+      .toBeUndefined();
+    expect(KtcCreateGitModel({
+      repositories: [{ id: "repo-a", name: "A", loaded: false }],
+      selectedRepositoryId: "repo-a",
+      summaryDraft,
+    }).summaryDraft).toBeUndefined();
+    expect(KtcCreateGitModel({ repositories: [], summaryDraft }).summaryDraft).toBeUndefined();
   });
 
   it("区分工作区与用户仓库，并允许未读取仓库作为按需占位", () => {

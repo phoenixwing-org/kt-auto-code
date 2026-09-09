@@ -2,18 +2,19 @@
 
 状态：试用
 
-插件内置的主编排脚本位于 [`scripts/auto-build/Invoke-AutoBuild.ps1`](../../scripts/auto-build/Invoke-AutoBuild.ps1)。插件始终运行这份随版本发布的脚本；用户可以在界面中显式同步到 `ROOT_DIR\tools\Invoke-AutoBuild.ps1`，作为脱离 UI 的命令行入口。
+插件运行时已采用 **TS 调度 + TS Git / 标准 CMake，Windows link/export/CAA 保留 PS1**。内置脚本 [`scripts/auto-build/Invoke-AutoBuild.ps1`](../../scripts/auto-build/Invoke-AutoBuild.ps1) 继续保留；用户可显式同步到 `ROOT_DIR\tools\Invoke-AutoBuild.ps1`，作为脱离 UI 的命令行入口。插件运行时按
+[《TypeScript 运行时迁移计划》](TypeScript运行时迁移计划.md) 分阶段改走 Wing，脚本导出与兼容入口继续保留。
 
 ## 平台边界
 
-- **Windows 是实际构建平台**：编排入口以 Windows PowerShell 5.1、MSVC 和 Windows 版 CAA 为基线；CAA 编译只能在 Windows 环境完成。
+- **标准 CMake 可原生运行**：插件直接调用系统 cmake 与编译器，不依赖 mk.ps1；本轮已验证 macOS Release 实编。Windows CAA 仍依赖 PowerShell 5.1、MSVC/RADE。
 - **macOS/Linux 可用于开发检查**：View 可以正常打开，支持配置编辑、本机 POSIX 目录与 Git 探测、预检、JSON 保存以及 PS1 生成，便于不安装扩展的 Extension Development Host 盲开发。载入 Windows 盘符或 UNC 配置时只保留计划，不访问本机文件系统；Root 不直接同步，“导出 PS1”会要求选择本机保存位置。
-- 非 Windows 环境不会隐藏“运行”入口；点击后会显示平台提示并尝试现有执行链路，但结果不作为 CAA 实际编译通过的证据。写入或同步 PS1 后也会明确提示应转到 Windows 执行。
-- 开发测试使用 Extension Development Host，不通过安装 VSIX 覆盖正式插件；VSIX 只用于最终制品验收与发布。
+- 非 Windows 点击运行时，Git 与 CMake 走 TS；export.ps1 明确提示未运行，linkCAA/CAA 标记跳过，随后顺序尝试 CMake。跳过不算成功，缺少导出依赖会产生真实编译错误。
+- 日常开发使用 Extension Development Host；用户授权的 0.9.0 内测 VSIX 可交给测试者安装，不等同于市场发布。
 - 所有 Root、3rdParty 和工作目录必须是完整绝对路径且实为目录；相对路径只允许用于项目行，并以绝对工作目录为基准。Windows 实际执行只接受盘符绝对路径或完整 UNC 共享路径。清理入口在任何 Git/CMake 副作用前拒绝盘根、共享根、POSIX 根，以及路径链或待删除树内的 junction/符号链接。
 - “导出 PS1”先执行同一配置校验；生成的独立脚本还会在任何文件或 Git 操作前重新校验 Root、3rdParty 与全部项目路径，用户后续手工改成相对路径也会安全停止。
 
-脚本先处理 Git 仓库，再执行构建：
+以下离线 PS1 示例仍先处理 Git 仓库，再执行构建（插件实际运行时差异见上方链接）：
 
 1. 所有 CMake 项目先完成各自已有的 `export.ps1`，提前输出供其他项目使用的头文件；
 2. 顺序模式按 CMake → CAA 逐项运行，单项失败只记入汇总，不阻断后续项目；
@@ -85,7 +86,7 @@ Git 更新包含 `fetch/pull --ff-only`、递归子模块和可用时的 Git LFS
 
 - 启用、仓库名、路径、目标分支、当前 Commit、Origin、状态；
 - 更新、CMake、CAA、linkCAA 等可组合操作；
-- 单行重新探测、单独运行和移除操作。
+- 单行重新探测、**更新**（仅 TS Git，不编译）、单独运行和移除操作。
 
 状态区分“干净”“有修改”“路径无效”“不是 Git 仓库”“脚本不一致”等。选入目录和探测只修改计划，不自动更新、覆盖或编译。
 
@@ -133,14 +134,14 @@ Git 更新包含 `fetch/pull --ff-only`、递归子模块和可用时的 Git LFS
 
 ### 插件脚本与 Root 脚本
 
-插件运行时始终使用 VSIX 内置的 `Invoke-AutoBuild.ps1`，避免依赖 Root 中恰好存在同版本副本。View 对 Root 同路径副本执行 SHA-256 检查：
+整体启动的仓库任务已不再调用 `Invoke-AutoBuild.ps1`；该文件继续随 VSIX 提供离线兼容用途。View 对 Root 同路径副本执行 SHA-256 检查：
 
-- 一致时显示“脚本一致”；
+- 一致时显示“脚本一致”，但“同步脚本”仍可点击，以便用户显式重新覆盖目标脚本；
 - 不一致时显示“脚本不一致”，但不静默覆盖；
 - 仅在用户点击“同步脚本”后执行明确覆盖；
 - 同步造成的 Git 修改必须进入仓库状态，不得隐藏。
 
-项目自己的 `mk.ps1` 始终在项目目录中无参数运行；若它是 `$env:ROOT_DIR/tools/mk.ps1` 代理而当前 Root 缺少该脚本，项目表显示“脚本不一致”。后续复杂顺序仍用阶段或 DAG 表达重试和断点续跑，不用表格行位置暗示依赖。
+CAA 项目的 `mk.ps1` 仍在项目目录中无参数运行；若其 Root 代理缺失则报告脚本问题。标准 CMake 只要求 `CMakeLists.txt`。Primary 的 **CMake Debug / Release** 默认均选，可只选 Release；保存到 AutoBuild JSON 的 `cmakeBuildTypes` 数组，旧 JSON 缺字段默认两项。输出保持 `<项目父目录>/build/<项目名><配置>`。离线导出的 PS1 尚遵循 mk.ps1 自身配置，不消费这个新增选择。
 
 ### 编译版本归档
 
@@ -158,13 +159,17 @@ Git 更新包含 `fetch/pull --ff-only`、递归子模块和可用时的 Git LFS
 
 ### 并行与失败策略
 
-- 仓库预检完成后，各仓库更新作为独立 PowerShell Job 并行执行；任一失败在全部结束后汇总。
-- 所有存在的 `export.ps1` 并行执行；全部结束后才进入编译。
-- “并行编译”复选框未勾选时按 CMake → CAA 顺序逐项执行；勾选时 CMake 与 CAA 全部同时启动。
+- 插件仓库任务逐仓库执行 TS Git；失败逐项记录，继续独立仓库。脏仓库保留并跳过更新，后续构建使用当前工作树。
+- Windows 保留 export.ps1 并行调用；非 Windows 明确标记跳过后再进入 CMake。
+- Windows 按“并行编译”选择运行；非 Windows 当前统一顺序编译 CMake，保留并行选项供 Windows 使用。
 - 单个导出或编译失败不取消其他同阶段任务，最后统一统计。
 
 ### 手动清理
 
-- Run Block 靠前的“清理”节点提供“删除 build 目录”“删除 objects 目录”“删除 *.obj”三个点击即执行的当前工作目录操作。
-- 编译工具 View 的“手动清理 Root”按用户输入前缀（不区分大小写）删除 `.h/.hh/.hpp/.hxx/.dll/.lib`。
-- 两种清理都不在加载或预检时自动执行，递归时跳过 `.git` 和符号链接；清理产生的 Root 修改显示为“有修改”，不会阻断其他任务。
+- 编译工具 Primary 执行区的“清理”打开统一对话框，可选规则清理、CMake 清理和 Git 强制恢复。
+- 规则清理可分别选择 ROOT_DIR 或工作目录，规则缓存到当前 AutoBuild JSON；默认只匹配直属
+  `objects/build` 与 `*.obj/*.exp/*.pdb/test_*.exe`。
+- CMake 清理删除项目自身 `build`；共享工作目录 `build` 只清空内容并保留目录。
+- Git 强制恢复单独标为高风险，预览并确认后执行 `reset --hard HEAD + clean -ffdx`。
+- 所有方式都先冻结精确命中并在执行前复验；不会在加载或预检时自动执行，也不会顺带删除预览后新增的内容。
+- Run 的既有快捷清理仍待接入同一个 Wing 对话框；在接入完成前不得删除其现有能力。

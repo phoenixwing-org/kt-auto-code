@@ -24,6 +24,23 @@ phoenix/
 
 默认目录名必须是 `phoenix-wing` 与 `kt-auto-cad`。Wing 非标准位置可在运行命令时显式设置 `PHOENIX_WING_ROOT=/absolute/path/to/phoenix-wing`；不能把这个路径写进仓库。CAD 联调固定使用并列 `../kt-auto-cad`，避免把产品仓路径固化到 manifest 或 lockfile。
 
+### `worktrees/` 中的并列链接规则
+
+当消费者检出位于 `phoenix/worktrees/<repo>` 时，`../phoenix-wing` 会解析为
+`phoenix/worktrees/phoenix-wing`，而不是根目录下的正式 Wing 检出。开始本地联调前必须：
+
+1. 明确本轮正在开发的 Wing 检出，读取其真实路径、当前分支和 package 版本；不得在多个
+   checkout 中猜测。
+2. 若 `phoenix/worktrees/phoenix-wing` 不存在，在文件系统中创建到该检出的符号链接；若该位置
+   已是链接则先核对真实目标，若是普通文件或目录则停止并请求人工处理，不能覆盖。
+3. 完整 Code + CAD 联调同理检查 `phoenix/worktrees/kt-auto-cad`；仅 Code 联调不要求创建 CAD 链接。
+4. 链接属于共享开发环境，不进入 Git，不写入 `package.json`、`pnpm-lock.yaml` 或任何发布制品。
+5. 切换本轮活动 Wing/CAD 检出时，先显式确认新目标再调整链接；正式 Registry 对照仍使用
+   `pnpm dev:registry`，不能借链接绕过依赖门禁。
+
+建立链接后，worktree 内仍直接运行普通 `pnpm ext:dev:*` 命令，不需要长期保留
+`PHOENIX_WING_ROOT`。临时非标准路径只有在不适合建立并列链接时才通过受控 wrapper 显式传入。
+
 ## 日常命令
 
 在 `kt-auto-code` 根目录执行：
@@ -48,6 +65,7 @@ phoenix/
 2. 在 Auto 构建前运行 `verify:wing-dependencies`，确认提交态依赖仍是精确 Registry 版本。
 3. 构建 Auto 使用的 Code/Git/Run/Codegen 六包与 CAD 使用的三包。
 4. 直接加载刚生成的 `kt-codegen/dist`，用隔离的 `PNXBomAnalysisCmd` 反例执行 Marker 自检：两个 Start 缺 End 只能产生两条 `marker.missing-end`，后续五个完整同级块必须恢复，旧 `nested-start/mismatched-end` 必须为 0。任何偏差都会在启动 VS Code 前失败。
+5. 在启动 Extension Development Host 前重新打印 Auto、CAD（完整联调时）和 Wing 的绝对路径、包版本、分支关系及未提交项数量，并再次汇总本地 Wing 来源门禁。以最后这段摘要为本轮实际联调目录，避免开头信息被构建日志刷走。
 5. 只为本次 esbuild 注入 `PHOENIX_WING_ROOT` 和内部模式开关；解析全部 `@phoenix-wing/*` 公共入口，包括 `@phoenix-wing/kt-codegen/table`。
 6. 分别读取 Code 与 CAD bundle 的 esbuild metafile：各自预期包必须来自并列 Wing，consumer `node_modules` 命中必须为 0。
 7. 再次运行 Registry 依赖门禁，并逐字核对两个仓库各自的 manifest 与 lockfile 未被构建修改。

@@ -71,7 +71,7 @@ afterEach(() => {
 });
 
 describe("Git Primary panel rendering", () => {
-  it("renders the empty-workspace actions instead of retaining the loading placeholder", async () => {
+  it("keeps the empty state in the Git tree without a misleading workspace verdict", async () => {
     const registry = new Map<string, CustomElementConstructor>();
     vi.stubGlobal("HTMLElement", FakeElement);
     vi.stubGlobal("document", {
@@ -89,7 +89,7 @@ describe("Git Primary panel rendering", () => {
     };
     panel.model = {
       projects: [],
-      statusText: "当前工作区未发现 Git 仓库。",
+      statusText: "请选择 Git 仓库。",
       recentCommitLimit: 1,
       workspaceFolderCount: 1,
       workspaceRepositoryCount: 0,
@@ -97,10 +97,53 @@ describe("Git Primary panel rendering", () => {
     };
 
     const rendered = textContent(panel.shadow);
-    expect(rendered).toContain("当前工作区未发现 Git 仓库");
-    expect(rendered).toContain("新建 Git 仓库");
-    expect(rendered).toContain("搜索所有子目录");
+    expect(rendered).not.toContain("当前工作区未发现 Git 仓库");
+    expect(rendered).not.toContain("新建 Git 仓库");
+    expect(rendered).not.toContain("可以在工作区根目录新建仓库");
     expect(rendered).not.toContain("Git Primary 正在读取仓库");
+    const tree = findNode(panel.shadow, (node) => node.tagName === "pnw-navigation-tree") as
+      | (FakeNode & { model?: { readonly nodes: readonly unknown[] } })
+      | undefined;
+    expect(JSON.stringify(tree?.model)).toContain("搜索所有子目录");
+    expect(JSON.stringify(tree?.model)).not.toContain("initializeRepository");
+  });
+
+  it("does not render a stale summary for an invalid selected repository", async () => {
+    const registry = new Map<string, CustomElementConstructor>();
+    vi.stubGlobal("HTMLElement", FakeElement);
+    vi.stubGlobal("document", { createElement: (tagName: string) => new FakeNode(tagName) });
+    vi.stubGlobal("CustomEvent", class {});
+    vi.stubGlobal("customElements", {
+      get: (name: string) => registry.get(name),
+      define: (name: string, value: CustomElementConstructor) => registry.set(name, value),
+    });
+
+    const { KtcGitPrimaryPanel } = await import("./KtcGitPrimaryPanel.js");
+    const panel = new KtcGitPrimaryPanel() as unknown as FakeElement & { model: KtcGitViewModel };
+    panel.model = {
+      projects: [{
+        repository: {
+          id: "/repo", name: "repo", relativePath: ".", branchLabel: "develop",
+          upstreamLabel: "origin/develop", headLabel: "读取失败", stateLabel: "读取失败",
+          detached: false, clean: false, loaded: false, external: true, groupLabel: "我的仓库",
+          error: "not a repository",
+        },
+        actions: [], commits: [], visibleCommitLimit: 2, totalCommitCount: 0, hasMoreCommits: false,
+      }],
+      selectedRepositoryId: "/repo", statusText: "读取失败", recentCommitLimit: 2,
+      workspaceFolderCount: 1, workspaceRepositoryCount: 0,
+      discovery: { status: "idle", scannedDirectories: 0, foundRepositories: 0 },
+      summaryDraft: {
+        repositoryId: "/repo", selectedOids: ["old"], text: "OLD SUMMARY",
+        includeRemoteUrl: false, includeCommitTime: true, mentionReviewer: false,
+        reviewer: "", reviewerChoices: [],
+      },
+    };
+
+    const rendered = textContent(panel.shadow);
+    expect(rendered).not.toContain("commit 群消息简报");
+    expect(rendered).not.toContain("OLD SUMMARY");
+    expect(rendered).not.toContain("复制简报");
   });
 
   it("loads the next five commits when history is first expanded", async () => {

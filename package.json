@@ -3,7 +3,7 @@
   "displayName": "KT Auto Code",
   "description": "CAA / MSVC C++ 工具：编码修正、Ignore、搜索替换、成员排序与 Codegen 参数表",
   "author": "上海锟钛",
-  "version": "0.8.4",
+  "version": "0.9.0",
   "license": "Apache-2.0",
   "publisher": "kuntai",
   "private": true,
@@ -114,6 +114,18 @@
         "command": "ktAutoCode.ignore.openAdvanced",
         "title": "KT Auto Code：忽略范围",
         "icon": "$(exclude)"
+      },
+      {
+        "command": "ktAutoCode.directory.show",
+        "title": "显示目录",
+        "category": "KT Auto Code",
+        "icon": "$(folder)"
+      },
+      {
+        "command": "ktAutoCode.directory.hide",
+        "title": "隐藏目录",
+        "category": "KT Auto Code",
+        "icon": "$(folder-opened)"
       },
       {
         "command": "ktAutoCode.searchReplace.open",
@@ -284,6 +296,16 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "ktAutoCode.directory.hide",
+          "when": "view == ktAutoCode.modulePanel && ktAutoCode.modulePanel.directoryVisible",
+          "group": "navigation@5"
+        },
+        {
+          "command": "ktAutoCode.directory.show",
+          "when": "view == ktAutoCode.modulePanel && !ktAutoCode.modulePanel.directoryVisible",
+          "group": "navigation@5"
+        },
         {
           "command": "ktAutoCode.ignore.openAdvanced",
           "when": "view == ktAutoCode.modulePanel",
@@ -543,11 +565,11 @@
             "multiple"
           ],
           "enumDescriptions": [
-            "排他展开：除 Ribbon 外只展开最近使用的工具界面或结果",
-            "允许多个工具/结果 Block 同时保持展开"
+            "结果 Accordion 排他展开：仅保留最近激活的结果视图",
+            "结果 Accordion 可同时保持多个结果视图展开"
           ],
           "default": "exclusive",
-          "description": "控制 Ribbon 下方 Block 的展开方式。推荐排他展开以获得更大可用高度。"
+          "description": "仅控制结果 Accordion 参与视图之间的展开协调，不影响 Primary 的两区 Shell、Ribbon 或单个 Tool Surface 结构。"
         },
         "ktAutoCode.deskTools.discoveryMode": {
           "type": "string",
@@ -623,6 +645,8 @@
   },
   "scripts": {
     "dev": "pnpm ext:dev",
+    "ui": "pnpm ui:dev",
+    "ui:dev": "tsx scripts/preview-primary-ui.ts",
     "dev:registry": "pnpm ext:dev:registry",
     "test": "vitest run",
     "scan-encoding": "tsx scripts/scan-source-encoding.ts",
@@ -677,12 +701,13 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "@types/vscode": "1.85.0",
+    "@vscode/vsce": "^3.2.1",
+    "esbuild": "^0.28.0",
+    "happy-dom": "15.11.7",
     "tsx": "^4.19.3",
     "typescript": "~5.7.2",
-    "vitest": "^4.1.9",
-    "@types/vscode": "1.85.0",
-    "esbuild": "^0.28.0",
-    "@vscode/vsce": "^3.2.1"
+    "vitest": "^4.1.9"
   },
   "packageManager": "pnpm@10.15.1"
 }

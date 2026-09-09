@@ -25,8 +25,13 @@ import type {
   KtcCodegenSourceCandidateSummary,
 } from "./codegen/primaryViewModel.js";
 import type { KtcRunViewModel } from "../core/run/KtcRunModel.js";
+import type { KtcCleanupDialogHostAction, KtcRunCleanupProjection } from "../core/cleanupContracts.js";
 import type { KtcGitViewModel } from "../core/git/KtcGitModel.js";
 import type { PnwCodeUuidFileResultRow } from "@phoenix-wing/code-core/ui/model";
+import type {
+  KtcEditorPrimaryCompanionActionToken,
+  KtcEditorPrimaryCompanionSnapshot,
+} from "../core/editorPrimaryCompanionContracts.js";
 
 export type { KtcCodegenMetaField } from "./codegen/contracts.js";
 export type {
@@ -63,18 +68,33 @@ export type WebviewInboundMessage =
     }
   | { type: "runModuleTool"; moduleId: KtcModuleId; command: string }
   | { type: "moduleBlockAction"; actionId: string }
-  | { type: "selectTool"; toolId: string }
+  | { type: "selectTool"; toolId: string; source?: "ribbon" | "menu" }
+  | ({ type: "editorCompanionAction" } & KtcEditorPrimaryCompanionActionToken)
   | { type: "openCodeAssistantFeature"; feature: "packageIncludes" | "autoBuild" }
   | { type: "setCodeAssistantTreeUiState"; state: KtcCodeAssistantTreeUiState }
-  | { type: "closeToolBlock" }
+  /** Omitting toolId preserves the legacy Current Tool close behavior. */
+  | { type: "closeToolBlock"; toolId?: string }
+  | { type: "closeOtherToolBlocks"; toolId: string }
+  /** Activates an already-open logical Tool without opening or running it again. */
+  | { type: "activateOpenTool"; toolId: string }
+  /** Opens the Host-owned recent/workspace directory QuickPick. */
+  | { type: "showWorkingDirectoryQuickPick" }
   | {
       type: "runAction";
       toolId: "run";
-      action: "refresh" | "openOutput" | "openProblems" | "openTerminal" | "runTarget" | "dryRunTarget" | "stopRun" | "setCaaVersion" | "openSource";
+      action: "refresh" | "openCleanup" | "openOutput" | "openProblems" | "openTerminal" | "runTarget" | "dryRunTarget" | "stopRun" | "setCaaVersion" | "openSource" | "cleanBuild" | "cleanObjects" | "cleanObj" | "cleanGitUntracked";
       targetId?: string;
       runId?: string;
       projectId?: string;
       value?: string;
+    }
+  | {
+      type: "runAction";
+      toolId: "run";
+      action: "cleanupDialog";
+      sessionId: string;
+      revision: number;
+      payload: KtcCleanupDialogHostAction;
     }
   | {
       type: "gitAction";
@@ -113,6 +133,7 @@ export type WebviewInboundMessage =
   | { type: "selectWorkingDirectory"; directory: string }
   | { type: "pickWorkingDirectory" }
   | { type: "setPluginIgnoreEnabled"; enabled: boolean }
+  | { type: "setIgnoreEnabled"; enabled: boolean }
   | { type: "setIgnoreSourceEnabled"; source: "builtIn" | "git" | "custom"; enabled: boolean }
   | {
       type: "run";
@@ -208,6 +229,7 @@ export type WebviewOutboundMessage =
       ignoreConfig?: IgnoreConfigSummary;
       toolOptions: Record<string, ToolOptionsState>;
       sidebarStyle: "ribbon" | "compact";
+      directoryVisible: boolean;
       ribbonLayout: KtcRibbonLayoutV1;
       workingContext: KtcWorkingContext;
       presentation: "ribbon" | "detailBlock";
@@ -223,6 +245,7 @@ export type WebviewOutboundMessage =
   | { type: "ignoreConfig"; ignoreConfig?: IgnoreConfigSummary }
   | { type: "options"; toolId: string; options: ToolOptionsState }
   | { type: "sidebarStyle"; style: "ribbon" | "compact" }
+  | { type: "directoryVisibility"; visible: boolean }
   | { type: "ribbonLayout"; layout: KtcRibbonLayoutV1 }
   | { type: "openRibbonCustomization" }
   | { type: "workingContext"; context: KtcWorkingContext; directories: KtcRecentWorkingDirectories }
@@ -232,6 +255,7 @@ export type WebviewOutboundMessage =
       openToolIds: readonly string[];
       codeAssistantFeature?: KtcCodeAssistantFeatureId;
     }
+  | { type: "revealToolSurface"; toolId: string }
   | { type: "modules"; moduleState: KtcModuleState }
   | { type: "moduleBlock"; moduleId: KtcModuleId; content?: KtcModuleBlockContent }
   | {
@@ -255,6 +279,10 @@ export type KtcCodeAssistantFeatureId =
 
 /** 用户级 Tree 展开状态；不属于任何工作区的工程配置。 */
 export interface KtcCodeAssistantTreeUiState {
+  /** 同一导航数据的显示方式；只影响呈现，不改变工具激活。 */
+  navigatorMode: "outline" | "grid";
+  /** Compact Tool Navigator 是否显示标题；旧状态缺失时默认显示。 */
+  showLabels: boolean;
   /** 整个功能目录的用户级展开状态；不影响已打开的功能会话。 */
   treeExpanded: boolean;
   cppOrganizeExpanded: boolean;
@@ -309,12 +337,28 @@ export interface ToolSummary {
   title: string;
   description: string;
   icon?: string;
+  /** Navigation-only parent; it never owns a Current Tool or Right View surface. */
+  kind?: "tool" | "group";
   /** False keeps a runnable tool out of the first-level Ribbon and its overflow menu. */
   ribbonVisible?: boolean;
   moduleId?: KtcModuleId;
   moduleTitle?: string;
   command?: string;
   shortTitle?: string;
+}
+
+/**
+ * Navigation-only metadata consumed by Ribbon/Toolbar projections. It cannot
+ * own commands, messages, actions, or Tool visibility lifecycle callbacks.
+ */
+export interface KtcNavigationDescriptor {
+  readonly id: string;
+  readonly title: string;
+  readonly shortTitle?: string;
+  readonly description: string;
+  readonly icon?: string;
+  readonly kind: "group";
+  readonly ribbonVisible?: boolean;
 }
 
 export interface KtcRecentWorkingDirectories {
@@ -329,6 +373,7 @@ export interface KtcWorkingContext {
   resolvedDirectory?: string;
   label: string;
   pluginIgnoreEnabled: boolean;
+  ignoreEnabled?: boolean;
   builtInIgnoreEnabled?: boolean;
   gitIgnoreEnabled?: boolean;
   customIgnoreEnabled?: boolean;
@@ -405,7 +450,10 @@ export interface ToolUiState {
   pluginSettingValues?: KtcPluginSettingValueSummary[];
   codegen?: KtcCodegenPrimaryViewModel;
   run?: KtcRunViewModel;
+  runCleanup?: KtcRunCleanupProjection;
   git?: KtcGitViewModel;
+  /** Host-owned summary of a complex Editor View; never a second executable draft. */
+  editorCompanion?: KtcEditorPrimaryCompanionSnapshot;
 }
 
 export interface KtcPluginSettingValueSummary {
@@ -466,9 +514,12 @@ export interface ToolPanelModel {
 
 export interface ToolRunContext {
   workspaceRoot: string | undefined;
+  /** Host-owned live check that prevents a destructive operation outliving its directory context. */
+  isCurrentWorkingDirectory?: () => boolean;
   workspaceLabel: string;
   workspaceFileScopeId: string;
   pluginIgnoreEnabled: boolean;
+  ignoreEnabled?: boolean;
   builtInIgnoreEnabled?: boolean;
   gitIgnoreEnabled?: boolean;
   customIgnoreEnabled?: boolean;
@@ -479,6 +530,7 @@ export interface ToolRunContext {
 export interface KtTool {
   readonly id: string;
   readonly title: string;
+  readonly shortTitle?: string;
   readonly description: string;
   readonly icon?: string;
   /** Tool remains command-addressable but is surfaced from a parent feature tree. */
@@ -490,6 +542,11 @@ export interface KtTool {
   getPanelModel(): ToolPanelModel;
   handleMessage(message: WebviewInboundMessage, ctx: ToolRunContext): Promise<void>;
   runAction(action: string, ctx: ToolRunContext): Promise<void>;
+  /** Executes an already session/revision-validated action against the Editor owner. */
+  runEditorCompanionAction?(
+    token: KtcEditorPrimaryCompanionActionToken,
+    ctx: ToolRunContext,
+  ): Promise<void>;
   /** Releases transient preview/results when a nested Code Assistant leaf is explicitly closed. */
   clearSession?(ctx: ToolRunContext): Promise<void> | void;
 }

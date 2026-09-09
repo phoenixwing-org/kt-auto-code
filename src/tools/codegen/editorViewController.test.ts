@@ -6,6 +6,12 @@ const { createWebviewPanel } = vi.hoisted(() => ({
 
 vi.mock("vscode", () => ({
   ViewColumn: { Active: 1 },
+  Uri: {
+    parse: (value: string) => {
+      const parsed = new URL(value);
+      return { scheme: parsed.protocol.slice(0, -1), fsPath: decodeURIComponent(parsed.pathname) };
+    },
+  },
   window: { createWebviewPanel },
 }));
 
@@ -14,6 +20,7 @@ import type {
   KtcCodegenEditorInboundMessage,
   KtcCodegenEditorModel,
 } from "./editorContracts.js";
+import { ktcRequireToolRegistration } from "../toolRegistrationCatalog.js";
 import { KtcCodegenEditorViewController } from "./editorViewController.js";
 
 interface FakePanel extends vscode.WebviewPanel {
@@ -119,11 +126,12 @@ describe("KtcCodegenEditorViewController", () => {
     views.show(model("file:///workspace/A.json", "A.json"));
     expect(createWebviewPanel).toHaveBeenCalledWith(
       "ktAutoCode.codegenEditor",
-      "A.json · Codegen",
+      ktcRequireToolRegistration("codegen").title,
       { viewColumn: 1, preserveFocus: false },
       expect.objectContaining({ enableScripts: true, retainContextWhenHidden: true }),
     );
     expect(first.webview.html).toContain("A.json");
+    expect(first.webview.html).toContain('contextPath: "/workspace"');
     expect(views.isOpen("file:///workspace/A.json")).toBe(true);
 
     views.show(model("file:///workspace/A.json", "A.json"));
@@ -133,7 +141,7 @@ describe("KtcCodegenEditorViewController", () => {
     views.show(model("file:///workspace/B.json", "B.json", true));
     expect(createWebviewPanel).toHaveBeenCalledTimes(2);
     expect(createWebviewPanel.mock.calls[1]?.[2]).toEqual({ viewColumn: 1, preserveFocus: false });
-    expect(createWebviewPanel.mock.calls[1]?.[1]).toBe("● B.json · Codegen");
+    expect(createWebviewPanel.mock.calls[1]?.[1]).toBe(ktcRequireToolRegistration("codegen").title);
   });
 
   it("把标签激活、消息和关闭准确路由到对应 JSON，会话总释放不误报关闭", () => {
@@ -169,7 +177,7 @@ describe("KtcCodegenEditorViewController", () => {
       type: "codegenStatus", status: "idle", message: "ok",
     });
     views.setDocumentState("file:///workspace/B.json", "B.json", false, true);
-    expect(second.title).toBe("⚠ B.json · Codegen");
+    expect(second.title).toBe(ktcRequireToolRegistration("codegen").title);
 
     first.fireDispose();
     expect(views.isOpen("file:///workspace/A.json")).toBe(false);

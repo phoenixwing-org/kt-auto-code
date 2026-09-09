@@ -2,6 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { inflateRawSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
+import { verifyLocalWingReceipt } from "./local-wing-artifact-receipt.mjs";
+import { verifyRunCleanupBundleImplementations } from "./verify-local-wing-cleanup-runtime.mjs";
+import { verifyCodegenTableBundleCheckpointRuntime } from "./verify-codegen-checkpoint-runtime.mjs";
 import {
   createArtifactVerificationEvidence,
   readBuildProvenance,
@@ -11,6 +14,7 @@ import {
 } from "./release-artifact-provenance.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const localWing = process.argv.slice(2).includes("--local-wing");
 const codePackage = readPackage(path.join(root, "package.json"));
 const artifacts = [
   {
@@ -28,7 +32,10 @@ for (const artifact of artifacts) {
   const sha256 = sha256Bytes(archive);
   const artifactPath = path.relative(root, artifact.file).split(path.sep).join("/");
   readVerifiedSha256Sidecar(artifact.file, sha256);
-  const provenance = readBuildProvenance(artifact.file, {
+  const provenance = localWing ? verifyLocalWingReceipt(
+    JSON.parse(fs.readFileSync(artifact.file.replace(/\.vsix$/u, ".local-wing.json"), "utf8")),
+    { artifact: path.basename(artifact.file), version: artifact.expectedPackage.version, sha256, bytes },
+  ) : readBuildProvenance(artifact.file, {
     artifact: artifactPath,
     version: artifact.expectedPackage.version,
     sha256,
@@ -36,8 +43,24 @@ for (const artifact of artifacts) {
   });
   const zip = readZip(archive, artifact.file);
   const names = [...zip.keys()].sort();
+  const requiredAutoBuildScripts = [
+    "extension/scripts/auto-build/Invoke-AutoBuild.ps1",
+    "extension/scripts/auto-build/Functions-Cleanup.ps1",
+    "extension/scripts/sample/cleanup.ps1",
+    "extension/scripts/sample/cleanup.yaml",
+  ];
+  for (const name of requiredAutoBuildScripts) {
+    if (!names.includes(name)) {
+      throw new Error(`${artifact.kind} VSIX is missing required AutoBuild script: ${name}`);
+    }
+  }
+  const forbiddenPreviewOnlyArtifacts = new Set([
+    "extension/dist/ktc-system-output-block.js",
+  ]);
   for (const name of names) {
-    if (/(?:^|\/)(?:\.obsidian|node_modules|src|target)(?:\/|$)/u.test(name)
+    if (forbiddenPreviewOnlyArtifacts.has(name)
+        || /(?:^|\/)ui-preview(?:\/|$)/u.test(name)
+        || /(?:^|\/)(?:\.obsidian|node_modules|src|target)(?:\/|$)/u.test(name)
         || /(?:^|\/)dist\/test(?:\/|$)/u.test(name)
         || /(?:^|\/)[^/]+\.local-wing\.json$/u.test(name)
         || /\.(?:map|rs|exe|dll|dylib|so|sqlite)$/iu.test(name)
@@ -47,6 +70,10 @@ for (const artifact of artifacts) {
   }
   const manifest = JSON.parse(readText(zip, artifact.packagePath));
   const bundle = readText(zip, artifact.bundlePath);
+  verifyRunCleanupBundleImplementations(bundle, `${artifact.kind} VSIX`);
+  if (localWing && !bundle.includes(JSON.stringify(provenance.wingRoot))) {
+    throw new Error("Local Wing VSIX does not match the receipt's bundled Wing source");
+  }
   assertEqual(manifest.name, artifact.expectedPackage.name, `${artifact.kind} VSIX name`);
   assertEqual(manifest.version, artifact.expectedPackage.version, `${artifact.kind} VSIX version`);
   if (/element-plus|node-sqlite3-wasm|@phoenix-wing\/cad-rust-source/u.test(bundle)) {
@@ -63,7 +90,11 @@ for (const artifact of artifacts) {
   if (/require\(["']@phoenix-wing\/(?:code-core|git-core|git-node|kt-codegen|run-core|run-node)["']\)/u.test(bundle)) {
       throw new Error("Code VSIX must bundle all Phoenix Wing Code/Git/Run dependencies");
     }
+    if (!bundle.includes("GetComboSelectNotification()") || bundle.includes("GetComboModifyNotification()")) {
+      throw new Error("Code VSIX CAA Combo generator must bind the selection notification, not the modify notification");
+    }
     const tableBundle = readText(zip, "extension/dist/codegen-table.js");
+    verifyCodegenTableBundleCheckpointRuntime(tableBundle, `${artifact.kind} VSIX Codegen table`);
     if (!tableBundle.includes("kt-codegen-table")) {
       throw new Error("Code VSIX is missing the KtCodegenTable custom element registration");
     }
@@ -93,6 +124,32 @@ for (const artifact of artifacts) {
         || !runPrimaryPanelBundle.includes("ktc-run-primary-action")
         || runPrimaryPanelBundle.includes("acquireVsCodeApi")) {
       throw new Error("Code VSIX is missing the Host-neutral Run Primary panel custom element");
+    }
+    const autoBuildPrimaryPanelBundle = readText(zip, "extension/dist/ktc-auto-build-primary-panel.js");
+    if (!autoBuildPrimaryPanelBundle.includes("ktc-auto-build-primary-panel")
+        || !autoBuildPrimaryPanelBundle.includes("ktc-auto-build-primary-action")
+        || autoBuildPrimaryPanelBundle.includes("acquireVsCodeApi")
+        || autoBuildPrimaryPanelBundle.includes("postMessage")
+        || autoBuildPrimaryPanelBundle.includes("workspace.fs")) {
+      throw new Error("Code VSIX is missing or contaminates the Host-neutral AutoBuild Primary panel custom element");
+    }
+    const legacyAutoBuildRightHtmlMarkers = [
+      '<div class="toolbar"><button id="open"',
+      '<label class="clean"><input id="clean"',
+    ];
+    if (legacyAutoBuildRightHtmlMarkers.some((marker) => bundle.includes(marker))) {
+      throw new Error("Code VSIX still contains the legacy AutoBuild Right toolbar or automatic-clean control");
+    }
+    const autoBuildRightBundle = readText(zip, "extension/dist/auto-build-view.js");
+    const legacyAutoBuildRightEntryMarkers = [
+      "Root 编排脚本",
+      "rootScriptStatus",
+      "syncRootScript",
+      ".toolbar[hidden]",
+      ".clean[hidden]",
+    ];
+    if (legacyAutoBuildRightEntryMarkers.some((marker) => autoBuildRightBundle.includes(marker))) {
+      throw new Error("Code VSIX AutoBuild Right bundle still creates or hides a migrated legacy control");
     }
     const caaRunner = readText(zip, "extension/resources/run/caa/pnw-caa-runner.cmd");
     if (!caaRunner.includes("stage=tck-init")
@@ -153,6 +210,49 @@ for (const artifact of artifacts) {
         || associatedRulePickerBundle.includes("existingRules")) {
       throw new Error("Code VSIX is missing the Host-neutral associated-rule picker custom element");
     }
+    const toolNavigatorBundle = readText(zip, "extension/dist/ktc-tool-navigator.js");
+    if (!toolNavigatorBundle.includes("ktc-tool-navigator")
+        || !toolNavigatorBundle.includes("ktc-tool-navigator-action")
+        || !toolNavigatorBundle.includes("container-type:inline-size")
+        || toolNavigatorBundle.includes("acquireVsCodeApi")
+        || toolNavigatorBundle.includes("postMessage")
+        || toolNavigatorBundle.includes("workspace.fs")) {
+      throw new Error("Code VSIX is missing the Host-neutral responsive Tool Navigator custom element");
+    }
+    const sharedUiBundles = [
+      ["ktc-primary-shell.js", ["ktc-primary-shell"]],
+      ["ktc-directory-bar.js", ["ktc-directory-bar", "ktc-directory-bar-action"]],
+      ["ktc-toolbar-strip.js", ["ktc-toolbar-strip", "ktc-toolbar-strip-action"]],
+      ["ktc-current-tool-region.js", ["ktc-current-tool-region", "ktc-current-tool-region-action"]],
+      ["ktc-open-items-bar.js", ["ktc-open-items-bar", "ktc-open-items-bar-action"]],
+      ["ktc-right-view-shell.js", ["ktc-right-view-shell"]],
+      ["ktc-package-includes-primary.js", ["ktc-package-includes-primary", "ktc-package-includes-primary-action", "ktc-ignore-policy-block", "ktc-ignore-policy-action"]],
+      ["pnw-combo.js", ["pnw-combo", "pnw-combo-action", "全部清空"]],
+    ];
+    for (const [file, markers] of sharedUiBundles) {
+      const sharedBundle = readText(zip, `extension/dist/${file}`);
+      // esbuild's default ASCII output may encode labels such as 全部清空 as Unicode escapes.
+      const hasMarker = (marker) => sharedBundle.includes(marker) || sharedBundle.includes(
+        marker.replace(/[^\x00-\x7f]/g, (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0").toUpperCase()}`),
+      ) || sharedBundle.includes(
+        marker.replace(/[^\x00-\x7f]/g, (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`),
+      );
+      if (markers.some((marker) => !hasMarker(marker))
+          || sharedBundle.includes("acquireVsCodeApi")
+          || sharedBundle.includes("postMessage")
+          || sharedBundle.includes("workspace.fs")) {
+        throw new Error(`Code VSIX is missing or contaminates Host-neutral shared UI bundle: ${file}`);
+      }
+    }
+    const packageIncludesRightViewMarkers = [
+      "packageIncludesRightShell",
+      "packageIncludesHeaderActions",
+      "packageIncludesMain",
+      "ktc-right-view-shell.js",
+    ];
+    if (packageIncludesRightViewMarkers.some((marker) => !bundle.includes(marker))) {
+      throw new Error("Code VSIX Package Includes View is not wired to the shared Right View Shell");
+    }
     const projectRenameAnalysisBundle = readText(zip, "extension/dist/project-rename-analysis.js");
     if (!projectRenameAnalysisBundle.includes("upper-snake")
         || !projectRenameAnalysisBundle.includes("loadMore")
@@ -182,12 +282,14 @@ for (const artifact of artifacts) {
     }
     const titleCommands = manifest.contributes?.menus?.["view/title"] ?? [];
     const expectedTitleCommands = [
+      ["ktAutoCode.directory.hide", "navigation@5"],
+      ["ktAutoCode.directory.show", "navigation@5"],
       ["ktAutoCode.ignore.openAdvanced", "navigation@10"],
       ["ktAutoCode.environment.open", "navigation@20"],
     ];
     const actualTitleCommands = titleCommands.map((candidate) => [candidate.command, candidate.group]);
     if (JSON.stringify(actualTitleCommands) !== JSON.stringify(expectedTitleCommands)) {
-      throw new Error("Code VSIX View Header must contain exactly Ignore then Settings");
+      throw new Error("Code VSIX View Header must contain exactly Directory visibility, Ignore, then Settings");
     }
     if (titleCommands.some((candidate) => [
       "ktAutoCode.module.code.show",
@@ -204,7 +306,10 @@ for (const artifact of artifacts) {
   if (names.includes("extension/media/tools/cad-provider.svg")) {
     throw new Error("Code VSIX must not retain the removed standalone CAD provider icon");
   }
-  const evidence = createArtifactVerificationEvidence({
+  const evidence = localWing ? {
+    kind: "kt.auto-code.local-wing-artifact-verification", publishable: false,
+    artifact: artifactPath, version: artifact.expectedPackage.version, bytes, sha256, fileCount: names.length,
+  } : createArtifactVerificationEvidence({
     artifactKind: artifact.kind,
     artifact: artifactPath,
     version: artifact.expectedPackage.version,
@@ -214,7 +319,7 @@ for (const artifact of artifacts) {
     provenance,
   });
   process.stdout.write(`[verify] ${artifact.kind} VSIX: ${names.length} files, ${bytes} bytes passed\n`);
-  process.stdout.write(serializeArtifactVerificationEvidence(evidence));
+  process.stdout.write(localWing ? `${JSON.stringify(evidence, null, 2)}\n` : serializeArtifactVerificationEvidence(evidence));
 }
 
 function readPackage(filename) {

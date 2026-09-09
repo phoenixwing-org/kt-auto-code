@@ -1,9 +1,45 @@
 {
   "schemaVersion": 1,
   "owner": "KT Auto Code maintainers",
-  "lastVerified": "2026-09-02",
+  "lastVerified": "2026-09-08",
   "appliesTo": "0.8.x",
   "rules": [
+    {
+      "match": "^docs/0\\.9\\.0-发布冻结清单\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.0",
+      "reason": "0.9.0 收尾冻结、三视图关闭规则与正式 Registry 发布前置门禁"
+    },
+    {
+      "match": "^docs/bug/自动代码-CAA-combo的信号问题\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.0",
+      "reason": "用户要求本轮修复的 CAA Combo 通知生成错误；索引回填/读取保持，真实 CAA 运行验收单列"
+    },
+    {
+      "match": "^docs/0\\.9\\.1-代码辅助Primary整改计划\\.md$",
+      "status": "draft",
+      "appliesTo": "0.9.1",
+      "reason": "用户排期的仅 Primary 代码辅助工具内部文字工具栏与 UI Preview；本轮仅记录，未实施"
+    },
+    {
+      "match": "^docs/插件开发指导\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.0 及后续",
+      "reason": "用户确认的业务按钮呈现默认规则与理由"
+    },
+    {
+      "match": "^docs/头文件引用修正Primary整改计划\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.0",
+      "reason": "头文件引用修正 Primary 已完成共享布局与正式 typed 接线；持续记录 Ignore 证据、规则限制和剩余人工验收"
+    },
+    {
+      "match": "^docs/(0\\.9\\.0-(Wing控件与自动代码整改目标|内测说明)|编译工具/(README|TypeScript运行时迁移计划|Export跨平台支持讨论))\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.0",
+      "reason": "当前 Wing 控件、自动代码点检与编译工具 TypeScript 迁移目标和验收记录"
+    },
     {
       "match": "^docs/0\\.7\\.4发布准备\\.md$",
       "status": "superseded",
@@ -28,8 +64,33 @@
     },
     {
       "match": "^docs/0\\.8\\.3发布准备\\.md$",
+      "status": "archived",
+      "sourceOfTruth": "docs/current-roadmap.md",
+      "reason": "0.8.3 发布准备历史快照；当前界面与发布目标以现行规则和路线为准"
+    },
+    {
+      "match": "^docs/0\\.9\\.0-Primary与Editor联动讨论稿\\.md$",
       "status": "current",
-      "reason": "0.8.3 正式基线、门禁、Windows 点检和制品回执的发布真源"
+      "appliesTo": "0.9.0",
+      "reason": "用户已确认的两区 Primary Shell、无 Header Tool Surface、当前 Ribbon 项显隐与悬浮关闭，以及双 Editor companion、Group/Tool 导航、Action Registry 与分阶段验证计划"
+    },
+    {
+      "match": "^docs/0\\.9\\.0-Right工具Primary迁移点检\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.0",
+      "reason": "0.9.0 Right 工具向 Primary 分阶段迁移的 Preview-first 决策、AutoBuild 状态安全契约与正式接线验收清单"
+    },
+    {
+      "match": "^docs/0\\.9\\.0-Primary迁移需求归档\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.0",
+      "reason": "2026-09-08 连续 UI 决策、PnwCombo、脚本同步、TypeScript Root 清理与未完成验收的集中记录"
+    },
+    {
+      "match": "^docs/PnwCombo组件提炼TODO\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.0",
+      "reason": "本地 PnwCombo 已接入消费者，记录下版迁入 Wing 前必须保留的模型、事件与验收边界"
     },
     {
       "match": "^docs/Phoenix-Auto统一Ignore方案\\.md$",
@@ -86,7 +147,7 @@
     {
       "match": "^docs/Ribbon与基础上下文Block改进计划\\.md$",
       "status": "current",
-      "reason": "已确认的单 View Ribbon、用户定制与共享工作目录实施计划"
+      "reason": "已确认的单 View Ribbon、无 Header Tool Surface、用户定制与共享工作目录实施计划"
     },
     {
       "match": "^docs/工作集退场与多目录范围调查\\.md$",

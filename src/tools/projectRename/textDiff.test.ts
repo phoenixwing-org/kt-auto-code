@@ -6,6 +6,7 @@ import iconv from "iconv-lite";
 import { afterEach, describe, expect, it } from "vitest";
 import type { DetectedEncoding } from "../../core/fileEncoding.js";
 import type { KtcProjectRenameAnalysisReport } from "./contracts.js";
+import { ktcAnalyzeProjectRename } from "./analyzer.js";
 import { ktcBuildProjectRenameTextDiff } from "./textDiff.js";
 
 const roots: string[] = [];
@@ -67,6 +68,29 @@ describe("project rename text diff", () => {
 
     await expect(ktcBuildProjectRenameTextDiff(frozen, "text:src.ts"))
       .rejects.toThrow("文件内容已变化");
+  });
+
+  it("分析时忽略的未完整启用草稿不会在差异预览中变成删除规则", async () => {
+    const root = await mkdtemp(join(tmpdir(), "ktc-project-diff-draft-"));
+    roots.push(root);
+    const file = join(root, "src.ts");
+    await writeFile(file, "OldProject TOKEN\n");
+    const analyzed = await ktcAnalyzeProjectRename({
+      reportId: 8,
+      root,
+      sourceName: "Old Project",
+      targetName: "New Project",
+      rules: [
+        { id: "pascal", style: "pascal", search: "OldProject", replace: "NewProject", enabled: true },
+        { id: "unfinished", style: "custom", search: "TOKEN", replace: "", enabled: true },
+      ],
+    });
+
+    expect(analyzed.rules).toEqual([
+      expect.objectContaining({ id: "pascal", search: "OldProject", replace: "NewProject" }),
+    ]);
+    const diff = await ktcBuildProjectRenameTextDiff(analyzed, "text:src.ts");
+    expect(diff.targetText).toBe("NewProject TOKEN\n");
   });
 });
 

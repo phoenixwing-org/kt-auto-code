@@ -26,10 +26,15 @@ import {
   KtcResolveCaaInstallation,
 } from "./KtcCaaInstallation.js";
 import { KtcSelectRunDisplayTargets, KtcSelectRunExecutionProvider } from "./KtcRunDisplayTargets.js";
-import { KtcCleanGitUntrackedRepositories, KtcCleanWorkspace, type KtcQuickCleanupKind } from "./KtcManualCleanup.js";
+import { KtcCleanupSession } from "../cleanup/KtcCleanupSession.js";
+import {
+  KtcCreateRunCleanupModel, KtcExecuteRunCleanup, KtcPreviewRunCleanup,
+  type KtcRunCleanupMode, type KtcRunCleanupPayload, type KtcRunFrozenCleanup,
+} from "./KtcRunCleanup.js";
 
 export type KtcRunActionMessage =
-  | { readonly action: "refresh" | "openOutput" | "openProblems" | "openTerminal" | "cleanBuild" | "cleanObjects" | "cleanObj" | "cleanGitUntracked" }
+  | { readonly action: "cleanupDialog"; readonly sessionId: string; readonly revision: number; readonly payload: KtcRunCleanupPayload }
+  | { readonly action: "refresh" | "openOutput" | "openProblems" | "openTerminal" | "openCleanup" | "cleanBuild" | "cleanObjects" | "cleanObj" | "cleanGitUntracked" }
   | { readonly action: "runTarget" | "dryRunTarget"; readonly targetId: string }
   | { readonly action: "stopRun"; readonly runId: string }
   | { readonly action: "selectCaaRelated" | "addCaaRelatedFolder"; readonly projectId: string }
@@ -78,16 +83,30 @@ export class KtcRunController {
   private KtcLastRunContext: ToolRunContext | undefined;
   private KtcDiagnostics: string[] = [];
   private KtcIncomplete = false;
+  private KtcStartingRuns = 0;
+  private KtcCleanupRoot = "";
+  private KtcCleanupMode: KtcRunCleanupMode = "build";
+  private KtcCleanupContext: ToolRunContext | undefined;
+  private readonly KtcCleanup = new KtcCleanupSession<KtcRunFrozenCleanup>(
+    () => { if (this.KtcCleanupContext) this.KtcPostState(this.KtcCleanupContext); },
+    (message) => this.KtcCleanupContext?.log(`[Run][清理] ${message}`),
+  );
+
+  clearSession(): void {
+    this.KtcCleanup.invalidate("Run 清理会话已关闭；预览已失效，未继续处理后续项。");
+  }
 
   register(context: vscode.ExtensionContext): void {
     this.KtcExtensionContext = context;
     context.subscriptions.push(
+      { dispose: () => this.clearSession() },
       vscode.tasks.onDidEndTaskProcess((event) => this.KtcOnEndProcess(event)),
       vscode.tasks.onDidEndTask((event) => this.KtcOnEndTask(event)),
     );
   }
 
   async refresh(ctx: ToolRunContext): Promise<void> {
+    this.KtcCleanup.invalidate("Run 已刷新，请重新预览清理目标。");
     this.KtcLastRunContext = ctx;
     ctx.postState({ status: "running", message: "正在发现 Task、脚本和运行目标…" });
     const platform = KtcPlatform();
@@ -145,18 +164,27 @@ export class KtcRunController {
       await vscode.commands.executeCommand("workbench.action.terminal.focus");
       return;
     }
-    if (action.action === "cleanBuild" || action.action === "cleanObjects" || action.action === "cleanObj") {
+    if (action.action === "openCleanup" || action.action === "cleanBuild" || action.action === "cleanObjects" || action.action === "cleanObj" || action.action === "cleanGitUntracked") {
       if (!ctx.workspaceRoot) throw new Error("当前没有可清理的工作目录。");
-      const kind: KtcQuickCleanupKind = action.action === "cleanBuild" ? "build" : action.action === "cleanObjects" ? "objects" : "obj";
-      const result = await KtcCleanWorkspace(ctx.workspaceRoot, kind);
-      ctx.log(`[Run][清理][OK] ${ctx.workspaceRoot}：删除 ${result.deleted.length} 项（${kind}），已跳过 .git。`);
-      this.KtcPostState(ctx); return;
+      this.KtcRequireCleanupContext(ctx);
+      if (this.KtcCleanup.busy) throw new Error("清理仍在处理中，请等待当前操作结束。");
+      this.KtcCleanupContext = ctx;
+      this.KtcCleanupRoot = path.resolve(ctx.workspaceRoot);
+      this.KtcCleanupMode = action.action === "cleanBuild" ? "build" : action.action === "cleanObjects" ? "objects"
+        : action.action === "cleanObj" ? "obj" : "git-untracked";
+      const direct = action.action === "cleanBuild" || action.action === "cleanObjects" || action.action === "cleanObj";
+      this.KtcCleanup.open(!direct);
+      if (direct) {
+        ctx.log(`[Run][清理] 直接清理 ${this.KtcCleanupMode}（不弹确认）：${this.KtcCleanupRoot}`);
+        await this.KtcDirectArtifactCleanup(ctx);
+      } else {
+        ctx.log(`[Run][清理] 打开 ${this.KtcCleanupMode} 预览对话框，未执行删除：${this.KtcCleanupRoot}`);
+      }
+      return;
     }
-    if (action.action === "cleanGitUntracked") {
-      if (!ctx.workspaceRoot) throw new Error("当前没有可清理的工作目录。");
-      const result = await KtcCleanGitUntrackedRepositories(ctx.workspaceRoot); let deleted = 0, failed = 0;
-      for (const repository of result.repositories) { deleted += repository.deleted.length; if (repository.error) { failed++; ctx.log(`[Run][Git 清理][ERROR] ${repository.repository}：${repository.error}`); continue; } ctx.log(`[Run][Git 清理][OK] ${repository.repository}：删除 ${repository.deleted.length} 项。`); for (const item of repository.deleted.slice(0, 10)) ctx.log(`[Run][Git 清理][删除] ${item}`); if (repository.deleted.length > 10) ctx.log(`[Run][Git 清理] 其余 ${repository.deleted.length - 10} 项未逐项列出。`); }
-      ctx.log(`[Run][Git 清理][汇总] 发现 ${result.repositories.length} 个仓库；删除 ${deleted} 项；失败 ${failed} 个；非 Git 目录未处理。`); this.KtcPostState(ctx); return;
+    if (action.action === "cleanupDialog") {
+      await this.KtcHandleCleanup(action, ctx);
+      return;
     }
     if (action.action === "setCaaVersion") {
       await this.KtcSetCaaVersion(action.projectId, action.value, ctx);
@@ -171,7 +199,9 @@ export class KtcRunController {
       return;
     }
     if (action.action === "runTarget") {
-      await this.KtcRunTarget(action.targetId, ctx);
+      this.KtcStartingRuns++;
+      try { await this.KtcRunTarget(action.targetId, ctx); }
+      finally { this.KtcStartingRuns--; }
       return;
     }
     if (action.action === "dryRunTarget") {
@@ -186,6 +216,8 @@ export class KtcRunController {
   }
 
   private async KtcRunTarget(targetId: string, ctx: ToolRunContext): Promise<void> {
+    if (this.KtcCleanup.busy) throw new Error("清理仍在处理中，不能同时启动运行任务。");
+    this.KtcCleanup.invalidate("已请求运行任务，旧清理预览失效。");
     const selectedRecord = this.KtcTargets.get(targetId);
     if (!selectedRecord) throw new Error("运行目标已变化，请刷新 Run Block。");
     const relatedRoots = selectedRecord.target.action === "caa-build"
@@ -225,6 +257,7 @@ export class KtcRunController {
     // Primary Tree 单击即执行：安全边界由上面的 trust/平台/并发/CAA 预检保证，
     // 不再额外弹出确认框中断常用的构建与运行流程。
     const task = await this.KtcCreateTask(record, caa?.value, relatedRoots);
+    if (this.KtcCleanup.busy) throw new Error("等待运行配置期间启动了清理，未启动任务。");
     let execution: vscode.TaskExecution;
     try {
       execution = await vscode.tasks.executeTask(task);
@@ -685,7 +718,69 @@ export class KtcRunController {
       diagnostics: this.KtcDiagnostics,
       incomplete: this.KtcIncomplete,
     });
-    ctx.postState({ status, message: message ?? run.statusText, run });
+    ctx.postState({ status, message: message ?? run.statusText, run,
+      ...(this.KtcCleanup.sessionId ? { runCleanup: {
+        sessionId: this.KtcCleanup.sessionId,
+        revision: this.KtcCleanup.revision,
+        openRequestId: this.KtcCleanup.openRequestId,
+        model: KtcCreateRunCleanupModel(this.KtcCleanupRoot, this.KtcCleanupMode, this.KtcCleanup.preview,
+          this.KtcCleanup.busy ? "清理处理中…" : this.KtcCleanupDisabledReason(this.KtcCleanupContext ?? ctx)),
+      } } : {}),
+    });
+  }
+
+  private KtcCleanupDisabledReason(ctx: ToolRunContext): string | undefined {
+    if (!vscode.workspace.isTrusted) return "未信任工作区不允许清理，请先使用 VS Code Workspace Trust。";
+    if (!ctx.workspaceRoot || ctx.isCurrentWorkingDirectory?.() === false) return "工作目录已变化，请重新打开清理。";
+    if (this.KtcStartingRuns > 0 || [...this.KtcExecutions.values()].some((execution) => KtcIsActive(execution.state))
+      || vscode.tasks.taskExecutions?.length) return "仍有 VS Code Task 正在运行，请先停止后再清理。";
+    return undefined;
+  }
+
+  private KtcRequireCleanupContext(ctx: ToolRunContext): void {
+    const reason = this.KtcCleanupDisabledReason(ctx);
+    if (reason) throw new Error(reason);
+  }
+
+  /** User-approved one-click artifact shortcuts; freezing is internal, not a confirmation dialog. */
+  private async KtcDirectArtifactCleanup(ctx: ToolRunContext): Promise<void> {
+    const root = this.KtcCleanupRoot;
+    const mode = this.KtcCleanupMode;
+    const sessionId = this.KtcCleanup.sessionId;
+    const fingerprint = JSON.stringify([root, mode, "workspace"]);
+    const guard = () => !this.KtcCleanupDisabledReason(ctx);
+    await this.KtcCleanup.analyze({ sessionId, revision: this.KtcCleanup.revision }, fingerprint, guard,
+      (shouldContinue) => KtcPreviewRunCleanup(root, mode, shouldContinue));
+    const preview = this.KtcCleanup.preview;
+    if (sessionId !== this.KtcCleanup.sessionId || preview.state !== "ready" || !preview.token) return;
+    await this.KtcCleanup.execute({ sessionId, revision: this.KtcCleanup.revision }, preview.token, fingerprint, guard,
+      (frozen, shouldContinue) => KtcExecuteRunCleanup(root, frozen, shouldContinue,
+        (line) => ctx.log(`[Run][清理] ${line}`)));
+  }
+
+  private async KtcHandleCleanup(action: Extract<KtcRunActionMessage, { action: "cleanupDialog" }>, ctx: ToolRunContext): Promise<void> {
+    if (action.payload.kind === "cancel") {
+      if (!this.KtcCleanup.cancel(action)) ctx.log("[Run][清理] 已拒绝过期的取消消息。");
+      return;
+    }
+    if (!this.KtcCleanup.accepts(action)) { ctx.log("[Run][清理] 会话已变化，请重新打开对话框。"); return; }
+    if (this.KtcCleanup.busy) { ctx.log("[Run][清理] 已有操作处理中，请等待或取消。"); return; }
+    if (!ctx.workspaceRoot || path.resolve(ctx.workspaceRoot) !== this.KtcCleanupRoot) {
+      this.KtcCleanup.invalidate("工作目录已变化，清理预览已失效。");
+      return;
+    }
+    this.KtcCleanupContext = ctx;
+    const payload = action.payload;
+    this.KtcCleanupMode = payload.request.modeId;
+    const fingerprint = JSON.stringify([this.KtcCleanupRoot, payload.request.modeId, "workspace"]);
+    const guard = () => !this.KtcCleanupDisabledReason(ctx);
+    const accepted = payload.kind === "preview"
+      ? await this.KtcCleanup.analyze(action, fingerprint, guard,
+        (shouldContinue) => KtcPreviewRunCleanup(this.KtcCleanupRoot, payload.request.modeId, shouldContinue))
+      : await this.KtcCleanup.execute(action, payload.previewToken, fingerprint, guard,
+        (frozen, shouldContinue) => KtcExecuteRunCleanup(this.KtcCleanupRoot, frozen, shouldContinue,
+          (line) => ctx.log(`[Run][清理] ${line}`)));
+    if (!accepted) ctx.log("[Run][清理] 请求已过期或已有操作处理中，未执行删除。");
   }
 
   private KtcPostLastState(): void {

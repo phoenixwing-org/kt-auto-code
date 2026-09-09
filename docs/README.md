@@ -4,17 +4,22 @@
 
 Owner：KT Auto Code maintainers
 
-适用版本：0.8.x
+适用版本：0.8.x–0.9.1
 
-最后核验：2026-09-05
+最后核验：2026-09-09
 
 本页是当前文档的唯一导航。全部 Markdown 的状态、owner、适用版本和替代关系由 [`document-manifest.json`](document-manifest.json) 记录；运行 `pnpm docs:check` 检查清单漂移和 current 文档断链。
 
 ## 当前路线与架构
 
 - [当前路线](current-roadmap.md)
+- [0.9.1 代码辅助 Primary 整改计划](0.9.1-代码辅助Primary整改计划.md)（仅 Primary 工具：内部文字工具栏与 UI Preview，下一阶段实施）
 - [0.8.3 发布准备](0.8.3发布准备.md)（统一 Ignore、项目改名安全边界、Windows 点检与制品回执）
 - [0.8.3 开发计划](0.8.3开发计划.md)（0.8.3 已归档范围与后续待定项）
+- [0.9.0 Primary 与 Editor View 联动及统一工具运行时计划](0.9.0-Primary与Editor联动讨论稿.md)（两区 Shell 与无 Header Tool Surface 已确认；含 Header 目录显隐、当前 Ribbon 项显隐、悬浮关闭、项目改名/自动编译 companion、Group/Tool 导航、Action Registry、分阶段迁移与隐私点检）
+- [0.9.0 Primary 迁移需求归档](0.9.0-Primary迁移需求归档.md)（本轮连续 UI 决策、项目改名/搜索替换/PnwCombo、脚本同步、TS Root 清理与未完成验收项）
+- [头文件引用修正 Primary 整改计划](头文件引用修正Primary整改计划.md)（共享 Primary 与正式接线已完成；Ignore 证据、布局及剩余人工点检）
+- [PnwCombo 组件提炼 TODO](PnwCombo组件提炼TODO.md)（菜单内逐行删除、全部清空、当前消费者与下版迁入 Wing 的边界）
 - [0.8.2 编译工具发布归档](0.8.2-本地编译工具归档.md)（Windows CAA/MSVC 构建边界、开发 Host 检查与发布门禁）
 - [编译工具说明](编译工具/README.md)（schema 2 项目表、PowerShell 编排、平台边界与安全规则）
 - [0.8.1 发布准备](0.8.1发布准备.md)（已发布项目改名版本、Wing 0.7.2 适配与正式门禁归档）
@@ -28,18 +33,20 @@ Owner：KT Auto Code maintainers
 - [Code/CAD 简明功能关系与可选模块接入契约](可选模块接入契约.md)
 - [项目调查](项目调查.md)
 - [仓库结构与扁平化迁移记录](仓库结构与扁平化迁移计划.md)（根包结构、迁移决策与验收）
-- [代码规范](代码规范.md)、[UI 开发规则](前端开发规则.md)与[工程配置/隐藏状态存储规则](工程配置与隐藏状态存储规则.md)
+- [插件开发指导](插件开发指导.md)、[代码规范](代码规范.md)、[UI 开发规则](前端开发规则.md)与[工程配置/隐藏状态存储规则](工程配置与隐藏状态存储规则.md)
 - [Phoenix Auto 统一 Ignore 方案](Phoenix-Auto统一Ignore方案.md)（插件内置、Git、自定义三来源，以及 Auto Code/CAD/Wing 边界）
 - [必要日志输出规则](必要日志输出规则.md)（Output、Terminal、Problems 分工与统一等级）
 - [Ribbon 与基础上下文 Block 改进计划](Ribbon与基础上下文Block改进计划.md)（单 View、展开/紧凑两态 Toolbar Strip、置顶、拖动排序与共享工作目录；无密度按钮）
-- [工作目录、Ignore 与设置 View 改造计划](工作目录与统一设置View改造计划.md)（固定单行目录、原生 Header 双入口与 Ignore/设置独立工具）
+- [工作目录、Ignore 与设置 View 改造计划](工作目录与统一设置View改造计划.md)（固定单行目录、原生 Header 三动作，以及 Ignore/Settings 两个同级工具入口）
 - [固定与排序菜单控件](固定与排序菜单控件.md)（唯一 `…`、钉子、分组、拖动排序与用户点检）
-- [ShellBlock 控件提炼 TODO](ShellBlock控件提炼TODO.md)（保持一级 Block 当前效果的后续等价抽取）
+- [Primary / Right Host-neutral 控件正式接入 TODO](ShellBlock控件提炼TODO.md)（四区 Primary、固定 Header Current Tool、Right Shell、Open Items 与唯一滚动边界）
 - [工作集退场与多目录范围调查](工作集退场与多目录范围调查.md)（消费者审计、无损边界与分阶段替换方案）
 - [代码辅助入口整合 TODO](代码辅助入口整合TODO.md)（低频工具 Tree 分组、用户级折叠恢复、排序会话释放与逐项点检）
 
 ## Code 与 Codegen
 
+- [CAA Combo 选择通知 BUG](bug/自动代码-CAA-combo的信号问题.md)（0.9.0 收尾；生成通知与索引读写一致性，CAA 运行验收另记）
+- [0.9.0 发布冻结清单](0.9.0-发布冻结清单.md)（最终修改与制品门禁；Wing Registry 前置缺口未解除前仅供内测）
 - [Codegen 快速原型与 MVC 边界](Codegen快速原型.md)
 - [Codegen 总 Controller 会话提炼点检](codegen-plan/Codegen总Controller会话提炼点检表.md)
 - [Codegen 编辑器语义命令 Controller 点检](codegen-plan/Codegen编辑器语义命令Controller点检表.md)

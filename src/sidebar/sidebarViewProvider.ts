@@ -2,7 +2,16 @@ import * as vscode from "vscode";
 import { existsSync, statSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { logOutput } from "../output.js";
-import { getTool, getTools } from "../tools/registry.js";
+import {
+  getNavigationDescriptor,
+  getNavigationDescriptors,
+  getTool,
+  getTools,
+} from "../tools/registry.js";
+import {
+  KTC_TOOL_REGISTRATION_BY_ID,
+  ktcRequireToolRegistration,
+} from "../tools/toolRegistrationCatalog.js";
 import type {
   KtcRecentWorkingDirectories,
   KtcWorkingContext,
@@ -22,8 +31,8 @@ import { setUuidReplaceRunContextFactory } from "../tools/uuidReplace/index.js";
 import { setCaaDialogRunContextFactory } from "../tools/caaDialog/index.js";
 import { setReorderMembersRunContextFactory } from "../tools/reorderMembers/index.js";
 import { setIgnoreSettingsCommandRunner } from "../tools/ignoreSettings/index.js";
-import { setCodegenRunContextFactory } from "../tools/codegen/index.js";
-import { setCodeAssistantRunContextFactory } from "../tools/codeAssistant/index.js";
+import { notifyCodegenIgnorePolicyChanged, setCodegenRunContextFactory } from "../tools/codegen/index.js";
+import { refreshCodeAssistantIgnorePolicy, setCodeAssistantRunContextFactory, updateCodeAssistantIgnoreSources } from "../tools/codeAssistant/index.js";
 import { getPreserveGbk, getStripBom } from "../tools/headerAscii/options.js";
 import { getFileScope, setFileScopeOption, type ScopeOptionKey } from "../scopeOptions.js";
 import { getWorkspaceLabel, getWorkspaceRoot } from "../workspace.js";
@@ -44,7 +53,25 @@ import { ktcClassifyWorkingDirectory } from "../searchReplaceLocation.js";
 import { ktcListSearchReplaceDirectoryOptions } from "../searchReplaceDirectoryOptions.js";
 import { ktcIsPathInsideWorkspace } from "../core/workspace/workspacePath.js";
 import { ktcActivateResultAccordion } from "../workbench/resultAccordion.js";
-import { ktcActivateToolBlock, ktcCloseToolBlock } from "./toolBlockHistory.js";
+import {
+  ktcActivateEditorPrimaryTool,
+  ktcCloseEditorPrimaryTool,
+  ktcCreateEditorPrimaryCompanionState,
+  ktcRegisterEditorPrimaryCompanion,
+  ktcResolveEditorPrimaryCompanionRoute,
+  ktcUpdateEditorPrimaryCompanion,
+  ktcValidateEditorPrimaryCompanionRoute,
+  type KtcEditorPrimaryActivationSource,
+  type KtcEditorPrimaryCompanionState,
+} from "./editorPrimaryCompanionModel.js";
+import {
+  ktcCloseOtherToolBlocks,
+  ktcNormalizeToolBlockHistory,
+} from "./toolBlockHistory.js";
+import type {
+  KtcEditorPrimaryCompanionSnapshot,
+  KtcEditorPrimaryCompanionToolId,
+} from "../core/editorPrimaryCompanionContracts.js";
 import {
   ktcMoveRibbonTool,
   ktcNormalizeRibbonLayout,
@@ -75,15 +102,22 @@ import type {
 } from "../core/moduleShellContract.js";
 
 const MODULE_STATE_KEY = "ktAutoCode.modules.v1";
+const DIRECTORY_VISIBILITY_STATE_KEY = "ktAutoCode.sidebar.directoryVisible.v1";
+const DIRECTORY_VISIBILITY_CONTEXT_KEY = "ktAutoCode.modulePanel.directoryVisible";
+const EDITOR_COMPANION_TOMBSTONE_LIMIT_PER_TOOL = 4;
+const EDITOR_COMPANION_RETIRED_SESSION_LIMIT_PER_TOOL = 8;
 const RIBBON_LAYOUT_STATE_KEY = "ktAutoCode.ribbonLayout.v1";
 const CODE_ASSISTANT_TREE_UI_STATE_KEY = "ktAutoCode.codeAssistant.treeUi.v1";
 const WORKING_DIRECTORY_STATE_KEY = "ktAutoCode.workingContext.directory.v1";
 const BUILT_IN_IGNORE_STATE_KEY = "ktAutoCode.workingContext.builtInIgnoreEnabled.v1";
 const GIT_IGNORE_STATE_KEY = "ktAutoCode.workingContext.gitIgnoreEnabled.v1";
 const CUSTOM_IGNORE_STATE_KEY = "ktAutoCode.workingContext.customIgnoreEnabled.v1";
+const IGNORE_ENABLED_STATE_KEY = "ktAutoCode.workingContext.ignoreEnabled.v1";
 const PLUGIN_IGNORE_STATE_KEY = "ktAutoCode.workingContext.pluginIgnoreEnabled.v1";
 const MODULE_VIEW_TITLE = "KT Auto Code";
 const DEFAULT_CODE_ASSISTANT_TREE_UI_STATE: KtcCodeAssistantTreeUiState = Object.freeze({
+  navigatorMode: "outline",
+  showLabels: true,
   treeExpanded: true,
   cppOrganizeExpanded: true,
   fileToolsExpanded: true,
@@ -93,6 +127,10 @@ const DEFAULT_CODE_ASSISTANT_TREE_UI_STATE: KtcCodeAssistantTreeUiState = Object
 });
 const REPOSITORY_URL = "https://gitee.com/phoenixwing/kt-auto-code";
 const QUICK_START_URL = `${REPOSITORY_URL}/blob/develop/README.md#%E4%BD%BF%E7%94%A8`;
+
+interface KtcWorkingDirectoryQuickPickItem extends vscode.QuickPickItem {
+  readonly directory: string;
+}
 
 const WELCOME_EXTENSIONS = [
   { id: "kuntai.kt-auto-code", title: "KT Auto Code", moduleId: "code" },
@@ -123,6 +161,16 @@ interface InstalledModuleContribution {
   readonly contribution: KtcModuleContribution;
 }
 
+interface KtcInstalledToolReference {
+  readonly id: string;
+  readonly moduleId: KtcModuleId;
+}
+
+interface KtcInstalledToolReconciliation {
+  readonly historyChanged: boolean;
+  readonly moduleStateChanged: boolean;
+}
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -136,6 +184,8 @@ function normalizeCodeAssistantTreeUiState(value: unknown): KtcCodeAssistantTree
   if (!value || typeof value !== "object") return { ...DEFAULT_CODE_ASSISTANT_TREE_UI_STATE };
   const candidate = value as Partial<KtcCodeAssistantTreeUiState>;
   return {
+    navigatorMode: candidate.navigatorMode === "grid" ? "grid" : "outline",
+    showLabels: candidate.showLabels !== false,
     treeExpanded: candidate.treeExpanded !== false,
     cppOrganizeExpanded: candidate.cppOrganizeExpanded !== false,
     fileToolsExpanded: candidate.fileToolsExpanded !== false,
@@ -171,9 +221,14 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
   private moduleView?: vscode.WebviewView;
   private activeToolId = "headerAscii";
+  private directoryVisible: boolean;
   private codeAssistantFeatureId: KtcCodeAssistantFeatureId | undefined;
   private codeAssistantTreeUiState: KtcCodeAssistantTreeUiState;
   private openToolIds: string[] = [];
+  private editorCompanionState: KtcEditorPrimaryCompanionState = ktcCreateEditorPrimaryCompanionState();
+  private readonly editorCompanionSnapshots = new Map<string, KtcEditorPrimaryCompanionSnapshot>();
+  private readonly retiredEditorCompanionSessions = new Map<KtcEditorPrimaryCompanionToolId, string[]>();
+  private editorCompanionQueue: Promise<void> = Promise.resolve();
   private toolStates = new Map<string, ToolUiState>();
   private readonly recentExternalDirectories: KtcRecentWorkingDirectoryStore;
   private readonly recentWorkspaceDirectories: KtcRecentWorkspaceDirectoryStore;
@@ -181,8 +236,10 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   private moduleState: KtcModuleState;
   private moduleStateSyncQueue: Promise<void> = Promise.resolve();
   private modulePanelContextSyncQueue: Promise<void> = Promise.resolve();
+  private directoryVisibilitySyncQueue: Promise<void> = Promise.resolve();
   private ignoreOperationQueue: Promise<void> = Promise.resolve();
   private ignoreContextRoot: string | undefined;
+  private ignorePolicyFingerprint = "";
   private readonly moduleBlockProviders = new Map<KtcModuleId, KtcModuleBlockProvider>();
 
   constructor(
@@ -190,6 +247,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     private readonly globalState: vscode.Memento,
     private readonly workspaceState: vscode.Memento,
   ) {
+    this.directoryVisible = globalState.get<boolean>(DIRECTORY_VISIBILITY_STATE_KEY, true) !== false;
     const installed = this.getInstalledModuleIds();
     this.moduleState = ktcCreateModuleState(
       installed,
@@ -209,22 +267,46 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     setReorderMembersRunContextFactory(() => this.createRunContext("reorderMembers"));
     setIgnoreSettingsCommandRunner((message) => this.enqueueIgnoreMessage(message));
     setCodegenRunContextFactory(() => this.createRunContext("codegen"));
-    setCodeAssistantRunContextFactory(() => this.createRunContext("codeAssistant"));
+    setCodeAssistantRunContextFactory((toolId) => this.createRunContext(toolId));
   }
 
   async initializeModuleState(): Promise<void> {
     await this.syncModuleState();
+    await this.syncDirectoryVisibilityContext(this.directoryVisible);
+  }
+
+  /** Changes only the Directory row presentation; tool and working state stay authoritative. */
+  setDirectoryVisible(visible: boolean): Promise<void> {
+    this.directoryVisible = visible;
+    const task = this.directoryVisibilitySyncQueue.then(async () => {
+      await this.globalState.update(DIRECTORY_VISIBILITY_STATE_KEY, visible);
+      await vscode.commands.executeCommand("setContext", DIRECTORY_VISIBILITY_CONTEXT_KEY, visible);
+      this.postToViews({ type: "directoryVisibility", visible });
+    });
+    this.directoryVisibilitySyncQueue = task.catch(() => undefined);
+    return task;
+  }
+
+  private syncDirectoryVisibilityContext(visible: boolean): Promise<void> {
+    const task = this.directoryVisibilitySyncQueue.then(async () => {
+      await vscode.commands.executeCommand("setContext", DIRECTORY_VISIBILITY_CONTEXT_KEY, visible);
+    });
+    this.directoryVisibilitySyncQueue = task.catch(() => undefined);
+    return task;
   }
 
   async refreshInstalledModules(): Promise<void> {
-    const installed = this.getInstalledModuleIds();
-    const changed = installed.length !== this.moduleState.installed.length
-      || !installed.every((moduleId, index) => this.moduleState.installed[index] === moduleId);
-    if (changed) {
-      this.moduleState = ktcCreateModuleState(installed, ktcPersistedModuleState(this.moduleState));
-      await this.syncModuleState();
+    const contributions = this.getInstalledModuleContributions();
+    const reconciliation = this.reconcileInstalledToolState(contributions);
+    await this.syncInstalledToolReconciliation(reconciliation);
+    if (this.moduleView) {
+      this.moduleView.webview.options = {
+        ...this.moduleView.webview.options,
+        enableScripts: true,
+        localResourceRoots: this.getWebviewLocalResourceRoots(),
+      };
+      await this.sendInit(this.moduleView);
     }
-    if (this.moduleView) await this.sendInit(this.moduleView);
   }
 
   resolveWebviewView(
@@ -235,7 +317,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     this.moduleView = webviewView;
     webviewView.webview.options = {
       enableScripts: true,
-      localResourceRoots: [this.extensionUri],
+      localResourceRoots: this.getWebviewLocalResourceRoots(),
     };
     webviewView.webview.html = getPanelHtml(webviewView.webview, this.extensionUri);
 
@@ -254,7 +336,9 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       });
     });
     webviewView.onDidDispose(() => {
-      if (this.moduleView === webviewView) this.moduleView = undefined;
+      if (this.moduleView !== webviewView) return;
+      this.moduleView = undefined;
+      void this.invalidateRunCleanupSession("Webview 已销毁");
     });
     webviewView.onDidChangeVisibility(() => {
       if (webviewView.visible) ktcActivateResultAccordion(SidebarViewProvider.moduleViewType);
@@ -268,6 +352,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   }
 
   refreshIgnoreConfig(): void {
+    refreshCodeAssistantIgnorePolicy();
     this.postToViews({
       type: "ignoreConfig",
       ignoreConfig: ktcIgnoreController.snapshot(this.getWorkingContext().resolvedDirectory),
@@ -309,34 +394,32 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   }
 
   /** Opens the tool interface block; results are rendered in the same block. */
-  async showTool(toolId: string): Promise<void> {
+  async showTool(
+    toolId: string,
+    activationSource: KtcEditorPrimaryActivationSource = "command",
+  ): Promise<void> {
     const requestedToolId = toolId;
+    if (getNavigationDescriptor(requestedToolId)) {
+      await this.showNavigationGroup(requestedToolId);
+      return;
+    }
     const requestedTool = getTool(requestedToolId);
     if (!requestedTool) return;
-    const codeAssistantFeatureId = isCodeAssistantFeatureId(requestedToolId) ? requestedToolId : undefined;
-    const visibleToolId = codeAssistantFeatureId ? "codeAssistant" : requestedToolId;
-    const tool = getTool(visibleToolId);
-    if (!tool) return;
-    const codeAssistantFeatureChanged = this.codeAssistantFeatureId !== codeAssistantFeatureId;
-    this.codeAssistantFeatureId = codeAssistantFeatureId;
-    if (codeAssistantFeatureId && codeAssistantFeatureChanged) {
-      this.codeAssistantTreeUiState = { ...this.codeAssistantTreeUiState, treeExpanded: false };
-      await this.globalState.update(CODE_ASSISTANT_TREE_UI_STATE_KEY, this.codeAssistantTreeUiState);
-      const context = this.createRunContext(requestedToolId);
-      context.log(`[代码辅助][入口][INFO] 已打开：${requestedTool.title}；目录 ${context.workspaceLabel}。`);
-    }
-    if (this.isToolBlockVisible(visibleToolId)) {
-      if (codeAssistantFeatureChanged && this.moduleView) await this.sendInit(this.moduleView);
+    const navigationCollapsed = await this.collapseUnrelatedNavigationGroup(requestedToolId);
+    const legacyFeatureChanged = this.codeAssistantFeatureId !== undefined;
+    this.codeAssistantFeatureId = undefined;
+    if (this.isToolBlockVisible(requestedToolId)) {
+      if ((legacyFeatureChanged || navigationCollapsed) && this.moduleView) await this.sendInit(this.moduleView);
+      this.postToViews({ type: "revealToolSurface", toolId: requestedToolId });
       if (requestedToolId === "environmentSettings") await requestedTool.runAction("refresh", this.createRunContext(requestedToolId));
       if (requestedToolId === "caaDialog") await requestedTool.runAction("checkConnection", this.createRunContext(requestedToolId));
       if (requestedTool.onDidShow) await requestedTool.onDidShow(this.createRunContext(requestedToolId));
       return;
     }
     await this.activateModule("code");
-    this.activeToolId = visibleToolId;
-    this.openToolIds = ktcActivateToolBlock(this.openToolIds, visibleToolId);
+    this.activateToolHistory(requestedToolId, activationSource);
     ktcActivateResultAccordion(SidebarViewProvider.moduleViewType);
-    await this.setModulePanelContext(true, visibleToolId);
+    await this.setModulePanelContext(true, requestedToolId);
     await vscode.commands.executeCommand("workbench.view.extension.kt-auto-code");
     if (this.moduleView) {
       this.moduleView.title = MODULE_VIEW_TITLE;
@@ -351,8 +434,214 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     if (requestedTool.onDidShow) await requestedTool.onDidShow(this.createRunContext(requestedToolId));
   }
 
+  /**
+   * Opens a navigation Group without creating a logical Tool surface. A legacy
+   * command may still address the Group id; in that case the Group expands and
+   * an already-open MRU child is restored through the projection-only route.
+   */
+  private async showNavigationGroup(groupToolId: string): Promise<void> {
+    if (groupToolId !== "codeAssistant" || !this.isGroupToolId(groupToolId)) return;
+    if (!this.codeAssistantTreeUiState.treeExpanded) {
+      this.codeAssistantTreeUiState = { ...this.codeAssistantTreeUiState, treeExpanded: true };
+      await this.globalState.update(CODE_ASSISTANT_TREE_UI_STATE_KEY, this.codeAssistantTreeUiState);
+    }
+    const groupMruToolId = [...this.openToolIds]
+      .reverse()
+      .find((candidate) => (
+        KTC_TOOL_REGISTRATION_BY_ID[candidate]?.groupId === groupToolId
+        && !this.isGroupToolId(candidate)
+      ));
+    if (groupMruToolId) {
+      await this.activateOpenTool(groupMruToolId);
+      return;
+    }
+    await vscode.commands.executeCommand("workbench.view.extension.kt-auto-code");
+    if (this.moduleView) {
+      this.moduleView.title = MODULE_VIEW_TITLE;
+      await this.sendInit(this.moduleView);
+      if (!this.moduleView.visible) this.moduleView.show(false);
+    } else {
+      try { await vscode.commands.executeCommand(`${SidebarViewProvider.moduleViewType}.focus`); } catch { /* view resolves lazily */ }
+    }
+  }
+
+  /** A leaf outside the expanded Group hides its Navigator, never its open Tools or Editor tasks. */
+  private async collapseUnrelatedNavigationGroup(toolId: string): Promise<boolean> {
+    if (!this.codeAssistantTreeUiState.treeExpanded
+      || KTC_TOOL_REGISTRATION_BY_ID[toolId]?.groupId === "codeAssistant") return false;
+    this.codeAssistantTreeUiState = { ...this.codeAssistantTreeUiState, treeExpanded: false };
+    await this.globalState.update(CODE_ASSISTANT_TREE_UI_STATE_KEY, this.codeAssistantTreeUiState);
+    return true;
+  }
+
+  /** Activates a complex tool before its Editor opens, so the Editor keeps final focus. */
+  async activateEditorCompanionTool(toolId: KtcEditorPrimaryCompanionToolId): Promise<void> {
+    await this.showTool(toolId, "command");
+  }
+
+  /** Accepts only Host snapshots; Webview draft state never enters this channel. */
+  updateEditorCompanion(snapshot: KtcEditorPrimaryCompanionSnapshot): Promise<void> {
+    const operation = this.editorCompanionQueue.then(() => this.applyEditorCompanionSnapshot(snapshot));
+    this.editorCompanionQueue = operation.catch(() => undefined);
+    return operation;
+  }
+
+  private activateToolHistory(toolId: string, source: KtcEditorPrimaryActivationSource): void {
+    this.editorCompanionState = ktcActivateEditorPrimaryTool(this.editorCompanionState, {
+      toolId,
+      source,
+      preserveFocus: source === "editor",
+    });
+    this.openToolIds = [...this.editorCompanionState.openToolIds];
+    this.activeToolId = this.editorCompanionState.activeToolId ?? toolId;
+  }
+
+  private async applyEditorCompanionSnapshot(
+    snapshot: KtcEditorPrimaryCompanionSnapshot,
+  ): Promise<void> {
+    const knownSession = this.editorCompanionState.companions.find(({ panelId }) => panelId === snapshot.panelId);
+    const sameSession = knownSession?.toolId === snapshot.toolId
+      && knownSession.sessionId === snapshot.sessionId;
+    if (snapshot.lifecycle === "disposed" && !sameSession) {
+      logOutput(`[${snapshot.toolId}][Primary][WARN] 已忽略未登记 Editor 的 dispose 快照。`);
+      return;
+    }
+    if (!sameSession && this.isRetiredEditorCompanionSession(snapshot)) {
+      logOutput(`[${snapshot.toolId}][Primary][WARN] 已丢弃 retired Editor session 的迟到快照。`);
+      return;
+    }
+    if (knownSession && !sameSession) {
+      this.rememberRetiredEditorCompanionSession(knownSession.toolId, knownSession.panelId, knownSession.sessionId);
+    }
+    const transition = sameSession
+      ? ktcUpdateEditorPrimaryCompanion(this.editorCompanionState, snapshot)
+      : ktcRegisterEditorPrimaryCompanion(this.editorCompanionState, {
+          ...snapshot,
+          lifecycle: snapshot.lifecycle === "disposed" ? "open-inactive" : snapshot.lifecycle,
+        });
+    if (!transition.accepted) {
+      logOutput(`[${snapshot.toolId}][Primary][WARN] 已丢弃 companion 快照：${transition.reason}。`);
+      return;
+    }
+
+    this.editorCompanionState = transition.state;
+    if (snapshot.lifecycle === "disposed") {
+      this.editorCompanionSnapshots.delete(snapshot.panelId);
+      this.rememberRetiredEditorCompanionSession(snapshot.toolId, snapshot.panelId, snapshot.sessionId);
+    } else this.editorCompanionSnapshots.set(snapshot.panelId, snapshot);
+    const projectedSnapshot = this.resolveEditorCompanionSnapshot(snapshot);
+    if (projectedSnapshot) {
+      this.setToolState(snapshot.toolId, {
+        status: projectedSnapshot.status,
+        message: projectedSnapshot.message,
+        editorCompanion: projectedSnapshot,
+      });
+    }
+    if (snapshot.lifecycle === "disposed") {
+      this.pruneEditorCompanionTombstones(snapshot.toolId);
+      // These three task-owned Right Views own the lifetime of their Primary.
+      // Codegen's per-JSON Editors do not use this companion protocol.
+      if (!ktcResolveEditorPrimaryCompanionRoute(this.editorCompanionState, snapshot.toolId)) {
+        await this.closeToolBlock(snapshot.toolId, true);
+        return;
+      }
+    }
+    if (!transition.activation) return;
+
+    await this.activateModule("code");
+    this.openToolIds = [...transition.state.openToolIds];
+    this.activeToolId = transition.state.activeToolId ?? snapshot.toolId;
+    const navigationCollapsed = await this.collapseUnrelatedNavigationGroup(this.activeToolId);
+    await this.setModulePanelContext(true, this.activeToolId);
+    if (navigationCollapsed && this.moduleView) {
+      await this.sendInit(this.moduleView);
+      return;
+    }
+    this.postToViews({
+      type: "openTools",
+      activeToolId: this.activeToolId,
+      openToolIds: this.openToolIds,
+      codeAssistantFeature: this.codeAssistantFeatureId,
+    });
+  }
+
+  /** Projects only the routed Editor into one Primary tool state. */
+  private resolveEditorCompanionSnapshot(
+    fallback: KtcEditorPrimaryCompanionSnapshot,
+  ): KtcEditorPrimaryCompanionSnapshot | undefined {
+    const route = ktcResolveEditorPrimaryCompanionRoute(this.editorCompanionState, fallback.toolId);
+    if (!route) return fallback.lifecycle === "disposed"
+      ? this.closedEditorCompanionSnapshot(fallback)
+      : undefined;
+    const snapshot = this.editorCompanionSnapshots.get(route.panelId);
+    if (
+      snapshot?.toolId === route.toolId
+      && snapshot.sessionId === route.sessionId
+      && snapshot.revision === route.revision
+    ) return snapshot;
+    return undefined;
+  }
+
+  private closedEditorCompanionSnapshot(
+    snapshot: KtcEditorPrimaryCompanionSnapshot,
+  ): KtcEditorPrimaryCompanionSnapshot {
+    const failed = snapshot.status === "error";
+    return {
+      panelId: `${snapshot.toolId}-closed`,
+      toolId: snapshot.toolId,
+      sessionId: "closed",
+      revision: snapshot.revision,
+      lifecycle: "disposed",
+      title: ktcRequireToolRegistration(snapshot.toolId).title,
+      status: failed ? "error" : "idle",
+      message: failed
+        ? "右侧 View 已关闭；任务可能未完成，请检查结果后再从原入口启动。"
+        : "右侧 View 已关闭；可从原入口启动新的任务。",
+      ready: false,
+      summary: [],
+      actions: [],
+    };
+  }
+
+  private pruneEditorCompanionTombstones(toolId: KtcEditorPrimaryCompanionToolId): void {
+    const retained = new Set(this.editorCompanionState.companions
+      .filter((session) => session.toolId === toolId && session.lifecycle === "disposed")
+      .sort((left, right) => right.openedOrder - left.openedOrder)
+      .slice(0, EDITOR_COMPANION_TOMBSTONE_LIMIT_PER_TOOL)
+      .map((session) => session.panelId));
+    this.editorCompanionState = {
+      ...this.editorCompanionState,
+      companions: this.editorCompanionState.companions.filter((session) => (
+        session.toolId !== toolId
+        || session.lifecycle !== "disposed"
+        || retained.has(session.panelId)
+      )),
+    };
+  }
+
+  private rememberRetiredEditorCompanionSession(
+    toolId: KtcEditorPrimaryCompanionToolId,
+    panelId: string,
+    sessionId: string,
+  ): void {
+    const key = `${panelId}\u0000${sessionId}`;
+    const previous = this.retiredEditorCompanionSessions.get(toolId) ?? [];
+    this.retiredEditorCompanionSessions.set(toolId, [
+      ...previous.filter((candidate) => candidate !== key),
+      key,
+    ].slice(-EDITOR_COMPANION_RETIRED_SESSION_LIMIT_PER_TOOL));
+  }
+
+  private isRetiredEditorCompanionSession(snapshot: KtcEditorPrimaryCompanionSnapshot): boolean {
+    return this.retiredEditorCompanionSessions.get(snapshot.toolId)
+      ?.includes(`${snapshot.panelId}\u0000${snapshot.sessionId}`) === true;
+  }
+
   /** Opens one optional-module tool in the shared Block history. */
-  async showModuleTool(moduleId: KtcModuleId, toolId: string): Promise<boolean> {
+  async showModuleTool(
+    moduleId: KtcModuleId,
+    toolId: string,
+  ): Promise<boolean> {
     if (moduleId === "code") {
       if (!getTool(toolId)) return false;
       await this.showTool(toolId);
@@ -360,11 +649,14 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     }
     const moduleTools = this.getModuleTools(moduleId);
     if (!moduleTools.some((tool) => tool.moduleId === moduleId && tool.id === toolId)) return false;
-    if (this.isToolBlockVisible(toolId)) return true;
+    const navigationCollapsed = await this.collapseUnrelatedNavigationGroup(toolId);
+    if (this.isToolBlockVisible(toolId)) {
+      if (navigationCollapsed && this.moduleView) await this.sendInit(this.moduleView);
+      return true;
+    }
     if (!await this.activateModule(moduleId)) return false;
 
-    this.activeToolId = toolId;
-    this.openToolIds = ktcActivateToolBlock(this.openToolIds, toolId);
+    this.activateToolHistory(toolId, "command");
     ktcActivateResultAccordion(SidebarViewProvider.moduleViewType);
     await this.setModulePanelContext(true, toolId);
     await vscode.commands.executeCommand("workbench.view.extension.kt-auto-code");
@@ -388,17 +680,64 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     return this.closeToolBlock(toolId);
   }
 
-  async closeToolBlock(toolId = this.activeToolId): Promise<KtcToolBlockState> {
+  async closeToolBlock(toolId = this.activeToolId, preserveFocus = false): Promise<KtcToolBlockState> {
+    if (!toolId || this.isGroupToolId(toolId) || !this.openToolIds.includes(toolId)) {
+      return this.getToolBlockState();
+    }
     if (toolId === "codeAssistant") this.codeAssistantFeatureId = undefined;
-    const closed = ktcCloseToolBlock(this.openToolIds, toolId);
-    this.openToolIds = [...closed.openToolIds];
+    const closed = ktcCloseEditorPrimaryTool(this.editorCompanionState, toolId);
+    this.editorCompanionState = closed.state;
+    this.openToolIds = [...closed.state.openToolIds];
     if (closed.nextToolId) {
-      await this.restoreToolBlock(closed.nextToolId);
+      await this.restoreToolBlock(closed.nextToolId, preserveFocus);
       return this.getToolBlockState();
     }
     await this.setModulePanelContext(false);
     if (this.moduleView) this.moduleView.title = MODULE_VIEW_TITLE;
     this.postToViews({ type: "openTools", activeToolId: this.activeToolId, openToolIds: [] });
+    return this.getToolBlockState();
+  }
+
+  async closeOtherToolBlocks(toolId: string): Promise<KtcToolBlockState> {
+    if (
+      !toolId
+      || this.isGroupToolId(toolId)
+      || !this.openToolIds.includes(toolId)
+      || !this.getToolModuleId(toolId)
+    ) {
+      return this.getToolBlockState();
+    }
+    if (this.openToolIds.length === 1 && this.activeToolId === toolId) return this.getToolBlockState();
+    const closed = ktcCloseOtherToolBlocks(this.editorCompanionState.openToolIds, toolId);
+    this.editorCompanionState = {
+      ...this.editorCompanionState,
+      openToolIds: closed.openToolIds,
+      activeToolId: closed.nextToolId,
+    };
+    this.openToolIds = [...closed.openToolIds];
+    this.activeToolId = toolId;
+    if (toolId !== "codeAssistant") this.codeAssistantFeatureId = undefined;
+    await this.restoreToolBlock(toolId);
+    return this.getToolBlockState();
+  }
+
+  async activateOpenTool(toolId: string): Promise<KtcToolBlockState> {
+    if (
+      !toolId
+      || this.isGroupToolId(toolId)
+      || !this.openToolIds.includes(toolId)
+      || !this.getToolModuleId(toolId)
+    ) {
+      return this.getToolBlockState();
+    }
+    this.editorCompanionState = ktcActivateEditorPrimaryTool(this.editorCompanionState, {
+      toolId,
+      source: "menu",
+    });
+    this.openToolIds = [...this.editorCompanionState.openToolIds];
+    this.activeToolId = toolId;
+    if (toolId !== "codeAssistant") this.codeAssistantFeatureId = undefined;
+    await this.restoreToolBlock(toolId);
     return this.getToolBlockState();
   }
 
@@ -455,9 +794,11 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     const workingContext = this.getWorkingContext();
     return {
       workspaceRoot: workingContext.resolvedDirectory,
+      isCurrentWorkingDirectory: () => this.getWorkingContext().resolvedDirectory === workingContext.resolvedDirectory,
       workspaceLabel: workingContext.label,
       workspaceFileScopeId: "workspace",
       pluginIgnoreEnabled: workingContext.pluginIgnoreEnabled,
+      ignoreEnabled: workingContext.ignoreEnabled,
       builtInIgnoreEnabled: workingContext.builtInIgnoreEnabled,
       gitIgnoreEnabled: workingContext.gitIgnoreEnabled,
       customIgnoreEnabled: workingContext.customIgnoreEnabled,
@@ -496,6 +837,9 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async sendInit(target: vscode.WebviewView): Promise<void> {
+    const contributions = this.getInstalledModuleContributions();
+    const reconciliation = this.reconcileInstalledToolState(contributions);
+    await this.syncInstalledToolReconciliation(reconciliation);
     const codeTools: ToolSummary[] = getTools().map((t) => {
       const model = t.getPanelModel();
       const icon = model.summary.icon?.startsWith("media/")
@@ -504,14 +848,24 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       return {
         id: model.summary.id,
         title: model.summary.title,
+        shortTitle: model.summary.shortTitle,
         description: model.summary.description,
         icon,
+        kind: "tool" as const,
         ribbonVisible: model.summary.ribbonVisible ?? t.ribbonVisible,
         moduleId: "code" as const,
         moduleTitle: "Code",
       };
     });
-    const optionalTools = this.getInstalledModuleContributions().flatMap(({ extensionUri, contribution }) => (
+    const navigationGroups: ToolSummary[] = getNavigationDescriptors().map((descriptor) => ({
+      ...descriptor,
+      icon: descriptor.icon?.startsWith("media/")
+        ? target.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, descriptor.icon)).toString()
+        : descriptor.icon,
+      moduleId: "code" as const,
+      moduleTitle: "Code",
+    }));
+    const optionalTools = contributions.flatMap(({ extensionUri, contribution }) => (
       contribution.tools.map((tool) => ({
         ...tool,
         moduleTitle: contribution.title,
@@ -522,11 +876,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
             : tool.icon,
       }))
     ));
-    const tools = [...codeTools, ...optionalTools];
-
-    if (tools.length > 0 && !tools.some((t) => t.id === this.activeToolId)) {
-      this.activeToolId = codeTools[0]!.id;
-    }
+    const tools = [...navigationGroups, ...codeTools, ...optionalTools];
 
     const ribbonLayout = await this.getRibbonLayout(this.getRibbonLayoutTools());
     const workingContext = this.getWorkingContext();
@@ -545,6 +895,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       sidebarStyle: this.getSidebarStyle(),
       ribbonLayout,
       workingContext,
+      directoryVisible: this.directoryVisible,
       presentation: "detailBlock",
       recentWorkingDirectories: this.getRecentWorkingDirectories(),
       workspaceFileScopes: [],
@@ -553,12 +904,20 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       moduleState: this.moduleState,
       extensionInstallations: ktcWelcomeExtensionSummaries(vscode.extensions.all),
     });
+    // Old Webview state may still carry `toolSurfaceCollapsed`; drain it while
+    // the markup migration removes that legacy presentation field.
+    if (this.openToolIds.includes(this.activeToolId)) {
+      postToWebview(target, { type: "revealToolSurface", toolId: this.activeToolId });
+    }
 
     for (const [toolId, state] of this.toolStates) {
       // The rule picker is a one-time UI request, not durable tool state. Replaying
       // it after switching tools would reopen the modal without a user action.
-      const { associatedRulePicker: _associatedRulePicker, ...replayableState } = state;
-      postToWebview(target, { type: "state", toolId, state: replayableState });
+      const { associatedRulePicker: _associatedRulePicker, runCleanup, ...replayableState } = state;
+      postToWebview(target, { type: "state", toolId, state: {
+        ...replayableState,
+        ...(runCleanup ? { runCleanup: { ...runCleanup, openRequestId: 0 } } : {}),
+      } });
     }
     await this.sendActiveModuleBlock(target);
   }
@@ -637,7 +996,25 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     }
 
     if (message.type === "closeToolBlock") {
-      await this.closeToolBlock();
+      const toolId = message.toolId === undefined
+        ? this.activeToolId
+        : typeof message.toolId === "string" ? message.toolId.trim() : "";
+      if (toolId) await this.closeToolBlock(toolId);
+      return;
+    }
+
+    if (message.type === "closeOtherToolBlocks") {
+      if (typeof message.toolId === "string") await this.closeOtherToolBlocks(message.toolId.trim());
+      return;
+    }
+
+    if (message.type === "activateOpenTool") {
+      if (typeof message.toolId === "string") await this.activateOpenTool(message.toolId.trim());
+      return;
+    }
+
+    if (message.type === "showWorkingDirectoryQuickPick") {
+      await this.showWorkingDirectoryQuickPick();
       return;
     }
 
@@ -715,6 +1092,12 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
+    if (message.type === "setIgnoreEnabled") {
+      await this.workspaceState.update(IGNORE_ENABLED_STATE_KEY, message.enabled);
+      this.postWorkingContext();
+      return;
+    }
+
     if (message.type === "setIgnoreSourceEnabled") {
       const key = message.source === "builtIn"
         ? BUILT_IN_IGNORE_STATE_KEY
@@ -748,19 +1131,60 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
+    if (message.type === "editorCompanionAction") {
+      const validation = ktcValidateEditorPrimaryCompanionRoute(this.editorCompanionState, message);
+      if (!validation.accepted) {
+        logOutput(`[${message.toolId}][Primary][WARN] 已丢弃 companion 动作 ${message.actionId}：${validation.reason}。`);
+        return;
+      }
+      if (message.panelId !== validation.route.panelId) {
+        logOutput(`[${message.toolId}][Primary][WARN] 已丢弃 panel 不匹配的 companion 动作：${message.actionId}。`);
+        return;
+      }
+      const snapshot = this.editorCompanionSnapshots.get(validation.route.panelId);
+      const action = snapshot?.actions.find((candidate) => candidate.id === message.actionId);
+      if (
+        !snapshot?.ready
+        || snapshot.lifecycle === "disposed"
+        || snapshot.sessionId !== message.sessionId
+        || snapshot.revision !== message.revision
+        || !action?.enabled
+      ) {
+        logOutput(`[${message.toolId}][Primary][WARN] 已丢弃未就绪、过期或禁用的 companion 动作：${message.actionId}。`);
+        return;
+      }
+      const tool = getTool(message.toolId);
+      if (!tool?.runEditorCompanionAction) {
+        logOutput(`[${message.toolId}][Primary][WARN] 工具未声明 companion 动作处理器。`);
+        return;
+      }
+      await tool.runEditorCompanionAction(message, this.createRunContext(message.toolId, source));
+      return;
+    }
+
     if (message.type === "selectTool") {
-      await this.showTool(message.toolId);
+      await this.showTool(message.toolId, message.source ?? "ribbon");
       return;
     }
 
     if (message.type === "openCodeAssistantFeature") {
-      this.codeAssistantFeatureId = message.feature;
-      const featureTitle = message.feature === "autoBuild" ? "编译工具" : "头文件引用修正";
-      this.createRunContext("codeAssistant").log(`[代码辅助][入口][INFO] 已打开：${featureTitle}；目录 ${this.getWorkingContext().label}。`);
-      await this.sendInit(source);
-      await vscode.commands.executeCommand(message.feature === "autoBuild"
-        ? "ktAutoCode.codeAssistant.autoBuild"
-        : "ktAutoCode.codeAssistant.packageIncludes");
+      const title = getTool(message.feature)?.title ?? message.feature;
+      this.createRunContext(message.feature).log(
+        `[代码辅助][入口][INFO] 已打开：${title}；目录 ${this.getWorkingContext().label}。`,
+      );
+      await vscode.commands.executeCommand(`ktAutoCode.codeAssistant.${message.feature}`);
+      return;
+    }
+
+    // A navigation Group has no business surface. Keep this guard ahead of all
+    // generic tool-message routing (including setOption) so stale Webviews
+    // cannot revive the former Group-owned Tool runtime.
+    if (
+      "toolId" in message
+      && typeof message.toolId === "string"
+      && this.isGroupToolId(message.toolId)
+    ) {
+      logOutput(`[Primary][信号][WARN] 已忽略导航 Group“${message.toolId}”的业务信号“${message.type}”。`);
       return;
     }
 
@@ -832,6 +1256,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     });
 
     const result = await ktcIgnoreController.handle(message, requestedRoot, (summary) => {
+      refreshCodeAssistantIgnorePolicy();
       if (this.getWorkingContext().resolvedDirectory === requestedRoot) {
         this.postToViews({ type: "ignoreConfig", ignoreConfig: summary });
       }
@@ -930,8 +1355,109 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     ));
   }
 
-  private getInstalledModuleIds(): KtcModuleId[] {
-    return ["code", ...this.getInstalledModuleContributions().map(({ contribution }) => contribution.id)];
+  private getWebviewLocalResourceRoots(): vscode.Uri[] {
+    const roots = [
+      this.extensionUri,
+      ...this.getInstalledModuleContributions().map(({ extensionUri }) => extensionUri),
+    ];
+    const unique = new Map<string, vscode.Uri>();
+    for (const root of roots) unique.set(root.toString(), root);
+    return [...unique.values()];
+  }
+
+  private getInstalledModuleIds(
+    contributions: readonly InstalledModuleContribution[] = this.getInstalledModuleContributions(),
+  ): KtcModuleId[] {
+    return ["code", ...contributions.map(({ contribution }) => contribution.id)];
+  }
+
+  /**
+   * Reconciles the Shell projection only. Removing a contribution must not
+   * dispose Editor companions, task state, or any Right View owned resource.
+   */
+  private reconcileInstalledToolState(
+    contributions: readonly InstalledModuleContribution[],
+  ): KtcInstalledToolReconciliation {
+    const installed = this.getInstalledModuleIds(contributions);
+    let moduleStateChanged = installed.length !== this.moduleState.installed.length
+      || !installed.every((moduleId, index) => this.moduleState.installed[index] === moduleId);
+    if (moduleStateChanged) {
+      this.moduleState = ktcCreateModuleState(installed, ktcPersistedModuleState(this.moduleState));
+    }
+
+    const groupToolIds = new Set(getNavigationDescriptors().map(({ id }) => id));
+    const installedTools: KtcInstalledToolReference[] = [
+      ...getTools().map(({ id }) => ({ id, moduleId: "code" })),
+      ...contributions.flatMap(({ contribution }) => (
+        contribution.tools.map(({ id }) => ({ id, moduleId: contribution.id }))
+      )),
+    ];
+    const moduleByToolId = new Map<string, KtcModuleId>();
+    for (const tool of installedTools) {
+      // Base Code tools win if an optional contribution accidentally reuses an id.
+      if (!moduleByToolId.has(tool.id)) moduleByToolId.set(tool.id, tool.moduleId);
+    }
+
+    const hadOpenToolIds = this.openToolIds.length > 0;
+    const hadGroupToolReference = groupToolIds.has(this.activeToolId)
+      || this.openToolIds.some((toolId) => groupToolIds.has(toolId))
+      || (this.editorCompanionState.activeToolId !== undefined
+        && groupToolIds.has(this.editorCompanionState.activeToolId))
+      || this.editorCompanionState.openToolIds.some((toolId) => groupToolIds.has(toolId));
+    const normalizedHistory = ktcNormalizeToolBlockHistory(
+      this.openToolIds,
+      this.activeToolId,
+      new Set(moduleByToolId.keys()),
+    );
+    const openToolIds = [...normalizedHistory.openToolIds];
+    const activeOpenToolId = normalizedHistory.activeToolId;
+    const activeToolId = activeOpenToolId
+      ?? (hadOpenToolIds || hadGroupToolReference
+        ? ""
+        : moduleByToolId.has(this.activeToolId)
+          ? this.activeToolId
+          : installedTools[0]?.id ?? "");
+
+    const historyChanged = this.activeToolId !== activeToolId
+      || openToolIds.length !== this.openToolIds.length
+      || !openToolIds.every((toolId, index) => this.openToolIds[index] === toolId)
+      || this.editorCompanionState.activeToolId !== activeOpenToolId
+      || openToolIds.length !== this.editorCompanionState.openToolIds.length
+      || !openToolIds.every((toolId, index) => this.editorCompanionState.openToolIds[index] === toolId);
+    this.openToolIds = openToolIds;
+    this.activeToolId = activeToolId;
+    this.editorCompanionState = {
+      ...this.editorCompanionState,
+      openToolIds,
+      activeToolId: activeOpenToolId,
+    };
+
+    const activeModuleId = activeOpenToolId ? moduleByToolId.get(activeOpenToolId) : undefined;
+    if (activeModuleId && this.moduleState.installed.includes(activeModuleId)) {
+      if (!this.moduleState.visible.includes(activeModuleId)) {
+        const toggled = ktcToggleModule(this.moduleState, activeModuleId);
+        if (toggled.changed) {
+          this.moduleState = toggled.state;
+          moduleStateChanged = true;
+        }
+      }
+      const activated = ktcActivateModule(this.moduleState, activeModuleId);
+      if (activated !== this.moduleState) {
+        this.moduleState = activated;
+        moduleStateChanged = true;
+      }
+    }
+    return { historyChanged, moduleStateChanged };
+  }
+
+  private async syncInstalledToolReconciliation(
+    reconciliation: KtcInstalledToolReconciliation,
+  ): Promise<void> {
+    if (reconciliation.moduleStateChanged) await this.syncModuleState();
+    if (!reconciliation.historyChanged) return;
+    const activeToolId = this.openToolIds.includes(this.activeToolId) ? this.activeToolId : undefined;
+    if (activeToolId) await this.setModulePanelContext(true, activeToolId);
+    else await this.setModulePanelContext(false);
   }
 
   private getModuleTools(moduleId: KtcModuleId): readonly KtcModuleToolDefinition[] {
@@ -946,11 +1472,12 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       ?.contribution.id;
   }
 
-  private getToolTitle(toolId: string): string | undefined {
-    return getTool(toolId)?.title
-      ?? this.getInstalledModuleContributions()
-        .flatMap(({ contribution }) => contribution.tools)
-        .find((tool) => tool.id === toolId)?.title;
+  private isGroupToolId(toolId: string): boolean {
+    return getNavigationDescriptor(toolId) !== undefined;
+  }
+
+  private getModuleToolSummary(moduleId: KtcModuleId, toolId: string): KtcModuleToolDefinition | undefined {
+    return this.getModuleTools(moduleId).find((tool) => tool.id === toolId);
   }
 
   private getToolBlockState(): KtcToolBlockState {
@@ -968,14 +1495,31 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       && this.moduleView?.visible === true;
   }
 
-  private async restoreToolBlock(toolId: string): Promise<boolean> {
+  private async restoreToolBlock(toolId: string, preserveFocus = false): Promise<boolean> {
+    if (this.isGroupToolId(toolId)) return false;
     const moduleId = this.getToolModuleId(toolId);
     if (!moduleId) return false;
-    if (moduleId === "code") {
-      await this.showTool(toolId);
-      return true;
+    const restoringState = this.editorCompanionState;
+    const superseded = () => preserveFocus && this.editorCompanionState !== restoringState;
+    // Restoring an existing logical Tool is projection-only. It must not route
+    // through showTool/showModuleTool because those paths may run onDidShow,
+    // refresh commands, or feature-specific activation work.
+    if (!await this.activateModule(moduleId) || superseded()) return false;
+    await this.collapseUnrelatedNavigationGroup(toolId);
+    if (superseded()) return false;
+    this.activeToolId = toolId;
+    await this.setModulePanelContext(true, toolId);
+    if (!preserveFocus && !this.moduleView?.visible) {
+      await vscode.commands.executeCommand("workbench.view.extension.kt-auto-code");
     }
-    return this.showModuleTool(moduleId, toolId);
+    if (this.moduleView) {
+      this.moduleView.title = MODULE_VIEW_TITLE;
+      await this.sendInit(this.moduleView);
+      if (!preserveFocus && !this.moduleView.visible) this.moduleView.show(false);
+    } else if (!preserveFocus) {
+      try { await vscode.commands.executeCommand(`${SidebarViewProvider.moduleViewType}.focus`); } catch { /* view resolves lazily */ }
+    }
+    return true;
   }
 
   private async sendActiveModuleBlock(target: vscode.WebviewView): Promise<void> {
@@ -984,17 +1528,28 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       return;
     }
     const moduleId = this.moduleState.active;
+    const manifestTool = this.getModuleToolSummary(moduleId, this.activeToolId);
+    const manifestTitle = manifestTool?.title ?? "模块工具";
     const provider = this.moduleBlockProviders.get(moduleId);
     if (!provider) {
       postToWebview(target, {
         type: "moduleBlock",
         moduleId,
-        content: { title: this.getToolTitle(this.activeToolId) ?? "模块工具", html: "<p>模块正在激活…</p>" },
+        content: {
+          title: manifestTitle,
+          description: manifestTool?.description,
+          html: "<p>模块正在激活…</p>",
+        },
       });
       return;
     }
     try {
-      const content = await provider.render(this.activeToolId);
+      const providerContent = await provider.render(this.activeToolId);
+      const content = {
+        ...providerContent,
+        title: manifestTitle,
+        description: manifestTool?.description,
+      };
       target.title = MODULE_VIEW_TITLE;
       postToWebview(target, { type: "moduleBlock", moduleId, content });
     } catch (error) {
@@ -1002,7 +1557,11 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       postToWebview(target, {
         type: "moduleBlock",
         moduleId,
-        content: { title: "模块工具", html: `<p>模块界面渲染失败：${escapeHtml(message)}</p>` },
+        content: {
+          title: manifestTitle,
+          description: manifestTool?.description,
+          html: `<p>模块界面渲染失败：${escapeHtml(message)}</p>`,
+        },
       });
     }
   }
@@ -1073,6 +1632,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     const entry = requested ? ktcClassifyWorkingDirectory(workspaceRoot, requested) : undefined;
     const resolvedDirectory = entry && existsSync(entry.directory) ? entry.directory : workspaceRoot;
     const selectedDirectory = entry && resolvedDirectory === entry.directory ? entry.inputValue : "";
+    const ignoreEnabled = this.workspaceState.get<boolean>(IGNORE_ENABLED_STATE_KEY, true);
     const builtInIgnoreEnabled = this.workspaceState.get<boolean>(BUILT_IN_IGNORE_STATE_KEY, true);
     const gitIgnoreEnabled = this.workspaceState.get<boolean>(GIT_IGNORE_STATE_KEY, true);
     const legacyCustomIgnoreEnabled = this.workspaceState.get<boolean>(PLUGIN_IGNORE_STATE_KEY);
@@ -1085,6 +1645,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       resolvedDirectory,
       label: resolvedDirectory ? basename(resolvedDirectory) : "未打开目录",
       pluginIgnoreEnabled: customIgnoreEnabled,
+      ignoreEnabled,
       builtInIgnoreEnabled,
       gitIgnoreEnabled,
       customIgnoreEnabled,
@@ -1095,8 +1656,26 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   private postWorkingContext(): void {
     const context = this.getWorkingContext();
     const changed = this.ignoreContextRoot !== context.resolvedDirectory;
+    const policyFingerprint = JSON.stringify([
+      context.resolvedDirectory || "",
+      context.ignoreEnabled !== false,
+      context.builtInIgnoreEnabled !== false,
+      context.gitIgnoreEnabled !== false,
+      context.customIgnoreEnabled === true,
+    ]);
+    const policyChanged = !!this.ignorePolicyFingerprint && this.ignorePolicyFingerprint !== policyFingerprint;
     this.ignoreContextRoot = context.resolvedDirectory;
+    this.ignorePolicyFingerprint = policyFingerprint;
+    updateCodeAssistantIgnoreSources({
+      ignoreEnabled: context.ignoreEnabled,
+      builtInIgnoreEnabled: context.builtInIgnoreEnabled,
+      gitIgnoreEnabled: context.gitIgnoreEnabled,
+      customIgnoreEnabled: context.customIgnoreEnabled,
+    });
     if (changed) {
+      const cleanupDirectory = this.toolStates.get("run")?.runCleanup?.model.targets
+        .find((target) => target.id === "workspace")?.path;
+      if (cleanupDirectory !== context.resolvedDirectory) void this.invalidateRunCleanupSession("工作目录已切换");
       ktcIgnoreController.invalidateRecommendations();
       if (this.toolStates.has("ignoreSettings")) {
         this.setToolState("ignoreSettings", {
@@ -1107,8 +1686,44 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
         });
       }
     }
+    if (policyChanged && this.toolStates.has("codeRename")) {
+      this.setToolState("codeRename", {
+        status: "idle",
+        message: "Ignore 使用策略已改变；旧结果已过期，请重新搜索。",
+        codeRenameResults: undefined,
+      });
+    }
+    if (policyChanged) {
+      notifyCodegenIgnorePolicyChanged();
+      const fingerprint = this.ignorePolicyFingerprint;
+      for (const toolId of ["headerAscii", "encodingFix", "reorderMembers", "uuidReplace", "caaDialog"] as const) {
+        if (!this.toolStates.has(toolId)) continue;
+        const tool = getTool(toolId);
+        void Promise.resolve(tool?.clearSession?.(this.createRunContext(toolId))).then(() => {
+          if (this.ignorePolicyFingerprint !== fingerprint) return;
+          this.setToolState(toolId, {
+            status: "idle",
+            message: "Ignore 使用策略已改变；旧结果已清除，请重新扫描。",
+          });
+        }).catch((error: unknown) => {
+          logOutput(`[${toolId}][Ignore][ERROR] 清除旧结果失败：${error instanceof Error ? error.message : String(error)}`);
+        });
+      }
+    }
     this.postToViews({ type: "workingContext", context, directories: this.getRecentWorkingDirectories() });
     this.postToViews({ type: "ignoreConfig", ignoreConfig: ktcIgnoreController.snapshot(context.resolvedDirectory) });
+  }
+
+  /** Revoke only the Run cleanup authorization; this never stops ordinary Run Tasks. */
+  private async invalidateRunCleanupSession(reason: string): Promise<void> {
+    if (!this.toolStates.get("run")?.runCleanup) return;
+    const tool = getTool("run");
+    if (!tool?.clearSession) return;
+    try {
+      await tool.clearSession(this.createRunContext("run"));
+    } catch (error: unknown) {
+      logOutput(`[Run][清理][ERROR] ${reason}时撤销清理会话失败：${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   private async selectWorkingDirectory(value: string): Promise<void> {
@@ -1143,6 +1758,37 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     });
     const directory = selected?.[0]?.fsPath;
     if (directory) await this.selectWorkingDirectory(directory);
+  }
+
+  private async showWorkingDirectoryQuickPick(): Promise<void> {
+    const current = this.getWorkingContext();
+    const directories = this.getRecentWorkingDirectories();
+    const items: KtcWorkingDirectoryQuickPickItem[] = [];
+    const seen = new Set<string>();
+    const append = (directory: string, label: string): void => {
+      if (seen.has(directory)) return;
+      seen.add(directory);
+      items.push({
+        label,
+        directory,
+        ...(directory === current.selectedDirectory ? { picked: true, description: "当前选择" } : {}),
+      });
+    };
+    for (const option of directories.options) append(option.value, option.label);
+    for (const directory of directories.workspace) append(directory, `最近 · ${directory}`);
+    for (const directory of directories.external) append(directory, `外部 · ${directory}`);
+    if (current.selectedDirectory && !seen.has(current.selectedDirectory)) {
+      append(current.selectedDirectory, `当前选择 · ${current.label}`);
+    }
+
+    const selected = await vscode.window.showQuickPick(items, {
+      title: "切换 KT Auto Code 工作目录",
+      placeHolder: items.length > 0
+        ? "选择最近目录或工作区目录"
+        : "没有可用目录，请使用右侧文件夹按钮选择",
+      matchOnDescription: true,
+    });
+    if (selected) await this.selectWorkingDirectory(selected.directory);
   }
 
   private async rememberWorkingDirectory(value: string | undefined, select = false): Promise<void> {
@@ -1184,6 +1830,9 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
   private getRibbonLayoutTools(): KtcRibbonLayoutTool[] {
     return [
+      ...getNavigationDescriptors()
+        .filter((descriptor) => descriptor.ribbonVisible !== false)
+        .map((descriptor) => ({ id: descriptor.id, moduleId: "code" as const })),
       ...getTools()
         .filter((tool) => tool.ribbonVisible !== false)
         .map((tool) => ({ id: tool.id, moduleId: "code" as const })),

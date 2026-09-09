@@ -140,6 +140,15 @@ async function execute(
 }
 
 describe("Codegen editor command controller", () => {
+  it("连续 dirty 通知只撤销运行中预检，不逐键重绘 Primary 或刷重复日志", async () => {
+    const events: string[] = [];
+    const { raw, session } = fakeSession(events);
+    Object.assign(raw, { dirty: true });
+    const actions = fakeActions(events);
+    await ktcExecuteCodegenEditorCommand(session, { kind: "dirty", itemCount: 8 }, actions);
+    expect(events).toEqual(["dirty:8", `cancel:${URI}`]);
+    expect(actions.didMutate).not.toHaveBeenCalled();
+  });
   it("覆盖 ignore、control 与 dirty 的无副作用、委托和 Model→Host 顺序", async () => {
     const ignored = await execute({ kind: "ignore" });
     expect(ignored.events).toEqual([]);

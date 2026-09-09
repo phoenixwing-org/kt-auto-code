@@ -19,6 +19,8 @@ import type {
 } from "../tools/projectRename/contracts.js";
 import { KtcProjectRenameViewController } from "../tools/projectRename/viewController.js";
 import type { ToolUiState } from "../tools/types.js";
+import { ktcRunCodegenPersistenceSmoke } from "./codegenPersistenceSmoke.js";
+import { ktcRunPackageIncludesSmoke } from "./packageIncludesSmoke.js";
 
 interface ExtensionApi {
   readonly version: number;
@@ -34,7 +36,8 @@ interface KtcProjectRenameSmokeDriver {
   state: KtcProjectRenameViewState;
   abortController?: AbortController;
   report?: KtcProjectRenameAnalysisReport;
-  handleMessage(message: KtcProjectRenameViewInboundMessage): Promise<void>;
+  currentSessionContext(): unknown;
+  handleMessage(message: KtcProjectRenameViewInboundMessage, context: unknown): Promise<void>;
 }
 
 interface KtcProjectRenameCancelEvidence {
@@ -133,7 +136,9 @@ async function ktcRunProjectRenameCancelSmoke(
 
   try {
     controller.show(fixture.fsPath);
-    const firstAnalysis = driver.handleMessage(request);
+    const session = driver.currentSessionContext();
+    assert.ok(session, "project rename smoke must resolve the live Editor session");
+    const firstAnalysis = driver.handleMessage(request, session);
     await ktcWaitFor(
       () => driver.state.status === "running" && (driver.state.progress?.scannedFiles ?? 0) > 0,
       () => `项目改名取消烟测未进入可取消扫描阶段：${driver.state.status}/${driver.state.progress?.scannedFiles ?? 0}`,
@@ -144,7 +149,7 @@ async function ktcRunProjectRenameCancelSmoke(
 
     // Start the replacement without awaiting cancellation. This proves that the
     // task slot is released immediately and a late first result cannot win.
-    const cancellation = driver.handleMessage({ type: "cancel" });
+    const cancellation = driver.handleMessage({ type: "cancel" }, session);
     assert.equal(firstSignal.aborted, true);
     assert.equal(driver.state.status, "cancelled");
     assert.equal(driver.report, undefined);
@@ -153,7 +158,7 @@ async function ktcRunProjectRenameCancelSmoke(
       && driver.report === undefined
       && driver.state.report === undefined;
 
-    const secondAnalysis = driver.handleMessage(request);
+    const secondAnalysis = driver.handleMessage(request, session);
     assert.equal(driver.state.status, "running", "cancelled task slot must be reusable immediately");
     await ktcWithTimeout(
       Promise.all([firstAnalysis, cancellation, secondAnalysis]),
@@ -238,7 +243,7 @@ export async function run(): Promise<void> {
   assert.equal(finalGitState.status, "done");
   assert.equal(finalGitState.git.projects.length, 0);
   assert.equal(finalGitState.git.workspaceRepositoryCount, 0);
-  assert.equal(finalGitState.git.statusText, "当前工作区未发现 Git 仓库。");
+  assert.equal(finalGitState.git.statusText, "请选择 Git 仓库。");
   assert.ok(
     gitLogs.some((line) => line.includes("posting empty repository state")),
     "Git refresh must reach the final empty repository state",
@@ -393,6 +398,14 @@ export async function run(): Promise<void> {
   assert.equal(decoder.decode(await vscode.workspace.fs.readFile(rollbackA)), "before-a");
   assert.equal(decoder.decode(await vscode.workspace.fs.readFile(rollbackB)), "before-b");
 
+  const codegenPersistence = await ktcRunCodegenPersistenceSmoke({
+    workspace,
+    documentUri,
+    controller: current.controller,
+    blockKeys,
+  });
+  const packageIncludes = await ktcRunPackageIncludesSmoke(workspace.uri.fsPath);
+
   const projectRenameCancel = await ktcRunProjectRenameCancelSmoke(
     workspace,
     vscode.Uri.file(extension.extensionPath),
@@ -421,6 +434,10 @@ export async function run(): Promise<void> {
       apply: true,
       saveReload: true,
       rollback: true,
+      preflightDiskCache: true,
+      sourcePlanInvalidation: true,
+      jsonRecreateGuard: true,
+      packageIncludesService: true,
       gitBlock: true,
       gitEmptyState: true,
       runBlock: true,
@@ -431,6 +448,8 @@ export async function run(): Promise<void> {
       candidateFileCount: preflight.candidateFileCount,
       markerRegionCount: preflight.plan.markerRegions.length,
       changedFileCount: applyWrites.length,
+      codegenPersistence,
+      packageIncludes,
       projectRenameCancel,
       commands: [
         "ktAutoCode.codegen.open",

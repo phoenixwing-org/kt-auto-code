@@ -2,6 +2,19 @@
 
 所有显著变更会记录在本文件中。
 
+## 0.9.0（发布准备，尚未正式发布）
+
+- Primary 统一为 Directory、Toolbar、Current Tool、Open Items 四区，只有 Current Tool Body 承担主要纵向滚动；原型与正式界面复用 Host-neutral 组件。
+- 原生 View Header 依次提供目录显隐、Ignore 和 Settings；目录首次默认显示，显隐偏好持久化，隐藏不丢失已选目录或任务状态。
+- Ribbon、功能目录、命令和 Editor 统一使用直接叶子 `toolId` 激活同一 Current Tool、MRU 与关闭通道，组外工具会收起无关二级导航。
+- 项目改名、编译工具、头文件引用修正通过同一 Controller 向 Primary 投影配置、摘要和安全动作；最后一个 Right 关闭时联动关闭对应 Primary/Open Item。自动代码按 JSON 文档管理，不参与此规则；关闭 Primary 不反向关闭 Right。
+- 修复关闭当前工具后的 MRU 投影刷新，避免左侧仍显示已关闭工具；companion 状态只允许短文本枚举进入 Primary，完整路径、命令和诊断保留在所属 Editor/Output。
+- 头文件引用修正将目录/Ignore 移入 Primary，新增独立结果区；Right 保留提示行与表格，固定状态/操作列显示待写入、已写入或待核对，并提供“打开”源码定位。写入后保留原表，显式预览才重扫；新任务首次同步当前完整目录，未关闭时保持内部草稿。
+- Git 简报以 Combo 当前仓库为准，默认显示两条提交；空选或仓库失效不残留旧简报，登记移除不删除磁盘仓库。
+- 自动代码采用文字工具栏、主题选中色、Primary“全部应用”与 Right“应用”；保存快照保留并发编辑草稿，预检与应用拒绝过期输入。CAA Combo 生成选择通知，索引读写行为不变。
+- Run 与编译工具接入共享清理能力；Run 的递归产物快捷清理与 Git 不重置规则保持，编译工具的强制 Git 恢复保留独立确认。标准 CMake 与已存在仓库更新使用 TS，Windows CAA/export 等边界仍明确保留。
+- 正式发布仍须先补齐 Wing Registry 依赖并通过干净冻结提交的发布门禁；本地 Wing VSIX 的 `publishable:false` 回执仅供内测。其他仅 Primary 的代码辅助工具整改列入 0.9.1。
+
 ## 0.8.4（脚本生成与整合）
 
 - 编译工具增加“写脚本”内容块和可移动的非模态浮动窗口。

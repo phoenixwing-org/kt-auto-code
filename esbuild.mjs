@@ -196,6 +196,20 @@ const autoBuildViewOptions = {
 };
 
 /** @type {import('esbuild').BuildOptions} */
+const autoBuildPrimaryPanelOptions = {
+  entryPoints: ["src/tools/codeAssistant/KtcAutoBuildPrimaryPanelEntry.ts"],
+  bundle: true,
+  outfile: "dist/ktc-auto-build-primary-panel.js",
+  platform: "browser",
+  format: "iife",
+  target: "es2022",
+  sourcemap: true,
+  logLevel: "info",
+  metafile: Boolean(localWing),
+  plugins: localWingPlugins,
+};
+
+/** @type {import('esbuild').BuildOptions} */
 const projectRenameAnalysisOptions = {
   entryPoints: ["src/tools/projectRename/viewEntry.ts"],
   bundle: true,
@@ -222,6 +236,53 @@ const ribbonCustomizationMenuOptions = {
   metafile: Boolean(localWing),
   plugins: localWingPlugins,
 };
+
+/** @type {import('esbuild').BuildOptions} */
+const toolNavigatorOptions = {
+  entryPoints: ["src/ui/KtcToolNavigatorEntry.ts"],
+  bundle: true,
+  outfile: "dist/ktc-tool-navigator.js",
+  platform: "browser",
+  format: "iife",
+  target: "es2022",
+  sourcemap: true,
+  logLevel: "info",
+  metafile: Boolean(localWing),
+  plugins: localWingPlugins,
+};
+
+// Shared Web Components are emitted as independent browser bundles so the
+// Webview Host can opt into each shell region without pulling UI registration
+// side effects into the Extension Host bundle.
+const sharedUiComponentEntries = [
+  { entryPoint: "src/ui/PnwComboEntry.ts", outfile: "dist/pnw-combo.js" },
+  { entryPoint: "src/ui/KtcPrimaryShellEntry.ts", outfile: "dist/ktc-primary-shell.js" },
+  { entryPoint: "src/ui/KtcDirectoryBarEntry.ts", outfile: "dist/ktc-directory-bar.js" },
+  { entryPoint: "src/ui/KtcToolbarStripEntry.ts", outfile: "dist/ktc-toolbar-strip.js" },
+  { entryPoint: "src/ui/KtcCurrentToolRegionEntry.ts", outfile: "dist/ktc-current-tool-region.js" },
+  { entryPoint: "src/ui/KtcOpenItemsBarEntry.ts", outfile: "dist/ktc-open-items-bar.js" },
+  { entryPoint: "src/ui/KtcRightViewShellEntry.ts", outfile: "dist/ktc-right-view-shell.js" },
+  { entryPoint: "src/ui/KtcPackageIncludesPrimaryEntry.ts", outfile: "dist/ktc-package-includes-primary.js" },
+];
+
+// This component only imitates VS Code Output inside `pnpm ui`. Older formal
+// builds emitted it under dist, so remove that stale artifact without adding
+// it back to the production build graph.
+const previewOnlyLegacyBundleOutputs = ["dist/ktc-system-output-block.js"];
+
+/** @type {import('esbuild').BuildOptions[]} */
+const sharedUiComponentOptions = sharedUiComponentEntries.map(({ entryPoint, outfile }) => ({
+  entryPoints: [entryPoint],
+  bundle: true,
+  outfile,
+  platform: "browser",
+  format: "iife",
+  target: "es2022",
+  sourcemap: true,
+  logLevel: "info",
+  metafile: Boolean(localWing),
+  plugins: localWingPlugins,
+}));
 
 /** @type {import('esbuild').BuildOptions} */
 const extensionHostSmokeOptions = {
@@ -253,8 +314,11 @@ const buildOptions = [
   renameResultsPanelOptions,
   associatedRulePickerOptions,
   autoBuildViewOptions,
+  autoBuildPrimaryPanelOptions,
   projectRenameAnalysisOptions,
   ribbonCustomizationMenuOptions,
+  toolNavigatorOptions,
+  ...sharedUiComponentOptions,
   extensionHostSmokeOptions,
 ];
 
@@ -272,11 +336,17 @@ if (watch) {
   const renameResultsPanelContext = await esbuild.context(renameResultsPanelOptions);
   const associatedRulePickerContext = await esbuild.context(associatedRulePickerOptions);
   const autoBuildViewContext = await esbuild.context(autoBuildViewOptions);
+  const autoBuildPrimaryPanelContext = await esbuild.context(autoBuildPrimaryPanelOptions);
   const projectRenameAnalysisContext = await esbuild.context(projectRenameAnalysisOptions);
   const ribbonCustomizationMenuContext = await esbuild.context(ribbonCustomizationMenuOptions);
+  const toolNavigatorContext = await esbuild.context(toolNavigatorOptions);
+  const sharedUiComponentContexts = await Promise.all(
+    sharedUiComponentOptions.map((options) => esbuild.context(options)),
+  );
   await Promise.all([
     extensionContext.watch(), tableContext.watch(), controlCatalogContext.watch(), primaryPanelContext.watch(), applyReportContext.watch(),
-    runPrimaryPanelContext.watch(), gitPrimaryPanelContext.watch(), ignorePrimaryPanelContext.watch(), reorderMembersPanelContext.watch(), uuidResultsPanelContext.watch(), renameResultsPanelContext.watch(), associatedRulePickerContext.watch(), autoBuildViewContext.watch(), projectRenameAnalysisContext.watch(), ribbonCustomizationMenuContext.watch(),
+    runPrimaryPanelContext.watch(), gitPrimaryPanelContext.watch(), ignorePrimaryPanelContext.watch(), reorderMembersPanelContext.watch(), uuidResultsPanelContext.watch(), renameResultsPanelContext.watch(), associatedRulePickerContext.watch(), autoBuildViewContext.watch(), autoBuildPrimaryPanelContext.watch(), projectRenameAnalysisContext.watch(), ribbonCustomizationMenuContext.watch(), toolNavigatorContext.watch(),
+    ...sharedUiComponentContexts.map((context) => context.watch()),
   ]);
   console.log("watching extension…");
 } else {
@@ -285,7 +355,10 @@ if (watch) {
   await Promise.all(buildOptions.flatMap((options) => [
     rm(options.outfile, { force: true }),
     rm(`${options.outfile}.map`, { force: true }),
-  ]));
+  ]).concat(previewOnlyLegacyBundleOutputs.flatMap((outfile) => [
+    rm(outfile, { force: true }),
+    rm(`${outfile}.map`, { force: true }),
+  ])));
   const results = await Promise.all(buildOptions.map((options) => esbuild.build(options)));
   await Promise.all([
     verifySingleFileNodeBundle(extensionOptions.outfile),

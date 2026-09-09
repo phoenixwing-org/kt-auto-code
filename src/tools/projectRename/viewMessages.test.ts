@@ -13,6 +13,20 @@ describe("project rename Webview messages", () => {
     })).toMatchObject({ type: "analyze", rules: [{ search: "Pdh", replace: "Pnh" }] });
   });
 
+  it("只接受完整且有界的草稿同步请求", () => {
+    const message = {
+      type: "syncDraft",
+      sourceName: "Phoenix Dev Hub",
+      targetName: "Phoenix Hub",
+      sourcePrefix: "PDH",
+      targetPrefix: "PH",
+      rules: [{ id: "display", style: "display", search: "Phoenix Dev Hub", replace: "Phoenix Hub", enabled: true }],
+    };
+    expect(ktcParseProjectRenameViewMessage(message)).toEqual(message);
+    expect(ktcParseProjectRenameViewMessage({ ...message, rules: "not-an-array" })).toBeUndefined();
+    expect(ktcParseProjectRenameViewMessage({ ...message, sourceName: "x".repeat(257) })).toBeUndefined();
+  });
+
   it("拒绝伪造样式、超长值和非法分页", () => {
     expect(ktcParseProjectRenameViewMessage({
       type: "analyze",

@@ -14,7 +14,7 @@ import { ktcRunSearchReplaceWorkflow } from "./core/searchReplaceWorkflow.js";
 import { logOutput } from "./output.js";
 import { ktcOpenWorkspaceResource } from "./workspaceResource.js";
 import { getWorkspaceRoot } from "./workspace.js";
-import { resolveWorkspaceIgnorePatterns } from "./ignoreConfig.js";
+import { ktcUseBuiltInIgnore, resolveWorkspaceIgnorePatterns } from "./ignoreConfig.js";
 import { ktcResolveSearchReplaceLocation } from "./searchReplaceLocation.js";
 
 export class KtcSearchReplaceController {
@@ -61,11 +61,15 @@ export class KtcSearchReplaceController {
         includePaths: request.includePaths,
         includeIgnored: request.includeIgnored ?? false,
         ignorePatterns: resolveWorkspaceIgnorePatterns(location.root, {
+          ignoreEnabled: request.ignoreEnabled ?? true,
           builtInIgnoreEnabled: request.builtInIgnoreEnabled ?? true,
           gitIgnoreEnabled: request.gitIgnoreEnabled ?? true,
           customIgnoreEnabled: request.customIgnoreEnabled ?? request.pluginIgnoreEnabled ?? false,
         }),
-        useBuiltInIgnore: request.builtInIgnoreEnabled ?? true,
+        useBuiltInIgnore: ktcUseBuiltInIgnore({
+          ignoreEnabled: request.ignoreEnabled ?? true,
+          builtInIgnoreEnabled: request.builtInIgnoreEnabled ?? true,
+        }),
         apply: false,
         searchOnly: !apply,
       };

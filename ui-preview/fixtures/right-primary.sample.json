@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "companions": {
+    "packageIncludes": {
+      "status": { "label": "任务已完成。", "tone": "success" },
+      "facts": [
+        { "id": "target", "label": "工程", "value": "/workspace/Phoenix/projects/PNXBomAnalysisWsp" },
+        { "id": "package", "label": "Package", "value": "/workspace/Phoenix/core/include" },
+        { "id": "ignore", "label": "Ignore", "value": "插件 + Git" },
+        { "id": "scan", "label": "扫描", "value": "126 个文件" },
+        { "id": "matches", "label": "命中", "value": "18 处" }
+      ],
+      "actions": [
+        { "actionId": "preview", "label": "重新预览", "enabled": true },
+        { "actionId": "reveal", "label": "回到 View", "enabled": true },
+        { "actionId": "openEnvironment", "label": "工程环境", "enabled": true }
+      ]
+    },
+    "projectRename": {
+      "status": { "label": "任务已完成。", "tone": "success" },
+      "facts": [
+        { "id": "root", "label": "分析目录", "value": "/workspace/phoenix-open-issue" },
+        { "id": "rename", "label": "改名", "value": "PhoenixOpenIssue → PhoenixIssue" },
+        { "id": "rules", "label": "规则", "value": "8 条启用" },
+        { "id": "result", "label": "结果", "value": "18 项 · 42 处 · 风险 1/4/13" }
+      ],
+      "actions": [
+        { "actionId": "chooseRoot", "label": "选择目录…", "enabled": true },
+        { "actionId": "reveal", "label": "查看", "enabled": true },
+        { "actionId": "cancel", "label": "取消", "enabled": false },
+        { "actionId": "openGitChanges", "label": "对比", "enabled": true }
+      ]
+    }
+  },
+  "projectRenameHistory": {
+    "selectedId": "",
+    "items": [
+      {
+        "id": "project:phoenix-open-issue",
+        "label": "PhoenixOpenIssue → PhoenixIssue · 8 条规则",
+        "group": "当前项目方案"
+      },
+      {
+        "id": "pair:phoenix-open-issue",
+        "label": "PhoenixOpenIssue → PhoenixIssue",
+        "group": "用户最近输入"
+      }
+    ]
+  },
+  "projectRenameOverview": [
+    { "label": "项目", "value": "18" },
+    { "label": "替换", "value": "42" },
+    { "label": "低风险", "value": "13" },
+    { "label": "中风险", "value": "4" },
+    { "label": "高风险", "value": "1" },
+    { "label": "分类", "value": "3" }
+  ],
+  "projectRenameRootSuggestion": {
+    "source": "/workspace/phoenix-open-issue",
+    "target": "/workspace/phoenix-issue",
+    "enabled": true
+  },
+  "projectRenameProfiles": {
+    "selectedId": "profile:phoenix-product",
+    "profileName": "Phoenix 产品改名",
+    "items": [
+      {
+        "id": "profile:phoenix-product",
+        "label": "Phoenix 产品改名 · 8 条规则"
+      }
+    ]
+  },
+  "codegen": {
+    "kind": "kt.codegen.primary-ui-model",
+    "schemaVersion": 1,
+    "documents": [
+      {
+        "id": "file:///workspace/Phoenix/codegen/PNXTemplateFeatureData.json",
+        "fileName": "PNXTemplateFeatureData.json",
+        "displayPath": "PNXTemplateFeatureData.json",
+        "itemCount": 7,
+        "className": "PNXTemplateFeatureData",
+        "namePrefix": "PNX",
+        "nameMiddle": "TemplateFeature",
+        "nameSpace": "Phoenix",
+        "appendFunction": "Data",
+        "open": true,
+        "active": true,
+        "dirty": false,
+        "externalConflict": false,
+        "externalState": "current",
+        "diagnosticCount": 0
+      },
+      {
+        "id": "file:///workspace/Phoenix/codegen/IssueDialog.json",
+        "fileName": "IssueDialog.json",
+        "displayPath": "codegen/IssueDialog.json",
+        "itemCount": 9,
+        "className": "PNXIssueDialog",
+        "namePrefix": "PNX",
+        "nameMiddle": "Issue",
+        "nameSpace": "Phoenix::Issue",
+        "appendFunction": "Dialog",
+        "open": false,
+        "active": false,
+        "dirty": true,
+        "externalConflict": false,
+        "externalState": "current",
+        "diagnosticCount": 1
+      }
+    ],
+    "activeId": "file:///workspace/Phoenix/codegen/PNXTemplateFeatureData.json",
+    "candidates": [
+      {
+        "id": "file:///workspace/Phoenix/src/IssueCommand.cpp",
+        "displayPath": "src/IssueCommand.cpp",
+        "markerCount": 4,
+        "encoding": "UTF-8",
+        "eol": "crlf"
+      }
+    ],
+    "reports": [
+      {
+        "id": "report-20260908-1",
+        "subject": "IssueCommand.json",
+        "startedAt": "2026-09-08T09:30:00.000Z",
+        "applyKind": "single",
+        "itemCount": 14,
+        "health": "success",
+        "change": "updated"
+      }
+    ],
+    "reportInvalidCount": 0,
+    "running": false,
+    "capabilities": {
+      "openJson": true,
+      "importCsv": true,
+      "applyAll": true,
+      "scanCandidates": true,
+      "openReportDirectory": true,
+      "outputControlTemplates": true
+    }
+  }
+}

@@ -124,7 +124,7 @@ async function scanUuids(ctx: ToolRunContext, strategy: PnwUuidReplacementStrate
     return;
   }
   lastStrategy = strategy;
-  const ignorePatterns = resolveWorkspaceIgnorePatterns(ctx.workspaceRoot, ctx.pluginIgnoreEnabled);
+  const ignorePatterns = resolveWorkspaceIgnorePatterns(ctx.workspaceRoot, ctx);
   const uris = (await vscode.workspace.findFiles(new vscode.RelativePattern(root, INCLUDE), EXCLUDE))
     .filter((uri) => ktcFileInWorkspaceScope(uri, scope))
     .filter((uri) => !isIgnoredPath(relative(ctx.workspaceRoot!, uri.fsPath).replace(/\\/g, "/"), ignorePatterns));

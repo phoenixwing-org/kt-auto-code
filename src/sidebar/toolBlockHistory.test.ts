@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { ktcActivateToolBlock, ktcCloseToolBlock } from "./toolBlockHistory.js";
+import {
+  ktcActivateToolBlock,
+  ktcCloseOtherToolBlocks,
+  ktcCloseToolBlock,
+  ktcNormalizeToolBlockHistory,
+} from "./toolBlockHistory.js";
 
 describe("tool Block MRU history", () => {
   it("打开已有 Block 时移到最近使用位置且不重复", () => {
@@ -26,5 +31,36 @@ describe("tool Block MRU history", () => {
       openToolIds: ["codeRename", "cadFilename"],
       nextToolId: "cadFilename",
     });
+  });
+
+  it("关闭其他 Block 时保留指定项并把它设为当前项", () => {
+    expect(ktcCloseOtherToolBlocks(
+      ["headerAscii", "codeRename", "encodingFix"],
+      "codeRename",
+    )).toEqual({ openToolIds: ["codeRename"], nextToolId: "codeRename" });
+  });
+
+  it("关闭其他 Block 对未知项保持原 MRU", () => {
+    expect(ktcCloseOtherToolBlocks(["headerAscii", "codeRename"], "missing"))
+      .toEqual({ openToolIds: ["headerAscii", "codeRename"], nextToolId: "codeRename" });
+  });
+
+  it("旧状态中的 Group 不进入 MRU，并回退到该历史中最近的有效 Tool", () => {
+    expect(ktcNormalizeToolBlockHistory(
+      ["headerAscii", "codeAssistant", "encodingFix", "headerAscii"],
+      "codeAssistant",
+      new Set(["headerAscii", "encodingFix"]),
+    )).toEqual({
+      openToolIds: ["headerAscii", "encodingFix"],
+      activeToolId: "encodingFix",
+    });
+  });
+
+  it("旧状态只含 Group 时归一化为 Welcome", () => {
+    expect(ktcNormalizeToolBlockHistory(
+      ["codeAssistant"],
+      "codeAssistant",
+      new Set(["headerAscii", "encodingFix"]),
+    )).toEqual({ openToolIds: [], activeToolId: undefined });
   });
 });

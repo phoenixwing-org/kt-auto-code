@@ -28,6 +28,74 @@ function createModel(): KtcCodegenDocumentModel {
 }
 
 describe("KtcCodegenDocumentModel", () => {
+  it("异步保存只确认冻结快照，期间继续编辑保留新草稿和已写出 checkpoint", async () => {
+    const model = createModel();
+    model.updateMeta("nameMiddle", "Saved");
+    const savedTable = model.getTableData();
+    savedTable.items[0]!.name = "Saved row";
+    model.acceptTable(savedTable);
+    const snapshot = model.captureSaveSnapshot(model.controller.writeJson().value!);
+    let finish!: () => void;
+    const completed = new Promise<void>((resolve) => { finish = resolve; }).then(() => {
+      model.markSaved(0, "sha256:saved", snapshot);
+    });
+    const draft = model.getTableData();
+    draft.items[0]!.name = "Newer row";
+    model.acceptTable(draft);
+    model.updateMeta("nameMiddle", "Newer meta");
+    finish();
+    await completed;
+    expect(model.dirty).toBe(true);
+    expect(model.revision).toBe(1);
+    expect(model.diskFingerprint).toBe("sha256:saved");
+    expect(model.controller.param.items[0]!.name).toBe("Newer row");
+    expect(model.controller.param.nameMiddle).toBe("Newer meta");
+    expect(model.tableCore.dirty).toBe(true);
+    model.tableCore.revertToCheckpoint();
+    expect(model.controller.param.items[0]!.name).toBe("Saved row");
+    expect(model.controller.param.nameMiddle).toBe("Newer meta");
+  });
+
+  it("保存期间仅收到未同步的 dirty 通知也不能把文档标 clean", () => {
+    const model = createModel();
+    const snapshot = model.captureSaveSnapshot(model.controller.writeJson().value!);
+    model.markTableDirty(1);
+    model.markSaved(0, "sha256:saved", snapshot);
+    expect(model.dirty).toBe(true);
+  });
+
+  it.each(["meta", "table", "selection", "external-change", "deleted", "reload", "invalidate"])(
+    "%s 变化阻止异步预检旧计划复活，分析始终使用冻结参数", async (mutation) => {
+      const model = createModel();
+      const input = model.capturePreflightInput();
+      const result = {
+        plan: { kind: "kt.codegen.plan" } as NonNullable<typeof model.preflight>["plan"],
+        reused: false, createdAt: "2026-09-09", markerIndexRevision: 1,
+        indexedFileCount: 1, candidateFileCount: 1, cachePath: "/cache",
+      };
+      let finish!: () => void;
+      const completed = new Promise<void>((resolve) => { finish = resolve; })
+        .then(() => model.acceptPreflight(result, input.version));
+      if (mutation === "meta") model.updateMeta("nameMiddle", "Next");
+      else if (mutation === "table") {
+        const draft = model.getTableData(); draft.items[0]!.name = "Next"; model.acceptTable(draft);
+      } else if (mutation === "selection") model.setSelectedBlockKeys([]);
+      else if (mutation === "external-change") model.markExternalChanged();
+      else if (mutation === "deleted") model.markExternalDeleted();
+      else if (mutation === "reload") model.reloadFromJson(JSON.stringify({ ...VALID_JSON, NameMiddle: "Reloaded" }));
+      else model.setPreflight(undefined);
+      finish();
+      expect(await completed).toBe(false);
+      expect(model.preflight).toBeUndefined();
+      expect(input.controller.param.nameMiddle).toBe("Part");
+      expect(input.controller.param.items[0]!.name).toBe("First");
+      const current = model.capturePreflightInput();
+      expect(model.acceptPreflight(result, current.version)).toBe(true);
+      expect(model.acceptPreflight({ ...result, reused: true }, input.version)).toBe(false);
+      expect(model.preflight).toBe(result);
+    },
+  );
+
   it("集中维护整表交换、dirty 与 revision 门禁", () => {
     const model = createModel();
     const draft = model.getTableData();
