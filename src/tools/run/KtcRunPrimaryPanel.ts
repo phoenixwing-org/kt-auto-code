@@ -8,7 +8,7 @@ import { KtcCompactManagerLabelStyle } from "../../ui/KtcCompactManagerLabel.js"
 export const KtcRunPrimaryPanelTag = "ktc-run-primary-panel";
 
 export type KtcRunPrimaryActionDetail =
-  | { readonly action: "refresh" | "openOutput" | "openProblems" | "openTerminal" | "cleanBuild" | "cleanObjects" | "cleanObj" | "cleanGitUntracked" }
+  | { readonly action: "refresh" | "openCleanup" | "openOutput" | "openProblems" | "openTerminal" | "cleanBuild" | "cleanObjects" | "cleanObj" }
   | { readonly action: "runTarget" | "dryRunTarget" | "openSource"; readonly targetId: string }
   | { readonly action: "stopRun"; readonly runId: string }
   | { readonly action: "selectCaaRelated" | "addCaaRelatedFolder"; readonly projectId: string }
@@ -37,7 +37,7 @@ type KtcNavigationTreeAction =
   | { readonly kind: "select" | "activate"; readonly nodeId: string }
   | { readonly kind: "toggle"; readonly nodeId: string; readonly expanded: boolean };
 
-type KtcRunUtilityAction = "openTerminal" | "openProblems" | "openOutput" | "cleanBuild" | "cleanObjects" | "cleanObj" | "cleanGitUntracked";
+type KtcRunUtilityAction = "openTerminal" | "openProblems" | "openOutput" | "cleanBuild" | "cleanObjects" | "cleanObj";
 
 interface KtcNavigationTreeElement extends HTMLElement {
   model: KtcNavigationTreeModel | undefined;
@@ -49,8 +49,9 @@ const KtcRunPrimaryPanelStyle = `
   * { box-sizing: border-box; }
   button, input { font: inherit; }
   button:focus-visible, input:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
-  .toolbar { position: sticky; z-index: 1; top: 0; display: flex; min-width: 0; max-width: 100%; flex-wrap: wrap; align-items: center; gap: 2px; padding: 2px 4px; background: var(--vscode-sideBar-background, var(--vscode-editor-background)); border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
+  .toolbar { position: sticky; z-index: 1; top: 0; display: flex; min-width: 0; max-width: 100%; flex-wrap: wrap; align-items: center; gap: 2px; padding: 2px 5px 3px; background: var(--vscode-sideBar-background, var(--vscode-editor-background)); border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
   .toolbar-button, .project-option-button { min-height: 24px; padding: 1px 6px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); border-radius: 3px; cursor: pointer; }
+  .toolbar-button { display: inline-grid; flex: 0 0 auto; min-width: 44px; height: 32px; min-height: 32px; place-items: center; padding: 0 8px; }
   .toolbar-button:hover:not(:disabled), .project-option-button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); border-color: var(--ktc-ui-active-border, var(--vscode-focusBorder)); }
   .platform-filter { display: inline-flex; min-width: 0; align-items: center; gap: 4px; margin-left: auto; color: var(--vscode-descriptionForeground); white-space: nowrap; }
   .summary, .project-options { display: flex; min-width: 0; align-items: center; gap: 6px; padding: 4px 6px; color: var(--vscode-descriptionForeground); border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
@@ -124,7 +125,10 @@ export class KtcRunPrimaryPanel extends HTMLElement {
   private toolbar(): HTMLElement {
     const toolbar = document.createElement("div");
     toolbar.className = "toolbar";
-    toolbar.append(this.toolbarButton("↻", "refresh", "刷新运行目标"));
+    toolbar.append(
+      this.toolbarButton("刷新", "refresh", "刷新运行目标"),
+      this.toolbarButton("清理", "openCleanup", "打开清理对话框；默认 Git 未跟踪与忽略项，预览后点击清理，不执行 reset"),
+    );
     const platformFilter = document.createElement("label");
     platformFilter.className = "platform-filter";
     platformFilter.title = "关闭后显示其他系统目标，但仍禁止跨平台执行";
@@ -206,7 +210,6 @@ export class KtcRunPrimaryPanel extends HTMLElement {
       ["run-clean-build", "删除 build 目录", "cleanBuild"],
       ["run-clean-objects", "删除 objects 目录", "cleanObjects"],
       ["run-clean-obj", "删除 *.obj", "cleanObj"],
-      ["run-clean-git-untracked", "清理 Git 未跟踪文件", "cleanGitUntracked"],
     ];
     for (const [id, , action] of children) this.utilityActionByNodeId.set(id, action);
     if (this.expandedNodeIds.size === 0) this.expandedNodeIds.add("run-cleanup");
@@ -368,12 +371,13 @@ export class KtcRunPrimaryPanel extends HTMLElement {
   private projectNodeId(project: KtcRunProject): string { return `run-project:${project.id}`; }
   private targetNodeId(project: KtcRunProject, target: KtcRunTarget): string { return `run-target:${project.id}:${target.id}`; }
 
-  private toolbarButton(label: string, action: "refresh" | "openOutput" | "openProblems" | "openTerminal", title: string): HTMLButtonElement {
+  private toolbarButton(label: string, action: "refresh" | "openCleanup" | "openOutput" | "openProblems" | "openTerminal", title: string): HTMLButtonElement {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "toolbar-button";
     button.textContent = label;
     button.title = title;
+    button.setAttribute("aria-label", title);
     button.onclick = () => this.emit({ action });
     return button;
   }
@@ -388,7 +392,7 @@ export class KtcRunPrimaryPanel extends HTMLElement {
   private note(): HTMLElement {
     const note = document.createElement("div");
     note.className = "note";
-    note.textContent = "单击可运行的命令会直接启动；所有目标均通过 VS Code Task API 进入 Task Terminal。";
+    note.textContent = "删除 build、objects、*.obj 单击直接执行；首行“清理”打开对话框，预览后点击清理。运行目标通过 VS Code Task API 进入 Task Terminal。";
     return note;
   }
 

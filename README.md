@@ -76,7 +76,7 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 | `pnpm ext:dev:code:prepare` | 只构建 Auto Code + 本地 Wing 并验证来源，不启动 GUI |
 | `pnpm dev:registry` | 清除本地模式并用 Registry 精确版本构建、启动 Auto Code |
 | `pnpm ext:dev:registry:prepare` | 使用 Registry 精确版本构建 Auto Code，不启动 GUI |
-| `pnpm ui` / `pnpm ui:dev` | 启动 Phoenix Webview Preview；仅验证 Primary / Right View 布局与交互原型，不替代 Extension Host 点检 |
+| `pnpm ui` / `pnpm ui:dev` | 从默认并列 `../phoenix-wing` 启动 Phoenix Webview Preview；仅验证 Primary / Right View 布局与交互原型，不替代 Extension Host 点检 |
 | `pnpm ext:watch` | 监听编译扩展 |
 | `pnpm ext:launch` | 同时加载 Code + CAD 的 Extension Host（默认 F5 配置） |
 | `pnpm ext:launch:code` | 只加载 KT Auto Code 的 Extension Host |

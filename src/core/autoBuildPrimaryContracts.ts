@@ -1,3 +1,11 @@
+import type { KtcCleanupDialogModel } from "./cleanupContracts.js";
+export type {
+  KtcCleanupDialogPreviewState,
+  KtcCleanupDialogMode,
+  KtcCleanupDialogTarget,
+  KtcCleanupDialogModel,
+} from "./cleanupContracts.js";
+
 /** Serializable, Host-owned projection consumed by the AutoBuild Primary panel. */
 export interface KtcAutoBuildPrimaryMetric {
   readonly label: string;
@@ -12,9 +20,6 @@ export interface KtcAutoBuildPrimaryFact {
 export interface KtcAutoBuildPrimaryMaintenance {
   readonly scriptStatus: string;
   readonly scriptDetail: string;
-  readonly repositoryCleanupStatus: string;
-  readonly rootCleanupStatus: string;
-  readonly rootCleanupYaml: string;
 }
 
 export interface KtcAutoBuildPrimaryRecentConfiguration {
@@ -37,9 +42,11 @@ export interface KtcAutoBuildPrimaryViewModel {
     readonly recent: readonly KtcAutoBuildPrimaryRecentConfiguration[];
   };
   readonly parallelBuild: boolean;
+  readonly cmakeBuildTypes?: readonly ("Debug" | "Release")[];
   readonly environmentLabel: string;
   readonly environment: readonly KtcAutoBuildPrimaryFact[];
   readonly maintenance: KtcAutoBuildPrimaryMaintenance;
+  readonly cleanup: KtcCleanupDialogModel;
 }
 
 export interface KtcAutoBuildPrimaryPanelAction {

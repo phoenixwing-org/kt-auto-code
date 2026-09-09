@@ -27,6 +27,14 @@ describe("Primary UI preview server helpers", () => {
     expect(() => ktcReadPrimaryPreviewPort(["--port=70000"])).toThrow("无效端口");
   });
 
+  it("预览入口强制从默认并列 Wing 解析组件，不静默使用 Registry 旧包", async () => {
+    const source = await readFile(path.resolve("scripts/preview-primary-ui.ts"), "utf8");
+    expect(source).toContain("resolveLocalWingRoot({ repoRoot: repositoryRoot })");
+    expect(source).toContain("validateRequiredLocalWingPackages(wingRoot, LOCAL_WING_CODE_PACKAGES)");
+    expect(source).toContain("createLocalWingEsbuildPlugin(wingRoot)");
+    expect(source).not.toContain("node_modules/@phoenix-wing");
+  });
+
   it("按目录、Toolbar、当前工具、打开项四段模拟 Primary 原型外壳", async () => {
     const html = await readFile(path.resolve("ui-preview/index.html"), "utf8");
     const toolbarAt = html.indexOf("<ktc-toolbar-strip");
@@ -130,17 +138,31 @@ describe("Primary UI preview server helpers", () => {
     expect(source).not.toContain('welcome.textContent = "从工具栏或代码辅助目录选择一个工具。"');
   });
 
-  it("自动代码深色选中行复制正式 Host 的高亮层级", async () => {
+  it("自动代码不再专门覆盖主题配色，两侧共用 VS Code 主题变量", async () => {
     const css = await readFile(path.resolve("ui-preview/styles.css"), "utf8");
-    const rule = css.match(
-      /:root\[data-preview-theme="dark"\] \.preview-codegen-primary kt-codegen-primary-panel\s*\{(?<body>[^}]*)\}/u,
-    )?.groups?.body ?? "";
+    expect(css).not.toMatch(/:root\[data-preview-theme="(?:dark|light|hc)"\]\s+\.preview-codegen/u);
+    expect(css).not.toContain("--vscode-descriptionForeground: #94a0ab");
+    expect(css).toContain("--vscode-list-activeSelectionBackground");
+    expect(css).toContain("--vscode-list-activeSelectionForeground");
+  });
 
-    expect(rule).toContain("--vscode-sideBar-background: #1e1e1e");
-    expect(rule).toContain("--vscode-descriptionForeground: #94a0ab");
-    expect(rule).toContain("--vscode-list-activeSelectionBackground: #04395e");
-    expect(rule).toContain("--vscode-list-activeSelectionForeground: #ffffff");
-    expect(rule).toContain("--vscode-focusBorder: #007fd4");
+  it("自动代码双侧接入同一内存会话，移除无正式能力的生成器占位", async () => {
+    const [source, html] = await Promise.all([
+      readFile(path.resolve("ui-preview/src/main.ts"), "utf8"),
+      readFile(path.resolve("ui-preview/index.html"), "utf8"),
+    ]);
+    expect(source.match(/createPreviewCodegenSurface\(\{/gu)).toHaveLength(1);
+    for (const method of ["createPrimary", "createRight", "createRightActions", "contextDirectory"]) {
+      expect(source).toContain(`previewCodegenSurface.${method}()`);
+    }
+    expect(source).toContain('section.className = "preview-codegen-primary"');
+    expect(source).not.toContain("PREVIEW_RIGHT_PRIMARY_SAMPLE.codegen");
+    expect(source).not.toContain("createPreviewCodegenPrimaryModel");
+    expect(html.match(/data-codegen-right-actions/gu)).toHaveLength(1);
+    expect(html.match(/data-codegen-right-content/gu)).toHaveLength(1);
+    expect(html).not.toContain("选择模板");
+    expect(html).not.toContain("CAA Command");
+    expect(html).not.toContain("[template] Phoenix Web");
   });
 
   it("Catalog 的 Right panelId 与 HTML Shell 严格一一对应", async () => {
@@ -251,9 +273,15 @@ describe("Primary UI preview server helpers", () => {
     expect(source).toContain("preview-auto-build-primary");
     expect(source).toContain('activeToolId: isOpenTool(activeNavigatorToolId) ? activeNavigatorToolId : ""');
     expect(source).toContain("preview-primary-config-bar");
-    expect(source).toContain("configRegion.append(configBar, recentConfig)");
+    expect(source).toContain("configRegion.append(configBar, recentConfig, configStatus)");
+    expect(source).not.toContain("KtcCreateAutoBuildConfigurationActionIcon");
+    expect(source).toContain('openConfig.textContent = "打开"');
+    expect(source).toContain('reveal.textContent = "详细配置"');
+    expect(css).toMatch(/\.preview-primary-config-bar\s*\{[^}]*flex-wrap:\s*wrap/u);
+    expect(css).toMatch(/\.preview-primary-config-bar button\s*\{[^}]*padding:\s*2px 8px;[^}]*white-space:\s*nowrap/u);
     expect(source).toContain("section.append(configRegion, heading, actions, executionOptions, statusLine, metrics, maintenance, environment)");
     expect(source).toContain("preview-primary-maintenance");
+    expect(source).toContain('sync.textContent = "同步脚本"');
     expect(stateSource).toContain('actionId: "openCleanup"');
     expect(source).toContain("openAutoBuildCleanupDialog()");
     expect(source).toContain("preview-cleanup-dialog");
@@ -290,7 +318,8 @@ describe("Primary UI preview server helpers", () => {
     expect(autoBuildRight).toContain("data-auto-build-project-rows");
     expect(autoBuildRight).toContain("data-auto-build-mode");
     expect(source).toContain('path.setAttribute("d", "m10 10 3 3")');
-    expect(source).toContain('path.setAttribute("d", "M5 3.5 12 8l-7 4.5z")');
+    expect(source).toContain('"M5 3.5 12 8l-7 4.5z"');
+    expect(source).toContain('createAutoBuildProjectAction("update", repository.name)');
     expect(source).toContain("openAutoBuildManifestImportDialog()");
     expect(source).toContain("preview-manifest-dialog");
     expect(css).toMatch(/\.preview-build-table\s*\{[^}]*border-collapse:\s*separate/u);

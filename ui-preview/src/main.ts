@@ -6,11 +6,6 @@ import {
 } from "../../src/ui/PnwComboWingAdapter.js";
 import "../../src/ui/PnwComboEntry.js";
 import {
-  ktCodegenDefinePrimaryPanelElement,
-  type KtCodegenPrimaryActionDetail,
-  type KtCodegenPrimaryPanel,
-} from "@phoenix-wing/kt-codegen/ui";
-import {
   type KtcToolNavigator,
   type KtcToolNavigatorActionDetail,
 } from "../../src/ui/KtcToolNavigator.js";
@@ -80,6 +75,9 @@ import {
   type PreviewCompanionModel,
 } from "./previewCompanionModel.js";
 import { PREVIEW_RIGHT_PRIMARY_SAMPLE } from "./previewRightPrimarySample.js";
+import { createPreviewCodegenSurface } from "./previewCodegenSurface.js";
+import { installPreviewButtonFeedback } from "./previewButtonFeedback.js";
+import { ktcCreateCmakeBuildOptions } from "../../src/ui/KtcCmakeBuildOptions.js";
 import {
   createDefaultPreviewAutoBuildState,
   derivePreviewAutoBuildState,
@@ -88,6 +86,13 @@ import {
   type PreviewAutoBuildTransition,
 } from "./previewAutoBuildState.js";
 import { PREVIEW_AUTO_BUILD_SAMPLE } from "./previewAutoBuildSample.js";
+import { createPreviewRunSurface } from "./previewRunCleanup.js";
+import { createPreviewAutoBuildCleanupSurface, type PreviewAutoBuildCleanupMode } from "./previewAutoBuildCleanup.js";
+import { createPreviewGitSurface } from "./previewGitSurface.js";
+import { createPreviewPackageIncludesSurface } from "./previewPackageIncludes.js";
+import { createPreviewTaskDirectory } from "./previewTaskDirectory.js";
+import { type KtcIgnorePolicyBlock, type KtcIgnorePolicyBlockActionDetail, type KtcIgnorePolicyBlockModel } from "../../src/ui/KtcIgnorePolicyBlock.js";
+import "../../src/ui/KtcIgnorePolicyBlockEntry.js";
 import packageManifest from "../../package.json";
 
 type PrimaryWidth = Exclude<PreviewPrimaryWidth, "custom">;
@@ -102,7 +107,6 @@ interface PreviewOpenItem extends PreviewToolDescriptor {
 const RIGHT_COMPANION_MODELS: Readonly<Record<string, PreviewCompanionModel>> =
   PREVIEW_RIGHT_PRIMARY_SAMPLE.companions;
 
-ktCodegenDefinePrimaryPanelElement();
 ktcDefineRenameResultsPanel();
 
 const INITIAL_AUTO_BUILD_STATE = createDefaultPreviewAutoBuildState();
@@ -171,9 +175,24 @@ let openItems: PreviewOpenItem[] = initialPreviewState.openToolIds.map(previewIt
 let mruItemIds = [...initialPreviewState.mruItemIds];
 let surfaceMruToolIds = [...initialPreviewState.surfaceMruToolIds];
 let autoBuildState = INITIAL_AUTO_BUILD_STATE;
+const previewAutoBuildCleanupSurface = createPreviewAutoBuildCleanupSurface({
+  state: () => autoBuildState,
+  updateRules: (value) => {
+    autoBuildState = reducePreviewAutoBuildState(autoBuildState, { type: "setCleanupPatternsYaml", value }).state;
+  },
+  execute: (mode) => {
+    if (mode === "rules" || mode === "git-force") {
+      commitAutoBuildTransition(reducePreviewAutoBuildState(autoBuildState, {
+        type: mode === "rules" ? "cleanRoot" : "cleanRepositories",
+      }));
+    } else recordPreviewOutput("[编译工具] 已模拟清理 CMake 产物；未删除真实文件");
+  },
+  log: recordPreviewOutput,
+});
 let outputVisible = initialPreviewState.outputVisible;
 let previewOutputSequence = INITIAL_PREVIEW_OUTPUT_LINES.length;
 let previewOutputLines: readonly string[] = INITIAL_PREVIEW_OUTPUT_LINES;
+const previewGitSurface = createPreviewGitSurface({ log: recordPreviewOutput });
 
 let utilitySelections = defaultUtilitySelections();
 
@@ -183,6 +202,68 @@ const directoryChoices = [
   "外部 · /workspace/sample-web-app",
 ];
 let directoryIndex = initialPreviewState.directoryIndex;
+function currentPreviewDirectory(): string {
+  const choice = directoryChoices[directoryIndex] ?? directoryChoices[0]!;
+  return choice.startsWith("外部 · ") ? choice.slice("外部 · ".length) : `/workspace/${choice}`;
+}
+const previewRunSurface = createPreviewRunSurface({
+  directory: currentPreviewDirectory,
+  log: recordPreviewOutput,
+});
+let previewIgnorePolicy: KtcIgnorePolicyBlockModel = {
+  enabled: true, builtInEnabled: true, gitEnabled: true, customEnabled: false, customCount: 0,
+};
+let previewPackageSurface: ReturnType<typeof createPreviewPackageIncludesSurface> | undefined;
+function getPreviewPackageSurface(): ReturnType<typeof createPreviewPackageIncludesSurface> {
+  if (previewPackageSurface) return previewPackageSurface;
+  const initial = companionModel("packageIncludes");
+  previewPackageSurface = createPreviewPackageIncludesSurface({
+    initial: { ...initial, facts: initial.facts.map((fact) => fact.id === "target" ? { ...fact, value: currentPreviewDirectory() } : fact) },
+    log: recordPreviewOutput,
+    action: (actionId) => dispatchCompanionAction("packageIncludes", actionId),
+    ignoreModel: () => previewIgnorePolicy,
+    ignoreAction: applyPreviewIgnoreAction,
+    directoryChanged: renderRightViewContexts,
+  });
+  required<HTMLElement>("[data-package-right-actions]").replaceChildren(previewPackageSurface.createRightActions());
+  required<HTMLElement>("[data-package-right-content]").replaceChildren(previewPackageSurface.createRight());
+  return previewPackageSurface;
+}
+function releasePreviewPackageSurface(): void {
+  previewPackageSurface = undefined;
+  required<HTMLElement>("[data-package-right-actions]").replaceChildren();
+  required<HTMLElement>("[data-package-right-content]").replaceChildren();
+}
+const previewCodegenSurface = createPreviewCodegenSurface({
+  log: recordPreviewOutput,
+  openEditor: () => openEditor("codegen"),
+  onContextChanged: renderRightViewContexts,
+});
+required<HTMLElement>("[data-codegen-right-actions]").append(previewCodegenSurface.createRightActions());
+required<HTMLElement>("[data-codegen-right-content]").append(previewCodegenSurface.createRight());
+
+function applyPreviewIgnoreAction(detail: KtcIgnorePolicyBlockActionDetail): void {
+  if (detail.kind === "manage") {
+    recordPreviewOutput("[忽略] 打开 Ignore 管理（模拟）");
+    activateTool("ignoreSettings");
+    return;
+  }
+  if (detail.kind === "toggleMaster") previewIgnorePolicy = { ...previewIgnorePolicy, enabled: detail.enabled };
+  else {
+    const field = { builtIn: "builtInEnabled", git: "gitEnabled", custom: "customEnabled" } as const;
+    previewIgnorePolicy = { ...previewIgnorePolicy, [field[detail.source]]: detail.enabled };
+  }
+  document.querySelectorAll<KtcIgnorePolicyBlock>("ktc-ignore-policy-block").forEach((block) => { block.model = previewIgnorePolicy; });
+  previewPackageSurface?.ignorePolicyChanged();
+  recordPreviewOutput(`[忽略] ${detail.kind === "toggleMaster" ? "总开关" : detail.source}：${detail.enabled ? "启用" : "停用"}（模拟）；安全排除保留`);
+}
+
+function createPreviewIgnoreBlock(): KtcIgnorePolicyBlock {
+  const block = document.createElement("ktc-ignore-policy-block");
+  block.model = previewIgnorePolicy;
+  block.addEventListener("ktc-ignore-policy-action", (event) => applyPreviewIgnoreAction((event as CustomEvent<KtcIgnorePolicyBlockActionDetail>).detail));
+  return block;
+}
 
 document.querySelectorAll<HTMLButtonElement>("[data-theme-option]").forEach((button) => {
   button.addEventListener("click", () => setTheme(button.dataset.themeOption as PreviewTheme));
@@ -199,6 +280,7 @@ directoryRow.addEventListener(KTC_DIRECTORY_BAR_ACTION, (event) => {
   const detail = (event as CustomEvent<KtcDirectoryBarActionDetail>).detail;
   if (detail.kind !== "select" && detail.kind !== "choose") return;
   directoryIndex = (directoryIndex + 1) % directoryChoices.length;
+  previewRunSurface.directoryChanged();
   const directory = directoryChoices[directoryIndex] ?? directoryChoices[0]!;
   recordPreviewOutput(`[界面] ${detail.kind === "select" ? "切换目录" : "选择目录（模拟）"}：${directory}`);
   renderDirectoryVisibility();
@@ -245,7 +327,10 @@ document.querySelectorAll<HTMLInputElement>("[data-auto-build-probe-columns]").f
 });
 systemOutput.addEventListener(KTC_SYSTEM_OUTPUT_BLOCK_ACTION, (event) => {
   const detail = (event as CustomEvent<KtcSystemOutputBlockActionDetail>).detail;
-  if (detail.kind === "close") setOutputVisibility(false);
+  if (detail.kind === "close") {
+    recordPreviewOutput("[界面] 隐藏输出");
+    setOutputVisibility(false);
+  }
 });
 outputToggle.addEventListener("click", () => setOutputVisibility(!outputVisible));
 
@@ -328,21 +413,12 @@ ribbonMenu.addEventListener("keydown", (event) => {
 required<HTMLButtonElement>("[data-action='reset-preview']").addEventListener("click", () => {
   resetVolatilePreviewState();
   restorePreviewState(previewStateStore.reset());
+  recordPreviewOutput("[界面] 已重置原型");
 });
-document.addEventListener("click", (event) => {
-  const path = event.composedPath();
-  if (path.includes(systemOutput)) return;
-  const button = path.find((candidate): candidate is HTMLButtonElement => (
-    candidate instanceof HTMLButtonElement
-    && candidate.type === "button"
-  ));
-  if (!button || button.dataset.previewOutput === "handled" || button.disabled) return;
-  if (button.getRootNode() === toolbarStrip.shadowRoot || button.getRootNode() === directoryRow.shadowRoot) return;
-  const label = [button.getAttribute("aria-label"), button.title, button.textContent]
-    .map((candidate) => candidate?.replace(/\s+/gu, " ").trim() ?? "")
-    .find(Boolean);
-  if (!label) return;
-  recordPreviewOutput(`[界面] ${label.slice(0, 80)}`);
+installPreviewButtonFeedback(document, {
+  revision: () => previewOutputSequence,
+  write: recordPreviewOutput,
+  ignore: (path) => path.includes(systemOutput),
 });
 
 let resizing = false;
@@ -580,8 +656,17 @@ function renderPrimaryContent(): void {
 
 function createToolSummary(toolId: string): HTMLElement {
   const meta = PREVIEW_TOOL_CATALOG_BY_ID[toolId];
+  if (meta?.toolId === "git") return previewGitSurface.createPrimary();
   if (meta?.toolId === "autoBuild") return createAutoBuildPrimary(meta);
-  if (meta?.toolId === "codegen") return createCodegenPrimary(meta);
+  if (meta?.toolId === "codegen") {
+    const section = document.createElement("section");
+    section.className = "preview-codegen-primary";
+    section.setAttribute("aria-label", `${meta.title} Primary 控制`);
+    section.append(previewCodegenSurface.createPrimary());
+    return section;
+  }
+  if (meta?.toolId === "run") return previewRunSurface.createPrimary();
+  if (meta?.toolId === "packageIncludes") return getPreviewPackageSurface().createPrimary();
   if (meta?.toolId === "codeRename") return createSearchReplacePrimary(meta);
   if (meta && resolvePreviewToolRoute(meta).primaryKind === "companion") {
     return createEditorCompanionPrimary(meta, companionModel(toolId));
@@ -635,7 +720,6 @@ function createEditorCompanionPrimary(
     }
     : model;
   if (isProjectRename) {
-    section.append(renderProjectRenameDirectory(model));
     section.append(renderProjectRenameActions(remainingModel));
     section.append(renderProjectRenameOverview());
     section.append(renderProjectRenameProfiles());
@@ -645,35 +729,13 @@ function createEditorCompanionPrimary(
   }
   if (remainingModel.facts.length > 0) section.append(renderRightCompanionFacts(remainingModel));
   if (!isProjectRename) section.append(renderRightCompanionActions(meta.toolId, remainingModel));
+  if (isProjectRename) section.append(renderProjectRenameDirectory(model));
   return section;
 }
 
 function renderProjectRenameDirectory(model: PreviewCompanionModel): HTMLElement {
   const fact = model.facts.find(({ id }) => id === "root");
-  const action = model.actions.find(({ actionId }) => actionId === "chooseRoot");
-  if (!fact || !action) throw new Error("项目改名 Primary 样例缺少分析目录或选择目录动作");
-  const row = document.createElement("div");
-  row.className = "preview-companion-directory";
-  const value = document.createElement("span");
-  value.textContent = projectRenameDirectoryLabel(fact.value);
-  value.title = fact.value;
-  value.setAttribute("aria-label", fact.value);
-  const button = document.createElement("button");
-  button.type = "button";
-  button.textContent = action.label;
-  button.disabled = !action.enabled;
-  button.addEventListener("click", () => dispatchCompanionAction("projectRename", action.actionId));
-  row.append(value, button);
-  return row;
-}
-
-function projectRenameDirectoryLabel(root: string): string {
-  const normalized = root.replace(/[\\/]+$/u, "");
-  const separator = Math.max(normalized.lastIndexOf("/"), normalized.lastIndexOf("\\"));
-  if (separator < 0) return normalized;
-  const name = normalized.slice(separator + 1);
-  const parent = normalized.slice(0, separator);
-  return name && parent ? `${name} @ ${parent}` : normalized;
+  return createPreviewTaskDirectory(fact?.value ?? "");
 }
 
 function renderProjectRenameProfiles(): HTMLElement {
@@ -834,44 +896,6 @@ function dispatchCompanionAction(toolId: string, actionId: string): void {
     recordPreviewOutput("[项目改名] 已打开 Git 对比（模拟）");
   } else if (actionId === "chooseRoot") {
     recordPreviewOutput("[项目改名] 已打开分析目录选择（模拟）");
-  }
-}
-
-function createCodegenPrimary(meta: PreviewToolDescriptor): HTMLElement {
-  const section = document.createElement("section");
-  section.className = "preview-codegen-primary";
-  section.setAttribute("aria-label", `${meta.title} Primary 控制`);
-  const panel = document.createElement("kt-codegen-primary-panel") as KtCodegenPrimaryPanel;
-  panel.model = PREVIEW_RIGHT_PRIMARY_SAMPLE.codegen;
-  requestAnimationFrame(() => applyPreviewCodegenActionLabels(panel));
-  panel.addEventListener("kt-codegen-primary-action", (event) => {
-    const detail = (event as CustomEvent<KtCodegenPrimaryActionDetail>).detail;
-    if (detail.action === "openDocument" || detail.action === "openCandidate") openEditor(meta.toolId);
-    recordPreviewOutput(`[${meta.title}] ${detail.action}（模拟）`);
-  });
-  section.append(panel);
-  return section;
-}
-
-function applyPreviewCodegenActionLabels(panel: KtCodegenPrimaryPanel): void {
-  const labels = new Map([
-    ["打开一份 Codegen JSON", "打开"],
-    ["导入或打开 CSV Codegen 配置", "导入"],
-    ["全部应用", "应用"],
-    ["刷新配置", "刷新"],
-    ["取消刷新", "取消"],
-    ["扫描控制符源码候选", "扫描"],
-    ["取消扫描", "取消"],
-  ]);
-  for (const button of Array.from(panel.shadowRoot?.querySelectorAll<HTMLButtonElement>(".pnw-codegen-actions button") ?? [])) {
-    const label = labels.get(button.title);
-    if (!label) continue;
-    button.textContent = label;
-    button.setAttribute("aria-label", button.title);
-    button.style.width = "auto";
-    button.style.minWidth = "44px";
-    button.style.paddingInline = "8px";
-    button.style.fontSize = "12px";
   }
 }
 
@@ -1040,40 +1064,7 @@ function createSearchReplacePrimary(meta: PreviewToolDescriptor): HTMLElement {
   encodingLabel.append(encoding);
   targets.append(encodingLabel);
 
-  const ignore = document.createElement("section");
-  ignore.className = "preview-search-replace-ignore";
-  const ignoreHeader = document.createElement("div");
-  const ignoreTitle = document.createElement("strong");
-  ignoreTitle.textContent = "忽略";
-  const ignoreState = document.createElement("span");
-  ignoreState.textContent = "已启用";
-  const toggleIgnore = document.createElement("button");
-  toggleIgnore.type = "button";
-  toggleIgnore.textContent = "停用";
-  const modifyIgnore = document.createElement("button");
-  modifyIgnore.type = "button";
-  modifyIgnore.textContent = "修改";
-  modifyIgnore.addEventListener("click", () => activateTool("ignoreSettings"));
-  ignoreHeader.append(ignoreTitle, ignoreState, toggleIgnore, modifyIgnore);
-  const ignoreSources = document.createElement("div");
-  ignoreSources.className = "preview-search-replace-ignore-sources";
-  for (const [label, checked] of [["插件", true], ["Git", true], ["自定义", false]] as const) {
-    const item = document.createElement("label");
-    const input = document.createElement("input");
-    input.type = "checkbox";
-    input.checked = checked;
-    item.append(input, document.createTextNode(label));
-    ignoreSources.append(item);
-  }
-  toggleIgnore.addEventListener("click", () => {
-    const enabled = toggleIgnore.textContent === "停用";
-    toggleIgnore.textContent = enabled ? "启用" : "停用";
-    ignoreState.textContent = enabled ? "已停用" : "已启用";
-    ignoreSources.querySelectorAll<HTMLInputElement>("input").forEach((input) => { input.disabled = enabled; });
-  });
-  const ignoreHint = document.createElement("p");
-  ignoreHint.textContent = "停用后仍保留不可关闭的安全排除；规则正文统一在 Ignore 管理中修改。";
-  ignore.append(ignoreHeader, ignoreSources, ignoreHint);
+  const ignore = createPreviewIgnoreBlock();
 
   const results = document.createElement("ktc-rename-results-panel") as KtcRenameResultsPanel;
   results.model = {
@@ -1235,8 +1226,9 @@ function renderAutoBuildSampleRows(): void {
       const probe = createAutoBuildProjectAction("probe", repository.name);
       actionCell.append(probe);
       if (repository.runnable) {
+        const update = createAutoBuildProjectAction("update", repository.name);
         const run = createAutoBuildProjectAction("run", repository.name);
-        actionCell.append(run);
+        actionCell.append(update, run);
       }
 
       row.append(enabledCell, kindCell, branchCell, repositoryCell, commitCell, originCell, statusCell, buildCell, actionCell);
@@ -1265,14 +1257,14 @@ function renderAutoBuildSampleRows(): void {
 }
 
 function createAutoBuildProjectAction(
-  action: "probe" | "run",
+  action: "probe" | "update" | "run",
   repositoryName: string,
 ): HTMLButtonElement {
-  const label = action === "probe" ? "探测" : "运行";
+  const label = action === "probe" ? "探测" : action === "update" ? "更新" : "运行";
   const button = document.createElement("button");
   button.type = "button";
   button.className = `preview-project-action-button${action === "run" ? " is-run" : ""}`;
-  button.title = label;
+  button.title = action === "update" ? "更新 Git（仅此仓库，不编译）" : label;
   button.setAttribute("aria-label", `${label} ${repositoryName}`);
   button.dataset.previewOutput = "handled";
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -1288,12 +1280,12 @@ function createAutoBuildProjectAction(
     svg.append(circle, path);
   } else {
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", "M5 3.5 12 8l-7 4.5z");
+    path.setAttribute("d", action === "update" ? "M13 7a5 5 0 1 0-1 4M13 3v4H9" : "M5 3.5 12 8l-7 4.5z");
     svg.append(path);
   }
   button.append(svg);
   button.addEventListener("click", () => {
-    recordPreviewOutput(`[编译工具] ${label} ${repositoryName}（模拟）`);
+    recordPreviewOutput(`[编译工具] ${label} ${repositoryName}（模拟）${action === "update" ? "；仅更新 Git，不执行 link / export / build" : ""}`);
   });
   return button;
 }
@@ -1354,6 +1346,9 @@ function createAutoBuildPrimary(meta: PreviewToolDescriptor): HTMLElement {
   parallelInput.addEventListener("change", () => dispatchAutoBuildIntent("setParallel", parallelInput.checked));
   parallel.append(parallelInput, document.createTextNode("并行编译"));
   executionOptions.append(parallel);
+  executionOptions.append(ktcCreateCmakeBuildOptions(autoBuildState.cmakeBuildTypes, viewState.parallelDisabled, (selected) => {
+    commitAutoBuildTransition(reducePreviewAutoBuildState(autoBuildState, { type: "setCmakeBuildTypes", selected }));
+  }));
 
   const statusLine = document.createElement("div");
   statusLine.className = "preview-auto-build-status-line";
@@ -1368,11 +1363,18 @@ function createAutoBuildPrimary(meta: PreviewToolDescriptor): HTMLElement {
 
   const configBar = document.createElement("section");
   configBar.className = "preview-primary-config-bar";
-  configBar.setAttribute("aria-label", "当前配置");
+  configBar.setAttribute("role", "group");
+  configBar.setAttribute("aria-label", "配置操作");
+  configBar.tabIndex = 0;
+  const configStatus = document.createElement("div");
+  configStatus.className = "preview-primary-config-status";
   const configLabel = document.createElement("strong");
   configLabel.textContent = "当前配置";
   const configName = document.createElement("span");
-  configName.textContent = autoBuildState.currentConfigName;
+  configName.textContent = autoBuildState.currentConfigName === "未保存" ? "" : autoBuildState.currentConfigName;
+  configName.title = autoBuildState.currentConfigName;
+  const configSavedState = document.createElement("small");
+  configSavedState.textContent = autoBuildState.currentConfigName === "未保存" ? "未保存" : "已保存（模拟）";
   const openConfig = document.createElement("button");
   openConfig.type = "button";
   openConfig.textContent = "打开";
@@ -1383,6 +1385,18 @@ function createAutoBuildPrimary(meta: PreviewToolDescriptor): HTMLElement {
   saveConfig.textContent = "保存";
   saveConfig.dataset.previewOutput = "handled";
   saveConfig.addEventListener("click", () => dispatchAutoBuildIntent("saveConfig"));
+  const saveAsConfig = document.createElement("button");
+  saveAsConfig.type = "button";
+  saveAsConfig.textContent = "另存";
+  saveAsConfig.disabled = viewState.configurationOptionsDisabled;
+  saveAsConfig.dataset.previewOutput = "handled";
+  saveAsConfig.addEventListener("click", () => recordPreviewOutput("[编译工具] 选择另存配置位置（模拟，未写盘）"));
+  const closeConfig = document.createElement("button");
+  closeConfig.type = "button";
+  closeConfig.textContent = "关闭";
+  closeConfig.disabled = viewState.configurationOptionsDisabled;
+  closeConfig.dataset.previewOutput = "handled";
+  closeConfig.addEventListener("click", () => recordPreviewOutput("[编译工具] 关闭配置（模拟，未变更真实会话）"));
   const reveal = document.createElement("button");
   reveal.type = "button";
   reveal.textContent = "详细配置";
@@ -1391,7 +1405,21 @@ function createAutoBuildPrimary(meta: PreviewToolDescriptor): HTMLElement {
     recordPreviewOutput("[编译工具] 已定位 Right View 详细配置");
     openEditor(meta.toolId);
   });
-  configBar.append(configLabel, configName, openConfig, saveConfig, reveal);
+  for (const [button, actionId] of [
+    [openConfig, "openConfig"], [saveConfig, "saveConfig"], [saveAsConfig, "saveAsConfig"],
+    [closeConfig, "closeConfig"], [reveal, "reveal"],
+  ] as const) {
+    const label = button.textContent || actionId;
+    button.title = button.disabled ? "运行中，当前动作不可用。" : label;
+    button.setAttribute("aria-label", label);
+    button.dataset.configActionId = actionId;
+    const slot = document.createElement("span");
+    slot.className = "preview-config-action-slot";
+    slot.title = button.title;
+    slot.append(button);
+    configBar.append(slot);
+  }
+  configStatus.append(configLabel, configName, configSavedState);
 
   const recentConfig = document.createElement("div");
   recentConfig.className = "preview-primary-recent-config";
@@ -1455,7 +1483,7 @@ function createAutoBuildPrimary(meta: PreviewToolDescriptor): HTMLElement {
   );
   const sync = document.createElement("button");
   sync.type = "button";
-  sync.textContent = "同步";
+  sync.textContent = "同步脚本";
   sync.disabled = viewState.maintenanceActionsDisabled;
   sync.dataset.previewOutput = "handled";
   sync.addEventListener("click", () => dispatchAutoBuildIntent("syncScript"));
@@ -1472,7 +1500,7 @@ function createAutoBuildPrimary(meta: PreviewToolDescriptor): HTMLElement {
 
   const configRegion = document.createElement("div");
   configRegion.className = "preview-primary-config-region";
-  configRegion.append(configBar, recentConfig);
+  configRegion.append(configBar, recentConfig, configStatus);
   section.append(configRegion, heading, actions, executionOptions, statusLine, metrics, maintenance, environment);
   return section;
 }
@@ -1496,6 +1524,7 @@ type PreviewAutoBuildAction = Exclude<
     | "setMaintenanceExpanded"
     | "setRepositoryEnabled"
     | "setRepositoryUpdate"
+    | "setCmakeBuildTypes"
 > | "openOutput" | "openConfig";
 
 function dispatchAutoBuildIntent(actionId: PreviewAutoBuildAction, value?: string | boolean): void {
@@ -1531,174 +1560,8 @@ function dispatchAutoBuildIntent(actionId: PreviewAutoBuildAction, value?: strin
   commitAutoBuildTransition(transition);
 }
 
-function openAutoBuildCleanupDialog(): void {
-  document.querySelector(".preview-cleanup-dialog")?.remove();
-  const dialog = document.createElement("dialog");
-  dialog.className = "preview-cleanup-dialog";
-  dialog.setAttribute("aria-label", "清理");
-  const shell = document.createElement("section");
-  shell.className = "preview-cleanup-dialog-shell";
-  const header = document.createElement("header");
-  const heading = document.createElement("strong");
-  heading.textContent = "清理";
-  const close = document.createElement("button");
-  close.type = "button";
-  close.textContent = "×";
-  close.setAttribute("aria-label", "关闭清理对话框");
-  close.addEventListener("click", () => dialog.close());
-  header.append(heading, close);
-
-  const content = document.createElement("div");
-  content.className = "preview-cleanup-dialog-content";
-  const intro = document.createElement("p");
-  intro.textContent = "选择方式和目标；预览只冻结本次清单，确认后才执行。";
-  const modeField = document.createElement("label");
-  modeField.className = "preview-cleanup-field";
-  modeField.append(strongText("清理方式"));
-  const mode = document.createElement("select");
-  mode.setAttribute("aria-label", "清理方式");
-  mode.append(
-    new Option("规则产物", "rules"),
-    new Option("Git 强制恢复 · 高风险", "git-force"),
-    new Option("CMake 产物", "cmake"),
-  );
-  modeField.append(mode);
-  const targetsField = document.createElement("section");
-  targetsField.className = "preview-cleanup-field";
-  const targetsHeading = strongText("清理目标");
-  const targets = document.createElement("div");
-  targets.className = "preview-cleanup-targets";
-  targetsField.append(targetsHeading, targets);
-  const rulesField = document.createElement("label");
-  rulesField.className = "preview-cleanup-field";
-  rulesField.append(strongText("清理规则"));
-  const rules = document.createElement("textarea");
-  rules.maxLength = 4_096;
-  rules.spellcheck = false;
-  rules.value = autoBuildState.cleanupPatternsYaml;
-  rules.setAttribute("aria-label", "清理 YAML 规则");
-  rulesField.append(rules);
-  const previewField = document.createElement("section");
-  previewField.className = "preview-cleanup-field";
-  const previewHeading = strongText("预览结果");
-  const previewResult = document.createElement("div");
-  previewResult.className = "preview-cleanup-result";
-  previewResult.textContent = "先选择清理方式和目标，再预览实际改动。";
-  previewField.append(previewHeading, previewResult);
-  const confirmation = document.createElement("label");
-  confirmation.className = "preview-cleanup-confirm";
-  confirmation.hidden = true;
-  const confirmationInput = document.createElement("input");
-  confirmationInput.type = "checkbox";
-  const confirmationText = document.createElement("span");
-  confirmationText.textContent = "我已核对预览，确认放弃未提交改动和未跟踪文件。";
-  confirmation.append(confirmationInput, confirmationText);
-  content.append(intro, modeField, targetsField, rulesField, previewField, confirmation);
-
-  const footer = document.createElement("footer");
-  const cancel = document.createElement("button");
-  cancel.type = "button";
-  cancel.textContent = "取消";
-  cancel.addEventListener("click", () => dialog.close());
-  const preview = document.createElement("button");
-  preview.type = "button";
-  preview.textContent = "预览";
-  const execute = document.createElement("button");
-  execute.type = "button";
-  execute.className = "is-primary";
-  execute.textContent = "清理";
-  execute.disabled = true;
-  footer.append(cancel, preview, execute);
-  shell.append(header, content, footer);
-  dialog.append(shell);
-  document.body.append(dialog);
-
-  const invalidatePreview = (): void => {
-    previewResult.replaceChildren(document.createTextNode("选择已变化，请重新预览。"));
-    confirmationInput.checked = false;
-    execute.disabled = true;
-  };
-  const renderTargets = (): void => {
-    targets.replaceChildren();
-    const candidates = mode.value === "rules"
-      ? [
-        ["ROOT_DIR", PREVIEW_AUTO_BUILD_SAMPLE.configuration.rootDirectory],
-        ["工作目录", PREVIEW_AUTO_BUILD_SAMPLE.configuration.workingDirectory],
-      ]
-      : mode.value === "git-force"
-        ? PREVIEW_AUTO_BUILD_SAMPLE.repositories.map(({ name, path }) => [name, path])
-        : PREVIEW_AUTO_BUILD_SAMPLE.repositories
-          .filter(({ operations }) => operations.some(({ id, enabled }) => id === "cmake" && enabled))
-          .map(({ name, path }) => [name, `${path}/build`]);
-    candidates.forEach(([label, targetPath], index) => {
-      const target = document.createElement("label");
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.checked = index === 0;
-      checkbox.dataset.cleanupPath = targetPath;
-      checkbox.addEventListener("change", invalidatePreview);
-      const copy = document.createElement("span");
-      copy.append(strongText(label), smallText(targetPath));
-      target.append(checkbox, copy);
-      targets.append(target);
-    });
-    rulesField.hidden = mode.value !== "rules";
-    confirmation.hidden = mode.value !== "git-force";
-    execute.textContent = mode.value === "git-force" ? "强制清理" : "清理";
-    invalidatePreview();
-  };
-  mode.addEventListener("change", renderTargets);
-  rules.addEventListener("input", () => {
-    autoBuildState = reducePreviewAutoBuildState(autoBuildState, {
-      type: "setCleanupPatternsYaml",
-      value: rules.value,
-    }).state;
-    invalidatePreview();
-  });
-  confirmationInput.addEventListener("change", () => {
-    execute.disabled = !confirmationInput.checked;
-  });
-  preview.addEventListener("click", () => {
-    const selected = Array.from(targets.querySelectorAll<HTMLInputElement>("input:checked"))
-      .map((input) => input.dataset.cleanupPath ?? "")
-      .filter(Boolean);
-    previewResult.replaceChildren();
-    if (!selected.length) {
-      previewResult.textContent = "至少选择一个清理目标。";
-      return;
-    }
-    const summary = document.createElement("strong");
-    const list = document.createElement("ol");
-    const entries = mode.value === "rules"
-      ? selected.flatMap((targetPath) => [`${targetPath}/objects`, `${targetPath}/build`, `${targetPath}/module.obj`])
-      : mode.value === "git-force"
-        ? selected.map((targetPath) => `${targetPath} · reset --hard HEAD + clean -ffdx`)
-        : selected;
-    summary.textContent = `${entries.length} 个待处理项`;
-    entries.forEach((entry) => {
-      const item = document.createElement("li");
-      item.textContent = entry;
-      list.append(item);
-    });
-    previewResult.append(summary, list);
-    confirmationInput.checked = false;
-    execute.disabled = mode.value === "git-force";
-    recordPreviewOutput(`[编译工具] 清理预览：${entries.length} 项（模拟）`);
-  });
-  execute.addEventListener("click", () => {
-    if (mode.value === "rules") {
-      commitAutoBuildTransition(reducePreviewAutoBuildState(autoBuildState, { type: "cleanRoot" }));
-    } else if (mode.value === "git-force") {
-      commitAutoBuildTransition(reducePreviewAutoBuildState(autoBuildState, { type: "cleanRepositories" }));
-    } else {
-      recordPreviewOutput("[编译工具] 已模拟清理 CMake 产物；未删除真实文件");
-    }
-    previewResult.textContent = "模拟清理完成；正式端会逐项输出结果。";
-    execute.disabled = true;
-  });
-  renderTargets();
-  previewResult.textContent = "先选择清理方式和目标，再预览实际改动。";
-  dialog.showModal();
+function openAutoBuildCleanupDialog(modeId: PreviewAutoBuildCleanupMode = "rules"): void {
+  previewAutoBuildCleanupSurface.open(modeId);
 }
 
 function openAutoBuildManifestImportDialog(): void {
@@ -2010,6 +1873,7 @@ function closeItem(itemId: string): void {
   if (!closing) return;
   const closingActiveSurface = activeSurfaceToolId === closing.toolId;
   openItems = openItems.filter((candidate) => candidate.id !== itemId);
+  if (closing.toolId === "packageIncludes" && !openItems.some((candidate) => candidate.toolId === closing.toolId)) releasePreviewPackageSurface();
   mruItemIds = removeMruItem(mruItemIds, itemId);
   surfaceMruToolIds = surfaceMruToolIds.filter((candidate) => candidate !== closing.toolId);
   if (activeNavigatorToolId === closing.toolId) activeNavigatorToolId = latestOpenNavigatorToolId();
@@ -2034,6 +1898,7 @@ function closeOtherItems(itemId: string): void {
   const keep = openItems.find((candidate) => candidate.id === itemId);
   if (!keep) return;
   openItems = [keep];
+  if (keep.toolId !== "packageIncludes") releasePreviewPackageSurface();
   mruItemIds = [keep.id];
   surfaceMruToolIds = [keep.toolId];
   activeItemId = keep.id;
@@ -2113,6 +1978,8 @@ function defaultUtilitySelections(): Record<UtilityToolId, boolean[]> {
 }
 
 function resetVolatilePreviewState(): void {
+  releasePreviewPackageSurface();
+  previewAutoBuildCleanupSurface.close();
   autoBuildState = createDefaultPreviewAutoBuildState();
   utilitySelections = defaultUtilitySelections();
   previewOutputSequence = INITIAL_PREVIEW_OUTPUT_LINES.length;
@@ -2255,6 +2122,8 @@ function hideRibbonMenu(restoreFocus = false): void {
 }
 
 function renderEditor(): void {
+  if (isOpenTool("packageIncludes")) getPreviewPackageSurface();
+  renderRightViewContexts();
   const editorItems = openItems.filter((item) => item.kind === "right");
   const activeEditorTool = activeEditorId ? PREVIEW_TOOL_CATALOG_BY_ID[activeEditorId] : undefined;
   const activeRightPanelId = activeEditorTool
@@ -2284,6 +2153,21 @@ function renderEditor(): void {
     visible ||= show;
   });
   editorEmpty.hidden = visible;
+}
+
+/** Context belongs to the shown task/configuration, not the global directory selector. */
+function renderRightViewContexts(): void {
+  const contexts: Readonly<Record<string, string>> = {
+    projectRename: companionModel("projectRename").facts.find(({ id }) => id === "root")?.value ?? "",
+    packageIncludes: previewPackageSurface?.contextDirectory() ?? "",
+    autoBuild: PREVIEW_AUTO_BUILD_SAMPLE.configuration.workingDirectory,
+    codegen: previewCodegenSurface.contextDirectory(),
+  };
+  document.querySelectorAll<KtcRightViewShell>("ktc-right-view-shell[data-editor-panel]").forEach((shell) => {
+    const contextPath = contexts[shell.dataset.editorPanel ?? ""] ?? "";
+    // Preserve scroll/focus when the task context has not changed.
+    if (shell.model.contextPath !== contextPath) shell.model = { ...shell.model, contextPath };
+  });
 }
 
 function closeButton(label: string, action: () => void): HTMLButtonElement {

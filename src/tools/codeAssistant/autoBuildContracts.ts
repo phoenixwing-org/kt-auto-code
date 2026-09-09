@@ -1,4 +1,5 @@
 import { statSync } from "node:fs";
+import { ktcSelectCmakeBuildTypes, type KtcCmakeBuildType } from "./autoBuildNativePlan.js";
 import { ktcCanAccessAutoBuildPathOnHost, ktcIsAbsoluteAutoBuildPath, ktcJoinAutoBuildPath, ktcResolveAutoBuildPath, type KtcAutoBuildProjectRow } from "./autoBuildProjectTable.js";
 
 export interface KtcAutoBuildConfiguration {
@@ -20,6 +21,8 @@ export interface KtcAutoBuildConfiguration {
   /** Primary manual cleanup YAML. Missing in older schema-v2 files uses the safe current default. */
   rootCleanupYaml?: string;
   buildExecutionMode?: "sequential" | "parallel";
+  /** Project build profile, persisted in AutoBuild JSON; omitted legacy value means both. */
+  cmakeBuildTypes?: KtcCmakeBuildType[];
   repositorySnapshot?: {
     capturedAt: string;
     repositories: Array<{ role: string; path: string; branch: string; commit: string; origin: string; hasChanges?: boolean; error?: string }>;
@@ -65,7 +68,7 @@ export function ktcSelectAutoBuildProjects(configuration: KtcAutoBuildConfigurat
   };
 }
 
-export type KtcAutoBuildTaskStatus = "waiting" | "in_progress" | "done" | "error";
+export type KtcAutoBuildTaskStatus = "waiting" | "in_progress" | "done" | "error" | "skipped" | "cancelled";
 export interface KtcAutoBuildTaskChild { id: string; name: string; commandSummary: string; detail?: string; status: KtcAutoBuildTaskStatus; }
 export interface KtcAutoBuildTask { id: string; name: string; commandSummary: string; phase: "repository" | "link" | "export" | "cmake" | "caa"; path?: string; status: KtcAutoBuildTaskStatus; children?: KtcAutoBuildTaskChild[]; }
 
@@ -86,13 +89,13 @@ export function ktcPlanAutoBuildTasks(configuration: KtcAutoBuildConfiguration):
     }] : []),
   ];
   return [
-    { id: "repositories", name: "仓库预检与更新", commandSummary: `Invoke-AutoBuild.ps1 -SkipBuild${configuration.clean ? " -Clean" : ""}`, phase: "repository" as const, status: "waiting" as const, children: [
+    { id: "repositories", name: "仓库预检与更新", commandSummary: "TypeScript · Git 探测 / fetch / checkout / pull", phase: "repository" as const, status: "waiting" as const, children: [
       ...fixedRepositories,
       ...configuration.projects.filter((project) => project.enabled && project.operations.update).map((project) => ({ id: `repository-${project.id}`, name: `${project.name} · ${project.path}`, commandSummary: `更新到 ${project.branch}`, status: "waiting" as const })),
     ] },
     ...selected.linkCaaPaths.map((path, index) => ({ id: `link-caa-${index}`, name: `链接 CAA · ${path}`, commandSummary: "linkCAA.ps1", phase: "link" as const, path, status: "waiting" as const })),
     ...selected.cmakeProjectPaths.filter((path) => ktcCanAccessAutoBuildPathOnHost(path, process.platform) && ktcIsHostFile(ktcJoinAutoBuildPath(path, "export.ps1"), process.platform)).map((path, index) => ({ id: `export-${index}`, name: `Export · ${path}`, commandSummary: "export.ps1", phase: "export" as const, path, status: "waiting" as const })),
-    ...selected.cmakeProjectPaths.map((path, index) => ({ id: `cmake-${index}`, name: `CMake · ${path}`, commandSummary: "mk.ps1", phase: "cmake" as const, path, status: "waiting" as const })),
+    ...selected.cmakeProjectPaths.map((path, index) => ({ id: `cmake-${index}`, name: `CMake · ${path}`, commandSummary: `cmake · ${ktcSelectCmakeBuildTypes(configuration.cmakeBuildTypes).join(" + ")}`, phase: "cmake" as const, path, status: "waiting" as const })),
     ...selected.caaProjectPaths.map((path, index) => ({ id: `caa-${index}`, name: `CAA · ${path}`, commandSummary: "mk.ps1", phase: "caa" as const, path, status: "waiting" as const })),
   ];
 }
@@ -214,6 +217,8 @@ export function ktcValidateAutoBuildConfiguration(configuration: KtcAutoBuildCon
   if (!configuration.rootBranch.trim()) errors.push("Root 分支必须单独指定，不会自动选择分支。");
   if (!configuration.branch.trim()) errors.push("其他仓库分支不能为空。");
   if (!configuration.cmakeBranch.trim()) errors.push("CMake 仓库分支不能为空。");
+  if (configuration.projects.some((project) => project.enabled && project.operations.cmake)
+    && !ktcSelectCmakeBuildTypes(configuration.cmakeBuildTypes).length) errors.push("请至少选择一种 CMake 配置：Debug 或 Release。");
   let selected: KtcAutoBuildRuntimeSelection;
   try { selected = ktcSelectAutoBuildProjects(configuration); }
   catch (error) { errors.push(`项目路径无效：${error instanceof Error ? error.message : String(error)}`); return errors; }

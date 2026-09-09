@@ -1,4 +1,5 @@
 import type { KtcAutoBuildPrimaryViewModel } from "./autoBuildPrimaryContracts.js";
+import type { KtcPackageIncludesPrimaryViewModel } from "./packageIncludesPrimaryContracts.js";
 
 export const KTC_EDITOR_PRIMARY_COMPANION_TOOL_IDS = ["projectRename", "packageIncludes", "autoBuild"] as const;
 
@@ -100,6 +101,7 @@ export interface KtcEditorPrimaryCompanionSnapshot {
   /** Optional typed projection for a dedicated Primary renderer. */
   readonly primary?:
     | { readonly kind: "autoBuild"; readonly model: KtcAutoBuildPrimaryViewModel }
+    | { readonly kind: "packageIncludes"; readonly model: KtcPackageIncludesPrimaryViewModel }
     | { readonly kind: "projectRename"; readonly model: KtcProjectRenamePrimaryViewModel };
 }
 
@@ -111,4 +113,6 @@ export interface KtcEditorPrimaryCompanionActionToken {
   readonly actionId: string;
   /** Optional bounded UI value; the receiving tool remains responsible for validation. */
   readonly value?: string;
+  /** Optional structured UI value; the receiving tool must validate it before use. */
+  readonly payload?: unknown;
 }

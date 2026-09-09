@@ -11,18 +11,21 @@ describe("AutoBuild Primary panel architecture", () => {
     expect(source).toContain('"ktc-auto-build-primary-action"');
     expect(source).toContain("detail: { actionId");
     expect(source).toContain('textContent = "执行"');
-    expect(source).toContain('for (const id of ["openScript", "preflight", "start", "stop"])');
+    expect(source).toContain('for (const id of ["openScript", "preflight", "start", "stop", "openCleanup"])');
     expect(source.indexOf('this.configuration(model)')).toBeLessThan(source.indexOf('this.overview(model)'));
     expect(source.indexOf('this.overview(model)')).toBeLessThan(source.indexOf('this.maintenance(model)'));
     expect(source.indexOf('this.maintenance(model)')).toBeLessThan(source.indexOf('this.environment(model)'));
     expect(source).toContain('label.textContent = "当前配置"');
     expect(source).toContain('["openConfig", "saveConfig", "saveAsConfig", "closeConfig", "reveal"]');
+    expect(source).toContain("section.append(row, recentRow, statusRow)");
+    expect(source).toContain("max-width: 100%; flex-wrap: wrap");
+    expect(source).toContain("white-space: nowrap");
+    expect(source).not.toContain("KtcCreateAutoBuildConfigurationActionIcon");
     expect(source).not.toContain('textContent = "项目摘要"');
-    expect(source).toContain('repositoryCleanupLabel.textContent = "清理仓库"');
-    expect(source).toContain('cleanupTitle.textContent = "手动清理 Root"');
-    expect(source).toContain('this.actionButton(cleanupAction, model.ready, "清理")');
+    expect(source).not.toContain('textContent = "清理仓库"');
+    expect(source).not.toContain('textContent = "手动清理 Root"');
     expect(source).toContain('document.createTextNode("工程环境")');
-    expect(source).toContain('document.createTextNode("维护与清理")');
+    expect(source).toContain('document.createTextNode("维护")');
     expect(source).toContain("private environmentExpanded = true");
     expect(source).toContain("private maintenanceExpanded = true");
     expect(source).not.toContain("acquireVsCodeApi");
@@ -30,6 +33,7 @@ describe("AutoBuild Primary panel architecture", () => {
     expect(source).not.toMatch(/from ["'](?:vscode|node:fs|node:fs\/promises)["']/u);
     expect(source).not.toMatch(/\b(?:unlink|rm|rmdir|writeFile|copyFile)\s*\(/u);
     expect(entry).toContain("KtcDefineAutoBuildPrimaryPanel()");
+    expect(entry).toContain("pnwCodeDefineCleanupDialog()");
     expect(build).toContain('entryPoints: ["src/tools/codeAssistant/KtcAutoBuildPrimaryPanelEntry.ts"]');
     expect(build).toContain('outfile: "dist/ktc-auto-build-primary-panel.js"');
     expect(artifactVerifier).toContain('readText(zip, "extension/dist/ktc-auto-build-primary-panel.js")');
@@ -50,5 +54,19 @@ describe("AutoBuild Primary panel architecture", () => {
     expect(controller).toContain('type: "requestConfiguration"');
     expect(controller).toContain("this.runExecutionAction(");
     expect(controller).not.toContain("ktc-system-output-block");
+  });
+
+  it("Preview 配置区域使用紧凑文字按钮，状态位于最近配置下方，不改变整个 Preview 实现", () => {
+    const source = readFileSync(new URL("../../../ui-preview/src/main.ts", import.meta.url), "utf8");
+    const start = source.indexOf("function createAutoBuildPrimary(");
+    const end = source.indexOf("function strongText(", start);
+    const primary = source.slice(start, end);
+    expect(primary).not.toContain("KtcCreateAutoBuildConfigurationActionIcon");
+    expect(primary).toContain('openConfig.textContent = "打开"');
+    expect(primary).toContain('reveal.textContent = "详细配置"');
+    expect(primary).toContain("configRegion.append(configBar, recentConfig, configStatus)");
+    expect(primary).toContain('[saveAsConfig, "saveAsConfig"]');
+    expect(primary).toContain('[closeConfig, "closeConfig"]');
+    expect(primary).not.toContain("configBar.append(configLabel, configName");
   });
 });

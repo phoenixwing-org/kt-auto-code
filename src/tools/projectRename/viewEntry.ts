@@ -17,7 +17,8 @@ declare function acquireVsCodeApi(): { postMessage(message: unknown): void };
 
 const vscode = acquireVsCodeApi();
 const rightShell = ktcRequiredElement<KtcRightViewShell>("right-shell");
-rightShell.model = { title: ktcRequireToolRegistration("projectRename").title };
+const rightShellTitle = ktcRequireToolRegistration("projectRename").title;
+rightShell.model = { title: rightShellTitle, contextPath: "" };
 let currentReportId: number | undefined;
 let nextOffset: number | undefined;
 let renderedRows = 0;
@@ -383,6 +384,7 @@ function ktcUpdateProfileSaveButton(): void {
 function ktcRenderState(state: KtcProjectRenameViewState): void {
   latestState = state;
   reportDirty = false;
+  rightShell.model = { title: rightShellTitle, contextPath: state.root ?? "" };
   sourceInput.value = state.sourceName;
   targetInput.value = state.targetName;
   sourcePrefixInput.value = state.sourcePrefix;

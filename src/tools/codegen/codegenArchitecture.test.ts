@@ -69,7 +69,7 @@ describe("Codegen MVC dependency boundary", () => {
   it("控制符源码导航在纯边界中校验当前预检 region", () => {
     const controller = source("./index.ts");
     const navigation = source("./controlNavigation.ts");
-    expect(controller).toContain("ktcFindCodegenControlLocation");
+    expect(controller).toContain("ktcFindCodegenSessionControlLocation");
     expect(navigation).not.toMatch(/from ["']vscode["']|showTextDocument|workspace\./);
     expect(navigation).toContain("plan.markerRegions.find");
     expect(navigation).toContain("plan.diagnostics.find");
@@ -259,13 +259,16 @@ describe("Codegen MVC dependency boundary", () => {
     expect(cacheWrite).toBeGreaterThan(0);
     expect(cancelAfterWrite).toBeGreaterThan(cacheWrite);
 
-    const publishPlan = controller.indexOf("session.setPreflight(result)");
+    const publishPlan = controller.indexOf("session.acceptPreflight(result, input.version)");
     const ownershipCheck = controller.lastIndexOf(
       "this.preflightTasks.get(session.identity.uri) !== cancellation",
       publishPlan,
     );
     expect(ownershipCheck).toBeGreaterThan(0);
     expect(publishPlan).toBeGreaterThan(ownershipCheck);
+    expect(controller).toContain("controller: input.controller");
+    expect(controller).toContain("cancellation.token.isCancellationRequested");
+    expect(controller).toContain("this.sessions.get(session.identity.uri) !== session");
   });
 
   it("源码扫描上限策略独立于 VS Code，避免静默截断", () => {

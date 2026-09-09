@@ -54,9 +54,10 @@ export function ktcProjectRenameViewHtml(webview: vscode.Webview, extensionUri: 
   details.section[open] > summary::before { transform: rotate(90deg); }
   details.section > summary:hover { background: var(--pnw-control-hover-bg, var(--vscode-list-hoverBackground)); }
   details.section > summary:focus-visible { outline: 2px solid var(--pnw-focus-ring, var(--vscode-focusBorder)); outline-offset: -2px; }
+  .section-title h2,.section-title .count { flex: none; }
   .section-title .count { color: var(--vscode-descriptionForeground); white-space: nowrap; }
-  .section-title .scope-note { overflow: hidden; color: var(--vscode-descriptionForeground); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-  .section-title-actions { display: inline-flex; min-width: 0; align-items: center; gap: 5px; }
+  .section-title .scope-note { min-width: 0; flex: 1 1 160px; overflow: hidden; color: var(--vscode-descriptionForeground); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+  .section-title-actions { display: inline-flex; min-width: 0; max-width: 100%; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 5px; margin-left: auto; flex-wrap: wrap; }
   .section-title-actions button,.profile-actions button { min-height: 24px; padding: 1px 7px; white-space: nowrap; }
   .header-history { display: inline-flex; min-width: 220px; max-width: 420px; flex: 1 1 280px; align-items: center; gap: 4px; margin-left: auto; }
   .header-history select { min-width: 120px; min-height: 24px; flex: 1 1 auto; width: auto; padding-top: 1px; padding-bottom: 1px; }

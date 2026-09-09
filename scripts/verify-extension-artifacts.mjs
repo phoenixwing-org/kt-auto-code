@@ -2,6 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { inflateRawSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
+import { verifyLocalWingReceipt } from "./local-wing-artifact-receipt.mjs";
+import { verifyRunCleanupBundleImplementations } from "./verify-local-wing-cleanup-runtime.mjs";
+import { verifyCodegenTableBundleCheckpointRuntime } from "./verify-codegen-checkpoint-runtime.mjs";
 import {
   createArtifactVerificationEvidence,
   readBuildProvenance,
@@ -11,6 +14,7 @@ import {
 } from "./release-artifact-provenance.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const localWing = process.argv.slice(2).includes("--local-wing");
 const codePackage = readPackage(path.join(root, "package.json"));
 const artifacts = [
   {
@@ -28,7 +32,10 @@ for (const artifact of artifacts) {
   const sha256 = sha256Bytes(archive);
   const artifactPath = path.relative(root, artifact.file).split(path.sep).join("/");
   readVerifiedSha256Sidecar(artifact.file, sha256);
-  const provenance = readBuildProvenance(artifact.file, {
+  const provenance = localWing ? verifyLocalWingReceipt(
+    JSON.parse(fs.readFileSync(artifact.file.replace(/\.vsix$/u, ".local-wing.json"), "utf8")),
+    { artifact: path.basename(artifact.file), version: artifact.expectedPackage.version, sha256, bytes },
+  ) : readBuildProvenance(artifact.file, {
     artifact: artifactPath,
     version: artifact.expectedPackage.version,
     sha256,
@@ -63,6 +70,10 @@ for (const artifact of artifacts) {
   }
   const manifest = JSON.parse(readText(zip, artifact.packagePath));
   const bundle = readText(zip, artifact.bundlePath);
+  verifyRunCleanupBundleImplementations(bundle, `${artifact.kind} VSIX`);
+  if (localWing && !bundle.includes(JSON.stringify(provenance.wingRoot))) {
+    throw new Error("Local Wing VSIX does not match the receipt's bundled Wing source");
+  }
   assertEqual(manifest.name, artifact.expectedPackage.name, `${artifact.kind} VSIX name`);
   assertEqual(manifest.version, artifact.expectedPackage.version, `${artifact.kind} VSIX version`);
   if (/element-plus|node-sqlite3-wasm|@phoenix-wing\/cad-rust-source/u.test(bundle)) {
@@ -79,7 +90,11 @@ for (const artifact of artifacts) {
   if (/require\(["']@phoenix-wing\/(?:code-core|git-core|git-node|kt-codegen|run-core|run-node)["']\)/u.test(bundle)) {
       throw new Error("Code VSIX must bundle all Phoenix Wing Code/Git/Run dependencies");
     }
+    if (!bundle.includes("GetComboSelectNotification()") || bundle.includes("GetComboModifyNotification()")) {
+      throw new Error("Code VSIX CAA Combo generator must bind the selection notification, not the modify notification");
+    }
     const tableBundle = readText(zip, "extension/dist/codegen-table.js");
+    verifyCodegenTableBundleCheckpointRuntime(tableBundle, `${artifact.kind} VSIX Codegen table`);
     if (!tableBundle.includes("kt-codegen-table")) {
       throw new Error("Code VSIX is missing the KtCodegenTable custom element registration");
     }
@@ -211,11 +226,18 @@ for (const artifact of artifacts) {
       ["ktc-current-tool-region.js", ["ktc-current-tool-region", "ktc-current-tool-region-action"]],
       ["ktc-open-items-bar.js", ["ktc-open-items-bar", "ktc-open-items-bar-action"]],
       ["ktc-right-view-shell.js", ["ktc-right-view-shell"]],
+      ["ktc-package-includes-primary.js", ["ktc-package-includes-primary", "ktc-package-includes-primary-action", "ktc-ignore-policy-block", "ktc-ignore-policy-action"]],
       ["pnw-combo.js", ["pnw-combo", "pnw-combo-action", "全部清空"]],
     ];
     for (const [file, markers] of sharedUiBundles) {
       const sharedBundle = readText(zip, `extension/dist/${file}`);
-      if (markers.some((marker) => !sharedBundle.includes(marker))
+      // esbuild's default ASCII output may encode labels such as 全部清空 as Unicode escapes.
+      const hasMarker = (marker) => sharedBundle.includes(marker) || sharedBundle.includes(
+        marker.replace(/[^\x00-\x7f]/g, (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0").toUpperCase()}`),
+      ) || sharedBundle.includes(
+        marker.replace(/[^\x00-\x7f]/g, (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`),
+      );
+      if (markers.some((marker) => !hasMarker(marker))
           || sharedBundle.includes("acquireVsCodeApi")
           || sharedBundle.includes("postMessage")
           || sharedBundle.includes("workspace.fs")) {
@@ -284,7 +306,10 @@ for (const artifact of artifacts) {
   if (names.includes("extension/media/tools/cad-provider.svg")) {
     throw new Error("Code VSIX must not retain the removed standalone CAD provider icon");
   }
-  const evidence = createArtifactVerificationEvidence({
+  const evidence = localWing ? {
+    kind: "kt.auto-code.local-wing-artifact-verification", publishable: false,
+    artifact: artifactPath, version: artifact.expectedPackage.version, bytes, sha256, fileCount: names.length,
+  } : createArtifactVerificationEvidence({
     artifactKind: artifact.kind,
     artifact: artifactPath,
     version: artifact.expectedPackage.version,
@@ -294,7 +319,7 @@ for (const artifact of artifacts) {
     provenance,
   });
   process.stdout.write(`[verify] ${artifact.kind} VSIX: ${names.length} files, ${bytes} bytes passed\n`);
-  process.stdout.write(serializeArtifactVerificationEvidence(evidence));
+  process.stdout.write(localWing ? `${JSON.stringify(evidence, null, 2)}\n` : serializeArtifactVerificationEvidence(evidence));
 }
 
 function readPackage(filename) {

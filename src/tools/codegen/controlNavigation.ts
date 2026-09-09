@@ -1,4 +1,16 @@
 import type { KtCodegenPlan, KtCodegenMarkerRegion } from "@phoenix-wing/kt-codegen";
+import type { KtcCodegenDocumentModel } from "./documentModel.js";
+
+/** 已应用结果仅可只读导航；过期快照不能导航，更不能提升为 Apply 计划。 */
+export function ktcFindCodegenSessionControlLocation(
+  session: KtcCodegenDocumentModel | undefined,
+  path: unknown,
+  line: unknown,
+): KtcCodegenControlLocation | undefined {
+  const plan = session?.preflight?.plan
+    ?? (session?.preflightSnapshot?.state === "applied" ? session.preflightSnapshot.result.plan : undefined);
+  return ktcFindCodegenControlLocation(plan, path, line);
+}
 
 export interface KtcCodegenControlLocation {
   readonly path: string;

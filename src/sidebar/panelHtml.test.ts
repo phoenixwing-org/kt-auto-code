@@ -12,6 +12,52 @@ import {
 import { ktcNextReorderSelection } from "./reorderMembersPanelState.js";
 import { ktcRequireToolRegistration } from "../tools/toolRegistrationCatalog.js";
 import { KTC_EDITOR_PRIMARY_COMPANION_TOOL_IDS } from "../core/editorPrimaryCompanionContracts.js";
+import type { KtcRunCleanupProjection } from "../core/cleanupContracts.js";
+
+function runCleanupProjection(openRequestId = 1, revision = 1): KtcRunCleanupProjection {
+  return {
+    sessionId: "run-session", openRequestId, revision,
+    model: {
+      title: "Run 清理", modes: [{ id: "build", label: "build", risk: "high" }],
+      selectedModeId: "build", targets: [{ id: "workspace", label: "当前目录", path: "/workspace/project", selected: true }],
+      rulesVisible: false, rulesLabel: "规则", rulesYaml: "",
+      preview: { state: "idle", items: [] }, previewEnabled: true, executeEnabled: false,
+      previewLabel: "预览", executeLabel: "清理", cancelLabel: "取消", highRiskConfirmationLabel: "已确认",
+    },
+  };
+}
+
+function runCleanupBridgeHarness() {
+  const extensionUri = {
+    path: "/extension", with(change: { path: string }) { return { ...this, ...change }; },
+  } as unknown as Parameters<typeof getPanelHtml>[1];
+  const html = getPanelHtml({ cspSource: "test-webview",
+    asWebviewUri(uri: { path: string }) { return `test-webview:${uri.path}`; },
+  } as unknown as Parameters<typeof getPanelHtml>[0], extensionUri);
+  const start = html.indexOf("function renderRunCleanup(");
+  const end = html.indexOf("function renderGit(", start);
+  const body = html.match(/els\.runCleanupDialog\.addEventListener\("pnw-cleanup-dialog-action", \(event\) => \{([\s\S]*?)\n    \}\);/)?.[1];
+  expect(start).toBeGreaterThan(0);
+  expect(end).toBeGreaterThan(start);
+  expect(body).toBeTruthy();
+  const sent: unknown[] = [];
+  const opens: unknown[] = [];
+  let closed = 0;
+  const dialog = { model: undefined as unknown, showModal(mode: unknown) { opens.push(mode); }, close() { closed++; } };
+  const state = { workingContext: { resolvedDirectory: "/workspace/project" } };
+  const api = new Function("els", "vscode", "state", `
+    let runCleanupProjection;
+    let runCleanupOpenRequestKey = "";
+    let runCleanupCancelledRequestKey = "";
+    let runCleanupSuppressedSessionId = "";
+    ${html.slice(start, end)}
+    return { render: renderRunCleanup, event: (event) => {${body!}\n} };
+  `)({ runCleanupDialog: dialog }, { postMessage: (message: unknown) => sent.push(message) }, state) as {
+    render(projection: KtcRunCleanupProjection | undefined, directory: string): void;
+    event(event: { detail: unknown }): void;
+  };
+  return { html, api, sent, opens, dialog, state, closed: () => closed };
+}
 
 function panelElementAncestors(html: string, targetId: string): string[] | undefined {
   const start = html.indexOf('<div class="wrap">');
@@ -39,6 +85,115 @@ function panelElementAncestors(html: string, targetId: string): string[] | undef
 }
 
 describe("sidebar panel HTML", () => {
+  it("Git 仓库按钮明确登记已有仓库和重新发现语义，不冒充初始化或仅刷新摘要", () => {
+    const source = readFileSync(new URL("./panelHtml.ts", import.meta.url), "utf8");
+    expect(source).toContain('title="登记已有 Git 仓库" aria-label="登记已有 Git 仓库"');
+    expect(source).toContain('title="重新发现并刷新仓库" aria-label="重新发现并刷新仓库"');
+    expect(source).toContain('title="从我的仓库移除" aria-label="从我的仓库移除"');
+  });
+
+  it("Run Webview 初始化重放 openRequestId 0 仅更新 model，不弹出旧窗口", () => {
+    const { api, opens, sent, dialog } = runCleanupBridgeHarness();
+    const projection = runCleanupProjection(0, 8);
+    api.render(projection, "/workspace/project");
+    expect(dialog.model).toBe(projection.model);
+    expect(opens).toEqual([]);
+    api.render({ ...projection, revision: 9 }, "/workspace/project");
+    expect(opens).toEqual([]);
+    api.render(runCleanupProjection(1, 10), "/workspace/project");
+    expect(opens).toEqual([]);
+    api.event({ detail: { kind: "preview" } });
+    expect(sent).toEqual([]);
+    api.render({ ...runCleanupProjection(2, 11), sessionId: "explicit-new-session" }, "/workspace/project");
+    expect(opens).toEqual(["build"]);
+  });
+
+  it("Run 使用同一 Wing 弹窗，状态刷新不重开取消窗口，只有新打开请求才打开", () => {
+    const { html, api, sent, opens, dialog } = runCleanupBridgeHarness();
+    expect(html).toContain('<pnw-cleanup-dialog id="run-cleanup-dialog"></pnw-cleanup-dialog>');
+    const projection = runCleanupProjection();
+    api.render(projection, "/workspace/project");
+    const updated = { ...projection, revision: 2,
+      model: { ...projection.model, preview: { state: "ready" as const, token: "frozen", items: ["build"] } } };
+    api.render(updated, "/workspace/project");
+    expect(opens).toEqual(["build"]);
+    expect(dialog.model).toBe(updated.model);
+    api.event({ detail: { kind: "cancel" } });
+    api.render({ ...updated, revision: 3 }, "/workspace/project");
+    api.event({ detail: { kind: "execute", previewToken: "frozen" } });
+    expect(opens).toEqual(["build"]);
+    expect(sent).toEqual([{ type: "runAction", toolId: "run", action: "cleanupDialog",
+      sessionId: "run-session", revision: 2, payload: { kind: "cancel" } }]);
+    api.render(runCleanupProjection(2, 4), "/workspace/project");
+    api.render({ ...runCleanupProjection(2, 4), sessionId: "new-session" }, "/workspace/project");
+    expect(opens).toEqual(["build", "build", "build"]);
+  });
+
+  it("Run 只转发 preview/execute/cancel 且绑定当前 session/revision", () => {
+    const { api, sent } = runCleanupBridgeHarness();
+    api.render(runCleanupProjection(1, 8), "/workspace/project");
+    for (const detail of [
+      { kind: "change-mode", modeId: "objects" },
+      { kind: "toggle-target", targetId: "workspace", selected: true },
+      { kind: "change-rules", rulesYaml: "ignored" },
+    ]) api.event({ detail });
+    const request = { modeId: "build", targetIds: ["workspace"], rulesYaml: "" };
+    api.event({ detail: { kind: "preview", request } });
+    api.render(runCleanupProjection(1, 9), "/workspace/project");
+    api.event({ detail: { kind: "execute", request, previewToken: "host-token" } });
+    expect(sent).toEqual([
+      { type: "runAction", toolId: "run", action: "cleanupDialog", sessionId: "run-session", revision: 8, payload: { kind: "preview", request } },
+      { type: "runAction", toolId: "run", action: "cleanupDialog", sessionId: "run-session", revision: 9, payload: { kind: "execute", request, previewToken: "host-token" } },
+    ]);
+  });
+
+  it("切换工作目录关闭并取消旧 Run 清理，重放旧状态或执行不会转用新目录", () => {
+    const { api, sent, opens, closed, state } = runCleanupBridgeHarness();
+    const projection = runCleanupProjection();
+    api.render(projection, "/workspace/project");
+    state.workingContext.resolvedDirectory = "/workspace/other";
+    api.render(projection, state.workingContext.resolvedDirectory);
+    api.render({ ...projection, revision: 2 }, state.workingContext.resolvedDirectory);
+    api.event({ detail: { kind: "execute", previewToken: "old-token" } });
+    expect(closed()).toBeGreaterThan(0);
+    expect(opens).toEqual(["build"]);
+    expect(sent).toEqual([{ type: "runAction", toolId: "run", action: "cleanupDialog",
+      sessionId: "run-session", revision: 1, payload: { kind: "cancel" } }]);
+    api.render(undefined, state.workingContext.resolvedDirectory);
+    api.event({ detail: { kind: "preview" } });
+    expect(sent).toHaveLength(1);
+  });
+
+  it("在新的目录状态尚未重绘时，也拒绝转发旧 Run 清理 execute", () => {
+    const { api, sent, state } = runCleanupBridgeHarness();
+    api.render(runCleanupProjection(), "/workspace/project");
+    state.workingContext.resolvedDirectory = "/workspace/other";
+    api.event({ detail: { kind: "execute", previewToken: "old-token" } });
+    expect(sent).toEqual([{ type: "runAction", toolId: "run", action: "cleanupDialog",
+      sessionId: "run-session", revision: 1, payload: { kind: "cancel" } }]);
+  });
+
+  it("清理弹窗 cancel 通过正式消息桥到达 Host，局部模式编辑不发送执行请求", () => {
+    const extensionUri = {
+      path: "/extension",
+      with(change: { path: string }) { return { ...this, ...change }; },
+    } as unknown as Parameters<typeof getPanelHtml>[1];
+    const html = getPanelHtml({ cspSource: "test-webview",
+      asWebviewUri(uri: { path: string }) { return `test-webview:${uri.path}`; },
+    } as unknown as Parameters<typeof getPanelHtml>[0], extensionUri);
+    const body = html.match(/els\.autoBuildCleanupDialog\.addEventListener\("pnw-cleanup-dialog-action", \(event\) => \{([\s\S]*?)\n    \}\);/)?.[1];
+    expect(body).toBeTruthy();
+    const companion = { toolId: "autoBuild", sessionId: "current" };
+    const sent: unknown[] = [];
+    const listener = new Function("state", "postAutoBuildCleanupAction",
+      `return (event) => {${body!}\n};`,
+    )({ toolStates: { autoBuild: { editorCompanion: companion } } },
+      (owner: unknown, payload: unknown) => sent.push({ owner, payload })) as (event: { detail: unknown }) => void;
+    listener({ detail: { kind: "cancel" } });
+    listener({ detail: { kind: "change-mode", modeId: "git-force" } });
+    expect(sent).toEqual([{ owner: companion, payload: { kind: "cancel" } }]);
+  });
+
   it("由统一契约判定三个 Editor Primary companion", () => {
     const extensionUri = {
       path: "/extension",
@@ -133,7 +288,7 @@ describe("sidebar panel HTML", () => {
   it("Git 状态尚未到达时也渲染空状态按钮，并只请求一次刷新", () => {
     expect(ktcGitPanelModel(undefined, true)).toMatchObject({
       projects: [],
-      statusText: "当前工作区未发现 Git 仓库。",
+      statusText: "请选择 Git 仓库。",
       workspaceFolderCount: 1,
       workspaceRepositoryCount: 0,
       discovery: { status: "idle" },
@@ -149,11 +304,18 @@ describe("sidebar panel HTML", () => {
 
   it("与 Desk Tools 共用自动代码名称和 Operation 图标语义", () => {
     const source = readFileSync(new URL("./panelHtml.ts", import.meta.url), "utf8");
+    const provider = readFileSync(new URL("./sidebarViewProvider.ts", import.meta.url), "utf8");
+    const codegen = readFileSync(new URL("../tools/codegen/index.ts", import.meta.url), "utf8");
     const icon = readFileSync(new URL("../../media/tools/codegen.svg", import.meta.url), "utf8");
 
     expect(ktcRequireToolRegistration("codegen").shortTitle).toBe("自动代码");
+    expect(ktcRequireToolRegistration("codegen").icon).toBe("sliders");
     expect(source).not.toContain('codegen: "自动代码"');
     expect(source).not.toContain('codegen: "生成"');
+    expect(codegen).toContain('const CODEGEN_TOOL_ICON = "media/tools/codegen.svg"');
+    expect(codegen).toContain("icon: CODEGEN_TOOL_ICON");
+    expect(provider).toContain('model.summary.icon?.startsWith("media/")');
+    expect(source).toContain('t.icon && t.icon.includes(":")');
     expect(icon).toContain('viewBox="0 0 1024 1024"');
     expect(icon).toContain("M389.44 768a96.064 96.064");
     expect(icon).not.toContain("M4 3h16");
@@ -209,15 +371,33 @@ describe("sidebar panel HTML", () => {
     expect(html).not.toContain('id="project-rename-primary-clear-schemes"');
     expect(html).toContain('model.rootName + " @ " + model.rootParent');
     expect(html).not.toContain('<div class="project-rename-primary-directory"><strong>分析目录</strong>');
+    expect(html.indexOf('id="project-rename-primary-root"')).toBeGreaterThan(html.indexOf('id="project-rename-primary-summary"'));
+    expect(html).toContain('els.projectRenamePrimaryChoose.hidden = Boolean(model.root)');
+    expect(html).toContain('#project-rename-primary-choose[hidden] { display: none; }');
+    expect(html).toContain('当前任务目录已固定；如需更换，请关闭右侧视图后重新打开。');
+    expect(html).toContain('请选择本次任务目录；选择后固定。');
+    expect(html).toContain('<ktc-package-includes-primary id="package-includes-primary" hidden>');
+    expect(html).toContain('dist/ktc-package-includes-primary.js');
+    expect(html).toContain('function renderPackageIncludesPrimary(ts)');
+    expect(html).toContain('revision: companion.revision');
+    expect(html).toContain('"ktc-package-includes-primary-action"');
+    expect(html).toContain('els.packageIncludesPrimary.addEventListener("ktc-ignore-policy-action", postIgnorePolicyAction)');
     expect(html).toContain('postProjectRenamePrimaryAction(model, "deleteScheme", detail.itemId)');
     expect(html).toContain('postProjectRenamePrimaryAction(model, "clearSchemes")');
     expect(html).toContain("dist/pnw-combo.js");
     expect(html).toContain('id="auto-build-primary-panel"');
+    expect(html).toContain('<pnw-cleanup-dialog id="auto-build-cleanup-dialog"></pnw-cleanup-dialog>');
     expect(html).toContain("ktc-auto-build-primary-panel.js");
     expect(html).toContain('function renderEditorCompanion(ts)');
     expect(html).toContain('function renderAutoBuildPrimary(ts)');
     expect(html).toContain('companion?.primary?.kind === "autoBuild"');
     expect(html).toContain('"ktc-auto-build-primary-action"');
+    expect(html).toContain('actionId === "openCleanup"');
+    expect(html).toContain('actionId: "cleanupDialog"');
+    expect(html).toContain('"pnw-cleanup-dialog-action"');
+    expect(html).toContain('detail.kind !== "preview" && detail.kind !== "execute" && detail.kind !== "cancel"');
+    expect(html).toContain('payload,');
+    expect(html).toContain('showModal(selectedModeId)');
     expect(html).toContain("event.detail.value.slice(0, 4096)");
     expect(html).toContain('els.editorCompanionStatus.textContent = editorCompanionStatusText(model)');
     expect(html).toContain('type: "editorCompanionAction"');
@@ -384,6 +564,7 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('id="git-repository-add"');
     expect(html).toContain('id="git-repository-refresh"');
     expect(html).toContain('id="git-repository-remove"');
+    expect(html).toContain('.git-repository-action[hidden] { display: none; }');
     expect(html).toContain('els.workspaceMeta.hidden = !git');
     expect(html).toContain('els.workspaceContextLabel.textContent = "仓库："');
     expect(html).toContain('els.workspace.hidden = true');
@@ -446,15 +627,15 @@ describe("sidebar panel HTML", () => {
     expect(html).not.toContain('id="btn-toggle-working-context"');
     expect(html).not.toContain('class="shell-block-chevron"');
     expect(html).toContain('id="replace-ignore-summary"');
-    expect(html).toContain('id="replace-ignore-builtin" type="checkbox" checked');
-    expect(html).toContain('id="replace-ignore-git" type="checkbox" checked');
-    expect(html).toContain('id="replace-ignore-custom-enabled" type="checkbox"');
-    expect(html).toContain('id="btn-toggle-replace-ignore"');
-    expect(html).toContain('id="btn-manage-replace-ignore"');
+    expect(html).toContain('<ktc-ignore-policy-block id="replace-ignore-summary"');
+    expect(html).toContain('els.replaceIgnoreSummary.addEventListener("ktc-ignore-policy-action", postIgnorePolicyAction)');
+    expect(html).toContain('builtInEnabled: context.builtInIgnoreEnabled !== false');
+    expect(html).toContain('gitEnabled: context.gitIgnoreEnabled !== false');
+    expect(html).toContain('customEnabled: context.customIgnoreEnabled === true');
     expect(html).toContain('type: "setIgnoreEnabled"');
     expect(html).toContain('type: "selectTool", toolId: "ignoreSettings"');
-    expect(html).toContain('type: "setIgnoreSourceEnabled", source: "builtIn"');
-    expect(html).toContain('停用后仍保留不可关闭的安全排除；规则正文统一在 Ignore 管理中修改。');
+    expect(html).toContain('type: "setIgnoreSourceEnabled", source: detail.source, enabled: detail.enabled');
+    expect(html).toContain('["builtIn", "git", "custom"].includes(detail.source)');
     expect(html).not.toContain('id="replace-ignore-custom-patterns"');
     expect(html).not.toContain('type: "savePrimaryCustomIgnore", patterns');
     expect(html).not.toContain('.shell-block.collapsed .shell-block-chevron');
@@ -742,6 +923,7 @@ describe("sidebar panel HTML", () => {
     expect(source).toContain('let toolbarProjectionSignature = "";');
     expect(renderBody).toContain("const toolbarProjection = {");
     expect(renderBody).toContain("const nextToolbarProjectionSignature = JSON.stringify(toolbarProjection);");
+    expect(toolbarProjection).toContain("codeAssistantGroupExpanded: isCodeAssistantGroupActive()");
     expect(toolbarProjection).not.toContain("toolStates");
     expect(toolbarProjection).not.toContain("workingContext");
     expect(toolbarShellSync).toBeGreaterThan(-1);

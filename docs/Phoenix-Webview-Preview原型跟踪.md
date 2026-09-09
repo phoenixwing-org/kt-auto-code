@@ -1,11 +1,23 @@
 # Phoenix Webview Preview 原型跟踪
 
-> 状态日期：2026-09-08
+> 状态日期：2026-09-09
 > 适用范围：KT Auto Code 内部 Webview UI 实验沙箱
 > 原型名称：**Phoenix Webview Preview**
-> 阶段状态：**Primary / Right 框架原型已归档并正式接入 v0.9.0；AutoBuild Preview 与正式代码已完成本轮同步，用户确认左右初步效果可以；本轮最终全量测试、本地 Wing、VSIX 制品和新的真实 Host / 主题 / 生命周期验收尚未完成**
+> 阶段状态：**四区外壳已归档；自动代码、头文件引用修正及 Git 已完成共享原型/正式接线。0.9.0 最新全量、Wing prepare、两个真实 EH 和内测 VSIX 门禁通过；人工验收另记，不扩大到 0.9.1。**
 
 本文是本轮 Primary + Right View 原型的单一讨论与验收记录。它先固定用户已经确认的方向，再记录仍在原型中或待决策的事项；“已确认”表示设计方向已确认，不表示代码、自动测试或真实 Extension Host 验收已经完成。
+
+## 当前增量与停止线（2026-09-09）
+
+- 自动代码 Primary / Right 已共用 Wing 表格、控制符结果及文档模型；原型只运行内存 fixture，不能代替正式写盘验收。正式端另补保存快照、同 URI 保存/重载队列、迟到回执与旧预检拒收；已应用结果可查看源码但不可复活旧计划。最新按钮为 Primary“全部应用”、Right“应用”。
+- Wing checkpoint 扩展与真实 Core / 已打包 Table JS 行为门禁已实现，验证保存期间新草稿不丢失。旧 Registry 缺少该能力时应拒绝制品；本地 Wing 内测与正式 Registry 发布保持分离，不能只凭 Preview 正常或来源 marker 宣称可发布。
+- 头文件 Primary 已从手写样例迁为正式/Preview 共用组件：首行按钮、Package/工程目录、默认展开 Ignore 和摘要保持已确认方向；typed 动作已接原 Controller。Right 只留预览/写入、摘要与修正表，完整警告/逐行定位仍在，不静默删除能力。Git 同样复用正式 Primary / Tree，空态简化、递归搜索/停止及默认 2 条 commit 的原型不再另造 DOM。
+- 新头文件服务烟测与回执门禁定向 2 文件 / 59 项通过；最终单仓 / Auto+CAD EH 均实际运行通过，隔离夹具覆盖双根 Ignore、旧源码拒绝、真实修正 2 文件 / 3 处与零命中复扫。
+- 头文件最后增量 `0f75037`：Primary 状态/摘要独立为“结果”Block；Right 保留顶部提示、删除重复标题/四统计，最右固定状态/操作列。打开按钮与行点击共用定位；成功后保留原表并标已写入，不自动重扫，异常待核对。浏览器已核对三行模拟写入回执与文字打开按钮；定向 56 项通过，正式人工写入另验。
+- 后续目录与关闭增量 `be4079e`：头文件新任务取当前目录，原型关闭后释放缓存；项目改名、编译工具、头文件最后一个 Right 关闭时移除对应 Primary/Open Item，保留 MRU/欢迎回退。正式自动代码按 JSON 管理，明确除外；其原型仍是既有单实例模拟，本次未扩展。正式目录同步两场景、状态/操作列及 Primary 样式已获用户确认，三视图关闭联动的手验另记。
+- 0.9.0 最新全量 1533 项通过，最终 prepare、两个真实 EH、新 VSIX / receipt / SHA-256 通过，见[内测说明](0.9.0-内测说明.md)。Git 空态/有效外部仓库、两条 commit 与更多 15 条已点检；主题、焦点和真实 Host 的未验项仍按清单记录。其余代码辅助 Primary 排入 [0.9.1](0.9.1-代码辅助Primary整改计划.md)。
+
+下文保留历史阶段的结论和证据；早期“仅 Preview / 尚未正式接线”、旧包哈希及旧停止线均应按本节理解，不作为最新候选验收。
 
 ## 0. 归档结论
 
@@ -29,6 +41,21 @@ Preview-first 不意味着两套实现。构建配置等业务区至少先复用
 正式实现形成可独立展示的阶段成果并通过对应自动门禁后，必须启动一次可见的 VS Code Extension Host 交给用户查看真实效果。这个阶段展示用于尽早暴露 VS Code 字体、缩放、主题、滚动和生命周期差异，不以后台 smoke 或 Preview 画面代替，也不自动表示用户已经验收。
 
 ## 1. 状态说明
+
+### 2026-09-09 包后 UI 增量
+
+- Run 原清理树保留三个直接执行快捷项，首行是“刷新 / 清理”文字按钮。“清理”默认 Git 未跟踪方式，复用 Wing 对话框；不显示 Run 额外风险勾选，但仍需先预览后点击清理。浏览器已点检模拟快捷项、预览、执行、关闭与日志，未删除真实文件。
+- AutoBuild 配置首行按最新确认使用“打开 / 保存 / 另存 / 关闭 / 详细配置”文字按钮；状态在最近配置 Combo 下。此前图标方案已被用户否决，不再作为金样；其他执行/维护按钮保留。
+- 头文件 Primary 原型采用“文字按钮 → 目录 → 默认展开 Ignore → 扫描摘要”，与搜索替换复用 `KtcIgnorePolicyBlock`；真实 Primary 迁移仍待 typed contract，见[独立计划](头文件引用修正Primary整改计划.md)。
+- `KtcRightViewShell` 的目录上下文与工具标题分开；默认显示 `name @ parent`，完整路径在悬停/无障碍说明中保留。不以全局目录替换已打开任务的路径；正式四个消费者同步接入并单独验证。
+- 项目改名 Primary 底部只读目录原型已获用户确认；正式迁移单列 TODO，不锁全局目录，不改 Primary `×` 语义。
+- Run 与上述已确认组件批次已阶段提交 `9e09d0c`。自动代码后续原型另行推进，不据此关闭整轮目标。
+- 自动代码 Right 已移除“选择模板 / Phoenix Web / CAA Command”占位，接入 Wing 参数表、控制符结果组件及 Auto 纯文档模型；Primary 与 Right 使用同一按 URI 管理的内存会话。预检、取消、Apply、JSON/CSV 输入、保存 checkpoint、重载、报告均有真实内存反馈；不会读写用户项目或系统剪贴板。
+- 自动代码新原型 18 项 DOM 测试通过，临时预览服务实际打包并返回 HTTP 200；随后已在浏览器执行内存预检并核对浅色选中行。仍不等于整页用户确认或真实 Host 的外部文件冲突、写盘、回滚、多 Editor 实例验收。
+- 用户随后截图确认参数表文字工具栏“好像可以的，辨识度提高”：`自适应 / 排序 / 复制 / 粘贴 / 插入 / 副本 / 上移 / 下移 / 删除`保留，原禁用态不变；其余 Right 区域仍单独验收。
+- 自动代码两处选中行按最新确认减少自定义配色：移除 Preview 专属深色覆盖，Wing 中路径、编号及状态徽标继承主题选中字色。浏览器浅色、深色、高对比截图已核对并恢复浅色；正式 `Visual Studio Light - C++` 主题仍待新 Host 人工验收，不按主题名称硬编码。
+- 以上包后变更不在已交付 SHA-256 `a162e52d20cf1c1750dddce691ea01e00a4e07d5352e96ed8ce9c696672d9fef` 的内测包中。最新 `pnpm ext:dev:prepare` 通过；`pnpm dev` 已发起新快照 `kt-auto-code-local-host-XzNWPZ` 的可见 Host，但查询窗口时 Mac 已锁定，人工验收未完成，也未重新制品。
+- 随后用户以正式界面截图确认自动代码 Primary JSON 行与 Right 预检结果行配色通过。本条仅收口该选中态问题；组外工具收起 Navigator、Git 原型/正式整改另行追踪，不混同验收。
 
 | 状态 | 含义 |
 | --- | --- |
@@ -55,7 +82,7 @@ Preview-first 不意味着两套实现。构建配置等业务区至少先复用
   pnpm ui:dev
   ```
 
-- `pnpm ui` 是日常最短入口，`pnpm ui:dev` 是便于脚本、文档和排障引用的显式入口。
+- `pnpm ui` 是日常最短入口，`pnpm ui:dev` 是便于脚本、文档和排障引用的显式入口。两者都强制从默认并列 `../phoenix-wing` 解析 Wing UI；worktree 使用该位置指向当前活动 Wing 检出，不静默回退到 Registry 旧包。
 - 原型只验证布局、视觉、交互状态、恢复和 Primary / Right View 联动；不调用真实 VS Code API，不执行文件修改、Git、进程或业务 Action。
 - 浏览器预览通过不等于正式 Webview、Extension Host、Windows CAA 或发布门禁通过。
 
@@ -375,21 +402,21 @@ AutoBuild 采用 `primary: full + optional right`。本轮先在浏览器验证�
 | --- | --- |
 | 当前配置条 | 放在 Current Tool 内容最前；显示当前配置或“未保存”，提供“打开 / 保存 / 另存 / 关闭 / 详细配置”，并在同一区块提供紧凑的最近配置选择 |
 | 执行（含运行概览） | 位于当前配置之后；固定为“脚本 → 预检配置 → 启动 → 停止”，其后是“并行编译”、当前状态、打开 Output 的入口及启用项目 / 任务 / 失败统计，不承载长日志。“脚本”复用正式既有脚本管理能力，Right Header 不保留重复入口 |
-| 维护与清理预览 | 默认展开但允许折叠；包含“脚本”同步摘要、独立的“清理仓库”按钮，以及“手动清理 Root”的结构化 YAML 输入和“清理”按钮。两个清理动作不同，Preview 均只模拟反馈、绝不删除文件 |
+| 维护与清理预览 | 已收敛：执行区以一个“清理”按钮打开 Wing 统一对话框，按方式承载规则清理、Git 强制恢复和 CMake 清理；维护区只保留脚本同步。Preview 均只模拟反馈、绝不删除文件 |
 | 工程环境摘要 | 放在 Primary 最后；只读显示平台、CAA / 工具链等已解析环境摘要，不在此完成详细探测配置 |
 
 本轮 AutoBuild 使用独立 `ui-preview/fixtures/auto-build.sample.json` 作为 Primary 与 Right 的唯一完整样例快照。该 JSON 固定一个已准备好的 `ready` 场景：配置、Root / 3rdParty / 项目、探测信息、任务、环境和维护数据首次渲染时就齐全，不演示从空态逐步加载。以后可直接修改该 JSON 驱动两侧的数据值、初始状态和点检数据；renderer 不再各自硬编码样例。DOM 结构、布局、动作语义和交互规则仍由代码定义，JSON 不承担页面 DSL 或业务实现职责。fixture 在进入原型状态前经过运行时 schema 校验；最终自动测试目标是覆盖 schema 版本、必填 / 未知字段、枚举与数量边界、重复稳定 ID，以及 Primary / Right 对同一输入的关键投影，当前显式负例缺口记录在第 11 节。它是 Preview-only 的安全数据，不得进入正式 Controller、build graph 或 VSIX，也不能作为正式数据正确性的证据。
 
 构建配置的当前原型不再另造一套字段布局：它至少按正式 Right 的控件类型与 `角色 / 目录 / 分支` 字段关系展示 Root、工作目录、3rdParty 和 CMake 项目语义，并继续由上述 fixture 提供已准备好的值。当前目标是“控件和关系与实际一致”；是否把行列进一步压缩或重排属于后续 Preview 研究，未确认前不改变正式 Right。
 
-本轮状态（2026-09-08）：Preview 已读取独立 ready JSON，Primary / Right 使用同一原型状态投影；正式 Primary、正式 Right 与 Controller 限定切片也已落地。用户已确认“左右效果初步可以”，因此本轮停止 AutoBuild 二次视觉细调；**该确认不替代明日新的真实 Extension Host 人工验收**。Primary 当前顺序为 `当前配置 → 执行（含运行概览）→ 维护与清理 → 工程环境`；Right 不显示第二个并行 checkbox。Primary 不显示“项目摘要”，维护与工程环境初始展开，工程环境固定为最后一个区块。
+本轮状态（2026-09-09）：Preview 已读取独立 ready JSON，Primary / Right 使用同一原型状态投影；正式 Primary、正式 Right 与 Controller 限定切片也已落地。用户已确认“左右效果初步可以”，因此本轮停止 AutoBuild 二次视觉细调；**该确认不替代新的真实 Extension Host 人工验收**。Primary 当前顺序为 `当前配置 → 执行（含运行概览与清理入口）→ 维护（脚本同步）→ 工程环境`；Right 不显示第二个并行 checkbox。Primary 不显示“项目摘要”，维护与工程环境初始展开，工程环境固定为最后一个区块。
 
 本轮明确点检的 Right 呈现候选是：
 
 - “构建配置”的 `更新 ROOT_DIR / 更新 3rdParty` 两个 checkbox 移入该 Block Header，点击 label 或 checkbox 不折叠 Block；
 - “项目表”与“库探测结果”仅在展示层合并为“项目与仓库”Block，“选择目录… / 探测当前目录 / 移除未启用项”位于 Header，“探测列”checkbox 控制 Commit / Origin / 状态列；Header 内动作点击不折叠 Block，正式 `projects` 与 `repositorySnapshot` 仍是两个领域结构；
 - “项目与仓库”的操作列固定在右侧，横向滚动时仍可达；探测 / 运行使用正式同款图标，并保留 `title`、`aria-label`、焦点与禁用态；
-- Right 删除可见的“运行前清理仓库”checkbox，Primary 维护区改为独立手动“清理仓库”按钮；Right Header 的“脚本”也移到 Primary 执行 actions 首位并删除重复入口；Right 的 Root 编排脚本状态 / 同步行已移除，唯一入口留在 Primary“维护与清理”；
+- Right 删除可见的“运行前清理仓库”checkbox；规则、Git 强制恢复和 CMake 清理统一由 Primary 执行区“清理”按钮打开 Wing 对话框，不再显示两个常驻清理块。Right Header 的“脚本”也移到 Primary 执行 actions 首位并删除重复入口；Right 的 Root 编排脚本状态 / 同步行已移除，唯一脚本同步入口留在 Primary“维护”；
 - 正式 Right 顶部旧配置工具栏中的“打开 JSON / 保存 / 另存为 / 最近配置 / path”重复呈现已强制隐藏；底层配置能力仍保留，既有脚本管理业务没有随工具栏清理而删除；
 - 除这些已由用户明确指出的呈现候选外，Preview Right 仍不作为正式 Right 的通用设计规范。
 
@@ -421,7 +448,7 @@ Right 中未被上方逐项确认的区域仍只作为结构占位，用于检�
 14. 项目选择、目录发现、探测及仓库快照等异步回包必须绑定当前 `documentId + draftRevision`；用户已修改配置、切换项目或重开 Right 时，旧回包直接丢弃，不能覆盖新表。
 15. 仓库清理确认必须展示解析后的实际 Git top-level 和精确 CMake build 动作，脚本执行时再次校验实际仓库根；手动 Root 清理绑定预览时的 Root / 文件身份快照。计划、确认和执行阶段均可被“停止”取消，迟到确认不得恢复删除。
 
-原“Root 编排脚本”状态 / 同步入口已改名为“脚本”，眉毛为“ROOT/tools 与 ROOT/sample 同步”，只保留在 Primary“维护与清理”；Right 对应行已清理。点击会直接新建或覆盖四个固定脚本 / 样例文件，原生 Output 每个目标记录一行“新建/替换”。该入口与已经从 Right Header 移除、用于打开脚本管理浮窗的通用“脚本”动作不是同一件事。
+原“Root 编排脚本”状态 / 同步入口已改名为“脚本”，眉毛为“ROOT/tools 与 ROOT/sample 同步”，只保留在 Primary“维护”；Right 对应行已清理。点击会直接新建或覆盖四个固定脚本 / 样例文件，原生 Output 每个目标记录一行“新建/替换”。该入口与已经从 Right Header 移除、用于打开脚本管理浮窗的通用“脚本”动作不是同一件事。
 
 正式脚本管理浮窗已改用 VS Code 主题 token 覆盖背景、文字、输入、边界、焦点、按钮、hover 与 disabled。代码级主题回归已补充，仍须在真实深 / 浅 / 高对比 Host 点检可读性；Preview 画面不能替代这项验收。
 
@@ -443,7 +470,7 @@ Right 中未出现在固定截图的条件式能力仍须保留：相关写法�
 
 正式融合点检（2026-09-08）：没有删除项目改名领域能力；只清理 Right 的重复目录、动作、总览、方案选择和安静完成提示。冻结报告已统一为分析实际使用的规范化规则，修复刚分析后 Diff 仍可能报命中数不一致；Git dirty / 状态不可检查改为风险 modal 后由用户显式继续；项目改名气泡及 modal 选择同步进入原生 KT Auto Code Output。完整删改表见[“项目改名”View 整改方案](./项目改名View整改方案.md#13-090-primary--right-融合与删改点检)。
 
-自动代码继续直接复用正式 `kt-codegen-primary-panel` 和固定 model。其顶部五个纯图标动作在 Preview 显示为“打开 / 导入 / 应用 / 刷新 / 扫描”，运行态显示“取消”；用户已确认短文本比图标清楚。JSON 配置、应用报告、控制符目录、候选、元数据字段和报告目录入口均已通过 DOM 点检，没有随标签替换丢失。
+自动代码继续直接复用正式 `kt-codegen-primary-panel` 和固定 model。顶部五个动作显示为“打开 / 导入 / 应用 / 刷新 / 扫描”，运行态显示“取消”；用户已确认短文本比图标清楚。2026-09-09 已把短文字与窄栏换行放入 Wing 共享组件，删除 Preview 私有 Shadow DOM 改文字补丁，正式 Host 与 Preview 使用同一实现。JSON 配置、应用报告、候选、元数据字段和报告目录入口有共享 DOM 事件测试；控制符目录已按 Wing 元数据提供完整 32 项（含旧兼容项），分组勾选和单项/可见输出有模拟反馈；初始全部“待预检”，不伪造源码命中。Right 仍是“选择模板 / 生成预览”的早期占位，与正式 JSON 参数表、预检、Apply、保存/重新加载尚未对齐；这些差异已记入《0.9.0 Wing 控件与自动代码整改目标》，不能把原型占位理解为正式功能。
 
 ### 4.12 搜索替换 Primary 原型融合
 
@@ -564,10 +591,12 @@ Primary 隐藏：Right View 填满工作台，无残留焦点或不可见状态
 
 ## 9. 阶段顺序与待确认
 
-### 9.1 已确认的后续阶段顺序
+### 9.1 早期已确认的阶段顺序（历史）
+
+本节保留 AutoBuild 切片当时的停止线；用户随后已授权自动代码、头文件和 Git 收尾，当前范围与 0.9.1 边界以文首为准。
 
 1. **当前 Host / Registry 外壳收口**：已完成本轮所需的必需 Primary、可选 Right、稳定 action token 和共享组件边界；其余 Registry Builder、多实例和生命周期仍是独立后续项。
-2. **编译工具限定切片**：已按 4.10 用独立 ready 样例 JSON 驱动 Preview Primary / Right，并把已确认布局同步到正式 Primary / Right / Controller。Primary 当前为 `当前配置 → 执行（含运行概览）→ 维护与清理 → 工程环境`，不显示项目摘要；Right 只做两个 Block Header、“项目与仓库”展示合并和固定操作列等点名改动，其他复杂业务保持原样。
+2. **编译工具限定切片**：已按 4.10 用独立 ready 样例 JSON 驱动 Preview Primary / Right，并把已确认布局同步到正式 Primary / Right / Controller。Primary 当前为 `当前配置 → 执行（含运行概览与清理入口）→ 维护（脚本同步）→ 工程环境`，不显示项目摘要；Right 只做两个 Block Header、“项目与仓库”展示合并和固定操作列等点名改动，其他复杂业务保持原样。
 3. **停止线**：用户已确认左右初步效果可以，本轮不继续 AutoBuild 二次细调。新的真实 Extension Host、主题和生命周期人工点检留到下一工作日；通过前不开始项目改名、搜索替换、头文件引用修正或其他 Right View。
 
 顺序是阶段门槛，不表示必须一次完成全部正式迁移。AutoBuild 当前是“实现已接线，本轮最终全量 / Wing / 制品和真实 Host 人工验收未完成”；其他工具没有因为本轮工作自动获得实施授权。以后新的大区域调整仍先回到 Preview 验证，再经明确确认同步正式 Host。
@@ -671,7 +700,7 @@ Primary 隐藏：Right View 填满工作台，无残留焦点或不可见状态
 - [x] 独立 `ui-preview/fixtures/auto-build.sample.json` 是 AutoBuild Preview 唯一完整 ready 样例；Primary / Right 的数据值与初始状态由这一个 JSON 驱动，不演示从无到有，结构与交互规则仍在代码中。
 - [x] fixture 进入状态前经过 exact-key runtime validator；现有测试覆盖正常冻结、修改输入驱动两侧投影、缺字段、额外字段和重复 repository id 拒绝。
 - [ ] validator 已实现 schemaVersion、枚举、数组上限及多类稳定 ID 检查，但错误 schemaVersion、非法枚举、数组边界以及重复 task / operation id 尚缺逐项负例测试，不能把“validator 有代码”写成测试已覆盖。
-- [x] Primary 按 `当前配置 → 执行（含运行概览）→ 维护与清理 → 工程环境` 四段排列；当前配置包含打开 / 保存 / 另存 / 关闭 / 详细配置 / 最近配置，Primary 不显示项目摘要，维护与工程环境初始展开。
+- [x] Primary 按 `当前配置 → 执行（含运行概览与清理入口）→ 维护（脚本同步）→ 工程环境` 四段排列；当前配置包含打开 / 保存 / 另存 / 关闭 / 详细配置 / 最近配置，Primary 不显示项目摘要，维护与工程环境初始展开。
 - [x] Primary 执行 actions 按 `脚本 → 预检配置 → 启动 → 停止` 排列，状态、并行选项、Output 和运行概览位于同一执行区；Right Header 没有重复“脚本”，两侧复用既有脚本管理逻辑。
 - [x] “构建配置”的 `更新 ROOT_DIR / 更新 3rdParty` 位于 Block Header，事件守卫阻止 checkbox / label 点击折叠 Block。
 - [x] Preview“构建配置”至少与正式 Right 使用相同控件类型及 `角色 / 目录 / 分支` 字段关系；是否进一步优化排列只登记为后续 Preview 研究，不在本轮改正式端。
@@ -740,6 +769,21 @@ Primary 隐藏：Right View 填满工作台，无残留焦点或不可见状态
 - 同一轮只读 Preview 点检确认四区、Right Shell 与 Preview 输出模拟仍可访问，浏览器 warning / error 日志为空。
 
 ## 12. 当前原型快照（不等同于验收）
+
+### 2026-09-09 包后 Run 清理原型与正式接线
+
+- Run 不再用静态占位示意清理：Preview 消费实际 `KtcRunPrimaryPanel` 与 Wing `pnw-cleanup-dialog`。首行采用“刷新 / 清理”文字按钮组、右侧保留“仅当前系统”；“清理”默认直达 Git 未跟踪方式，原 Git 树叶子移除但能力保留。三个产物清理快捷叶子恢复原树样式与无 secondary 文案，点击直接模拟清理、不弹确认。均不运行 Git 或删除文件。
+- 正式端使用同一组 browser-safe 模式契约和同款对话框；Host 执行独立 Wing TS API，递归与不 reset 语义不被 AutoBuild 的直属/强制模式覆盖。快捷树项内部冻结后立即执行、不询问；主动打开“清理”对话框先预览，再携 token 执行。按用户最新要求删除 Run 的额外风险勾选确认行，不删风险和目标清单，也不修改 AutoBuild 的默认确认。
+- 组件桥接覆盖旧 session/revision、取消、目录变化与 Webview 重载；init 重放状态没有再次开窗的授权。Root 路径与冻结快照由 Host 持有，Webview 不能提交任意目录或隐藏 YAML 扩大范围。
+- DOM 自动测试验证三个直接快捷项、首行按钮、方式直达、模拟执行、取消与目录切换；可见主题/布局/焦点点检仍需完成。现有 AutoBuild Preview 仍有手写清理弹窗，尚需后续收敛，不能声称两个原型已完全共用。
+- 本节是已交付 0.9.0 安全修订包之后的源码增量，不修改该包的验收记录与独立分发副本。阶段安全边界见 [Run 实现基线](运行模块/README.md#09-包后增量run-统一清理)。
+
+### 2026-09-09 内测前按钮与运行时对齐
+
+- 项目改名“结束任务”模拟按钮解除静态禁用并写 Output；正式 Host 仍保留自己的完成条件与日志。
+- 全局按钮反馈改为捕获阶段识别 composedPath，在语义日志未发生时补一条；覆盖 Shadow DOM、stopPropagation、点击后移除和禁用按钮，有日志的不重复。输出隐藏与重置也有明确记录。
+- AutoBuild 项目行增加“更新”图标，模拟明确只更新 Git；正式 Host 已接 TS。Primary 共享 CMake Debug/Release 控件与正式 JSON 配置对齐，旧配置默认两项。
+- 这些是交互回归与运行时接线，不代表每个业务按钮的真实副作用已人工点检；内测按[0.9.0 内测说明](0.9.0-内测说明.md)执行。
 
 - 原型中：`package.json` 已出现 `ui` / `ui:dev` 命令入口。
 - 原型中：页面已出现 Directory、Toolbar、Current Tool、Open Items 等候选结构和代表 fixture。

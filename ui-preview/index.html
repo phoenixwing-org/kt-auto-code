@@ -83,7 +83,7 @@
             <button class="is-primary" type="button">重新分析</button>
             <button type="button">预览差异…</button>
             <button type="button">执行改名</button>
-            <button type="button" disabled>结束任务</button>
+            <button type="button" title="结束任务（原型演示；正式插件需达到完成条件）">结束任务</button>
           </div>
           <div class="preview-editor-content preview-project-rename-right">
             <details class="preview-editor-section" open>
@@ -95,9 +95,9 @@
                   <tbody>
                     <tr><td></td><th scope="row">项目名</th><td><input value="PhoenixOpenIssue" aria-label="原来的项目名" /></td><td><input value="PhoenixIssue" aria-label="目标项目名" /></td><td></td></tr>
                     <tr><td></td><th scope="row">前缀</th><td><input value="PNX" aria-label="原来的前缀" /></td><td><input value="PHX" aria-label="目标前缀" /></td><td></td></tr>
-                    <tr><td><input type="checkbox" checked aria-label="启用 Display 规则" /></td><th scope="row">Display</th><td><input value="Phoenix Open Issue" aria-label="Display 原值" /></td><td><input value="Phoenix Issue" aria-label="Display 目标值" /></td><td><button type="button" disabled aria-label="删除 Display 规则">×</button></td></tr>
-                    <tr><td><input type="checkbox" checked aria-label="启用 kebab-case 规则" /></td><th scope="row">kebab-case</th><td><input value="phoenix-open-issue" aria-label="kebab-case 原值" /></td><td><input value="phoenix-issue" aria-label="kebab-case 目标值" /></td><td><button type="button" disabled aria-label="删除 kebab-case 规则">×</button></td></tr>
-                    <tr><td><input type="checkbox" checked aria-label="启用 PascalCase 规则" /></td><th scope="row">PascalCase</th><td><input value="PhoenixOpenIssue" aria-label="PascalCase 原值" /></td><td><input value="PhoenixIssue" aria-label="PascalCase 目标值" /></td><td><button type="button" disabled aria-label="删除 PascalCase 规则">×</button></td></tr>
+                    <tr><td><input type="checkbox" checked aria-label="启用 Display 规则" /></td><th scope="row">Display</th><td><input value="Phoenix Open Issue" aria-label="Display 原值" /></td><td><input value="Phoenix Issue" aria-label="Display 目标值" /></td><td><button type="button" aria-label="删除 Display 规则">×</button></td></tr>
+                    <tr><td><input type="checkbox" checked aria-label="启用 kebab-case 规则" /></td><th scope="row">kebab-case</th><td><input value="phoenix-open-issue" aria-label="kebab-case 原值" /></td><td><input value="phoenix-issue" aria-label="kebab-case 目标值" /></td><td><button type="button" aria-label="删除 kebab-case 规则">×</button></td></tr>
+                    <tr><td><input type="checkbox" checked aria-label="启用 PascalCase 规则" /></td><th scope="row">PascalCase</th><td><input value="PhoenixOpenIssue" aria-label="PascalCase 原值" /></td><td><input value="PhoenixIssue" aria-label="PascalCase 目标值" /></td><td><button type="button" aria-label="删除 PascalCase 规则">×</button></td></tr>
                   </tbody>
                 </table>
               </div>
@@ -112,8 +112,8 @@
         </ktc-right-view-shell>
 
         <ktc-right-view-shell class="preview-editor-panel" data-editor-panel="packageIncludes" hidden>
-          <div class="preview-editor-actions" slot="actions"><button type="button">工程环境</button><button class="is-primary" type="button">预览</button></div>
-          <div class="preview-editor-content preview-editor-content-fill"><div class="preview-empty-editor"><svg aria-hidden="true"><use href="#preview-icon-file-code"></use></svg><strong>Right View 原型</strong><span>这里只验证布局、标签恢复和 Primary 联动。</span></div></div>
+          <div class="preview-editor-actions" slot="actions" data-package-right-actions></div>
+          <div class="preview-editor-content" data-package-right-content></div>
         </ktc-right-view-shell>
 
         <ktc-right-view-shell class="preview-editor-panel" data-editor-panel="autoBuild" hidden>
@@ -179,15 +179,8 @@
         </ktc-right-view-shell>
 
         <ktc-right-view-shell class="preview-editor-panel" data-editor-panel="codegen" hidden>
-          <div class="preview-editor-actions" slot="actions"><button type="button">选择模板</button><button class="is-primary" type="button">生成预览</button></div>
-          <div class="preview-editor-content">
-            <div class="preview-build-layout">
-              <section><h3>生成器</h3><button class="preview-build-target is-selected" type="button">Phoenix Web <span>Vue</span></button><button class="preview-build-target" type="button">CAA Command <span>C++</span></button></section>
-              <pre aria-label="生成结果预览">[preview] 尚未写入文件
-[template] Phoenix Web
-[target] src/modules/sample</pre>
-            </div>
-          </div>
+          <div class="preview-editor-actions" slot="actions" data-codegen-right-actions></div>
+          <div data-codegen-right-content></div>
         </ktc-right-view-shell>
 
         <section class="preview-editor-empty" data-editor-empty hidden>

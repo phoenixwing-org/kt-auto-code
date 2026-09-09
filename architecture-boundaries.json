@@ -51,6 +51,9 @@
     "localStorage"
   ],
   "viewRoots": [
+    "src/ui/KtcPackageIncludesPrimary.ts",
+    "src/ui/KtcPackageIncludesPrimaryEntry.ts",
+    "src/ui/KtcIgnorePolicyBlock.ts",
     "src/sidebar/panelHtml.ts",
     "src/tools/codegen/editorHtml.ts",
     "src/tools/codegen/editorViewController.ts",

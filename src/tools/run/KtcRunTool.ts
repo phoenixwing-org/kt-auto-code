@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import type { KtTool, ToolPanelModel, ToolRunContext, WebviewInboundMessage } from "../types.js";
 import { KtcRunController, type KtcRunActionMessage } from "./KtcRunController.js";
+import { KtcParseRunCleanupPayload } from "./KtcRunCleanup.js";
 
 const KtcController = new KtcRunController();
 
@@ -35,13 +36,21 @@ export const KtcRunTool: KtTool = {
   runAction(_action: string, ctx: ToolRunContext): Promise<void> {
     return KtcController.refresh(ctx);
   },
+
+  clearSession(): void { KtcController.clearSession(); },
 };
 
 export function KtcParseRunAction(message: unknown): KtcRunActionMessage | undefined {
   if (!message || typeof message !== "object") return undefined;
   const candidate = message as Record<string, unknown>;
   if (candidate.type !== "runAction" || candidate.toolId !== "run" || typeof candidate.action !== "string") return undefined;
-  if (["refresh", "openOutput", "openProblems", "openTerminal", "cleanBuild", "cleanObjects", "cleanObj", "cleanGitUntracked"].includes(candidate.action)) {
+  if (candidate.action === "cleanupDialog") {
+    const payload = KtcParseRunCleanupPayload(candidate.payload);
+    if (!payload || typeof candidate.sessionId !== "string" || candidate.sessionId.length > 128
+      || !Number.isSafeInteger(candidate.revision) || (candidate.revision as number) < 0) return undefined;
+    return { action: "cleanupDialog", sessionId: candidate.sessionId, revision: candidate.revision as number, payload };
+  }
+  if (["refresh", "openOutput", "openProblems", "openTerminal", "openCleanup", "cleanBuild", "cleanObjects", "cleanObj", "cleanGitUntracked"].includes(candidate.action)) {
     return candidate as unknown as KtcRunActionMessage;
   }
   if ((candidate.action === "runTarget" || candidate.action === "dryRunTarget" || candidate.action === "openSource")

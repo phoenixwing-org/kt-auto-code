@@ -701,12 +701,13 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "@types/vscode": "1.85.0",
+    "@vscode/vsce": "^3.2.1",
+    "esbuild": "^0.28.0",
+    "happy-dom": "15.11.7",
     "tsx": "^4.19.3",
     "typescript": "~5.7.2",
-    "vitest": "^4.1.9",
-    "@types/vscode": "1.85.0",
-    "esbuild": "^0.28.0",
-    "@vscode/vsce": "^3.2.1"
+    "vitest": "^4.1.9"
   },
   "packageManager": "pnpm@10.15.1"
 }

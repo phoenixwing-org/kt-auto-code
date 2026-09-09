@@ -2,6 +2,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
+import { verifyCodegenCoreCheckpointRuntime } from "./verify-codegen-checkpoint-runtime.mjs";
 
 const RECOVERY_BLOCKS = Object.freeze([
   "CMD ACTION FIA",
@@ -39,7 +40,10 @@ export async function verifyLocalWingMarkerRuntime(wingRoot) {
     "PNXBomAnalysis 反例夹具",
   );
   const runtimeUrl = `${pathToFileURL(entry).href}?markerBoundaryCheck=${Date.now()}`;
-  const { KtCodegenController } = await import(runtimeUrl);
+  const runtime = await import(runtimeUrl);
+  verifyCodegenCoreCheckpointRuntime(runtime, "本地 Wing Codegen dist");
+  console.log("[local-wing] Codegen 保存快照自检通过：新草稿保留、revision 推进、checkpoint 精确还原");
+  const { KtCodegenController } = runtime;
   const controller = new KtCodegenController();
   const loaded = controller.readJson(readFileSync(jsonPath, "utf8"));
   if (!loaded.ok) {

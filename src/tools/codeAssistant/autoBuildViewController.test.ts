@@ -17,7 +17,7 @@ afterEach(() => { for (const value of created.splice(0)) rmSync(value, { recursi
 describe("Auto Build View contract", () => {
   it("wires JSON round-trip, recent files, immediate button status and Wing blocks", () => {
     const source = readFileSync(new URL("./autoBuildViewController.ts", import.meta.url), "utf8");
-    for (const marker of ["showOpenDialog", "showSaveDialog", "RECENT_KEY", "schemaVersion", "正在预检…", "正在启动…", "action received", "ktc-right-view-shell.js", "auto-build-view.js", '"scripts", "auto-build", "Invoke-AutoBuild.ps1"', "writeScript", "ktcCreateRepositoryCheckoutScript", "probedPaths.has", "vscode.Uri.file(target).toString()", "platform: process.platform", "运行仍会尝试现有链路", "Windows PowerShell 5.1 与 CAA/MSVC 实际构建", "ktcCanAccessAutoBuildPathOnHost", "ktcIsAutoBuildFilesystemRoot", "当前配置使用 Windows 路径，请选择本机 PS1 保存位置", "不是本机原生绝对路径，未执行同步", "不是本机绝对路径，未执行 Root 清理", "不允许在文件系统根目录执行 Root 清理", "不是本机原生绝对路径，未执行目录扫描", "不是本机原生绝对路径，未执行 Git 更新", "未访问 Windows 项目路径", "当前系统未访问该路径", "配置文件是 Windows 路径", "Windows 实际执行仅接受盘符绝对路径或 UNC 共享根路径", "已取消导出，未写入文件"]) expect(source).toContain(marker);
+    for (const marker of ["showOpenDialog", "showSaveDialog", "RECENT_KEY", "schemaVersion", "正在预检…", "正在启动…", "action received", "ktc-right-view-shell.js", "auto-build-view.js", '"scripts", "auto-build", "Invoke-AutoBuild.ps1"', "writeScript", "ktcCreateRepositoryCheckoutScript", "probedPaths.has", "vscode.Uri.file(target).toString()", "platform: process.platform", "运行仍会尝试现有链路", "Windows PowerShell 5.1 与 CAA/MSVC 实际构建", "ktcCanAccessAutoBuildPathOnHost", "ktcIsAutoBuildFilesystemRoot", "当前配置使用 Windows 路径，请选择本机 PS1 保存位置", "不是本机原生绝对路径，未执行同步", "不是本机原生绝对路径，未执行目录扫描", "未访问 Windows 项目路径", "当前系统未访问该路径", "配置文件是 Windows 路径", "Windows 实际执行仅接受盘符绝对路径或 UNC 共享根路径", "已取消导出，未写入文件"]) expect(source).toContain(marker);
     expect(source).toContain('<ktc-right-view-shell id="autoBuildRightShell">');
     expect(source).toContain('id="autoBuildHeaderActions" class="header-actions" slot="actions"');
     expect(source).toContain('<main id="autoBuildMain" class="auto-build-main">');
@@ -32,31 +32,28 @@ describe("Auto Build View contract", () => {
     expect(source).toContain('createWebviewPanel("ktAutoCode.autoBuild", AUTO_BUILD_TOOL_REGISTRATION.title');
     expect(source).not.toContain("title: AUTO_BUILD_TOOL_REGISTRATION.title");
     expect(source).not.toContain('title: "自动编译"');
+    expect(source).not.toContain("private async cleanRepositories");
+    expect(source).toContain('id: "syncRootScript"');
+    expect(source).toContain('label: "同步脚本"');
+    expect(source).not.toContain('this.companionScriptStatus?.status !== "same"');
     const cleanup = source.slice(
-      source.indexOf("private async cleanRepositories"),
+      source.indexOf("private async previewCleanupDialog"),
       source.indexOf("private async addProjectDirectories"),
     );
-    expect(cleanup).toContain("ktcCreateAutoBuildCleanupPlan");
-    expect(cleanup).toContain("ktcFormatAutoBuildCleanupPlan(plan)");
-    expect(cleanup).toContain("ktcAutoBuildCleanupArguments(effective, script, plan)");
-    const confirmation = cleanup.indexOf("showWarningMessage");
-    const stoppedAfterConfirmation = cleanup.indexOf("if (this.stopped)", confirmation);
-    expect(stoppedAfterConfirmation).toBeGreaterThan(confirmation);
-    expect(stoppedAfterConfirmation).toBeLessThan(cleanup.indexOf("this.runProcess"));
-    const statusBeforeSpawn = cleanup.indexOf('await this.status("in_progress", "正在手动清理仓库；不会拉取、检出或启动构建。")');
-    const finalStoppedGate = cleanup.indexOf("if (!this.isLiveHandler() || this.stopped)", statusBeforeSpawn);
-    expect(statusBeforeSpawn).toBeGreaterThan(confirmation);
-    expect(finalStoppedGate).toBeGreaterThan(statusBeforeSpawn);
-    expect(finalStoppedGate).toBeLessThan(cleanup.indexOf("this.runProcess"));
-    expect(cleanup).not.toContain("this.stopped = false");
-    const rootCleanup = source.slice(
-      source.indexOf("const preview = await KtcPreviewRootArtifacts"),
-      source.indexOf('if (message.type === "syncRootScript")', source.indexOf("const preview = await KtcPreviewRootArtifacts")),
-    );
-    expect(rootCleanup).toContain("shouldContinue: () => this.isLiveHandler() && !this.stopped");
+    expect(cleanup).toContain("ktcPreviewWingCleanupArtifacts");
+    expect(cleanup).toContain("ktcPreviewWingDirectoryContents");
+    expect(cleanup).toContain("ktcPreviewWingGitForcedCleanup");
+    expect(cleanup).toContain("randomUUID()");
+    expect(cleanup).toContain("清理预览已过期，请重新预览后再执行");
+    expect(cleanup).toContain("ktcCleanPreviewedWingArtifacts");
+    expect(cleanup).toContain("ktcCleanPreviewedWingDirectoryContents");
+    expect(cleanup).toContain("ktcExecuteWingGitForcedCleanup");
+    expect(cleanup).toContain("shouldContinue = (): boolean => this.isLiveHandler() && !this.stopped");
     const view = readFileSync(new URL("./autoBuildViewEntry.ts", import.meta.url), "utf8");
-    for (const marker of ["document.createElement(\"details\")", "auto-build-block", "document.createElement(\"table\")", "document.createElement(\"thead\")", "document.createElement(\"tbody\")", "#projectRows", ".project-table th:last-child", ".project-col-actions{width:92px}", "project-action-button", "pickProjectDirectories", "discoverProjectDirectories", "parallelBuild", "updateParallelBuildDisplay(configuration.buildExecutionMode === \"parallel\")", "probeProject", "runProject", "removeProject", "openScriptManager", "构建脚本", "仓库检出", "script-window", "setPointerCapture", "macOS", "检查模式"]) expect(view).toContain(marker);
+    for (const marker of ["document.createElement(\"details\")", "auto-build-block", "document.createElement(\"table\")", "document.createElement(\"thead\")", "document.createElement(\"tbody\")", "#projectRows", ".project-table th:last-child", ".project-col-actions{width:123px}", "project-action-button", "pickProjectDirectories", "discoverProjectDirectories", "parallelBuild", "updateParallelBuildDisplay(configuration.buildExecutionMode === \"parallel\")", "probeProject", "runProject", "removeProject", "openScriptManager", "构建脚本", "仓库检出", "script-window", "setPointerCapture", "macOS", "Git / CMake 原生运行；export.ps1、linkCAA 和 CAA 暂跳过"]) expect(view).toContain(marker);
     expect(view).toContain('ktcRequireToolRegistration("autoBuild").title');
+    expect(view).toContain("syncRightShellContext(configuration.workingDirectory || \"\")");
+    expect(view).toContain('id === "workingDirectory"');
     expect(view).not.toContain('title: "编译工具"');
     expect(view).toContain('document.getElementById("autoBuildHeaderActions")');
     expect(view).not.toContain('document.createElement("header")');
@@ -85,7 +82,7 @@ describe("Auto Build View contract", () => {
     expect(view).toContain("nextControl?.focus({ preventScroll: true })");
     expect(view).toContain("nextControl.setSelectionRange(activeSelection.start, activeSelection.end)");
     expect(view).toContain("button.disabled = busy");
-    expect(view).toContain('button.disabled = action === "runProject" && executionBusy');
+    expect(view).toContain('button.disabled = (action === "runProject" || action === "updateProject") && executionBusy');
     expect(view).toContain('run.disabled = executionBusy || task.status === "in_progress"');
     expect(view).not.toContain(".toolbar[hidden]");
     expect(view).not.toContain(".clean[hidden]");
@@ -273,7 +270,9 @@ describe("Auto Build View contract", () => {
     const configuration: KtcAutoBuildConfiguration = { schemaVersion: 2, rootDirectory: "E:/Root", thirdPartyDirectory: "E:/3rdParty", workingDirectory: "E:/out", rootBranch: "develop", branch: "develop", cmakeBranch: "master", projects: [project("a", { cmake: true }), project("b", { cmake: true }), project("caa", { caa: true })], clean: false };
     const tasks = ktcPlanAutoBuildTasks(configuration);
     expect(tasks.map((task) => task.phase)).toEqual(["repository", "cmake", "cmake", "caa"]);
-    expect(tasks.filter((task) => task.phase === "cmake" || task.phase === "caa").every((task) => task.commandSummary === "mk.ps1")).toBe(true);
+    expect(tasks.find((task) => task.phase === "cmake")?.commandSummary).toBe("cmake · Debug + Release");
+    expect(tasks.find((task) => task.phase === "caa")?.commandSummary).toBe("mk.ps1");
+    expect(tasks.find((task) => task.phase === "repository")?.commandSummary).toContain("TypeScript");
     expect(tasks.every((task) => task.status === "waiting")).toBe(true);
     const repositoryCommand = ktcAutoBuildRepositoryArguments(configuration, "E:/tools/Invoke-AutoBuild.ps1").at(-1)!;
     expect(repositoryCommand).toContain("-SkipBuild");

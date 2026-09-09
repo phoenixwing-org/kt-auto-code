@@ -369,7 +369,7 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       message: root
         ? carriedDraft
           ? "已从搜索替换带入当前名称与启用规则；请检查草稿后再分析。"
-          : "分析任务已绑定当前目录；可在 Primary 切换目录，切换前会确认并清空当前草稿和报告。"
+          : "当前任务目录已固定；如需更换，请关闭右侧视图后重新打开。"
         : "请在 Primary 选择分析目录。",
       sourceName,
       targetName,
@@ -551,6 +551,8 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
 
   private async chooseRoot(context: KtcProjectRenameSessionContext): Promise<void> {
     if (!this.isLiveSession(context)) return;
+    // 只为无目录启动兜底；已绑定任务不能通过旧 Webview 消息切换根目录。
+    if (this.state.root) return;
     if (this.abortController || this.state.status === "applying") return;
     const selected = await vscode.window.showOpenDialog({
       canSelectFiles: false,
@@ -560,18 +562,9 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
       openLabel: "选择项目目录",
       title: "项目改名",
     });
-    if (!this.isLiveSession(context)) return;
+    if (!this.isLiveSession(context) || this.state.root) return;
     const root = selected?.[0]?.fsPath;
     if (!root) return;
-    if (root === this.state.root) return;
-    if (this.state.root) {
-      const accepted = await this.confirmWarning(
-        "切换分析目录会清除当前项目改名草稿和分析结果，是否继续？",
-        { modal: true },
-        "切换目录",
-      );
-      if (accepted !== "切换目录" || !this.isLiveSession(context)) return;
-    }
     const sourceName = basename(root);
     const profileSnapshot = this.host.profileSnapshot(root);
     const historySnapshot = this.host.historySnapshot(root);
@@ -580,7 +573,7 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
     this.state = {
       root,
       status: "idle",
-      message: "目录已选择；请填写目标名并检查规则。",
+      message: "目录已固定；请填写目标名并检查规则。更换目录须关闭右侧视图后重新打开。",
       sourceName,
       targetName: "",
       sourcePrefix: "",
@@ -1417,8 +1410,10 @@ export class KtcProjectRenameViewController implements vscode.Disposable {
         {
           id: "chooseRoot",
           label: "选择目录…",
-          enabled: liveReady && !operationBusy,
-          ...(liveReady && !operationBusy ? {} : { disabledReason: "当前任务尚未就绪或正在运行。" }),
+          enabled: liveReady && !operationBusy && !this.state.root,
+          ...(this.state.root
+            ? { disabledReason: "当前任务目录已固定；如需更换，请关闭右侧视图后重新打开。" }
+            : liveReady && !operationBusy ? {} : { disabledReason: "当前任务尚未就绪或正在运行。" }),
         },
         { id: "reveal", label: "查看", enabled: liveReady },
         {

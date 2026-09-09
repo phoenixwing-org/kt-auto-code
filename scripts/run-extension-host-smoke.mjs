@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { validateExtensionHostSmokeReceipt } from "./extension-host-smoke-receipt.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const extensionPath = repoRoot;
@@ -59,33 +60,9 @@ try {
   }
   if (!existsSync(receiptPath)) throw new Error(`Extension Host 未写入验收回执：${receiptPath}`);
   const receipt = JSON.parse(readFileSync(receiptPath, "utf8"));
-  if (
-    receipt.kind !== "kt.auto-code.extension-host-smoke"
-    || receipt.schemaVersion !== 1
-    || receipt.extension?.id !== "kuntai.kt-auto-code"
-    || receipt.extension?.active !== true
-    || receipt.flows?.open !== true
-    || receipt.flows?.preview !== true
-    || receipt.flows?.conflict !== true
-    || receipt.flows?.apply !== true
-    || receipt.flows?.saveReload !== true
-    || receipt.flows?.rollback !== true
-    || receipt.flows?.gitBlock !== true
-    || receipt.flows?.gitEmptyState !== true
-    || receipt.flows?.runBlock !== true
-    || receipt.flows?.projectRenameAnalysis !== true
-    || receipt.flows?.projectRenameCancel !== true
-    || !Number.isInteger(receipt.evidence?.projectRenameCancel?.scannedFilesBeforeCancel)
-    || receipt.evidence.projectRenameCancel.scannedFilesBeforeCancel < 1
-    || receipt.evidence.projectRenameCancel.signalAborted !== true
-    || receipt.evidence.projectRenameCancel.cancelledWithoutReport !== true
-    || receipt.evidence.projectRenameCancel.restartReportId !== 2
-    || receipt.evidence.projectRenameCancel.fixtureFileCount !== 360
-    || receipt.evidence.projectRenameCancel.fixtureUnchanged !== true
-    || !receipt.evidence?.commands?.includes("ktAutoCode.git.open")
-    || !receipt.evidence?.commands?.includes("ktAutoCode.run.open")
-  ) {
-    throw new Error(`Extension Host 回执不完整：${JSON.stringify(receipt)}`);
+  const receiptIssues = validateExtensionHostSmokeReceipt(receipt);
+  if (receiptIssues.length > 0) {
+    throw new Error(`Extension Host 回执不完整：${receiptIssues.join("；")}；${JSON.stringify(receipt)}`);
   }
   process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`);
   process.stdout.write("[q2] real VS Code Extension Host representative flow passed\n");

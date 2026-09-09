@@ -4,22 +4,23 @@ import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child
 import { isDeepStrictEqual, promisify } from "node:util";
 import { StringDecoder } from "node:string_decoder";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { randomUUID } from "node:crypto";
 import * as vscode from "vscode";
 import { getOutputChannel } from "../../output.js";
 import { ktcReadProjectEnvironment } from "../../projectEnvironment.js";
 import { ktcCreateWebviewSecurity } from "../../webviewSupport.js";
 import { ktcCanAccessAutoBuildPathOnHost, ktcCreateAutoBuildProjectRow, ktcDeduplicateAutoBuildProjectsByOrigin, ktcIsAutoBuildFilesystemRoot, ktcJoinAutoBuildPath, ktcResolveAutoBuildPath, ktcStoreAutoBuildPath, type KtcAutoBuildProjectRow } from "./autoBuildProjectTable.js";
-import { KtcCleanPreviewedRootArtifacts, KtcPreviewRootArtifacts } from "../run/KtcManualCleanup.js";
 import {
   KTC_DEFAULT_ROOT_CLEANUP_PATTERNS_YAML,
   KTC_ROOT_CLEANUP_PATTERNS_MAX_LENGTH,
 } from "../../core/rootCleanupPatterns.js";
 import { ktcCreateAutoBuildLauncher } from "./autoBuildLauncher.js";
-import { ktcCreateAutoBuildCleanupPlan, ktcFormatAutoBuildCleanupPlan } from "./autoBuildCleanupPlan.js";
+import { ktcUpdateAutoBuildProjectRepository, type KtcAutoBuildGitUpdateResult } from "./autoBuildProjectUpdate.js";
+import { ktcPlanNativeCmakeBuild, ktcSelectCmakeBuildTypes } from "./autoBuildNativePlan.js";
 import { ktcCreateRepositoryCheckoutScript } from "./autoBuildCheckoutScript.js";
 import { ktcInspectAutoBuildScriptSync, ktcSyncAutoBuildScripts } from "./autoBuildScriptSync.js";
 import { ktcCreateBuildManifest, ktcParseBuildManifest, type KtcBuildManifestMode } from "./autoBuildManifest.js";
-import { ktcAutoBuildCleanupArguments, ktcAutoBuildRepositoryArguments, ktcAutoBuildRootEnabled, ktcAutoBuildThirdPartyEnabled, ktcExportArguments, ktcLinkCaaArguments, ktcMkArguments, ktcPlanAutoBuildTasks, ktcSelectAutoBuildProjects, ktcValidateAutoBuildConfiguration, type KtcAutoBuildConfiguration, type KtcAutoBuildTask } from "./autoBuildContracts.js";
+import { ktcAutoBuildRepositoryArguments, ktcAutoBuildRootEnabled, ktcAutoBuildThirdPartyEnabled, ktcExportArguments, ktcLinkCaaArguments, ktcMkArguments, ktcPlanAutoBuildTasks, ktcSelectAutoBuildProjects, ktcValidateAutoBuildConfiguration, type KtcAutoBuildConfiguration, type KtcAutoBuildTask } from "./autoBuildContracts.js";
 import { ktcRequireToolRegistration } from "../toolRegistrationCatalog.js";
 import type {
   KtcEditorPrimaryCompanionActionToken,
@@ -31,6 +32,24 @@ import {
   ktcCreateAutoBuildPrimaryViewModel,
   type KtcAutoBuildScriptStatusSnapshot,
 } from "./autoBuildPrimaryViewModel.js";
+import {
+  ktcParseAutoBuildCleanupDialogPayload,
+  type KtcAutoBuildCleanupDialogRequest,
+} from "./autoBuildCleanupDialogContracts.js";
+import {
+  ktcCreateAutoBuildCleanupViewModel,
+  type KtcAutoBuildCleanupProjectionState,
+} from "./autoBuildCleanupViewModel.js";
+import {
+  ktcCleanPreviewedWingArtifacts,
+  ktcCleanPreviewedWingDirectoryContents,
+  ktcExecuteWingGitForcedCleanup,
+  ktcPreviewWingCleanupArtifacts,
+  ktcPreviewWingDirectoryContents,
+  ktcPreviewWingGitForcedCleanup,
+  type KtcWingCleanupArtifactPreview,
+  type KtcWingGitCleanupPreview,
+} from "./autoBuildCleanupWingAdapter.js";
 import {
   ktcCloneAutoBuildConfiguration,
   ktcIsAutoBuildConfiguration,
@@ -53,7 +72,7 @@ const execFileAsync = promisify(execFile);
 let nextAutoBuildCompanionSession = 1;
 interface KtcAutoBuildDraftContext { readonly documentId: string; readonly draftRevision: number; }
 type KtcAutoBuildDraftScopedConfigurationMessage = KtcAutoBuildDraftContext & { readonly configuration: KtcAutoBuildConfiguration };
-type Message = KtcAutoBuildDraftReadyMessage | KtcAutoBuildDraftChangedMessage | KtcAutoBuildConfigurationSnapshotMessage | KtcAutoBuildRightExecutionMessage | { type: "stop" | "open" | "save" | "saveAs" | "selectRecent"; path?: string; configuration?: KtcAutoBuildConfiguration } | (KtcAutoBuildDraftScopedConfigurationMessage & { type: "runTask"; taskId?: string }) | (KtcAutoBuildDraftScopedConfigurationMessage & { type: "pickProjectDirectories" | "discoverProjectDirectories" }) | (KtcAutoBuildDraftScopedConfigurationMessage & { type: "probeProject" | "runProject"; projectId: string }) | { type: "exportLauncher"; configuration: KtcAutoBuildConfiguration } | { type: "writeScript"; configuration: KtcAutoBuildConfiguration; scriptKind: "build" | "checkout" | "manifest"; targetDirectory: string; manifestMode?: KtcBuildManifestMode; manifestTarget?: "root" | "working"; checkoutOptions?: { includeRoots?: boolean; includeBranch?: boolean; includeCommit?: boolean } } | { type: "pickScriptTargetDirectory"; targetDirectory?: string } | { type: "cleanRootArtifacts"; patternsYaml: string } | { type: "syncRootScript" };
+type Message = KtcAutoBuildDraftReadyMessage | KtcAutoBuildDraftChangedMessage | KtcAutoBuildConfigurationSnapshotMessage | KtcAutoBuildRightExecutionMessage | { type: "stop" | "open" | "save" | "saveAs" | "selectRecent"; path?: string; configuration?: KtcAutoBuildConfiguration } | (KtcAutoBuildDraftScopedConfigurationMessage & { type: "runTask"; taskId?: string }) | (KtcAutoBuildDraftScopedConfigurationMessage & { type: "pickProjectDirectories" | "discoverProjectDirectories" }) | (KtcAutoBuildDraftScopedConfigurationMessage & { type: "probeProject" | "runProject" | "updateProject"; projectId: string }) | { type: "exportLauncher"; configuration: KtcAutoBuildConfiguration } | { type: "writeScript"; configuration: KtcAutoBuildConfiguration; scriptKind: "build" | "checkout" | "manifest"; targetDirectory: string; manifestMode?: KtcBuildManifestMode; manifestTarget?: "root" | "working"; checkoutOptions?: { includeRoots?: boolean; includeBranch?: boolean; includeCommit?: boolean } } | { type: "pickScriptTargetDirectory"; targetDirectory?: string } | { type: "syncRootScript" };
 const defaults = (rootDirectory = "", thirdPartyDirectory = "", workingDirectory = ""): KtcAutoBuildConfiguration => ({ schemaVersion: 2, rootDirectory, thirdPartyDirectory, rootEnabled: true, thirdPartyEnabled: true, updateRoot: false, updateThirdParty: false, workingDirectory, buildExecutionMode: "sequential", rootBranch: "develop", branch: "develop", cmakeBranch: "master", projects: [], clean: false, rootCleanupYaml: KTC_DEFAULT_ROOT_CLEANUP_PATTERNS_YAML });
 
 export interface KtcAutoBuildPrimaryCompanionPort {
@@ -76,16 +95,39 @@ interface KtcAutoBuildPendingConfigurationRequest {
 
 interface KtcAutoBuildActiveOperation {
   readonly id: number;
-  readonly action: KtcAutoBuildExecutionAction | "runProject" | "runTask";
+  readonly action: KtcAutoBuildExecutionAction | "runProject" | "updateProject" | "runTask";
 }
 
 type KtcAutoBuildPrimaryPendingAction = KtcAutoBuildDraftRequestAction
   | "selectRecent"
   | "openConfig"
-  | "cleanRootArtifacts"
+  | "cleanupDialog"
   | "syncRootScript"
   | "runProject"
+  | "updateProject"
   | "runTask";
+
+type KtcAutoBuildFrozenCleanupTarget =
+  | {
+    readonly kind: "artifacts" | "directory-contents";
+    readonly targetId: string;
+    readonly label: string;
+    readonly preview: KtcWingCleanupArtifactPreview;
+  }
+  | {
+    readonly kind: "git-force";
+    readonly targetId: string;
+    readonly label: string;
+    readonly preview: KtcWingGitCleanupPreview;
+  };
+
+interface KtcAutoBuildFrozenCleanupSession {
+  readonly token: string;
+  readonly documentId: string;
+  readonly draftRevision: number;
+  readonly request: KtcAutoBuildCleanupDialogRequest;
+  readonly targets: readonly KtcAutoBuildFrozenCleanupTarget[];
+}
 
 export class KtcAutoBuildViewController implements vscode.Disposable {
   private panel: vscode.WebviewPanel | undefined; private readonly processes = new Set<ChildProcessWithoutNullStreams>(); private currentPath = ""; private detectedRootDirectory = ""; private detectedThirdPartyDirectory = ""; private defaultWorkingDirectory = ""; private tasks: KtcAutoBuildTask[] = []; private stopped = false; private nonWindowsRunNoticeShown = false; private readonly output = getOutputChannel();
@@ -104,11 +146,16 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
   private workingDirectoryBaseline = "";
   private workingDirectoryMismatch = false;
   private loadedConfiguration = false;
-  private repositoryCleanupStatus = "仅手动触发";
-  private rootCleanupStatus = "待确认规则";
+  private cleanupState: KtcAutoBuildCleanupProjectionState = {};
+  private frozenCleanup: KtcAutoBuildFrozenCleanupSession | undefined;
+  private cleanupCancelled = false;
+  private cleanupActionRevision: number | undefined;
   private legacyAutomaticCleanupNoticeShown = false;
   private nextConfigurationRequest = 1;
   private nextOperation = 1;
+  private gitUpdateAbortController: AbortController | undefined;
+  private failedRepositoryPaths = new Set<string>();
+  private nativeProcessGroups = new Set<number>();
   private activeOperation: KtcAutoBuildActiveOperation | undefined;
   private companionEpoch = 0;
   private resumeExecutionState = false;
@@ -145,6 +192,7 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
     const sequence = nextAutoBuildCompanionSession++;
     this.companionSessionId = `auto-build-${sequence}`;
     this.companionRevision = 0;
+    this.cleanupActionRevision = undefined;
     this.companionReady = false;
     if (resumingProcesses) {
       this.companionStatus = "running";
@@ -169,8 +217,9 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
       this.workingDirectoryBaseline = "";
       this.workingDirectoryMismatch = false;
       this.loadedConfiguration = false;
-      this.repositoryCleanupStatus = "仅手动触发";
-      this.rootCleanupStatus = "待确认规则";
+      this.cleanupState = {};
+      this.frozenCleanup = undefined;
+      this.cleanupCancelled = false;
       this.legacyAutomaticCleanupNoticeShown = false;
       this.detectedRootDirectory = "";
       this.tasks = [];
@@ -222,33 +271,61 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
     });
     this.publishCompanion();
   }
-  dispose(): void { this.stopped = true; this.cancelConfigurationRequest(); for (const process of this.processes) process.kill(); this.panel?.dispose(); }
+  dispose(): void { this.stopped = true; this.gitUpdateAbortController?.abort(); this.cancelConfigurationRequest(); this.stopTaskProcesses(); this.panel?.dispose(); }
+
+  private stopTaskProcesses(): void {
+    for (const child of this.processes) {
+      if (child.pid && this.nativeProcessGroups.has(child.pid)) {
+        try { process.kill(-child.pid, "SIGTERM"); }
+        catch { child.kill(); }
+      } else child.kill();
+    }
+  }
 
   async runPrimaryCompanionAction(token: KtcEditorPrimaryCompanionActionToken): Promise<boolean> {
+    const cleanupPayload = token.actionId === "cleanupDialog"
+      ? ktcParseAutoBuildCleanupDialogPayload(token.payload)
+      : undefined;
+    const cancellingCleanup = cleanupPayload?.kind === "cancel";
     if (
       token.toolId !== "autoBuild"
       || !this.panel
       || token.panelId !== this.companionSessionId
       || token.sessionId !== this.companionSessionId
-      || token.revision !== this.companionRevision
+      || !Number.isSafeInteger(token.revision) || token.revision < 0
+      || (cancellingCleanup
+        ? token.revision > this.companionRevision
+          || token.revision < (this.cleanupActionRevision ?? this.companionRevision)
+        : token.revision !== this.companionRevision)
       || !this.companionReady
     ) return false;
     const context = this.currentSessionContext();
     if (!context) return false;
+    // Cancel must bypass the ordinary busy/action-enabled gate: cleanup owns
+    // that gate while awaiting Wing, but still needs to receive its stop signal.
+    if (cancellingCleanup) return this.sessionContext.run(context, () => {
+      this.cancelCleanupDialog();
+      return true;
+    });
     const action = this.companionSnapshot().actions.find((candidate) => candidate.id === token.actionId);
     if (!action?.enabled) return false;
-    if (token.actionId === "updateRootCleanupYaml") {
-      return this.sessionContext.run(context, async () => {
-        await this.updateRootCleanupYaml(token.value ?? "");
-        return this.isLiveSession(context);
-      });
-    }
-    if (token.actionId === "saveRootCleanupConfig") {
-      return this.sessionContext.run(context, () => this.runPrimaryHostAction("saveConfig", async () => {
-        await this.updateRootCleanupYaml(token.value ?? "");
-        const configuration = await this.requestCurrentConfiguration(context, "saveConfig");
-        if (!configuration) throw new Error("无法读取右侧当前配置，请检查详细配置后重试。");
-        await this.save(configuration, false);
+    if (token.actionId === "cleanupDialog") {
+      const payload = cleanupPayload;
+      if (!payload) return false;
+      return this.sessionContext.run(context, () => this.runPrimaryHostAction("cleanupDialog", async () => {
+        this.stopped = false;
+        this.cleanupCancelled = false;
+        this.cleanupActionRevision = token.revision;
+        if (payload.kind === "execute") {
+          await this.executeCleanupDialog(payload.request, payload.previewToken);
+          return;
+        }
+        const configuration = await this.requestCurrentConfiguration(context, "cleanupDialog");
+        if (!configuration) {
+          if (this.stopped || this.cleanupCancelled) return;
+          throw new Error("无法读取右侧当前配置，请检查详细配置后重试。");
+        }
+        await this.previewCleanupDialog(configuration, payload.request);
       }));
     }
     if (token.actionId === "preflight" || token.actionId === "start") {
@@ -267,6 +344,19 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
         this.companionConfiguration = next;
         this.touchCompanion();
         await this.post({ type: "buildExecutionMode", value: buildExecutionMode });
+      }));
+    }
+    if (token.actionId === "setCmakeBuildTypes") {
+      const value = token.value;
+      if (typeof value !== "string" || !/^(?:Debug(?:,Release)?|Release)?$/u.test(value)) return false;
+      return this.sessionContext.run(context, () => this.runPrimaryHostAction("setCmakeBuildTypes", async () => {
+        const configuration = await this.requestCurrentConfiguration(context, "setCmakeBuildTypes");
+        if (!configuration) throw new Error("无法读取右侧当前配置，请检查详细配置后重试。");
+        const cmakeBuildTypes = value ? value.split(",") as ("Debug" | "Release")[] : [];
+        this.companionConfiguration = ktcCloneAutoBuildConfiguration({ ...configuration, cmakeBuildTypes });
+        this.log(`CMake 编译配置：${cmakeBuildTypes.join(" + ") || "未选择（启动时会提示）"}；保存后写入当前 AutoBuild JSON。`);
+        this.touchCompanion();
+        await this.post({ type: "cmakeBuildTypes", value: cmakeBuildTypes });
       }));
     }
     if (token.actionId === "saveConfig") {
@@ -300,20 +390,6 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
         else await this.keepProjectsForDirectory(configuration);
       }));
     }
-    if (token.actionId === "cleanRepositories") {
-      return this.sessionContext.run(context, () => this.runPrimaryHostAction("cleanRepositories", async () => {
-        this.stopped = false;
-        const configuration = await this.requestCurrentConfiguration(context, "cleanRepositories");
-        if (!configuration) {
-          if (this.stopped) return;
-          throw new Error("无法读取右侧当前配置，请检查详细配置后重试。");
-        }
-        await this.cleanRepositories(configuration, {
-          documentId: this.companionDocumentId,
-          draftRevision: this.companionDraftRevision,
-        });
-      }));
-    }
     const recentIndex = /^selectRecent(\d+)$/u.exec(token.actionId)?.[1];
     if (recentIndex !== undefined) {
       const path = (this.workspaceState.get<string[]>(RECENT_KEY) || [])[Number(recentIndex)];
@@ -324,20 +400,6 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
         if (!await this.confirmDiscardChanges(configuration)) return;
         await this.load(path);
       }));
-    }
-    if (token.actionId === "cleanRootArtifacts") {
-      return this.sessionContext.run(context, () => this.runPrimaryHostAction(
-        "cleanRootArtifacts",
-        async () => {
-          this.stopped = false;
-          const patternsYaml = token.value?.slice(0, KTC_ROOT_CLEANUP_PATTERNS_MAX_LENGTH) || "";
-          await this.updateRootCleanupYaml(patternsYaml);
-          await this.handle({
-            type: "cleanRootArtifacts",
-            patternsYaml,
-          });
-        },
-      ));
     }
     if (token.actionId === "syncRootScript") {
       return this.sessionContext.run(context, () => this.runPrimaryHostAction(
@@ -407,13 +469,6 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
       await this.runPrimaryHostAction("syncRootScript", () => this.handle(message));
       return;
     }
-    if (message.type === "cleanRootArtifacts") {
-      await this.runPrimaryHostAction("cleanRootArtifacts", async () => {
-        this.stopped = false;
-        await this.handle(message);
-      });
-      return;
-    }
     if (message.type === "save" || message.type === "saveAs") {
       if (!ktcIsAutoBuildConfiguration(message.configuration)) return;
       await this.runPrimaryHostAction(
@@ -426,10 +481,11 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
       || message.type === "pickProjectDirectories"
       || message.type === "discoverProjectDirectories"
       || message.type === "probeProject"
+      || message.type === "updateProject"
       || message.type === "runProject") {
       if (!this.acceptDraft(message.documentId, message.draftRevision, message.configuration, true)) return;
     }
-    if (message.type === "runTask" || message.type === "runProject") {
+    if (message.type === "runTask" || message.type === "runProject" || message.type === "updateProject") {
       await this.runRightProjectAction(message.type, () => this.handle(message));
       return;
     }
@@ -494,20 +550,20 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
   }
 
   private async runRightProjectAction(
-    action: "runProject" | "runTask",
+    action: "runProject" | "updateProject" | "runTask",
     execute: () => Promise<void>,
   ): Promise<boolean> {
     const operation = this.beginExecutionOperation(action);
     if (!operation) return false;
     return this.runDetachedExecutionOperation(
       operation,
-      action === "runProject" ? "正在准备项目任务…" : "正在准备所选任务…",
+      action === "updateProject" ? "正在更新所选 Git 仓库（TypeScript）…" : action === "runProject" ? "正在准备项目任务…" : "正在准备所选任务…",
       execute,
     );
   }
 
   private beginExecutionOperation(
-    action: KtcAutoBuildExecutionAction | "runProject" | "runTask",
+    action: KtcAutoBuildExecutionAction | "runProject" | "updateProject" | "runTask",
   ): KtcAutoBuildActiveOperation | undefined {
     if (this.activeOperation || this.companionPendingAction || this.companionStatus === "running" || this.processes.size) return undefined;
     this.stopped = false;
@@ -615,8 +671,21 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
         && !!this.companionConfiguration
         && isDeepStrictEqual(next, this.companionConfiguration);
     }
+    const preservesCleanupPreview = !!this.companionConfiguration
+      && isDeepStrictEqual(next, this.companionConfiguration);
     this.companionDraftRevision = draftRevision;
     this.companionConfiguration = next;
+    if (this.frozenCleanup) {
+      if (preservesCleanupPreview && this.frozenCleanup.documentId === documentId) {
+        this.frozenCleanup = { ...this.frozenCleanup, draftRevision };
+      } else {
+        this.frozenCleanup = undefined;
+        this.cleanupState = {
+          ...this.cleanupState,
+          preview: { state: "idle", message: "配置已变化，请重新预览。", items: [] },
+        };
+      }
+    }
     this.reconcileWorkingDirectoryContext(next);
     this.touchCompanion();
     return true;
@@ -681,17 +750,18 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
       const pendingExecution = this.companionPendingAction === "preflight"
         || this.companionPendingAction === "start"
         || this.companionPendingAction === "runProject"
+        || this.companionPendingAction === "updateProject"
         || this.companionPendingAction === "runTask"
-        || this.companionPendingAction === "cleanRepositories"
-        || this.companionPendingAction === "cleanRootArtifacts";
+        || this.companionPendingAction === "cleanupDialog";
       this.stopped = true;
+      this.gitUpdateAbortController?.abort();
       this.cancelConfigurationRequest();
       if (!this.processes.size) {
         this.log(cancelledRequest || pendingExecution ? "pending execution cancelled" : "stop: no process", true);
         await this.status("idle", cancelledRequest || pendingExecution ? "已取消尚未启动的操作。" : "当前没有运行中的任务。");
       } else {
         this.log("stop requested", true);
-        for (const process of this.processes) process.kill();
+        this.stopTaskProcesses();
       }
       return;
     }
@@ -703,79 +773,6 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
     if (message.type === "open") {
       if (!await this.confirmDiscardChanges()) return;
       await this.openConfigurationFromDialog();
-      return;
-    }
-    if (message.type === "cleanRootArtifacts") {
-      if (this.companionConfiguration?.rootCleanupYaml !== message.patternsYaml) {
-        await this.updateRootCleanupYaml(message.patternsYaml);
-      }
-      if (!this.detectedRootDirectory) throw new Error("未探测到当前 ROOT_DIR，不能执行 Root 清理。");
-      if (!ktcCanAccessAutoBuildPathOnHost(this.detectedRootDirectory, process.platform)) throw new Error("当前 ROOT_DIR 不是本机绝对路径，未执行 Root 清理。");
-      if (ktcIsAutoBuildFilesystemRoot(this.detectedRootDirectory)) throw new Error("不允许在文件系统根目录执行 Root 清理。");
-      const preview = await KtcPreviewRootArtifacts(this.detectedRootDirectory, message.patternsYaml);
-      if (!this.isLiveHandler()) return;
-      if (this.stopped) {
-        this.rootCleanupStatus = "已取消";
-        await this.status("idle", "已停止 Root 清理，未删除文件。");
-        return;
-      }
-      if (!preview.matched.length) {
-        this.rootCleanupStatus = "未找到匹配项";
-        this.log(`Root 规则清理预览：${preview.root}；没有匹配项；未删除文件。`, true);
-        await this.status("done", "没有找到匹配的 Root 直接子项；未删除任何内容。");
-        return;
-      }
-      const visibleMatches = preview.matched.slice(0, 12);
-      const more = preview.matched.length > visibleMatches.length ? `\n…另有 ${preview.matched.length - visibleMatches.length} 项` : "";
-      const confirmed = await vscode.window.showWarningMessage(
-        `将按 Root 清理规则删除 ${preview.matched.length} 个直接子项。此操作不可撤销。`,
-        {
-          modal: true,
-          detail: [
-            `Root: ${preview.root}`,
-            "目录链接:",
-            preview.rules.unlinkDirectories.map((pattern) => `- ${pattern}`).join("\n") || "- 无",
-            "删除目录:",
-            preview.rules.directories.map((name) => `- ${name}`).join("\n") || "- 无",
-            "删除文件:",
-            preview.rules.files.map((pattern) => `- ${pattern}`).join("\n") || "- 无",
-            "匹配:",
-            `${visibleMatches.join("\n")}${more}`,
-          ].join("\n"),
-        },
-        "清理",
-      );
-      if (!this.isLiveHandler()) return;
-      if (this.stopped) {
-        this.rootCleanupStatus = "已取消";
-        await this.status("idle", "已停止 Root 清理，未删除文件。");
-        return;
-      }
-      if (confirmed !== "清理") {
-        this.rootCleanupStatus = "已取消";
-        await this.status("idle", "已取消 Root 清理，未删除文件。");
-        return;
-      }
-      let result: Awaited<ReturnType<typeof KtcCleanPreviewedRootArtifacts>>;
-      try {
-        result = await KtcCleanPreviewedRootArtifacts(preview, {
-          shouldContinue: () => this.isLiveHandler() && !this.stopped,
-        });
-      } catch (error) {
-        if (!this.stopped) throw error;
-        this.rootCleanupStatus = "已取消";
-        await this.status("idle", "Root 清理已停止；未继续删除文件。");
-        return;
-      }
-      if (!this.isLiveHandler()) return;
-      if (this.stopped) {
-        this.rootCleanupStatus = "已取消";
-        await this.status("idle", "Root 清理已停止；未继续删除文件。");
-        return;
-      }
-      this.rootCleanupStatus = `已清理 ${result.deleted.length} 项`;
-      this.log(`Root 规则清理完成：${result.root}；删除 ${result.deleted.length} 个直接子项；目录链接未跟随。`, true);
-      await this.status("done", `Root 清理完成：删除 ${result.deleted.length} 项。`);
       return;
     }
     if (message.type === "syncRootScript") {
@@ -867,6 +864,7 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
       await this.post({ type: "projectProbe", documentId: message.documentId, draftRevision: message.draftRevision, projectId: message.projectId, probe: project.probe });
       return;
     }
+    if (message.type === "updateProject") { await this.updateProject(configuration, message.projectId, message); return; }
     if (message.type === "runProject") { await this.runProject(configuration, message.projectId, message); return; }
     if (message.type === "save" || message.type === "saveAs") { await this.save(configuration, message.type === "saveAs"); return; }
     if (message.type !== "preflight" && message.type !== "start" && message.type !== "runTask") return;
@@ -886,17 +884,22 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
       const task = this.tasks.find((candidate) => ktcAutoBuildTaskSessionKey(candidate) === ktcAutoBuildTaskSessionKey(planned))!;
       if (task.phase === "repository" && configuration.clean && await vscode.window.showWarningMessage("该仓库任务将执行清理。是否继续？", { modal: true }, "清理并运行") !== "清理并运行") { if (!this.isLiveHandler()) return; await this.status("idle", "已取消。"); return; }
       if (!this.isLiveHandler() || this.stopped) { await this.status("idle", "操作已停止；未启动所选任务。"); return; }
+      // Explicit retries use the current configuration, not a previous batch's dependency failures.
+      this.failedRepositoryPaths.clear();
       task.status = "in_progress";
       task.children?.forEach((child) => { child.status = "in_progress"; });
       await this.post({ type: "tasks", tasks: this.tasks });
       const script = vscode.Uri.joinPath(this.extensionUri, "scripts", "auto-build", "Invoke-AutoBuild.ps1").fsPath;
       const code = await this.runProcess(task, this.taskArguments(task, configuration, script), configuration);
       if (!this.isLiveHandler()) return;
-      task.status = code === 0 ? "done" : "error";
-      task.children?.forEach((child) => { child.status = task.status; });
+      const outcome = this.completeTaskRun(task, code);
       await this.post({ type: "tasks", tasks: this.tasks });
       if (code === 0 && task.phase === "repository") await this.refreshRepositorySnapshot(configuration, responseContext);
-      await this.status(code === 0 ? "done" : "error", code === 0 ? `${task.name} 完成。` : `${task.name} 失败，请查看 Output。`);
+      const resultText = outcome === "cancelled" ? `${task.name} 已取消。`
+        : outcome === "skipped" ? `${task.name} 已跳过，请查看 Output。`
+        : code === 0 ? `${task.name} 完成。` : `${task.name} 失败，请查看 Output。`;
+      this.log(resultText, true);
+      await this.status(outcome === "cancelled" ? "idle" : code === 0 ? "done" : "error", resultText);
       return;
     }
     const probedProjects = await Promise.all(configuration.projects.map((project) => this.probeProjectRow(project, configuration.workingDirectory || "")));
@@ -925,125 +928,256 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
     this.tasks = plannedTasks;
     await this.post({ type: "tasks", tasks: this.tasks });
     const commands = this.tasks.map((task) => this.taskArguments(task, configuration, script));
-    this.log(`脚本：${script}`); this.stopped = false; await this.status("in_progress", "进行中（In progress）");
-    const runOne = async (task: KtcAutoBuildTask): Promise<number> => { if (!this.isLiveHandler() || this.stopped) return -1; const index = this.tasks.indexOf(task); task.status = "in_progress"; task.children?.forEach((child) => { child.status = "in_progress"; }); await this.post({ type: "tasks", tasks: this.tasks }); const code = await this.runProcess(task, commands[index]!, configuration); if (!this.isLiveHandler()) return -1; task.status = code === 0 ? "done" : "error"; task.children?.forEach((child) => { child.status = task.status; }); await this.post({ type: "tasks", tasks: this.tasks }); return code; };
+    this.log("运行时：Git / CMake 使用 TypeScript；Windows link / export / CAA 保留 PowerShell。"); this.stopped = false; await this.status("in_progress", "进行中（In progress）");
+    const runOne = async (task: KtcAutoBuildTask): Promise<number> => {
+      if (!this.isLiveHandler() || this.stopped) { task.status = "cancelled"; return -1; }
+      const index = this.tasks.indexOf(task);
+      task.status = "in_progress";
+      task.children?.forEach((child) => { child.status = "in_progress"; });
+      await this.post({ type: "tasks", tasks: this.tasks });
+      const code = await this.runProcess(task, commands[index]!, configuration);
+      if (!this.isLiveHandler()) return -1;
+      this.completeTaskRun(task, code);
+      await this.post({ type: "tasks", tasks: this.tasks });
+      return code;
+    };
     const repositoryTask = this.tasks.find((task) => task.phase === "repository")!;
-    if (await runOne(repositoryTask) !== 0) { await this.status("error", "仓库安全门禁失败，未启动导出和编译。"); return; }
+    await runOne(repositoryTask);
     await this.refreshRepositorySnapshot(configuration, responseContext);
     for (const task of this.tasks.filter((item) => item.phase === "link")) await runOne(task);
     await Promise.all(this.tasks.filter((item) => item.phase === "export").map(runOne));
     const buildTasks = this.tasks.filter((task) => task.phase === "cmake" || task.phase === "caa");
-    if (configuration.buildExecutionMode === "parallel") await Promise.all(buildTasks.map(runOne)); else for (const task of buildTasks) await runOne(task);
+    if (configuration.buildExecutionMode === "parallel" && process.platform === "win32") await Promise.all(buildTasks.map(runOne));
+    else {
+      if (configuration.buildExecutionMode === "parallel") this.log("当前非 Windows 运行按顺序编译 CMake；保留配置中的并行选择供 Windows 使用。");
+      for (const task of buildTasks) await runOne(task);
+    }
     const failed = this.tasks.filter((task) => task.status === "error");
-    await this.status(this.stopped || failed.length ? "error" : "done", this.stopped ? "已停止。" : failed.length ? `执行完成：${failed.length} 个任务失败，请查看 Output。` : "全部完成。");
+    const skipped = this.tasks.filter((task) => task.status === "skipped");
+    const summaryText = this.stopped ? "已停止。" : `执行结束：${failed.length} 个失败，${skipped.length} 个跳过${skipped.length ? "（含未执行的步骤，请查看 Output）" : ""}。`;
+    this.log(summaryText, true);
+    await this.status(this.stopped || failed.length ? "error" : "done", summaryText);
   }
-  private async cleanRepositories(configuration: KtcAutoBuildConfiguration, responseContext: KtcAutoBuildDraftContext): Promise<void> {
+  private async previewCleanupDialog(
+    configuration: KtcAutoBuildConfiguration,
+    request: KtcAutoBuildCleanupDialogRequest,
+  ): Promise<void> {
     this.assertWorkingDirectoryContext(configuration);
-    if (process.platform !== "win32") throw new Error("仓库清理仅能在 Windows 执行 Host 中运行；当前环境只用于检查配置。");
     const effective = this.withoutLegacyAutomaticCleanup(configuration);
-    const cmakeOnlyConfiguration: KtcAutoBuildConfiguration = {
-      ...effective,
-      projects: effective.projects
-        .filter((project) => project.enabled && project.operations.cmake)
-        .map((project) => ({
-          ...project,
-          operations: { update: false, cmake: true, caa: false, linkCaa: false },
-        })),
+    if (request.modeId === "rules") await this.updateRootCleanupYaml(request.rulesYaml);
+    const currentConfiguration = this.companionConfiguration ?? effective;
+    this.frozenCleanup = undefined;
+    this.cleanupState = {
+      selectedModeId: request.modeId,
+      selectedTargetIds: request.targetIds,
+      rulesYaml: request.rulesYaml,
+      preview: { state: "loading", message: "正在读取并冻结实际命中…", items: [] },
     };
-    const errors = ktcValidateAutoBuildConfiguration(cmakeOnlyConfiguration);
-    if (errors.length) throw new Error(errors.join("\n"));
-    const plan = await ktcCreateAutoBuildCleanupPlan(
-      cmakeOnlyConfiguration,
-      async (path, description) => {
-        const topLevel = (await execFileAsync(
-          "git",
-          ["-C", path, "rev-parse", "--show-toplevel"],
-          { encoding: "utf8" },
-        )).stdout.trim();
-        if (!topLevel) throw new Error(`${description} 不是 Git 工作树：${path}`);
-        if (!ktcCanAccessAutoBuildPathOnHost(topLevel, process.platform)) {
-          throw new Error(`${description} 的 Git 顶层不是本机 Windows 绝对路径：${topLevel}`);
+    this.touchCompanion();
+    try {
+      const model = ktcCreateAutoBuildCleanupViewModel({
+        configuration: currentConfiguration,
+        defaultWorkingDirectory: this.defaultWorkingDirectory,
+        platform: process.platform,
+        enabled: true,
+        state: this.cleanupState,
+      });
+      const targetsById = new Map(model.targets.map((target) => [target.id, target]));
+      const selectedTargets = request.targetIds.map((targetId) => {
+        const target = targetsById.get(targetId);
+        if (!target || target.disabled || !target.supportedModeIds?.includes(request.modeId)) {
+          throw new Error(`清理目标已失效或不支持当前方式：${targetId}`);
         }
-        if (ktcIsAutoBuildFilesystemRoot(topLevel)) {
-          throw new Error(`${description} 的 Git 顶层是文件系统根目录，拒绝清理：${topLevel}`);
+        return target;
+      });
+      const frozen: KtcAutoBuildFrozenCleanupTarget[] = [];
+      const items: string[] = [];
+      for (const target of selectedTargets) {
+        if (!this.isLiveHandler() || this.stopped || this.cleanupCancelled) throw new Error("清理预览已停止。");
+        if (request.modeId === "git-force") {
+          const preview = await ktcPreviewWingGitForcedCleanup(target.path);
+          frozen.push({ kind: "git-force", targetId: target.id, label: target.label, preview });
+          for (const change of preview.trackedChanges) items.push(`[${target.label}] 已跟踪 · ${change}`);
+          for (const change of preview.untrackedAndIgnored) items.push(`[${target.label}] 未跟踪/忽略 · ${change}`);
+          if (!preview.trackedChanges.length && !preview.untrackedAndIgnored.length) {
+            items.push(`[${target.label}] 工作树已干净`);
+          }
+          continue;
         }
-        return topLevel;
-      },
-    );
-    if (!this.isLiveHandler()) return;
-    if (this.stopped) {
-      this.repositoryCleanupStatus = "已取消";
-      await this.status("idle", "已停止仓库清理，未打开确认框或启动脚本。");
-      return;
+        if (request.modeId === "cmake" && target.id === "cmake:shared") {
+          try { await access(target.path); }
+          catch {
+            items.push(`[${target.label}] 目录不存在，无需清理`);
+            continue;
+          }
+          const preview = await ktcPreviewWingDirectoryContents(target.path);
+          frozen.push({ kind: "directory-contents", targetId: target.id, label: target.label, preview });
+          if (!preview.matched.length) items.push(`[${target.label}] 目录为空`);
+          for (const path of preview.matched) items.push(`[${target.label}] ${path}`);
+          continue;
+        }
+        const preview = request.modeId === "cmake"
+          ? await ktcPreviewWingCleanupArtifacts(
+            dirname(target.path),
+            "delete:\n  directories:\n    - build\n  files: []",
+          )
+          : await ktcPreviewWingCleanupArtifacts(target.path, request.rulesYaml);
+        frozen.push({ kind: "artifacts", targetId: target.id, label: target.label, preview });
+        if (!preview.matched.length) items.push(`[${target.label}] 没有命中`);
+        for (const path of preview.matched) items.push(`[${target.label}] ${path}`);
+      }
+      if (!this.isLiveHandler() || this.stopped || this.cleanupCancelled) throw new Error("清理预览已停止。");
+      const token = randomUUID();
+      this.frozenCleanup = {
+        token,
+        documentId: this.companionDocumentId,
+        draftRevision: this.companionDraftRevision,
+        request,
+        targets: Object.freeze(frozen),
+      };
+      this.cleanupState = {
+        ...this.cleanupState,
+        preview: {
+          state: "ready",
+          token,
+          summary: `${selectedTargets.length} 个目标 · ${items.length} 条预览`,
+          message: "已冻结当前命中；执行时会再次验证文件、目录与仓库状态。",
+          items: Object.freeze(items),
+        },
+      };
+      this.log(`清理预览：${request.modeId} · ${selectedTargets.length} 个目标 · ${items.length} 条`);
+      this.touchCompanion();
+    } catch (error) {
+      if (this.cleanupCancelled || this.stopped) {
+        this.finishCancelledCleanup([]);
+        return;
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      this.frozenCleanup = undefined;
+      this.cleanupState = {
+        ...this.cleanupState,
+        preview: { state: "error", message, items: [] },
+      };
+      this.touchCompanion();
+      throw error;
     }
-    const targetCount = plan.repositories.length + plan.cmakeBuildTargets.length;
-    const confirmed = await vscode.window.showWarningMessage(
-      `将处理 ${plan.repositories.length} 个 Git 仓库和 ${plan.cmakeBuildTargets.length} 个 CMake 构建目录。未提交修改、未跟踪文件和忽略文件都会被删除。`,
-      { modal: true, detail: ktcFormatAutoBuildCleanupPlan(plan) },
-      "清理仓库",
-    );
-    if (!this.isLiveHandler()) return;
-    if (this.stopped) {
-      this.repositoryCleanupStatus = "已取消";
-      await this.status("idle", "已停止仓库清理，未启动脚本。");
-      return;
-    }
-    if (confirmed !== "清理仓库") {
-      this.repositoryCleanupStatus = "已取消";
-      await this.status("idle", "已取消仓库清理，未启动脚本。");
-      return;
-    }
-    const script = vscode.Uri.joinPath(this.extensionUri, "scripts", "auto-build", "Invoke-AutoBuild.ps1").fsPath;
-    const task: KtcAutoBuildTask = {
-      id: "manual-repository-cleanup",
-      name: "手动清理仓库",
-      commandSummary: "Invoke-AutoBuild.ps1 -Clean -ForceClean -CleanOnly",
-      phase: "repository",
-      status: "in_progress",
-      children: [
-        ...plan.repositories.map((target) => ({
-          name: target,
-          commandSummary: "reset --hard + clean -ffdx",
-        })),
-        ...plan.cmakeBuildTargets.map((target) => ({
-          name: target.path,
-          commandSummary: target.action === "delete" ? "删除整个目录" : "清空内容并保留目录",
-        })),
-      ].map((target, index) => ({
-        id: `manual-repository-cleanup-${index}`,
-        ...target,
-        status: "in_progress",
-      })),
-    };
-    this.tasks = ktcUpsertAutoBuildSessionTasks(this.tasks, [task]);
-    const cleanupTask = this.tasks.find((candidate) => (
-      ktcAutoBuildTaskSessionKey(candidate) === ktcAutoBuildTaskSessionKey(task)
-    ))!;
-    this.repositoryCleanupStatus = "正在清理";
-    await this.post({ type: "tasks", tasks: this.tasks });
-    await this.status("in_progress", "正在手动清理仓库；不会拉取、检出或启动构建。");
-    if (!this.isLiveHandler() || this.stopped) {
-      this.repositoryCleanupStatus = "已取消";
-      cleanupTask.status = "error";
-      cleanupTask.children?.forEach((child) => { child.status = "error"; });
-      await this.post({ type: "tasks", tasks: this.tasks });
-      await this.status("idle", "已停止仓库清理，未启动脚本。");
-      return;
-    }
-    const code = await this.runProcess(cleanupTask, ktcAutoBuildCleanupArguments(effective, script, plan), effective);
-    if (!this.isLiveHandler()) return;
-    cleanupTask.status = code === 0 ? "done" : "error";
-    cleanupTask.children?.forEach((child) => { child.status = cleanupTask.status; });
-    await this.post({ type: "tasks", tasks: this.tasks });
-    if (code === 0) {
-      this.repositoryCleanupStatus = `已处理 ${targetCount} 个目标`;
-      await this.refreshRepositorySnapshot(effective, responseContext);
-      await this.status("done", "仓库清理完成；未执行拉取、检出或构建。");
-      return;
-    }
-    this.repositoryCleanupStatus = this.stopped ? "已停止" : "清理失败";
-    await this.status(this.stopped ? "idle" : "error", this.stopped ? "仓库清理已停止。" : "仓库清理失败，请查看 Output。");
   }
+
+  private async executeCleanupDialog(
+    request: KtcAutoBuildCleanupDialogRequest,
+    previewToken: string,
+  ): Promise<void> {
+    const frozen = this.frozenCleanup;
+    if (!frozen
+      || frozen.token !== previewToken
+      || frozen.documentId !== this.companionDocumentId
+      || frozen.draftRevision !== this.companionDraftRevision
+      || !isDeepStrictEqual(frozen.request, request)) {
+      throw new Error("清理预览已过期，请重新预览后再执行。");
+    }
+    this.cleanupState = {
+      ...this.cleanupState,
+      preview: {
+        state: "executing",
+        message: "正在验证并执行冻结的清理结果…",
+        items: this.cleanupState.preview?.items ?? [],
+      },
+    };
+    this.touchCompanion();
+    const results: string[] = [];
+    try {
+      for (const target of frozen.targets) {
+        const shouldContinue = (): boolean => this.isLiveHandler() && !this.stopped && !this.cleanupCancelled;
+        if (!shouldContinue()) throw new Error("清理执行已停止。");
+        if (target.kind === "git-force") {
+          const result = await ktcExecuteWingGitForcedCleanup(target.preview, { shouldContinue });
+          const summary = `${target.label} · Git 恢复 ${result.repository}`;
+          results.push(summary);
+          this.log(summary);
+          continue;
+        }
+        const result = target.kind === "directory-contents"
+          ? await ktcCleanPreviewedWingDirectoryContents(target.preview, { shouldContinue })
+          : await ktcCleanPreviewedWingArtifacts(target.preview, { shouldContinue });
+        if (!result.deleted.length) {
+          const summary = `${target.label} · 无需清理`;
+          results.push(summary);
+          this.log(summary);
+          continue;
+        }
+        for (const path of result.deleted) {
+          const summary = `${target.label} · 删除 ${path}`;
+          results.push(summary);
+          this.log(summary);
+        }
+      }
+      if (this.cleanupCancelled || this.stopped) throw new Error("清理执行已停止。");
+      this.frozenCleanup = undefined;
+      this.cleanupState = {
+        ...this.cleanupState,
+        preview: {
+          state: "complete",
+          summary: `${frozen.targets.length} 个目标已处理`,
+          message: "清理完成。",
+          items: Object.freeze(results),
+        },
+      };
+      this.companionStatus = "done";
+      this.companionMessage = "清理完成。";
+      this.touchCompanion();
+    } catch (error) {
+      if (this.cleanupCancelled || this.stopped) {
+        this.log(error instanceof Error ? error.message : String(error));
+        this.finishCancelledCleanup(results);
+        return;
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      this.frozenCleanup = undefined;
+      this.cleanupState = {
+        ...this.cleanupState,
+        preview: { state: "error", message, items: Object.freeze(results) },
+      };
+      this.touchCompanion();
+      throw error;
+    }
+  }
+
+  private cancelCleanupDialog(): void {
+    const pending = this.companionPendingAction === "cleanupDialog";
+    const executing = this.cleanupState.preview?.state === "executing";
+    this.cleanupCancelled = true;
+    this.frozenCleanup = undefined;
+    if (pending) this.cancelConfigurationRequest();
+    const message = executing
+      ? "已请求停止清理；已删除内容不会恢复，不再处理后续项。"
+      : "已取消清理预览；冻结结果已失效，未启动新的删除。";
+    this.cleanupState = {
+      ...this.cleanupState,
+      preview: { state: "idle", message, items: [] },
+    };
+    // Closing an idle cleanup dialog must not change an unrelated build task.
+    if (pending || this.companionStatus !== "running") {
+      this.companionStatus = "idle";
+      this.companionMessage = message;
+    }
+    this.log(message);
+    this.touchCompanion();
+  }
+
+  private finishCancelledCleanup(results: readonly string[]): void {
+    if (!this.isLiveHandler()) return;
+    this.frozenCleanup = undefined;
+    const message = "清理已取消；已删除内容不会恢复，未继续处理后续项。";
+    this.cleanupState = {
+      ...this.cleanupState,
+      preview: { state: "idle", message, items: Object.freeze([...results]) },
+    };
+    this.companionStatus = "idle";
+    this.companionMessage = message;
+    this.log(message);
+    this.touchCompanion();
+  }
+
   private async addProjectDirectories(configuration: KtcAutoBuildConfiguration, paths: string[], deduplicateOrigin: boolean, responseContext: KtcAutoBuildDraftContext): Promise<void> {
     const working = configuration.workingDirectory || "", rows = [...configuration.projects], known = new Set(rows.map((row) => ktcResolveAutoBuildPath(row.path, working).toLocaleLowerCase()));
     const probedPaths = new Set(paths.map((path) => path.toLocaleLowerCase()));
@@ -1073,7 +1207,7 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
       const branch = (await execFileAsync("git", ["-C", path, "branch", "--show-current"], { encoding: "utf8" })).stdout.trim() || "(detached)", commit = (await execFileAsync("git", ["-C", path, "rev-parse", "HEAD"], { encoding: "utf8" })).stdout.trim();
       let status: "clean" | "modified" | "invalid" | "script-mismatch" | "unknown" = (await execFileAsync("git", ["-C", path, "status", "--porcelain=v1"], { encoding: "utf8" })).stdout.trim() ? "modified" : "clean", message = "", origin = "";
       try { origin = (await execFileAsync("git", ["-C", path, "remote", "get-url", "origin"], { encoding: "utf8" })).stdout.trim(); } catch { origin = "(无 origin)"; }
-      if (row.operations.cmake || row.operations.caa) { const mk = ktcJoinAutoBuildPath(path, "mk.ps1"); try { await access(mk); const source = await readFile(mk, "utf8"); if (/ROOT_DIR[\\/]+tools[\\/]+mk\.ps1/i.test(source)) { if (!this.detectedRootDirectory) { status = "script-mismatch"; message = "项目依赖 ROOT_DIR/tools/mk.ps1，但尚未探测到 Root。"; } else { const rootMk = ktcJoinAutoBuildPath(this.detectedRootDirectory, "tools", "mk.ps1"); if (!ktcCanAccessAutoBuildPathOnHost(rootMk, process.platform)) { status = "unknown"; message = "项目依赖 Windows ROOT_DIR/tools/mk.ps1，当前系统未访问该路径。"; } else { try { await access(rootMk); } catch { status = "script-mismatch"; message = "项目依赖 ROOT_DIR/tools/mk.ps1，但当前 Root 中不存在。"; } } } } } catch { status = "invalid"; message = "所选编译目录缺少 mk.ps1。"; } }
+      if (row.operations.caa) { const mk = ktcJoinAutoBuildPath(path, "mk.ps1"); try { await access(mk); const source = await readFile(mk, "utf8"); if (/ROOT_DIR[\\/]+tools[\\/]+mk\.ps1/i.test(source)) { if (!this.detectedRootDirectory) { status = "script-mismatch"; message = "项目依赖 ROOT_DIR/tools/mk.ps1，但尚未探测到 Root。"; } else { const rootMk = ktcJoinAutoBuildPath(this.detectedRootDirectory, "tools", "mk.ps1"); if (!ktcCanAccessAutoBuildPathOnHost(rootMk, process.platform)) { status = "unknown"; message = "项目依赖 Windows ROOT_DIR/tools/mk.ps1，当前系统未访问该路径。"; } else { try { await access(rootMk); } catch { status = "script-mismatch"; message = "项目依赖 ROOT_DIR/tools/mk.ps1，但当前 Root 中不存在。"; } } } } } catch { status = "invalid"; message = "所选编译目录缺少 mk.ps1。"; } }
       return { ...row, branch: row.branch || branch, probe: { capturedAt, branch, commit, origin, status, ...(message ? { message } : {}) } };
     }
     catch (error) { return { ...row, probe: { capturedAt, branch: "", commit: "", origin: "", status: "not-git", message: error instanceof Error ? error.message.split(/\r?\n/, 1)[0] : String(error) } }; }
@@ -1084,6 +1218,7 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
     return found;
   }
   private async runProject(configuration: KtcAutoBuildConfiguration, projectId: string, _responseContext: KtcAutoBuildDraftContext): Promise<void> {
+    this.failedRepositoryPaths.clear();
     let selected = configuration.projects.find((project) => project.id === projectId);
     if (!selected) throw new Error("项目行已变化，请重新探测。");
     if (!selected.enabled) throw new Error("该项目未启用。");
@@ -1105,19 +1240,19 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
     await this.post({ type: "tasks", tasks: this.tasks });
     let single: KtcAutoBuildConfiguration;
     let tasks: KtcAutoBuildTask[];
+    let updateSkipped = false;
     try {
       const validationErrors = ktcValidateAutoBuildConfiguration({ ...configuration, projects: [selected] });
       if (validationErrors.length) throw new Error(validationErrors.join("\n"));
-      if (selected.operations.update) this.warnNonWindowsBlindRun();
       selected = await this.probeProjectRow(selected, configuration.workingDirectory || "");
       if (this.stopped) throw new Error("项目准备已停止。");
-      if (selected.operations.update) await this.updateProjectRow(selected, configuration.workingDirectory || "");
+      if (selected.operations.update) updateSkipped = await this.updateProjectRow(selected, configuration.workingDirectory || "") === "skipped";
       if (this.stopped) throw new Error("项目准备已停止。");
       single = { ...configuration, projects: [{ ...selected }] };
       tasks = ktcPlanAutoBuildTasks(single).filter((task) => task.phase !== "repository");
       if (!tasks.length && !selected.operations.update) throw new Error("该项目没有选择更新、linkCAA、CMake 或 CAA 操作。");
       preparationTask.status = "done";
-      preparationTask.children?.forEach((child) => { child.status = "done"; });
+      preparationTask.children?.forEach((child) => { child.status = updateSkipped ? "skipped" : "done"; child.detail = updateSkipped ? "有本地修改，保留并跳过更新；后续构建使用当前工作树" : "项目准备完成"; });
       await this.post({ type: "tasks", tasks: this.tasks });
     } catch (error) {
       preparationTask.status = "error";
@@ -1132,7 +1267,7 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
       }
       throw error;
     }
-    if (!tasks.length) { await this.status("done", `${selected.name} 更新完成。`); return; }
+    if (!tasks.length) { await this.status("done", updateSkipped ? `${selected.name} 有本地修改，已跳过更新。` : `${selected.name} 更新完成。`); return; }
     const script = vscode.Uri.joinPath(this.extensionUri, "scripts", "auto-build", "Invoke-AutoBuild.ps1").fsPath;
     this.tasks = ktcUpsertAutoBuildSessionTasks(this.tasks, tasks);
     const taskKeys = new Set(tasks.map(ktcAutoBuildTaskSessionKey));
@@ -1146,13 +1281,52 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
       await this.post({ type: "tasks", tasks: this.tasks });
       const code = await this.runProcess(task, this.taskArguments(task, single, script), single);
       if (!this.isLiveHandler()) return;
-      task.status = code === 0 ? "done" : "error";
-      task.children?.forEach((child) => { child.status = task.status; });
+      this.completeTaskRun(task, code);
       await this.post({ type: "tasks", tasks: this.tasks });
     }
-    const failed = sessionTasks.filter((task) => task.status === "error"); await this.status(failed.length ? "error" : "done", failed.length ? `${selected.name}：${failed.length} 个任务失败。` : `${selected.name} 完成。`);
+    const failed = sessionTasks.filter((task) => task.status === "error");
+    const skipped = sessionTasks.filter((task) => task.status === "skipped");
+    const text = this.stopped ? `${selected.name} 已停止。` : `${selected.name} 执行结束：${failed.length} 个失败，${skipped.length} 个跳过${updateSkipped ? "；Git 更新已跳过" : ""}。`;
+    this.log(text, true);
+    await this.status(this.stopped ? "idle" : failed.length ? "error" : "done", text);
   }
-  private async updateProjectRow(project: KtcAutoBuildProjectRow, working: string): Promise<void> { const root = ktcResolveAutoBuildPath(project.path, working); if (!ktcCanAccessAutoBuildPathOnHost(root, process.platform)) throw new Error("当前项目不是本机原生绝对路径，未执行 Git 更新。"); const status = (await execFileAsync("git", ["-C", root, "status", "--porcelain=v1"], { encoding: "utf8" })).stdout.trim(); if (status) { this.log(`项目有修改，保留并跳过更新：${root}`, true); return; } const run = async (...args: string[]) => { this.log(`git -C ${root} ${args.join(" ")}`); await execFileAsync("git", ["-C", root, ...args], { encoding: "utf8" }); }; await run("fetch", "--prune", "origin"); await run("checkout", project.branch); await run("pull", "--ff-only", "origin", project.branch); await run("submodule", "sync", "--recursive"); await run("submodule", "update", "--init", "--recursive"); }
+  private async updateProjectRow(project: KtcAutoBuildProjectRow, working: string): Promise<KtcAutoBuildGitUpdateResult> {
+    const abort = new AbortController();
+    this.gitUpdateAbortController = abort;
+    if (this.stopped) abort.abort();
+    try {
+      return await ktcUpdateAutoBuildProjectRepository(project, working, {
+        signal: abort.signal,
+        log: (message) => this.log(message),
+      });
+    } finally {
+      if (this.gitUpdateAbortController === abort) this.gitUpdateAbortController = undefined;
+    }
+  }
+
+  private async updateProject(configuration: KtcAutoBuildConfiguration, projectId: string, context: KtcAutoBuildDraftContext): Promise<void> {
+    const project = configuration.projects.find((row) => row.id === projectId);
+    if (!project) throw new Error("项目行已变化，请重新探测。");
+    if (!project.enabled) throw new Error("该项目未启用。");
+    this.log(`单独更新 ${project.name} → ${project.branch}；只更新 Git，不执行 link / export / build。`, true);
+    try {
+      const outcome = await this.updateProjectRow(project, configuration.workingDirectory || "");
+      if (this.stopped) { await this.status("idle", "Git 更新已停止；未启动其他任务。"); return; }
+      const probed = await this.probeProjectRow(project, configuration.workingDirectory || "");
+      if (this.isCurrentDraftContext(context)) {
+        await this.post({ type: "projectProbe", ...context, projectId, probe: probed.probe });
+      }
+      const text = outcome === "skipped"
+        ? `${project.name} 有本地修改，已保留并跳过更新；未编译。`
+        : `${project.name} Git 更新完成（${project.branch}）；未编译。`;
+      this.log(text, true);
+      await this.status("done", text);
+    } catch (error) {
+      if (!this.stopped) throw error;
+      this.log(`Git 更新已停止：${project.name}；已完成的 Git 操作不会自动回滚。`, true);
+      await this.status("idle", "Git 更新已停止；未启动其他任务。");
+    }
+  }
   private async postScriptStatus(): Promise<void> {
     const source = vscode.Uri.joinPath(this.extensionUri, "scripts").fsPath;
     const target = this.detectedRootDirectory;
@@ -1177,8 +1351,101 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
   }
   private nonWindowsScriptNote(): string { return process.platform === "win32" ? "" : "；当前为非 Windows 检查环境：这里只生成或同步 PS1，实际执行请转到 Windows PowerShell 5.1 与 CAA/MSVC 工具链环境。"; }
   private warnNonWindowsBlindRun(): void { if (process.platform === "win32" || this.nonWindowsRunNoticeShown) return; this.nonWindowsRunNoticeShown = true; const notice = "当前为非 Windows 检查环境：运行仍会尝试现有链路，仅作盲开发检查，不能替代 Windows PowerShell 5.1 与 CAA/MSVC 实际构建。"; this.log(notice, true); void vscode.window.showWarningMessage(notice); }
-  private taskArguments(task: KtcAutoBuildTask, configuration: KtcAutoBuildConfiguration, script: string): string[] { if (task.phase === "repository") return ktcAutoBuildRepositoryArguments(configuration, script); if (task.phase === "link") return ktcLinkCaaArguments(configuration, task.path); if (task.phase === "export") return ktcExportArguments(task.path!); return ktcMkArguments(task.path!, task.phase === "cmake" ? "CMake" : "CAA"); }
+  private taskArguments(task: KtcAutoBuildTask, configuration: KtcAutoBuildConfiguration, script: string): string[] { if (task.phase === "repository" || task.phase === "cmake") return []; if (task.phase === "link") return ktcLinkCaaArguments(configuration, task.path); if (task.phase === "export") return ktcExportArguments(task.path!); return ktcMkArguments(task.path!, "CAA"); }
   private async runProcess(task: KtcAutoBuildTask, args: string[], configuration: KtcAutoBuildConfiguration): Promise<number> {
+    try {
+      if (this.stopped) { task.status = "cancelled"; return -1; }
+      if (task.phase === "repository") return await this.runRepositoryTask(task, configuration);
+      const blockedBy = [...this.failedRepositoryPaths].find((failed) => {
+        const normalize = (value: string) => {
+          const normalized = value.replaceAll("\\", "/").replace(/\/+$/u, "");
+          return process.platform === "win32" ? normalized.toLowerCase() : normalized;
+        };
+        const root = normalize(failed), target = normalize(task.path ?? "");
+        return root === normalize(configuration.rootDirectory) || root === normalize(configuration.thirdPartyDirectory)
+          || target === root || target.startsWith(`${root}/`);
+      });
+      if (blockedBy) {
+        task.status = "skipped";
+        this.log(`WARN ${task.name} 已跳过：依赖仓库更新失败 ${blockedBy}`);
+        return 0;
+      }
+      if (task.phase === "cmake") {
+        const cmakeFile = ktcJoinAutoBuildPath(task.path!, "CMakeLists.txt");
+        if (!(await stat(cmakeFile)).isFile()) throw new Error(`未找到 CMakeLists.txt：${cmakeFile}`);
+        let failures = 0;
+        for (const plan of ktcPlanNativeCmakeBuild(task.path!, configuration.cmakeBuildTypes)) {
+          if (this.stopped) break;
+          this.log(`CMake ${plan.type} → ${plan.buildDirectory}（TypeScript；不调用 mk.ps1）`, true);
+          const configureCode = await this.spawnTaskProcess(task, plan.configure, configuration, "cmake", plan.cwd);
+          if (configureCode !== 0) { failures++; continue; }
+          if (this.stopped) break;
+          if (await this.spawnTaskProcess(task, plan.build, configuration, "cmake", plan.cwd) !== 0) failures++;
+        }
+        return this.stopped ? -1 : failures ? 1 : 0;
+      }
+      if (process.platform !== "win32") {
+        task.status = "skipped";
+        const reason = task.phase === "export"
+          ? `未运行 export.ps1：${task.path}；当前 ${process.platform} 跳过 PowerShell 导出，继续顺序编译 CMake。依赖未导出时 CMake 会报告真实错误。`
+          : `${task.name} 仍依赖 Windows ${task.phase === "caa" ? "CAA/RADE 工具链" : "链接脚本"}，本机已跳过；不视为执行成功。`;
+        this.log(`WARN ${reason}`, true);
+        return 0;
+      }
+      return await this.spawnTaskProcess(task, args, configuration);
+    } catch (error) {
+      this.log(`ERROR ${task.name}：${error instanceof Error ? error.message : String(error)}`, true);
+      return this.stopped ? -1 : 1;
+    }
+  }
+
+  private completeTaskRun(task: KtcAutoBuildTask, code: number): KtcAutoBuildTask["status"] {
+    if (this.stopped) task.status = "cancelled";
+    else if (task.status !== "skipped") task.status = code === 0 ? "done" : "error";
+    if (task.phase !== "repository") task.children?.forEach((child) => { child.status = task.status; });
+    return task.status;
+  }
+
+  private async runRepositoryTask(task: KtcAutoBuildTask, configuration: KtcAutoBuildConfiguration): Promise<number> {
+    this.failedRepositoryPaths.clear();
+    const rootRow = (id: string, name: string, path: string, branch: string, update: boolean): KtcAutoBuildProjectRow => ({
+      id, name, path, branch, enabled: true, operations: { update, cmake: false, caa: false, linkCaa: false },
+    });
+    const repositories = [
+      ...(ktcAutoBuildRootEnabled(configuration) ? [rootRow("root", "ROOT_DIR", configuration.rootDirectory, configuration.rootBranch, !!configuration.updateRoot)] : []),
+      ...(ktcAutoBuildThirdPartyEnabled(configuration) ? [rootRow("third", "ROOT_DIR_3rdParty", configuration.thirdPartyDirectory, configuration.branch, !!configuration.updateThirdParty)] : []),
+      ...configuration.projects.filter((project) => project.enabled && project.operations.update),
+    ];
+    let failures = 0;
+    for (const project of repositories) {
+      const child = task.children?.find((candidate) => candidate.id === `repository-${project.id}`);
+      if (this.stopped) { if (child) child.status = "cancelled"; continue; }
+      if (!project.operations.update) {
+        if (child) { child.status = "skipped"; child.detail = "未勾选更新；仅保留探测结果"; }
+        this.log(`${project.name}：未勾选更新，跳过 Git 写操作。`);
+        continue;
+      }
+      if (child) child.status = "in_progress";
+      await this.post({ type: "tasks", tasks: this.tasks });
+      try {
+        const result = await this.updateProjectRow(project, configuration.workingDirectory || "");
+        if (child) {
+          child.status = result === "skipped" ? "skipped" : "done";
+          child.detail = result === "skipped" ? "有本地修改，保留现场并跳过" : `Git 已更新到 ${project.branch}`;
+        }
+      } catch (error) {
+        failures++;
+        this.failedRepositoryPaths.add(ktcResolveAutoBuildPath(project.path, configuration.workingDirectory || ""));
+        const reason = error instanceof Error ? error.message : String(error);
+        if (child) { child.status = this.stopped ? "cancelled" : "error"; child.detail = reason; }
+        this.log(`ERROR ${project.name} 更新失败：${reason}；继续其他独立仓库。`, true);
+      }
+      await this.post({ type: "tasks", tasks: this.tasks });
+    }
+    return this.stopped ? -1 : failures ? 1 : 0;
+  }
+
+  private async spawnTaskProcess(task: KtcAutoBuildTask, args: string[], configuration: KtcAutoBuildConfiguration, program = "powershell.exe", cwd?: string): Promise<number> {
     const projectName = task.path?.replace(/[\\/]+$/, "").split(/[\\/]/).at(-1);
     const phaseName = task.phase === "cmake"
       ? "CMake"
@@ -1196,10 +1463,14 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
         .some((path) => !ktcCanAccessAutoBuildPathOnHost(path, process.platform))) {
       throw new Error("Windows 实际执行仅接受盘符绝对路径或 UNC 共享根路径。");
     }
-    this.warnNonWindowsBlindRun();
-    this.log(`任务 ${task.name}；命令 powershell.exe ${task.commandSummary}`, true);
+    if (program === "powershell.exe") this.warnNonWindowsBlindRun();
+    this.log(`任务 ${task.name}；命令 ${program} ${args.join(" ")}`, true);
     return await new Promise<number>((resolve) => {
-      const child = spawn("powershell.exe", args, {
+      const child = spawn(program, args, {
+        cwd,
+        shell: false,
+        // Isolate POSIX CMake + compiler children so Stop targets only this task's process group.
+        detached: program === "cmake" && process.platform !== "win32",
         windowsHide: true,
         env: {
           ...process.env,
@@ -1208,6 +1479,7 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
         },
       });
       this.processes.add(child);
+      if (program === "cmake" && process.platform !== "win32" && child.pid) this.nativeProcessGroups.add(child.pid);
       const streams = {
         stdout: { decoder: new StringDecoder("utf8"), pending: "" },
         stderr: { decoder: new StringDecoder("utf8"), pending: "" },
@@ -1234,6 +1506,7 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
         flush("stdout");
         flush("stderr");
         this.processes.delete(child);
+        if (child.pid) this.nativeProcessGroups.delete(child.pid);
         this.log(`任务 ${task.name} exit code: ${code}`);
         resolve(code);
       };
@@ -1291,7 +1564,7 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
     effective.clean = false;
     if (!this.legacyAutomaticCleanupNoticeShown) {
       this.legacyAutomaticCleanupNoticeShown = true;
-      const notice = "旧配置中的自动清理已关闭；启动和预检不会再清理仓库。请从 Primary 的“维护与清理”手动触发。";
+      const notice = "旧配置中的自动清理已关闭；启动和预检不会再清理仓库。请从 Primary 执行区的“清理”按钮手动触发。";
       this.log(notice, true);
       void vscode.window.showWarningMessage(notice);
     }
@@ -1359,6 +1632,7 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
       "pickProjectDirectories",
       "discoverProjectDirectories",
       "probeProject",
+      "updateProject",
       "runProject",
       "exportLauncher",
       "writeScript",
@@ -1367,7 +1641,8 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
 
   private clearExecutionContext(): void {
     this.tasks = [];
-    this.repositoryCleanupStatus = "仅手动触发";
+    this.frozenCleanup = undefined;
+    this.cleanupState = {};
     this.stopped = false;
     this.companionStatus = "idle";
     this.companionMessage = "等待操作。";
@@ -1472,6 +1747,7 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
       branch: configuration.branch.trim(),
       cmakeBranch: configuration.cmakeBranch.trim(),
       buildExecutionMode: configuration.buildExecutionMode === "parallel" ? "parallel" : "sequential",
+      cmakeBuildTypes: ktcSelectCmakeBuildTypes(configuration.cmakeBuildTypes),
       clean: configuration.clean,
       rootCleanupYaml: configuration.rootCleanupYaml ?? KTC_DEFAULT_ROOT_CLEANUP_PATTERNS_YAML,
       projects: configuration.projects.map((project) => ({
@@ -1685,20 +1961,6 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
       ? this.currentPath.replace(/[\\/]+$/, "").split(/[\\/]/).at(-1) || this.currentPath
       : "未保存";
     const recentPaths = this.workspaceState.get<string[]>(RECENT_KEY) || [];
-    const primary = ktcCreateAutoBuildPrimaryViewModel({
-      configuration,
-      tasks: this.tasks,
-      currentPath: this.currentPath,
-      recentPaths,
-      dirty: !this.currentPath || this.configurationDirty(),
-      workingDirectoryMismatch: this.workingDirectoryMismatch,
-      workingDirectoryBaseline: this.workingDirectoryBaseline,
-      defaultWorkingDirectory: this.defaultWorkingDirectory,
-      platform: process.platform,
-      scriptStatus: this.companionScriptStatus,
-      repositoryCleanupStatus: this.repositoryCleanupStatus,
-      rootCleanupStatus: this.rootCleanupStatus,
-    });
     const baseActionAvailable = liveReady
       && !this.companionPendingAction
       && this.companionStatus !== "running"
@@ -1718,19 +1980,26 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
     const pendingExecution = this.companionPendingAction === "preflight"
       || this.companionPendingAction === "start"
       || this.companionPendingAction === "runProject"
+      || this.companionPendingAction === "updateProject"
       || this.companionPendingAction === "runTask"
-      || this.companionPendingAction === "cleanRepositories"
-      || this.companionPendingAction === "cleanRootArtifacts";
+      || this.companionPendingAction === "cleanupDialog";
     const stopAvailable = liveReady
       && (this.companionStatus === "running" || this.processes.size > 0 || pendingExecution);
-    const repositoryCleanupAvailable = executionAvailable
-      && process.platform === "win32"
-      && !!configuration?.rootDirectory.trim()
-      && !!configuration.thirdPartyDirectory.trim()
-      && ktcCanAccessAutoBuildPathOnHost(configuration.rootDirectory, process.platform)
-      && ktcCanAccessAutoBuildPathOnHost(configuration.thirdPartyDirectory, process.platform)
-      && !ktcIsAutoBuildFilesystemRoot(configuration.rootDirectory)
-      && !ktcIsAutoBuildFilesystemRoot(configuration.thirdPartyDirectory);
+    const primary = ktcCreateAutoBuildPrimaryViewModel({
+      configuration,
+      tasks: this.tasks,
+      currentPath: this.currentPath,
+      recentPaths,
+      dirty: !this.currentPath || this.configurationDirty(),
+      workingDirectoryMismatch: this.workingDirectoryMismatch,
+      workingDirectoryBaseline: this.workingDirectoryBaseline,
+      defaultWorkingDirectory: this.defaultWorkingDirectory,
+      platform: process.platform,
+      scriptStatus: this.companionScriptStatus,
+      cleanupEnabled: executionAvailable,
+      cleanupDisabledReason: executionDisabledReason,
+      cleanupState: this.cleanupState,
+    });
     return {
       panelId: this.companionSessionId,
       toolId: "autoBuild",
@@ -1773,10 +2042,23 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
           ...(stopAvailable ? {} : { disabledReason: "当前没有运行或等待启动的任务。" }),
         },
         {
+          id: "openCleanup",
+          label: "清理",
+          enabled: executionAvailable,
+          tone: "secondary",
+          ...(executionAvailable ? {} : { disabledReason: executionDisabledReason }),
+        },
+        {
           id: "toggleParallelBuild",
           label: "并行编译",
           enabled: executionAvailable,
           ...(executionAvailable ? {} : { disabledReason: executionDisabledReason }),
+        },
+        {
+          id: "setCmakeBuildTypes",
+          label: "CMake 编译配置",
+          enabled: executionAvailable && !!configuration,
+          disabledReason: executionDisabledReason,
         },
         { id: "reveal", label: "详细配置", enabled: liveReady },
         { id: "openOutput", label: "Output", enabled: liveReady },
@@ -1793,12 +2075,6 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
           ...(executionAvailable && !!configuration && (!this.currentPath || this.configurationDirty())
             ? {}
             : { disabledReason: this.currentPath && !this.configurationDirty() ? "当前配置没有未保存修改。" : executionDisabledReason }),
-        },
-        {
-          id: "saveRootCleanupConfig",
-          label: "保存清理规则",
-          enabled: executionAvailable && !!configuration,
-          ...(executionAvailable && !!configuration ? {} : { disabledReason: executionDisabledReason }),
         },
         {
           id: "saveAsConfig",
@@ -1839,35 +2115,19 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
           ...(executionAvailable && path !== this.currentPath ? {} : { disabledReason: path === this.currentPath ? "当前配置已打开。" : executionDisabledReason }),
         })),
         {
-          id: "cleanRepositories",
-          label: "清理仓库",
-          enabled: repositoryCleanupAvailable,
-          tone: "danger",
-          ...(repositoryCleanupAvailable ? {} : { disabledReason: process.platform === "win32" ? "当前仓库路径不可安全清理，或已有操作正在进行。" : "仅能在 Windows 执行 Host 中清理仓库。" }),
-        },
-        {
-          id: "updateRootCleanupYaml",
-          label: "更新清理规则",
-          enabled: baseActionAvailable && !!configuration,
-          ...(baseActionAvailable && !!configuration
-            ? {}
-            : { disabledReason: configuration ? executionDisabledReason : "当前没有可更新的配置。" }),
-        },
-        {
-          id: "cleanRootArtifacts",
+          id: "cleanupDialog",
           label: "清理",
-          enabled: maintenanceAvailable,
+          enabled: executionAvailable,
           tone: "danger",
-          ...(maintenanceAvailable ? {} : { disabledReason: "当前 Root 不可清理，或已有操作正在进行。" }),
+          ...(executionAvailable ? {} : { disabledReason: executionDisabledReason }),
         },
         {
           id: "syncRootScript",
           label: "同步脚本",
-          enabled: maintenanceAvailable
-            && this.companionScriptStatus?.status !== "same",
-          ...(maintenanceAvailable && this.companionScriptStatus?.status !== "same"
+          enabled: maintenanceAvailable,
+          ...(maintenanceAvailable
             ? {}
-            : { disabledReason: "当前脚本无需同步或 Root 不可写。" }),
+            : { disabledReason: "当前 Root 不可写或正在处理其他操作。" }),
         },
       ],
       primary: { kind: "autoBuild", model: primary },

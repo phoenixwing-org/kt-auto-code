@@ -102,7 +102,7 @@ export function ktcGitPanelModel(
 ): KtcGitViewModel {
   return toolState?.git ?? {
     projects: [],
-    statusText: "当前工作区未发现 Git 仓库。",
+    statusText: "请选择 Git 仓库。",
     recentCommitLimit: 1,
     workspaceFolderCount: workspaceAvailable ? 1 : 0,
     workspaceRepositoryCount: 0,
@@ -151,6 +151,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
   );
   const autoBuildPrimaryPanelUri = webview.asWebviewUri(
     extensionUri.with({ path: `${basePath}/dist/ktc-auto-build-primary-panel.js` }),
+  );
+  const packageIncludesPrimaryUri = webview.asWebviewUri(
+    extensionUri.with({ path: `${basePath}/dist/ktc-package-includes-primary.js` }),
   );
   const reorderMembersPanelUri = webview.asWebviewUri(
     extensionUri.with({ path: `${basePath}/dist/reorder-members-panel.js` }),
@@ -262,6 +265,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .git-repository-action { display: inline-grid; width: 27px; height: 27px; flex: 0 0 27px; place-items: center; padding: 0; border: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); border-radius: 3px; color: var(--vscode-foreground); background: var(--vscode-button-secondaryBackground, transparent); cursor: pointer; font-size: 17px; }
     .git-repository-action:hover { border-color: var(--ktc-ui-active-border, var(--vscode-focusBorder)); background: var(--vscode-button-secondaryHoverBackground, var(--vscode-toolbar-hoverBackground)); }
     .git-repository-action:disabled { opacity: .48; cursor: not-allowed; }
+    .git-repository-action[hidden] { display: none; }
+    #project-rename-primary-choose[hidden] { display: none; }
+    .project-rename-primary-directory-note { display:block; padding:0 8px 6px; color:var(--vscode-descriptionForeground); font-size:11px; }
     .tabs {
       display: flex;
       gap: 4px;
@@ -937,20 +943,24 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       <div class="editor-companion-actions" id="editor-companion-actions"></div>
     </section>
     <section class="project-rename-primary" id="project-rename-primary" aria-label="项目改名 Primary" hidden>
-      <div class="project-rename-primary-directory"><span id="project-rename-primary-root"></span><button id="project-rename-primary-choose" type="button">选择目录…</button></div>
       <div class="project-rename-primary-actions" id="project-rename-primary-actions"></div>
       <details open><summary><strong>总览</strong><span>风险与范围</span></summary><div class="project-rename-primary-overview" id="project-rename-primary-overview"></div></details>
       <details open><summary><strong>项目档案</strong><span id="project-rename-primary-profile-count"></span></summary><div class="project-rename-primary-profile-body"><label>选择方案<pnw-combo id="project-rename-primary-scheme"></pnw-combo></label><label>项目档案名称<span class="project-rename-primary-profile-save"><input id="project-rename-primary-profile-name" maxlength="256" placeholder="例如：Phoenix 产品改名" /><button id="project-rename-primary-save" type="button">保存</button></span></label></div></details>
       <p class="project-rename-primary-status" id="project-rename-primary-status"></p>
       <dl class="project-rename-primary-summary" id="project-rename-primary-summary"></dl>
+      <div class="project-rename-primary-directory"><span id="project-rename-primary-root"></span><button id="project-rename-primary-choose" type="button">选择目录…</button></div>
+      <small class="project-rename-primary-directory-note" id="project-rename-primary-directory-note"></small>
     </section>
+    <ktc-package-includes-primary id="package-includes-primary" hidden></ktc-package-includes-primary>
     <ktc-auto-build-primary-panel id="auto-build-primary-panel" hidden></ktc-auto-build-primary-panel>
+    <pnw-cleanup-dialog id="auto-build-cleanup-dialog"></pnw-cleanup-dialog>
+    <pnw-cleanup-dialog id="run-cleanup-dialog"></pnw-cleanup-dialog>
     <p class="meta" id="workspace-meta">
       <span id="workspace-context-label">工作区：</span>
       <strong id="workspace-label">—</strong>
       <select id="git-repository-select" aria-label="Git 仓库" hidden></select>
-      <button class="git-repository-action" id="git-repository-add" type="button" title="添加 Git 仓库" aria-label="添加 Git 仓库" hidden>＋</button>
-      <button class="git-repository-action" id="git-repository-refresh" type="button" title="刷新仓库摘要" aria-label="刷新仓库摘要" hidden>↻</button>
+      <button class="git-repository-action" id="git-repository-add" type="button" title="登记已有 Git 仓库" aria-label="登记已有 Git 仓库" hidden>＋</button>
+      <button class="git-repository-action" id="git-repository-refresh" type="button" title="重新发现并刷新仓库" aria-label="重新发现并刷新仓库" hidden>↻</button>
       <button class="git-repository-action" id="git-repository-remove" type="button" title="从我的仓库移除" aria-label="从我的仓库移除" hidden>−</button>
     </p>
     <section class="code-assistant-block" id="code-assistant-block" hidden aria-label="代码辅助功能">
@@ -1064,15 +1074,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
           </select>
         </label>
       </div>
-      <section class="replace-ignore-summary" id="replace-ignore-summary" aria-label="Ignore 使用策略">
-        <div class="replace-ignore-header"><strong>忽略</strong><span class="replace-ignore-state" id="replace-ignore-state">已启用</span><button class="action secondary" id="btn-toggle-replace-ignore" type="button" aria-pressed="true">停用</button><button class="action secondary" id="btn-manage-replace-ignore" type="button">修改</button></div>
-        <div class="replace-ignore-sources" aria-label="Ignore 来源">
-          <label title="Phoenix Auto 内置的 CAA、C++、Web 生成物和缓存目录"><input id="replace-ignore-builtin" type="checkbox" checked />插件</label>
-          <label title="读取本次扫描根所在最近 Git 仓库根部的 .gitignore"><input id="replace-ignore-git" type="checkbox" checked />Git</label>
-          <label title="读取本次扫描根的 .phoenix/.ignore"><input id="replace-ignore-custom-enabled" type="checkbox" />自定义</label>
-        </div>
-        <p class="replace-ignore-hint">停用后仍保留不可关闭的安全排除；规则正文统一在 Ignore 管理中修改。</p>
-      </section>
+      <ktc-ignore-policy-block id="replace-ignore-summary" aria-label="Ignore 使用策略"></ktc-ignore-policy-block>
       </div>
     </section>
     <ktc-uuid-results-panel id="uuid-results-panel" hidden></ktc-uuid-results-panel>
@@ -1141,6 +1143,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
   <script nonce="${nonce}" src="${gitPrimaryPanelUri}"></script>
   <script nonce="${nonce}" src="${ignorePrimaryPanelUri}"></script>
   <script nonce="${nonce}" src="${autoBuildPrimaryPanelUri}"></script>
+  <script nonce="${nonce}" src="${packageIncludesPrimaryUri}"></script>
   <script nonce="${nonce}" src="${reorderMembersPanelUri}"></script>
   <script nonce="${nonce}" src="${uuidResultsPanelUri}"></script>
   <script nonce="${nonce}" src="${renameResultsPanelUri}"></script>
@@ -1216,6 +1219,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     let focusOpenItemsRequested = false;
     let openItemsModelSignature = "";
     let toolbarProjectionSignature = "";
+    let runCleanupProjection;
+    let runCleanupOpenRequestKey = "";
+    let runCleanupCancelledRequestKey = "";
+    let runCleanupSuppressedSessionId = "";
 
     function persistUiState() {
       vscode.setState({
@@ -1315,6 +1322,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       projectRenamePrimaryStatus: document.getElementById("project-rename-primary-status"),
       projectRenamePrimarySummary: document.getElementById("project-rename-primary-summary"),
       autoBuildPrimaryPanel: document.getElementById("auto-build-primary-panel"),
+      packageIncludesPrimary: document.getElementById("package-includes-primary"),
+      autoBuildCleanupDialog: document.getElementById("auto-build-cleanup-dialog"),
+      runCleanupDialog: document.getElementById("run-cleanup-dialog"),
       replaceBlock: document.getElementById("replace-block"),
       codeAssistantBlock: document.getElementById("code-assistant-block"),
       codeAssistantNavigator: document.getElementById("code-assistant-navigator"),
@@ -1343,12 +1353,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       replaceFile: document.getElementById("replace-file"),
       replaceDir: document.getElementById("replace-dir"),
       replaceIgnoreSummary: document.getElementById("replace-ignore-summary"),
-      replaceIgnoreState: document.getElementById("replace-ignore-state"),
-      replaceIgnoreBuiltIn: document.getElementById("replace-ignore-builtin"),
-      replaceIgnoreGit: document.getElementById("replace-ignore-git"),
-      replaceIgnoreCustomEnabled: document.getElementById("replace-ignore-custom-enabled"),
-      btnToggleReplaceIgnore: document.getElementById("btn-toggle-replace-ignore"),
-      btnManageReplaceIgnore: document.getElementById("btn-manage-replace-ignore"),
       btnProjectRenameAnalysis: document.getElementById("btn-project-rename-analysis"),
       defaultEncoding: document.getElementById("replace-default-encoding"),
       replacePreview: document.getElementById("btn-replace-preview"),
@@ -2063,6 +2067,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.projectRenamePrimaryRoot.title = model.root || "未选择分析目录";
       els.projectRenamePrimaryRoot.setAttribute("aria-label", model.root || "未选择分析目录");
       els.projectRenamePrimaryChoose.disabled = closed || !choose?.enabled;
+      els.projectRenamePrimaryChoose.hidden = Boolean(model.root);
+      document.getElementById("project-rename-primary-directory-note").textContent = model.root
+        ? "当前任务目录已固定；如需更换，请关闭右侧视图后重新打开。"
+        : "请选择本次任务目录；选择后固定。";
       els.projectRenamePrimaryChoose.title = els.projectRenamePrimaryChoose.disabled
         ? (choose?.disabledReason || "当前不可选择目录。")
         : "为项目改名选择分析目录";
@@ -2154,6 +2162,18 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       }
     }
 
+    function renderPackageIncludesPrimary(ts) {
+      const companion = ts.editorCompanion;
+      const projection = companion?.primary?.kind === "packageIncludes" ? companion.primary.model : undefined;
+      els.packageIncludesPrimary.model = companion && projection ? Object.assign({}, projection, {
+        sessionId: companion.sessionId,
+        revision: companion.revision,
+        ready: companion.ready && companion.lifecycle !== "disposed",
+        busy: projection.busy,
+        actions: companion.actions || [],
+      }) : undefined;
+    }
+
     function renderAutoBuildPrimary(ts) {
       const companion = ts.editorCompanion;
       const projection = companion?.primary?.kind === "autoBuild"
@@ -2167,6 +2187,36 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
             actions: companion.actions || [],
           })
         : undefined;
+      if (projection?.cleanup) els.autoBuildCleanupDialog.model = projection.cleanup;
+    }
+
+    function openAutoBuildCleanup(modeId) {
+      const companion = (state.toolStates.autoBuild || {}).editorCompanion;
+      const cleanup = companion?.primary?.kind === "autoBuild"
+        ? companion.primary.model.cleanup
+        : null;
+      if (!cleanup) return;
+      const selectedModeId = (cleanup.modes || []).some((mode) => mode.id === modeId)
+        ? modeId
+        : cleanup.selectedModeId;
+      els.autoBuildCleanupDialog.model = Object.assign({}, cleanup, {
+        selectedModeId,
+        preview: { state: "idle", items: [] },
+      });
+      els.autoBuildCleanupDialog.showModal(selectedModeId);
+    }
+
+    function postAutoBuildCleanupAction(companion, payload) {
+      if (!companion || !payload) return;
+      vscode.postMessage({
+        type: "editorCompanionAction",
+        panelId: companion.panelId,
+        toolId: companion.toolId,
+        sessionId: companion.sessionId,
+        revision: companion.revision,
+        actionId: "cleanupDialog",
+        payload,
+      });
     }
 
     const editorCompanionStatusText = ${ktcEditorCompanionStatusText.toString()};
@@ -2175,6 +2225,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     function renderWorkingContext() {
       renderReplaceIgnoreSummary();
       const context = state.workingContext || {};
+      renderRunCleanup((state.toolStates.run || {}).runCleanup, context.resolvedDirectory);
       els.workingContextShell.model = {
         label: "目录",
         value: context.label || context.selectedDirectory || "未打开目录",
@@ -2183,22 +2234,13 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
 
     function renderReplaceIgnoreSummary() {
       const context = state.workingContext || {};
-      const config = state.ignoreConfig;
-      const ignoreEnabled = context.ignoreEnabled !== false;
-      els.replaceIgnoreBuiltIn.checked = context.builtInIgnoreEnabled !== false;
-      els.replaceIgnoreGit.checked = context.gitIgnoreEnabled !== false;
-      els.replaceIgnoreCustomEnabled.checked = context.customIgnoreEnabled === true;
-      els.replaceIgnoreBuiltIn.disabled = !ignoreEnabled;
-      els.replaceIgnoreGit.disabled = !ignoreEnabled;
-      els.replaceIgnoreCustomEnabled.disabled = !ignoreEnabled;
-      els.btnToggleReplaceIgnore.textContent = ignoreEnabled ? "停用" : "启用";
-      els.btnToggleReplaceIgnore.setAttribute("aria-pressed", String(ignoreEnabled));
-      els.btnToggleReplaceIgnore.title = ignoreEnabled ? "停用三个可选 Ignore 来源" : "恢复上次选择的 Ignore 来源";
-      const customCount = config?.patternCount || 0;
-      const selectedCount = [context.builtInIgnoreEnabled !== false, context.gitIgnoreEnabled !== false, context.customIgnoreEnabled === true].filter(Boolean).length;
-      els.replaceIgnoreState.textContent = ignoreEnabled
-        ? "已启用 · " + selectedCount + "/3 来源" + (context.customIgnoreEnabled === true ? " · 自定义 " + customCount : "")
-        : "已停用 · 安全排除保留";
+      els.replaceIgnoreSummary.model = {
+        enabled: context.ignoreEnabled !== false,
+        builtInEnabled: context.builtInIgnoreEnabled !== false,
+        gitEnabled: context.gitIgnoreEnabled !== false,
+        customEnabled: context.customIgnoreEnabled === true,
+        customCount: state.ignoreConfig?.patternCount || 0,
+      };
     }
 
     function renderCodegen(ts, running) {
@@ -2211,6 +2253,47 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     function renderRun(ts, running) {
       const model = ts.run;
       els.runPanel.model = model ? Object.assign({}, model, { running: !!running }) : undefined;
+    }
+
+    function renderRunCleanup(projection, resolvedDirectory) {
+      runCleanupProjection = projection;
+      if (!projection) {
+        els.runCleanupDialog.close();
+        return;
+      }
+      const requestKey = JSON.stringify([projection.sessionId, projection.openRequestId]);
+      if (projection.openRequestId === 0) runCleanupSuppressedSessionId = projection.sessionId;
+      const workspace = projection.model.targets.find((target) => target.id === "workspace");
+      if (!workspace || workspace.path !== resolvedDirectory) {
+        // A directory change consumes the open request and cancels the old Host session.
+        // A replay of that state must never re-open a dialog for the previous directory.
+        runCleanupOpenRequestKey = requestKey;
+        els.runCleanupDialog.close();
+        if (runCleanupCancelledRequestKey !== requestKey) {
+          runCleanupCancelledRequestKey = requestKey;
+          postRunCleanupAction(projection, { kind: "cancel" });
+        }
+        return;
+      }
+      els.runCleanupDialog.model = projection.model;
+      // openRequestId 0 is a state-only replay after Webview reload, never an open intent.
+      if (projection.openRequestId > 0 && projection.sessionId !== runCleanupSuppressedSessionId
+        && requestKey !== runCleanupOpenRequestKey) {
+        runCleanupOpenRequestKey = requestKey;
+        els.runCleanupDialog.showModal(projection.model.selectedModeId);
+      }
+    }
+
+    function postRunCleanupAction(projection, payload) {
+      if (!projection || !payload) return;
+      vscode.postMessage({
+        type: "runAction",
+        toolId: "run",
+        action: "cleanupDialog",
+        sessionId: projection.sessionId,
+        revision: projection.revision,
+        payload,
+      });
     }
 
     function renderGit(ts, running) {
@@ -2274,7 +2357,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       }
       els.gitRepositorySelect.value = model?.selectedRepositoryId || projects[0]?.repository.id || "";
       const selected = projects.find((project) => project.repository.id === els.gitRepositorySelect.value)?.repository;
-      els.workspaceMeta.title = selected ? selected.name + " · " + selected.id : "当前工作区未发现 Git 仓库";
+      els.workspaceMeta.title = selected ? selected.name + " · " + selected.id : "请选择 Git 仓库";
       els.gitRepositorySelect.setAttribute(
         "aria-label",
         selected ? "Git 仓库：" + selected.name + " · " + selected.id : "Git 仓库",
@@ -2450,6 +2533,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       els.btnProjectRenameAnalysis.hidden = welcomeMode || tool?.id !== "codeRename";
       const toolbarProjection = {
         activeToolId: state.activeToolId,
+        codeAssistantGroupExpanded: isCodeAssistantGroupActive(),
         openToolIds: state.openToolIds || [],
         installedModuleIds: state.moduleState.installed || ["code"],
         visibleModuleIds: state.moduleState.visible || ["code"],
@@ -2694,6 +2778,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       const environment = isEnvironmentTool();
       const editorCompanion = isEditorCompanionTool();
       const autoBuildPrimary = editorCompanion && currentContentToolId() === "autoBuild";
+      const packageIncludesPrimary = editorCompanion && currentContentToolId() === "packageIncludes";
       const projectRenamePrimary = editorCompanion
         && currentContentToolId() === "projectRename"
         && ts.editorCompanion?.primary?.kind === "projectRename";
@@ -2705,11 +2790,13 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       document.body.classList.toggle("git-tool", git);
       // 代码辅助目录与成员排序复用一个容器，但始终是两个直接 toolId 的投影。
       els.desc.hidden = ignore || reorder || genericActionFeature || editorCompanion;
-      els.editorCompanionBlock.hidden = !editorCompanion || autoBuildPrimary || projectRenamePrimary;
+      els.editorCompanionBlock.hidden = !editorCompanion || autoBuildPrimary || projectRenamePrimary || packageIncludesPrimary;
       els.projectRenamePrimary.hidden = !projectRenamePrimary;
       els.autoBuildPrimaryPanel.hidden = !autoBuildPrimary;
+      els.packageIncludesPrimary.hidden = !packageIncludesPrimary;
       if (autoBuildPrimary) renderAutoBuildPrimary(ts);
       else if (projectRenamePrimary) renderProjectRenamePrimary(ts);
+      else if (packageIncludesPrimary) renderPackageIncludesPrimary(ts);
       else if (editorCompanion) renderEditorCompanion(ts);
       els.replaceBlock.hidden = !rename;
       els.codeAssistantBlock.hidden = !reorder;
@@ -2946,6 +3033,28 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     els.runPanel.addEventListener("ktc-run-primary-action", (event) => {
       vscode.postMessage(Object.assign({ type: "runAction", toolId: "run" }, event.detail));
     });
+    els.runCleanupDialog.addEventListener("pnw-cleanup-dialog-action", (event) => {
+      const detail = event.detail || {};
+      if (detail.kind !== "preview" && detail.kind !== "execute" && detail.kind !== "cancel") return;
+      const projection = runCleanupProjection;
+      if (!projection) return;
+      const requestKey = JSON.stringify([projection.sessionId, projection.openRequestId]);
+      if (detail.kind === "cancel") {
+        runCleanupCancelledRequestKey = requestKey;
+        postRunCleanupAction(projection, detail);
+        return;
+      }
+      if (runCleanupCancelledRequestKey === requestKey || projection.sessionId === runCleanupSuppressedSessionId) return;
+      const context = state.workingContext || {};
+      const workspace = projection.model.targets.find((target) => target.id === "workspace");
+      if (!workspace || workspace.path !== context.resolvedDirectory) {
+        runCleanupCancelledRequestKey = requestKey;
+        els.runCleanupDialog.close();
+        postRunCleanupAction(projection, { kind: "cancel" });
+        return;
+      }
+      postRunCleanupAction(projection, detail);
+    });
     els.gitPanel.addEventListener("ktc-git-primary-action", (event) => {
       vscode.postMessage(Object.assign({ type: "gitAction", toolId: "git" }, event.detail));
     });
@@ -2953,6 +3062,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       const model = (state.toolStates.autoBuild || {}).editorCompanion;
       const actionId = event.detail?.actionId;
       if (!model || !actionId) return;
+      if (actionId === "openCleanup") {
+        openAutoBuildCleanup("rules");
+        return;
+      }
       const value = typeof event.detail?.value === "string"
         ? event.detail.value.slice(0, 4096)
         : undefined;
@@ -2965,6 +3078,27 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         actionId,
         ...(value === undefined ? {} : { value }),
       });
+    });
+    els.packageIncludesPrimary.addEventListener("ktc-package-includes-primary-action", (event) => {
+      const model = (state.toolStates.packageIncludes || {}).editorCompanion;
+      const detail = event.detail || {};
+      if (!model?.ready || model.lifecycle === "disposed" || !model.actions?.some((action) => action.id === detail.actionId && action.enabled)) return;
+      vscode.postMessage({ type: "editorCompanionAction", panelId: model.panelId, toolId: "packageIncludes",
+        sessionId: model.sessionId, revision: model.revision, actionId: detail.actionId,
+        ...(detail.payload ? { payload: detail.payload } : {}) });
+    });
+    function postIgnorePolicyAction(event) {
+      const detail = event.detail || {};
+      if (detail.kind === "toggleMaster" && typeof detail.enabled === "boolean") vscode.postMessage({ type: "setIgnoreEnabled", enabled: detail.enabled });
+      else if (detail.kind === "toggleSource" && ["builtIn", "git", "custom"].includes(detail.source) && typeof detail.enabled === "boolean") {
+        vscode.postMessage({ type: "setIgnoreSourceEnabled", source: detail.source, enabled: detail.enabled });
+      } else if (detail.kind === "manage") vscode.postMessage({ type: "selectTool", toolId: "ignoreSettings" });
+    }
+    els.packageIncludesPrimary.addEventListener("ktc-ignore-policy-action", postIgnorePolicyAction);
+    els.autoBuildCleanupDialog.addEventListener("pnw-cleanup-dialog-action", (event) => {
+      const detail = event.detail || {};
+      if (detail.kind !== "preview" && detail.kind !== "execute" && detail.kind !== "cancel") return;
+      postAutoBuildCleanupAction((state.toolStates.autoBuild || {}).editorCompanion, detail);
     });
     els.projectRenamePrimaryScheme.addEventListener("pnw-combo-action", (event) => {
       const model = (state.toolStates.projectRename || {}).editorCompanion;
@@ -3336,19 +3470,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     }
     els.replaceSearch.oninput = onPrimaryRenameInput;
     els.replaceWith.oninput = onPrimaryRenameInput;
-    els.replaceIgnoreBuiltIn.onchange = () => vscode.postMessage({
-      type: "setIgnoreSourceEnabled", source: "builtIn", enabled: els.replaceIgnoreBuiltIn.checked,
-    });
-    els.replaceIgnoreGit.onchange = () => vscode.postMessage({
-      type: "setIgnoreSourceEnabled", source: "git", enabled: els.replaceIgnoreGit.checked,
-    });
-    els.replaceIgnoreCustomEnabled.onchange = () => vscode.postMessage({
-      type: "setIgnoreSourceEnabled", source: "custom", enabled: els.replaceIgnoreCustomEnabled.checked,
-    });
-    els.btnToggleReplaceIgnore.onclick = () => vscode.postMessage({
-      type: "setIgnoreEnabled", enabled: state.workingContext.ignoreEnabled === false,
-    });
-    els.btnManageReplaceIgnore.onclick = () => vscode.postMessage({ type: "selectTool", toolId: "ignoreSettings" });
+    els.replaceIgnoreSummary.addEventListener("ktc-ignore-policy-action", postIgnorePolicyAction);
     for (const input of [els.replaceText, els.replaceFile, els.replaceDir]) {
       input.onchange = saveReplaceState;
     }

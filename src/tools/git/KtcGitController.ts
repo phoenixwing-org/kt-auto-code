@@ -359,6 +359,9 @@ export class KtcGitController {
       storedId: preferredStoredId,
       ...(activeFilePath ? { activeFilePath } : {}),
     });
+    if (this.KtcSummaryDraft?.repositoryId !== this.KtcSelectedRepositoryId) {
+      this.KtcSummaryDraft = undefined;
+    }
     await this.KtcPersistSelectedRepository();
     this.KtcRepositoryInputs = this.KtcDirectories.map((item) => this.KtcDirectoryInput(item));
     const selected = this.KtcSelectedRepositoryId;
@@ -372,7 +375,8 @@ export class KtcGitController {
     }
     await this.KtcReadSelectedRepository(selected, generation, ctx);
     if (generation !== this.KtcReadGeneration) return;
-    ctx.log(`[Git] directories=${this.KtcDirectories.length} selected=${selected} commits=1`);
+    const loadedCommitCount = this.KtcSessions.get(selected)?.snapshot.history.length ?? 0;
+    ctx.log(`[Git] directories=${this.KtcDirectories.length} selected=${selected} commits=${loadedCommitCount}`);
   }
 
   async handle(action: KtcGitActionMessage, ctx: ToolRunContext): Promise<void> {
@@ -587,7 +591,7 @@ export class KtcGitController {
     if (!directory) return;
     const cancellation = this.KtcBeginRead();
     try {
-      const summary = await this.KtcAdapter.readRepositorySummary(directory.root, 1, true, cancellation.signal);
+      const summary = await this.KtcAdapter.readRepositorySummary(directory.root, 2, true, cancellation.signal);
       if (generation !== this.KtcReadGeneration || this.KtcSelectedRepositoryId !== repositoryId) return;
       if (KtcGitPathKey(summary.root) !== KtcGitPathKey(directory.root)) {
         throw new Error("Git 仓库根目录在读取期间发生变化。");
@@ -611,6 +615,7 @@ export class KtcGitController {
       this.KtcPostState(ctx);
     } catch (error) {
       if (generation !== this.KtcReadGeneration || KtcIsAbortError(error)) return;
+      if (this.KtcSummaryDraft?.repositoryId === repositoryId) this.KtcSummaryDraft = undefined;
       if (this.KtcSquashViewBinding?.repositoryId !== repositoryId) {
         this.KtcSessions.delete(repositoryId);
       }
@@ -1407,7 +1412,7 @@ export class KtcGitController {
       this.KtcSummaryDraft = undefined;
       this.KtcSquashDraft = undefined;
       this.KtcUndoState = undefined;
-      const refreshed = await this.KtcAdapter.readRepositorySummary(session.snapshot.root, 1, true);
+      const refreshed = await this.KtcAdapter.readRepositorySummary(session.snapshot.root, 2, true);
       const refreshedSnapshot = KtcGitReadSnapshotFromSummary(refreshed, session.snapshot.name);
       const refreshedSession = {
         snapshot: refreshedSnapshot,
@@ -1653,7 +1658,7 @@ export class KtcGitController {
     this.KtcShowSquashView(repositoryId, "loading", `正在切换到“${pending.targetBranchName}”并读取提交图…`, undefined);
     await KtcSwitchToLocalGitBranch(graph.root, pending.targetBranchName);
     const session = this.KtcRequireSession(repositoryId);
-    const summary = await this.KtcAdapter.readRepositorySummary(graph.root, 1, true);
+    const summary = await this.KtcAdapter.readRepositorySummary(graph.root, 2, true);
     const snapshot = KtcGitReadSnapshotFromSummary(summary, session.snapshot.name);
     const refreshedSession: KtcGitSession = {
       snapshot,
@@ -1816,7 +1821,7 @@ export class KtcGitController {
       this.KtcUndoState = { repositoryId: action.repositoryId, currentRef, result };
       this.KtcSummaryDraft = undefined;
       this.KtcSquashDraft = undefined;
-      const refreshed = await this.KtcAdapter.readRepositorySummary(session.snapshot.root, 1, true);
+      const refreshed = await this.KtcAdapter.readRepositorySummary(session.snapshot.root, 2, true);
       const refreshedSnapshot = KtcGitReadSnapshotFromSummary(refreshed, session.snapshot.name);
       const refreshedSession = {
         snapshot: refreshedSnapshot,
@@ -1959,7 +1964,7 @@ export class KtcGitController {
       relativePath: directory.relativePath,
       sourceGroup: directory.sourceGroup,
       loaded: false,
-      recentCommitLimit: 1,
+      recentCommitLimit: 2,
       hasMoreCommits: false,
     };
   }
@@ -1969,6 +1974,15 @@ export class KtcGitController {
     status: ToolUiState["status"] = "done",
     message?: string,
   ): void {
+    const selectedRepositoryInput = this.KtcRepositoryInputs.find((repository) => (
+      repository.id === this.KtcSelectedRepositoryId
+    ));
+    if (!selectedRepositoryInput
+      || selectedRepositoryInput.loaded === false
+      || Boolean(selectedRepositoryInput.error)
+      || this.KtcSummaryDraft?.repositoryId !== this.KtcSelectedRepositoryId) {
+      this.KtcSummaryDraft = undefined;
+    }
     const git: KtcGitViewModel = KtcCreateGitModel({
       repositories: this.KtcRepositoryInputs,
       selectedRepositoryId: this.KtcSelectedRepositoryId,

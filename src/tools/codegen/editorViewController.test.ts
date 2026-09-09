@@ -6,6 +6,12 @@ const { createWebviewPanel } = vi.hoisted(() => ({
 
 vi.mock("vscode", () => ({
   ViewColumn: { Active: 1 },
+  Uri: {
+    parse: (value: string) => {
+      const parsed = new URL(value);
+      return { scheme: parsed.protocol.slice(0, -1), fsPath: decodeURIComponent(parsed.pathname) };
+    },
+  },
   window: { createWebviewPanel },
 }));
 
@@ -125,6 +131,7 @@ describe("KtcCodegenEditorViewController", () => {
       expect.objectContaining({ enableScripts: true, retainContextWhenHidden: true }),
     );
     expect(first.webview.html).toContain("A.json");
+    expect(first.webview.html).toContain('contextPath: "/workspace"');
     expect(views.isOpen("file:///workspace/A.json")).toBe(true);
 
     views.show(model("file:///workspace/A.json", "A.json"));

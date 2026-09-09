@@ -184,6 +184,12 @@ export function KtcCreateGitModel(input: {
   const selectedRepositoryId = projects.some((project) => project.repository.id === input.selectedRepositoryId)
     ? input.selectedRepositoryId
     : projects[0]?.repository.id;
+  const selectedProject = projects.find((project) => project.repository.id === selectedRepositoryId);
+  const summaryDraft = input.summaryDraft?.repositoryId === selectedRepositoryId
+    && selectedProject?.repository.loaded === true
+    && !selectedProject.repository.error
+    ? input.summaryDraft
+    : undefined;
   const workspaceRepositoryCount = projects.filter((project) => !project.repository.external).length;
   const discovery = input.discovery ?? { status: "idle", scannedDirectories: 0, foundRepositories: 0 };
   return {
@@ -196,11 +202,11 @@ export function KtcCreateGitModel(input: {
     statusText: discovery.status === "searching"
       ? `正在搜索 Git 仓库：已检查 ${discovery.scannedDirectories} 个目录，找到 ${discovery.foundRepositories} 个。`
       : projects.length === 0
-      ? "当前工作区未发现 Git 仓库。"
+      ? "请选择 Git 仓库。"
       : loaded === projects.length
         ? `已读取 ${loaded} 个 Git 仓库。`
         : `已读取当前 ${loaded}/${projects.length} 个 Git 仓库；其余切换后按需读取。`,
-    ...(input.summaryDraft ? { summaryDraft: input.summaryDraft } : {}),
+    ...(summaryDraft ? { summaryDraft } : {}),
     ...(input.squashDraft ? { squashDraft: input.squashDraft } : {}),
     ...(input.lastOperation ? { lastOperation: input.lastOperation } : {}),
   };
@@ -274,8 +280,8 @@ function KtcCreateGitProject(
 }
 
 function KtcNormalizeRecentCommitLimit(value: number | undefined): number {
-  if (!Number.isFinite(value)) return 20;
-  return Math.min(200, Math.max(1, Math.trunc(value ?? 20)));
+  if (!Number.isFinite(value)) return 2;
+  return Math.min(200, Math.max(1, Math.trunc(value ?? 2)));
 }
 
 function KtcShortOid(oid: string | undefined): string {

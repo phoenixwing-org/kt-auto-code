@@ -48,10 +48,13 @@ describe("Run Primary panel", () => {
     expect(source).toContain('action: "runTarget"');
     expect(source).toContain('label: "清理"');
     expect(source).toContain('description: "当前工作目录 · 跳过 .git · 点击即执行，不询问"');
+    expect(source).toContain('this.toolbarButton("刷新", "refresh"');
+    expect(source).toContain('this.toolbarButton("清理", "openCleanup"');
     expect(source).toContain('"删除 build 目录"');
     expect(source).toContain('"删除 objects 目录"');
     expect(source).toContain('"删除 *.obj"');
-    expect(source).toContain('"清理 Git 未跟踪文件"');
+    expect(source).not.toContain('"run-clean-git-untracked"');
+    expect(source).toContain("预览后点击清理，不执行 reset");
     expect(source).toContain('action: "dryRunTarget"');
     expect(source).toContain('action: "stopRun"');
     expect(source).toContain('action: "setCaaVersion"');

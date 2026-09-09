@@ -4,6 +4,7 @@ import { request } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import type { Plugin } from "esbuild";
 import {
   isAllowedWebviewPreviewHost,
   readWebviewPreviewPort,
@@ -60,8 +61,21 @@ describe("generic webview preview server", () => {
     const previewRoot = await mkdtemp(path.join(os.tmpdir(), "ktc-webview-preview-"));
     const entryPoint = path.join(previewRoot, "main.ts");
     const indexFile = path.join(previewRoot, "index.html");
-    await writeFile(entryPoint, "document.body.dataset.preview = 'ready';\n", "utf8");
+    await writeFile(entryPoint, "import value from 'preview-virtual'; document.body.dataset.preview = value;\n", "utf8");
     await writeFile(indexFile, "<!doctype html><title>Preview fixture</title>\n", "utf8");
+    const virtualPlugin: Plugin = {
+      name: "preview-test-virtual",
+      setup(build) {
+        build.onResolve({ filter: /^preview-virtual$/ }, () => ({
+          path: "preview-virtual",
+          namespace: "preview-test",
+        }));
+        build.onLoad({ filter: /.*/, namespace: "preview-test" }, () => ({
+          contents: "export default 'local-wing-source';",
+          loader: "js",
+        }));
+      },
+    };
     const server = await startWebviewPreviewServer({
       label: "test fixture",
       workingDirectory: previewRoot,
@@ -70,6 +84,7 @@ describe("generic webview preview server", () => {
       staticAssets: {
         "/": { filename: indexFile, contentType: "text/html; charset=utf-8" },
       },
+      esbuildPlugins: [virtualPlugin],
     }, 0);
 
     try {
@@ -79,9 +94,10 @@ describe("generic webview preview server", () => {
       expect(home.headers.get("content-security-policy")).toContain("default-src 'self'");
       expect(await home.text()).toContain("Preview fixture");
 
-      const bundle = await fetch(`${server.url}fixture.js`, { method: "HEAD" });
+      const bundle = await fetch(`${server.url}fixture.js`);
       expect(bundle.status).toBe(200);
       expect(bundle.headers.get("content-type")).toContain("text/javascript");
+      expect(await bundle.text()).toContain("local-wing-source");
       expect((await fetch(`${server.url}package.json`)).status).toBe(404);
       expect(await requestStatus(server.port, "/", "malicious.example")).toBe(403);
       expect(await requestStatus(server.port, "http://malicious.example/", `127.0.0.1:${server.port}`)).toBe(400);

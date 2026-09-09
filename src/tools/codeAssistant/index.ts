@@ -170,6 +170,10 @@ export function updateCodeAssistantIgnoreSources(sources: KtcWorkspaceIgnoreSour
   packageIncludeView?.setIgnoreSources(sources);
 }
 
+export function refreshCodeAssistantIgnorePolicy(): void {
+  packageIncludeView?.refreshIgnorePolicy();
+}
+
 export function setCodeAssistantPrimaryCompanionHost(
   host: KtcCodeAssistantPrimaryCompanionHost | undefined,
 ): void {

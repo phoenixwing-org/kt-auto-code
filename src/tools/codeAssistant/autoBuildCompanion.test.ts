@@ -12,6 +12,12 @@ const mocks = vi.hoisted(() => ({
   showOpenDialog: vi.fn(),
   showSaveDialog: vi.fn(),
   showWarningMessage: vi.fn(),
+  previewCleanupArtifacts: vi.fn(),
+  cleanPreviewedArtifacts: vi.fn(),
+  previewDirectoryContents: vi.fn(),
+  cleanPreviewedDirectoryContents: vi.fn(),
+  previewGitForcedCleanup: vi.fn(),
+  executeGitForcedCleanup: vi.fn(),
 }));
 
 vi.mock("vscode", () => {
@@ -43,9 +49,20 @@ vi.mock("../../projectEnvironment.js", () => ({
   ktcReadProjectEnvironment: mocks.readProjectEnvironment,
 }));
 
+vi.mock("./autoBuildCleanupWingAdapter.js", () => ({
+  ktcPreviewWingCleanupArtifacts: mocks.previewCleanupArtifacts,
+  ktcCleanPreviewedWingArtifacts: mocks.cleanPreviewedArtifacts,
+  ktcPreviewWingDirectoryContents: mocks.previewDirectoryContents,
+  ktcCleanPreviewedWingDirectoryContents: mocks.cleanPreviewedDirectoryContents,
+  ktcPreviewWingGitForcedCleanup: mocks.previewGitForcedCleanup,
+  ktcExecuteWingGitForcedCleanup: mocks.executeGitForcedCleanup,
+}));
+
 import * as vscode from "vscode";
 import type { KtcEditorPrimaryCompanionSnapshot } from "../../core/editorPrimaryCompanionContracts.js";
-import type { KtcAutoBuildConfiguration } from "./autoBuildContracts.js";
+import type { KtcAutoBuildConfiguration, KtcAutoBuildTask } from "./autoBuildContracts.js";
+import { ktcPlanAutoBuildTasks } from "./autoBuildContracts.js";
+import type { KtcAutoBuildCleanupDialogRequest } from "./autoBuildCleanupDialogContracts.js";
 import { KtcAutoBuildViewController } from "./autoBuildViewController.js";
 
 interface FakePanel extends vscode.WebviewPanel {
@@ -128,6 +145,67 @@ function actionToken(snapshot: KtcEditorPrimaryCompanionSnapshot, actionId: stri
 }
 
 describe("自动编译 Primary companion", () => {
+  it("项目行 updateProject 只更新目标仓库，不触发项目构建或其他任务", async () => {
+    const panel = fakePanel(); mocks.createWebviewPanel.mockReturnValue(panel);
+    const snapshots: KtcEditorPrimaryCompanionSnapshot[] = [];
+    const controller = new KtcAutoBuildViewController(vscode.Uri.file("/extension"), memory(), { onDidChange: (snapshot) => snapshots.push(snapshot) });
+    await controller.show("/workspace");
+    panel.fireMessage({ type: "ready", documentId: "git-only" });
+    await vi.waitFor(() => expect(snapshots.at(-1)?.ready).toBe(true));
+    const project = { id: "one", name: "One", path: "/workspace/One", branch: "release", enabled: true, operations: { update: false, cmake: true, caa: true, linkCaa: true } };
+    const internal = controller as unknown as { updateProjectRow: ReturnType<typeof vi.fn>; runProcess: ReturnType<typeof vi.fn>; probeProjectRow: ReturnType<typeof vi.fn> };
+    internal.updateProjectRow = vi.fn(async () => "skipped");
+    internal.runProcess = vi.fn();
+    internal.probeProjectRow = vi.fn(async () => ({ ...project, probe: { status: "modified" } }));
+    panel.fireMessage({ type: "updateProject", projectId: "one", documentId: "git-only", draftRevision: 1, configuration: draft({ workingDirectory: "/workspace", projects: [project] }) });
+    await vi.waitFor(() => expect(internal.updateProjectRow).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(mocks.outputLines).toContainEqual(expect.stringContaining("保留并跳过")));
+    expect(internal.runProcess).not.toHaveBeenCalled();
+    expect(mocks.outputLines).toContainEqual(expect.stringContaining("只更新 Git"));
+    controller.dispose();
+  });
+
+  it("整批 Git 使用逐仓 TS，失败不阻断另一个独立仓库，也不启动 PowerShell", async () => {
+    const controller = new KtcAutoBuildViewController(vscode.Uri.file("/extension"), memory());
+    const internal = controller as unknown as {
+      runProcess(task: KtcAutoBuildTask, args: string[], config: KtcAutoBuildConfiguration): Promise<number>;
+      updateProjectRow: ReturnType<typeof vi.fn>;
+      spawnTaskProcess: ReturnType<typeof vi.fn>;
+    };
+    internal.updateProjectRow = vi.fn().mockRejectedValueOnce(new Error("origin unreachable")).mockResolvedValueOnce("updated");
+    internal.spawnTaskProcess = vi.fn();
+    const project = (id: string) => ({ id, name: id, path: `/workspace/${id}`, branch: "main", enabled: true, operations: { update: true, cmake: false, caa: false, linkCaa: false } });
+    const config = draft({ rootEnabled: false, thirdPartyEnabled: false, projects: [project("one"), project("two")] });
+    const task = ktcPlanAutoBuildTasks(config)[0]!;
+    expect(await internal.runProcess(task, [], config)).toBe(1);
+    expect(internal.updateProjectRow).toHaveBeenCalledTimes(2);
+    expect(task.children?.map((child) => child.status)).toEqual(["error", "done"]);
+    expect(internal.spawnTaskProcess).not.toHaveBeenCalled();
+    controller.dispose();
+  });
+
+  it.runIf(process.env.KTC_TEST_NATIVE_CMAKE === "1")("macOS/Linux 真实 CMake Release 编译，不依赖 mk.ps1；export 明确跳过", async () => {
+    const base = await mkdtemp(join(tmpdir(), "ktc-native-cmake-"));
+    const controller = new KtcAutoBuildViewController(vscode.Uri.file("/extension"), memory());
+    try {
+      const project = join(base, "Demo"); await mkdir(project);
+      await writeFile(join(project, "CMakeLists.txt"), 'cmake_minimum_required(VERSION 3.16)\nproject(Demo LANGUAGES CXX)\nadd_executable(probe main.cpp)\n');
+      await writeFile(join(project, "main.cpp"), 'int main() { return 0; }\n');
+      await writeFile(join(project, "export.ps1"), 'throw "must not execute on POSIX"\n');
+      const config = draft({ workingDirectory: base, cmakeBuildTypes: ["Release"] });
+      const internal = controller as unknown as { runProcess(task: KtcAutoBuildTask, args: string[], config: KtcAutoBuildConfiguration): Promise<number> };
+      const exportTask: KtcAutoBuildTask = { id: "export", name: "Export", phase: "export", path: project, status: "in_progress", commandSummary: "export.ps1" };
+      expect(await internal.runProcess(exportTask, [], config)).toBe(0);
+      expect(exportTask.status).toBe("skipped");
+      const task: KtcAutoBuildTask = { id: "cmake", name: "CMake", phase: "cmake", path: project, status: "in_progress", commandSummary: "cmake" };
+      expect(await internal.runProcess(task, [], config)).toBe(0);
+      await expect(access(join(base, "build", "DemoRelease", "probe"))).resolves.toBeUndefined();
+      await expect(access(join(base, "build", "DemoDebug"))).rejects.toThrow();
+      expect(mocks.outputLines).toContainEqual(expect.stringContaining("未运行 export.ps1"));
+      expect(mocks.outputLines.some((line) => line.includes("命令 powershell.exe"))).toBe(false);
+    } finally { controller.dispose(); await rm(base, { recursive: true, force: true }); }
+  }, 60_000);
+
   beforeEach(() => {
     mocks.createWebviewPanel.mockReset();
     mocks.outputShow.mockClear();
@@ -140,6 +218,18 @@ describe("自动编译 Primary companion", () => {
     mocks.showSaveDialog.mockResolvedValue(undefined);
     mocks.showWarningMessage.mockReset();
     mocks.showWarningMessage.mockResolvedValue("放弃修改");
+    mocks.previewCleanupArtifacts.mockReset();
+    mocks.previewCleanupArtifacts.mockImplementation(async (root: string) => ({ root, matched: [join(root, "build")] }));
+    mocks.cleanPreviewedArtifacts.mockReset();
+    mocks.cleanPreviewedArtifacts.mockImplementation(async (preview: { root: string; matched: readonly string[] }) => ({ root: preview.root, deleted: preview.matched }));
+    mocks.previewDirectoryContents.mockReset();
+    mocks.previewDirectoryContents.mockImplementation(async (root: string) => ({ root, matched: [] }));
+    mocks.cleanPreviewedDirectoryContents.mockReset();
+    mocks.cleanPreviewedDirectoryContents.mockImplementation(async (preview: { root: string; matched: readonly string[] }) => ({ root: preview.root, deleted: preview.matched }));
+    mocks.previewGitForcedCleanup.mockReset();
+    mocks.previewGitForcedCleanup.mockImplementation(async (repository: string) => ({ repository, head: "abc", trackedChanges: [], untrackedAndIgnored: [] }));
+    mocks.executeGitForcedCleanup.mockReset();
+    mocks.executeGitForcedCleanup.mockImplementation(async (preview: { repository: string }) => ({ repository: preview.repository, resetOutput: "", cleanOutput: "" }));
     mocks.readProjectEnvironment.mockImplementation(async () => ({ values: mocks.environmentValues }));
   });
 
@@ -1422,14 +1512,106 @@ describe("自动编译 Primary companion", () => {
     }
   });
 
-  it("Root 清理先展示 Root 和数量，确认后才删除预览匹配项", async () => {
+  it("统一对话框把 Git 与两类 CMake 目标路由到对应 Wing 能力", async () => {
+    const root = await mkdtemp(join(tmpdir(), "ktc-auto-build-cleanup-modes-root-"));
+    const working = await mkdtemp(join(tmpdir(), "ktc-auto-build-cleanup-modes-working-"));
+    try {
+      const projectPath = join(working, "KtCore");
+      const sharedBuild = join(working, "build");
+      await mkdir(projectPath);
+      await mkdir(sharedBuild);
+      mocks.environmentValues = [{ key: "customRoot", value: root }];
+      const panel = fakePanel();
+      mocks.createWebviewPanel.mockReturnValue(panel);
+      const snapshots: KtcEditorPrimaryCompanionSnapshot[] = [];
+      const controller = new KtcAutoBuildViewController(
+        vscode.Uri.file("/extension"),
+        memory(),
+        { onDidChange: (snapshot) => snapshots.push(snapshot) },
+      );
+      await controller.show(working);
+      panel.fireMessage({ type: "ready", documentId: "cleanup-modes-document" });
+      await vi.waitFor(() => expect(snapshots.at(-1)?.ready).toBe(true));
+      const initial = vi.mocked(panel.webview.postMessage).mock.calls
+        .map(([message]) => message as { type?: string; configuration?: KtcAutoBuildConfiguration })
+        .find(({ type }) => type === "configuration")!.configuration!;
+      const configuration = draft({
+        ...initial,
+        rootDirectory: root,
+        workingDirectory: working,
+        projects: [{
+          id: "core",
+          enabled: true,
+          name: "KtCore",
+          path: "KtCore",
+          branch: "develop",
+          operations: { update: true, cmake: true, caa: false, linkCaa: false },
+        }],
+      });
+      panel.fireMessage({
+        type: "draftChanged",
+        documentId: "cleanup-modes-document",
+        draftRevision: 1,
+        configuration,
+      });
+      await vi.waitFor(() => expect(snapshots.at(-1)?.summary).toContainEqual({ label: "项目", value: "1 个" }));
+
+      const gitRequest = { modeId: "git-force", targetIds: ["git:root"], rulesYaml: "" } as const;
+      const gitPreview = controller.runPrimaryCompanionAction({
+        ...actionToken(snapshots.at(-1)!, "cleanupDialog"),
+        payload: { kind: "preview", request: gitRequest },
+      });
+      const gitConfigurationRequest = vi.mocked(panel.webview.postMessage).mock.calls
+        .map(([message]) => message as { type?: string; requestId?: string })
+        .reverse()
+        .find(({ type }) => type === "requestConfiguration")!;
+      panel.fireMessage({
+        type: "configurationSnapshot",
+        requestId: gitConfigurationRequest.requestId,
+        documentId: "cleanup-modes-document",
+        draftRevision: 1,
+        configuration,
+      });
+      await expect(gitPreview).resolves.toBe(true);
+      expect(mocks.previewGitForcedCleanup).toHaveBeenCalledWith(root);
+
+      const cmakeRequest = {
+        modeId: "cmake",
+        targetIds: ["cmake:project:core", "cmake:shared"],
+        rulesYaml: "",
+      } as const;
+      const cmakePreview = controller.runPrimaryCompanionAction({
+        ...actionToken(snapshots.at(-1)!, "cleanupDialog"),
+        payload: { kind: "preview", request: cmakeRequest },
+      });
+      const cmakeConfigurationRequest = vi.mocked(panel.webview.postMessage).mock.calls
+        .map(([message]) => message as { type?: string; requestId?: string })
+        .reverse()
+        .find(({ type }) => type === "requestConfiguration")!;
+      panel.fireMessage({
+        type: "configurationSnapshot",
+        requestId: cmakeConfigurationRequest.requestId,
+        documentId: "cleanup-modes-document",
+        draftRevision: 1,
+        configuration,
+      });
+      await expect(cmakePreview).resolves.toBe(true);
+      expect(mocks.previewCleanupArtifacts).toHaveBeenCalledWith(
+        projectPath,
+        "delete:\n  directories:\n    - build\n  files: []",
+      );
+      expect(mocks.previewDirectoryContents).toHaveBeenCalledWith(sharedBuild);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+      await rm(working, { recursive: true, force: true });
+    }
+  });
+
+  it("统一清理对话框先冻结规则命中，再用同一 token 执行", async () => {
     const root = await mkdtemp(join(tmpdir(), "ktc-auto-build-root-clean-"));
     try {
-      const matched = join(root, "XyCoreApi.hpp"), unrelated = join(root, "Other.lib");
-      await writeFile(matched, "header");
-      await writeFile(unrelated, "library");
       mocks.environmentValues = [{ key: "customRoot", value: root }];
-      mocks.showWarningMessage.mockResolvedValue("清理");
+      mocks.previewCleanupArtifacts.mockResolvedValue({ root, matched: [join(root, "build")] });
       const panel = fakePanel();
       mocks.createWebviewPanel.mockReturnValue(panel);
       const snapshots: KtcEditorPrimaryCompanionSnapshot[] = [];
@@ -1441,29 +1623,229 @@ describe("自动编译 Primary companion", () => {
       await controller.show(root);
       panel.fireMessage({ type: "ready", documentId: "cleanup-document" });
       await vi.waitFor(() => expect(snapshots.at(-1)?.ready).toBe(true));
-      const token = { ...actionToken(snapshots.at(-1)!, "cleanRootArtifacts"), value: "- XyCore*" };
-      await expect(controller.runPrimaryCompanionAction(token)).resolves.toBe(true);
-      expect(mocks.showWarningMessage).toHaveBeenCalledWith(
-        expect.stringContaining("1 个"),
-        expect.objectContaining({ modal: true, detail: expect.stringContaining(root) }),
-        "清理",
+      const configuration = vi.mocked(panel.webview.postMessage).mock.calls
+        .map(([message]) => message as { type?: string; configuration?: KtcAutoBuildConfiguration })
+        .find(({ type }) => type === "configuration")!.configuration!;
+      const request = { modeId: "rules", targetIds: ["rules:root"], rulesYaml: "- XyCore*" } as const;
+      const previewing = controller.runPrimaryCompanionAction({
+        ...actionToken(snapshots.at(-1)!, "cleanupDialog"),
+        payload: { kind: "preview", request },
+      });
+      const configurationRequest = vi.mocked(panel.webview.postMessage).mock.calls
+        .map(([message]) => message as { type?: string; requestId?: string; action?: string })
+        .reverse()
+        .find(({ type }) => type === "requestConfiguration")!;
+      expect(configurationRequest.action).toBe("cleanupDialog");
+      panel.fireMessage({
+        type: "configurationSnapshot",
+        requestId: configurationRequest.requestId,
+        documentId: "cleanup-document",
+        draftRevision: 0,
+        configuration,
+      });
+      await expect(previewing).resolves.toBe(true);
+      expect(mocks.previewCleanupArtifacts).toHaveBeenCalledWith(root, "- XyCore*");
+      const primaryAfterPreview = snapshots.at(-1)?.primary;
+      const cleanup = primaryAfterPreview?.kind === "autoBuild"
+        ? primaryAfterPreview.model.cleanup
+        : undefined;
+      expect(cleanup).toMatchObject({
+        selectedModeId: "rules",
+        rulesYaml: "- XyCore*",
+        preview: { state: "ready", token: expect.any(String), items: [expect.stringContaining("build")] },
+        executeEnabled: true,
+      });
+      const previewToken = cleanup!.preview.token!;
+      await expect(controller.runPrimaryCompanionAction({
+        ...actionToken(snapshots.at(-1)!, "cleanupDialog"),
+        payload: { kind: "execute", request, previewToken },
+      })).resolves.toBe(true);
+      expect(mocks.cleanPreviewedArtifacts).toHaveBeenCalledWith(
+        expect.objectContaining({ root, matched: [join(root, "build")] }),
+        expect.objectContaining({ shouldContinue: expect.any(Function) }),
       );
-      await expect(access(matched)).rejects.toThrow();
-      expect(await readFile(unrelated, "utf8")).toBe("library");
-      expect(snapshots.at(-1)?.primary).toMatchObject({ kind: "autoBuild", model: { maintenance: { rootCleanupStatus: "已清理 1 项" } } });
+      expect(snapshots.at(-1)?.primary).toMatchObject({
+        kind: "autoBuild",
+        model: { cleanup: { preview: { state: "complete" }, executeEnabled: false } },
+      });
+      expect(mocks.outputLines).toContainEqual(expect.stringContaining(`删除 ${join(root, "build")}`));
     } finally {
       await rm(root, { recursive: true, force: true });
     }
   });
 
-  it("Root 清理确认框等待期间可停止，确认迟到也不会删除预览文件", async () => {
+  async function cleanupCancellationFixture() {
+    const root = await mkdtemp(join(tmpdir(), "ktc-cleanup-cancellation-"));
+    const working = join(root, "workspace");
+    await mkdir(working);
+    mocks.environmentValues = [{ key: "customRoot", value: root }];
+    const panel = fakePanel();
+    mocks.createWebviewPanel.mockReturnValue(panel);
+    const snapshots: KtcEditorPrimaryCompanionSnapshot[] = [];
+    const controller = new KtcAutoBuildViewController(vscode.Uri.file("/extension"), memory(), {
+      onDidChange: (snapshot) => snapshots.push(snapshot),
+    });
+    await controller.show(working);
+    panel.fireMessage({ type: "ready", documentId: "cleanup-cancel-fixture" });
+    await vi.waitFor(() => expect(snapshots.at(-1)?.ready).toBe(true));
+    const configuration = vi.mocked(panel.webview.postMessage).mock.calls
+      .map(([message]) => message as { type?: string; configuration?: KtcAutoBuildConfiguration })
+      .find(({ type }) => type === "configuration")!.configuration!;
+    const request = { modeId: "rules", targetIds: ["rules:root", "rules:working"], rulesYaml: "- Generated*" } as const;
+    const cleanup = () => {
+      const primary = snapshots.at(-1)!.primary;
+      if (primary?.kind !== "autoBuild") throw new Error("Missing AutoBuild projection");
+      return primary.model.cleanup;
+    };
+    const preview = (previewRequest: KtcAutoBuildCleanupDialogRequest = request) => {
+      const action = actionToken(snapshots.at(-1)!, "cleanupDialog");
+      const pending = controller.runPrimaryCompanionAction({ ...action, payload: { kind: "preview", request: previewRequest } });
+      const message = vi.mocked(panel.webview.postMessage).mock.calls
+        .map(([value]) => value as { type?: string; requestId?: string }).reverse()
+        .find(({ type }) => type === "requestConfiguration")!;
+      panel.fireMessage({ type: "configurationSnapshot", requestId: message.requestId,
+        documentId: "cleanup-cancel-fixture", draftRevision: 0, configuration });
+      return { action, pending };
+    };
+    return { root, controller, snapshots, request, preview, cleanup, async dispose() {
+      controller.dispose(); await rm(root, { recursive: true, force: true });
+    } };
+  }
+
+  it("取消已确认预览立即废弃冻结 token，不启动删除", async () => {
+    const fixture = await cleanupCancellationFixture();
+    try {
+      await expect(fixture.preview().pending).resolves.toBe(true);
+      const previewToken = fixture.cleanup().preview.token!;
+      await expect(fixture.controller.runPrimaryCompanionAction({
+        ...actionToken(fixture.snapshots.at(-1)!, "cleanupDialog"), payload: { kind: "cancel" },
+      })).resolves.toBe(true);
+      expect(fixture.cleanup()).toMatchObject({ preview: { state: "idle" }, executeEnabled: false });
+      expect(fixture.cleanup().preview.token).toBeUndefined();
+      await fixture.controller.runPrimaryCompanionAction({
+        ...actionToken(fixture.snapshots.at(-1)!, "cleanupDialog"),
+        payload: { kind: "execute", request: fixture.request, previewToken },
+      });
+      expect(mocks.cleanPreviewedArtifacts).not.toHaveBeenCalled();
+      expect(mocks.executeGitForcedCleanup).not.toHaveBeenCalled();
+      expect(mocks.outputLines).toContainEqual(expect.stringContaining("冻结结果已失效"));
+    } finally { await fixture.dispose(); }
+  });
+
+  it("等待配置快照时取消立即结束预览请求，不调用 Wing 或启动删除", async () => {
+    const fixture = await cleanupCancellationFixture();
+    try {
+      const action = actionToken(fixture.snapshots.at(-1)!, "cleanupDialog");
+      const pending = fixture.controller.runPrimaryCompanionAction({
+        ...action, payload: { kind: "preview", request: fixture.request },
+      });
+      await expect(fixture.controller.runPrimaryCompanionAction({ ...action, payload: { kind: "cancel" } })).resolves.toBe(true);
+      await expect(pending).resolves.toBe(true);
+      expect(mocks.previewCleanupArtifacts).not.toHaveBeenCalled();
+      expect(mocks.cleanPreviewedArtifacts).not.toHaveBeenCalled();
+      expect(fixture.snapshots.at(-1)!.status).toBe("idle");
+      expect(fixture.cleanup().preview.token).toBeUndefined();
+    } finally { await fixture.dispose(); }
+  });
+
+  it("预览中取消可使用同一操作的稍旧 revision，延迟结果不会复活 ready", async () => {
+    const fixture = await cleanupCancellationFixture();
+    let release = (): void => undefined;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    mocks.previewCleanupArtifacts.mockImplementation(async (root: string) => {
+      await gate;
+      return { root, matched: [join(root, "Generated.obj")] };
+    });
+    try {
+      const { action, pending } = fixture.preview();
+      await vi.waitFor(() => expect(mocks.previewCleanupArtifacts).toHaveBeenCalledOnce());
+      expect(fixture.snapshots.at(-1)!.actions.find(({ id }) => id === "cleanupDialog")!.enabled).toBe(false);
+      await expect(fixture.controller.runPrimaryCompanionAction({ ...action, payload: { kind: "cancel" } })).resolves.toBe(true);
+      release();
+      await expect(pending).resolves.toBe(true);
+      expect(fixture.cleanup().preview.state).toBe("idle");
+      expect(fixture.cleanup().preview.token).toBeUndefined();
+      expect(mocks.previewCleanupArtifacts).toHaveBeenCalledOnce();
+      expect(mocks.cleanPreviewedArtifacts).not.toHaveBeenCalled();
+      expect(fixture.snapshots.at(-1)!.status).toBe("idle");
+      expect(mocks.outputLines.some((line) => line.includes("ERROR"))).toBe(false);
+    } finally { release(); await fixture.dispose(); }
+  });
+
+  it("执行中取消通知 Wing 并停止下一目标，保留已删结果且不伪报完成", async () => {
+    const fixture = await cleanupCancellationFixture();
+    let release = (): void => undefined;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let shouldContinue: (() => boolean) | undefined;
+    mocks.cleanPreviewedArtifacts.mockImplementation(async (preview: { root: string; matched: readonly string[] }, options: { shouldContinue: () => boolean }) => {
+      shouldContinue = options.shouldContinue;
+      await gate;
+      return { root: preview.root, deleted: preview.matched };
+    });
+    try {
+      const firstPreviewAction = fixture.preview();
+      await expect(firstPreviewAction.pending).resolves.toBe(true);
+      const executionAction = actionToken(fixture.snapshots.at(-1)!, "cleanupDialog");
+      const pending = fixture.controller.runPrimaryCompanionAction({
+        ...executionAction, payload: { kind: "execute", request: fixture.request, previewToken: fixture.cleanup().preview.token! },
+      });
+      await vi.waitFor(() => expect(mocks.cleanPreviewedArtifacts).toHaveBeenCalledOnce());
+      expect(shouldContinue?.()).toBe(true);
+      // A delayed Cancel from the preceding preview must not stop this newer Execute.
+      await expect(fixture.controller.runPrimaryCompanionAction({
+        ...firstPreviewAction.action, payload: { kind: "cancel" },
+      })).resolves.toBe(false);
+      await expect(fixture.controller.runPrimaryCompanionAction({
+        ...executionAction, payload: { kind: "cancel" },
+      })).resolves.toBe(true);
+      expect(shouldContinue?.()).toBe(false);
+      release();
+      await expect(pending).resolves.toBe(true);
+      expect(mocks.cleanPreviewedArtifacts).toHaveBeenCalledOnce();
+      expect(fixture.cleanup().preview).toMatchObject({ state: "idle", items: [expect.stringContaining("删除")] });
+      expect(fixture.snapshots.at(-1)!.status).toBe("idle");
+      expect(mocks.outputLines).toContainEqual(expect.stringContaining("已删除内容不会恢复"));
+      expect(mocks.outputLines.some((line) => line.includes("ERROR") || line.endsWith("清理完成。"))).toBe(false);
+    } finally { release(); await fixture.dispose(); }
+  });
+
+  it("取消 Git 清理保留 Wing 的已完成 reset/未运行 clean 阶段日志", async () => {
+    const fixture = await cleanupCancellationFixture();
+    let release = (): void => undefined;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const phaseMessage = "Git reset --hard 已完成；未继续 clean，不自动回滚已完成的 reset。";
+    let shouldContinue: (() => boolean) | undefined;
+    mocks.executeGitForcedCleanup.mockImplementation(async (_preview: unknown, options: { shouldContinue: () => boolean }) => {
+      shouldContinue = options.shouldContinue;
+      await gate;
+      throw new Error(phaseMessage);
+    });
+    try {
+      const request = { modeId: "git-force", targetIds: ["git:root"], rulesYaml: "" } as const;
+      await expect(fixture.preview(request).pending).resolves.toBe(true);
+      const action = actionToken(fixture.snapshots.at(-1)!, "cleanupDialog");
+      const pending = fixture.controller.runPrimaryCompanionAction({
+        ...action, payload: { kind: "execute", request, previewToken: fixture.cleanup().preview.token! },
+      });
+      await vi.waitFor(() => expect(mocks.executeGitForcedCleanup).toHaveBeenCalledOnce());
+      await expect(fixture.controller.runPrimaryCompanionAction({ ...action, payload: { kind: "cancel" } })).resolves.toBe(true);
+      expect(shouldContinue?.()).toBe(false);
+      release();
+      await expect(pending).resolves.toBe(true);
+      const stageLog = mocks.outputLines.findIndex((line) => line.includes(phaseMessage));
+      const finalLog = mocks.outputLines.findIndex((line) => line.includes("清理已取消；已删除内容不会恢复"));
+      expect(stageLog).toBeGreaterThanOrEqual(0);
+      expect(finalLog).toBeGreaterThan(stageLog);
+      expect(fixture.snapshots.at(-1)!.status).toBe("idle");
+      expect(fixture.cleanup().preview.token).toBeUndefined();
+      expect(mocks.cleanPreviewedArtifacts).not.toHaveBeenCalled();
+    } finally { release(); await fixture.dispose(); }
+  });
+
+  it("配置变化会使冻结的清理预览过期并拒绝执行", async () => {
     const root = await mkdtemp(join(tmpdir(), "ktc-auto-build-root-cancel-"));
     try {
-      const matched = join(root, "KtGenerated.obj");
-      await writeFile(matched, "object");
       mocks.environmentValues = [{ key: "customRoot", value: root }];
-      let finishConfirmation = (_choice: string | undefined): void => undefined;
-      mocks.showWarningMessage.mockImplementation(() => new Promise((resolve) => { finishConfirmation = resolve; }));
       const panel = fakePanel();
       mocks.createWebviewPanel.mockReturnValue(panel);
       const snapshots: KtcEditorPrimaryCompanionSnapshot[] = [];
@@ -1475,24 +1857,47 @@ describe("自动编译 Primary companion", () => {
       await controller.show(root);
       panel.fireMessage({ type: "ready", documentId: "cleanup-cancel-document" });
       await vi.waitFor(() => expect(snapshots.at(-1)?.ready).toBe(true));
-
-      const cleaning = controller.runPrimaryCompanionAction({
-        ...actionToken(snapshots.at(-1)!, "cleanRootArtifacts"),
-        value: "- Kt*",
+      const configuration = vi.mocked(panel.webview.postMessage).mock.calls
+        .map(([message]) => message as { type?: string; configuration?: KtcAutoBuildConfiguration })
+        .find(({ type }) => type === "configuration")!.configuration!;
+      const request = { modeId: "rules", targetIds: ["rules:root"], rulesYaml: "- Kt*" } as const;
+      const previewing = controller.runPrimaryCompanionAction({
+        ...actionToken(snapshots.at(-1)!, "cleanupDialog"),
+        payload: { kind: "preview", request },
       });
-      await vi.waitFor(() => expect(mocks.showWarningMessage).toHaveBeenCalledWith(
-        expect.stringContaining("1 个"),
-        expect.objectContaining({ modal: true }),
-        "清理",
-      ));
-      await vi.waitFor(() => expect(snapshots.at(-1)?.actions.find(({ id }) => id === "stop")?.enabled).toBe(true));
-      await expect(controller.runPrimaryCompanionAction(actionToken(snapshots.at(-1)!, "stop"))).resolves.toBe(true);
-      finishConfirmation("清理");
-      await expect(cleaning).resolves.toBe(true);
-
-      expect(await readFile(matched, "utf8")).toBe("object");
-      expect(snapshots.at(-1)).toMatchObject({ status: "idle" });
-      expect(snapshots.at(-1)?.primary).toMatchObject({ kind: "autoBuild", model: { maintenance: { rootCleanupStatus: "已取消" } } });
+      const configurationRequest = vi.mocked(panel.webview.postMessage).mock.calls
+        .map(([message]) => message as { type?: string; requestId?: string })
+        .reverse()
+        .find(({ type }) => type === "requestConfiguration")!;
+      panel.fireMessage({
+        type: "configurationSnapshot",
+        requestId: configurationRequest.requestId,
+        documentId: "cleanup-cancel-document",
+        draftRevision: 0,
+        configuration,
+      });
+      await expect(previewing).resolves.toBe(true);
+      const primaryAfterPreview = snapshots.at(-1)?.primary;
+      const cleanup = primaryAfterPreview?.kind === "autoBuild"
+        ? primaryAfterPreview.model.cleanup
+        : undefined;
+      const previewToken = cleanup!.preview.token!;
+      panel.fireMessage({
+        type: "draftChanged",
+        documentId: "cleanup-cancel-document",
+        draftRevision: 1,
+        configuration: { ...configuration, rootBranch: "release" },
+      });
+      await vi.waitFor(() => expect(snapshots.at(-1)?.primary).toMatchObject({
+        kind: "autoBuild",
+        model: { cleanup: { preview: { state: "idle" }, executeEnabled: false } },
+      }));
+      await expect(controller.runPrimaryCompanionAction({
+        ...actionToken(snapshots.at(-1)!, "cleanupDialog"),
+        payload: { kind: "execute", request, previewToken },
+      })).resolves.toBe(true);
+      expect(mocks.cleanPreviewedArtifacts).not.toHaveBeenCalled();
+      expect(mocks.outputLines).toContainEqual(expect.stringContaining("清理预览已过期"));
     } finally {
       await rm(root, { recursive: true, force: true });
     }

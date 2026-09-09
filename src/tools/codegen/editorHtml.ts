@@ -6,6 +6,9 @@ import {
   ktcNormalizeCodegenEditorLayout,
   type KtcCodegenEditorLayoutState,
 } from "./editorLayoutState.js";
+import { ktcRequireToolRegistration } from "../toolRegistrationCatalog.js";
+
+const CODEGEN_TOOL_REGISTRATION = ktcRequireToolRegistration("codegen");
 
 function safeJson(value: unknown): string {
   return JSON.stringify(value)
@@ -20,6 +23,7 @@ export function getCodegenEditorHtml(
   extensionUri: vscode.Uri,
   initialModel: KtcCodegenEditorModel,
   initialLayout: KtcCodegenEditorLayoutState = KTC_CODEGEN_DEFAULT_EDITOR_LAYOUT,
+  contextPath = "",
 ): string {
   const { nonce, csp } = ktcCreateWebviewSecurity(webview);
   const basePath = extensionUri.path.replace(/\/$/, "");
@@ -28,6 +32,9 @@ export function getCodegenEditorHtml(
   );
   const controlCatalogUri = webview.asWebviewUri(
     extensionUri.with({ path: `${basePath}/dist/codegen-control-catalog.js` }),
+  );
+  const rightViewShellUri = webview.asWebviewUri(
+    extensionUri.with({ path: `${basePath}/dist/ktc-right-view-shell.js` }),
   );
   const model = safeJson(initialModel);
   const layout = safeJson(ktcNormalizeCodegenEditorLayout(initialLayout));
@@ -42,11 +49,24 @@ export function getCodegenEditorHtml(
     * { box-sizing: border-box; }
     html { width: 100%; height: 100%; margin: 0; }
     body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      color: var(--vscode-foreground);
+      background: var(--vscode-editor-background);
+      font: 13px/1.35 var(--vscode-font-family);
+    }
+    ktc-right-view-shell { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; }
+    .codegen-main {
       display: flex;
       flex-direction: column;
       gap: 8px;
       width: 100%;
-      min-height: 100%;
+      height: 100%;
+      min-width: 0;
+      min-height: 0;
       margin: 0;
       overflow-x: hidden;
       overflow-y: auto;
@@ -54,19 +74,16 @@ export function getCodegenEditorHtml(
       scrollbar-gutter: stable;
       scrollbar-color: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, .7)) transparent;
       padding: 8px;
-      color: var(--vscode-foreground);
-      background: var(--vscode-editor-background);
-      font: 13px/1.35 var(--vscode-font-family);
     }
     body.vscode-high-contrast,
     body.vscode-high-contrast-light {
       --ktc-ui-border: var(--vscode-contrastBorder, var(--vscode-focusBorder));
       --ktc-ui-active-border: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
     }
-    body::-webkit-scrollbar { width: 12px; height: 12px; }
-    body::-webkit-scrollbar-track { background: transparent; }
-    body::-webkit-scrollbar-thumb { min-height: 28px; background: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, .7)); border: 3px solid transparent; border-radius: 999px; background-clip: padding-box; }
-    body::-webkit-scrollbar-thumb:hover { background-color: var(--vscode-scrollbarSlider-hoverBackground, rgba(100, 100, 100, .9)); }
+    .codegen-main::-webkit-scrollbar { width: 12px; height: 12px; }
+    .codegen-main::-webkit-scrollbar-track { background: transparent; }
+    .codegen-main::-webkit-scrollbar-thumb { min-height: 28px; background: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, .7)); border: 3px solid transparent; border-radius: 999px; background-clip: padding-box; }
+    .codegen-main::-webkit-scrollbar-thumb:hover { background-color: var(--vscode-scrollbarSlider-hoverBackground, rgba(100, 100, 100, .9)); }
     button {
       min-height: 27px;
       padding: 3px 10px;
@@ -188,6 +205,8 @@ export function getCodegenEditorHtml(
   </style>
 </head>
 <body>
+  <ktc-right-view-shell id="codegen-right-shell">
+  <main class="codegen-main">
   <header class="view-toolbar" aria-label="Codegen 文档操作">
     <div class="document-title">
       <strong id="file-name"></strong>
@@ -195,7 +214,7 @@ export function getCodegenEditorHtml(
     </div>
     <button id="preflight" type="button" aria-label="运行 Codegen 预检" aria-pressed="false">预检</button>
     <button id="controls" type="button" aria-expanded="false">预检结果</button>
-    <button id="apply" type="button" title="没有缓存时会先自动预检；写入前重验源码指纹">Apply</button>
+    <button id="apply" type="button" title="没有缓存时会先自动预检；写入前重验源码指纹">应用</button>
     <span class="separator" aria-hidden="true"></span>
     <button id="reload" type="button" title="重新读取磁盘 JSON；未保存时会先确认">↻ 重新加载</button>
     <button class="primary" id="save" type="button">保存 JSON</button>
@@ -213,9 +232,17 @@ export function getCodegenEditorHtml(
     <strong id="batch-overlay-title">正在全部应用</strong>
     <span id="batch-overlay-file">正在准备 JSON View…</span>
   </div>
+  </main>
+  </ktc-right-view-shell>
+  <script nonce="${nonce}" src="${rightViewShellUri}"></script>
   <script nonce="${nonce}" src="${tableComponentUri}"></script>
   <script nonce="${nonce}" src="${controlCatalogUri}"></script>
   <script nonce="${nonce}">
+    document.getElementById("codegen-right-shell").model = {
+      title: ${safeJson(CODEGEN_TOOL_REGISTRATION.title)},
+      contextPath: ${safeJson(contextPath)},
+      scrollMode: "none",
+    };
     const vscode = acquireVsCodeApi();
     const table = document.getElementById("codegen-table");
     const fileName = document.getElementById("file-name");
@@ -296,7 +323,7 @@ export function getCodegenEditorHtml(
     function syncControlSummary() {
       const headerSummary = document.getElementById("control-summary");
       if (!controlsModel.preflight) {
-        headerSummary.textContent = "尚未预检 · Apply 可自动执行";
+        headerSummary.textContent = "尚未预检 · 应用可自动执行预检";
         return;
       }
       const plan = controlsModel.preflight.plan;
@@ -323,7 +350,10 @@ export function getCodegenEditorHtml(
       if (event.detail && event.detail.dirty && markDirty(event.detail.itemCount)) exchangeDraft();
     });
     table.addEventListener("kt-codegen-table-change", (event) => {
-      const firstDirty = markDirty(event.detail ? event.detail.itemCount : table.getData().items.length);
+      const itemCount = event.detail ? event.detail.itemCount : table.getData().items.length;
+      const firstDirty = markDirty(itemCount);
+      // 整表仍节流交换，但每次编辑立即使 Host 中运行的旧预检失效。
+      if (!firstDirty) post({ type: "codegenEditorDirty", itemCount });
       clearTimeout(draftSyncTimer);
       if (firstDirty) exchangeDraft();
       else draftSyncTimer = setTimeout(exchangeDraft, 600);
@@ -371,7 +401,8 @@ export function getCodegenEditorHtml(
       } else if (message.type === "codegenControlsModel") {
         setControlsModel(message.model);
       } else if (message.type === "codegenDocumentState") {
-        model.dirty = !!message.dirty;
+        // Host 的 clean 状态可能早于本地尚未交换的编辑；仅匹配保存回执或重载清除。
+        model.dirty = !!message.dirty || model.dirty;
         model.externalConflict = !!message.externalConflict;
         model.externalState = message.externalState || (model.externalConflict ? "changed" : "current");
         if (model.dirty) dirtyNotified = true;
@@ -391,16 +422,21 @@ export function getCodegenEditorHtml(
         document.body.setAttribute("aria-busy", String(!!message.running));
       } else if (message.type === "codegenStatus") {
         if (message.status === "saved") {
-          clearTimeout(draftSyncTimer);
-          model.dirty = false;
+          const current = table.getData();
+          const newerDraft = message.savedTable && (message.savedCurrent === false
+            || JSON.stringify(current.items) !== JSON.stringify(message.savedTable.items));
+          model.dirty = !!newerDraft;
           model.externalConflict = false;
           model.externalState = "current";
-          dirtyNotified = false;
-          table.markCheckpoint(message.documentRevision ?? table.getData().documentRevision);
+          dirtyNotified = !!newerDraft;
+          table.markCheckpoint(message.documentRevision ?? current.documentRevision, message.savedTable?.items);
           model.table = table.getData();
           syncHeader();
+          if (newerDraft) exchangeDraft();
+          else clearTimeout(draftSyncTimer);
         }
-        table.setStatus(message.status, message.message || "");
+        table.setStatus(message.status === "saved" && model.dirty ? "idle" : message.status,
+          message.status === "saved" && model.dirty ? "已保存先前快照；较新的草稿尚未保存" : message.message || "");
         table.setAttribute("aria-busy", String(message.status === "saving"));
         save.disabled = message.status === "saving";
       }

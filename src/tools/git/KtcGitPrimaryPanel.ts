@@ -67,6 +67,7 @@ interface KtcGitTreeNode {
   readonly label: string;
   readonly description?: string;
   readonly iconKey?: KtcGitTreeIconKey;
+  readonly disabled?: boolean;
   readonly children?: readonly KtcGitTreeNode[];
 }
 
@@ -137,9 +138,6 @@ const KtcGitPrimaryPanelStyle = `
   .field { display: grid; gap: 2px; min-width: 0; color: var(--vscode-descriptionForeground); font-size: 10px; }
   .editor-actions { display: flex; min-width: 0; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
   .empty, .note { padding: 10px 8px; color: var(--vscode-descriptionForeground); font-size: 11px; }
-  .empty-workspace { display: grid; gap: 8px; padding: 12px 8px; border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
-  .empty-workspace-title { color: var(--vscode-foreground); font-weight: 650; }
-  .empty-workspace-actions { display: flex; min-width: 0; flex-wrap: wrap; gap: 6px; }
   .search-progress { display: flex; min-width: 0; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
   .note { padding-block: 7px; border-top: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
   @media (max-width: 520px) {
@@ -195,9 +193,7 @@ export class KtcGitPrimaryPanel extends HTMLElement {
     const fragments: (Node | string)[] = [style];
     if (model.discovery.status === "searching") fragments.push(this.KtcSearchProgress(model));
     const projects = document.createElement("div");
-    if (model.workspaceRepositoryCount === 0 && model.discovery.status !== "searching") {
-      projects.append(this.KtcWorkspaceEmpty(model));
-    }
+    projects.append(this.KtcGitActionTree(selectedProject, model));
     if (selectedProject) projects.append(this.KtcProject(selectedProject, model));
     else if (model.discovery.status === "searching") projects.append(this.KtcEmpty("搜索到仓库后会立即显示在这里。"));
     const note = document.createElement("div");
@@ -205,34 +201,6 @@ export class KtcGitPrimaryPanel extends HTMLElement {
     note.textContent = "历史合并只更新当前本地分支，不自动 push；共享引用会要求确认，HEAD、工作区和 Git 操作状态仍会再次校验。";
     fragments.push(projects, note);
     this.KtcRoot.replaceChildren(...fragments);
-  }
-
-  private KtcWorkspaceEmpty(model: KtcGitViewModel): HTMLElement {
-    const empty = document.createElement("section");
-    empty.className = "empty-workspace";
-    const title = document.createElement("div");
-    title.className = "empty-workspace-title";
-    title.textContent = "当前工作区未发现 Git 仓库";
-    const description = document.createElement("div");
-    description.textContent = model.discovery.status === "stopped"
-      ? `搜索已停止；已检查 ${model.discovery.scannedDirectories} 个目录。`
-      : "可以在工作区根目录新建仓库，或递归搜索子目录中的现有仓库。";
-    const actions = document.createElement("div");
-    actions.className = "empty-workspace-actions";
-    for (const [label, action] of [
-      ["新建 Git 仓库", "initializeRepository"],
-      ["搜索所有子目录", "searchRepositories"],
-    ] as const) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = action === "initializeRepository" ? "action-button" : "secondary-button";
-      button.textContent = label;
-      button.disabled = model.workspaceFolderCount === 0;
-      button.onclick = () => this.KtcEmit({ action });
-      actions.append(button);
-    }
-    empty.append(title, description, actions);
-    return empty;
   }
 
   private KtcSearchProgress(model: KtcGitViewModel): HTMLElement {
@@ -433,7 +401,7 @@ export class KtcGitPrimaryPanel extends HTMLElement {
     const heading = document.createElement("div");
     heading.className = "section-heading";
     const headingLabel = document.createElement("span");
-    headingLabel.textContent = "最新 commit · 勾选生成简报";
+    headingLabel.textContent = "最近提交";
     const selectedOids = this.KtcSelectedSummaryOids.get(project.repository.id) ?? new Set<string>();
     this.KtcSelectedSummaryOids.set(project.repository.id, selectedOids);
     for (const oid of [...selectedOids]) {
@@ -471,10 +439,13 @@ export class KtcGitPrimaryPanel extends HTMLElement {
     );
     const latest = document.createElement("div");
     latest.className = "commits";
-    const latestCommit = project.commits[0];
+    const primaryCommits = project.commits.slice(0, 2);
+    const latestCommit = primaryCommits[0];
     if (!latestCommit) latest.append(this.KtcEmpty(project.repository.error ?? "仓库没有可显示的 commit。"));
     else {
-      latest.append(this.KtcCommitRow(latestCommit, selectedOids, syncSelectionActions, requestSummary));
+      for (const commit of primaryCommits) {
+        latest.append(this.KtcCommitRow(commit, selectedOids, syncSelectionActions, requestSummary));
+      }
       const headOid = project.repository.headOid;
       if (headOid && this.KtcAutoSummaryHeads.get(project.repository.id) !== headOid) {
         this.KtcAutoSummaryHeads.set(project.repository.id, headOid);
@@ -511,13 +482,13 @@ export class KtcGitPrimaryPanel extends HTMLElement {
       });
     };
     const historyTitle = document.createElement("summary");
-    historyTitle.textContent = `更多 commit（已加载 ${Math.max(0, project.commits.length - 1)}）`;
+    historyTitle.textContent = `更多 commit（已加载 ${Math.max(0, project.commits.length - 2)}）`;
     const older = document.createElement("div");
     older.className = "commits";
-    for (const commit of project.commits.slice(1)) {
+    for (const commit of project.commits.slice(2)) {
       older.append(this.KtcCommitRow(commit, selectedOids, syncSelectionActions, requestSummary));
     }
-    if (project.commits.length <= 1) older.append(this.KtcEmpty("尚未加载更早的 commit。"));
+    if (project.commits.length <= 2) older.append(this.KtcEmpty("尚未加载更早的 commit。"));
     history.append(historyTitle, older);
     const historyActions = document.createElement("div");
     historyActions.className = "history-actions";
@@ -562,19 +533,25 @@ export class KtcGitPrimaryPanel extends HTMLElement {
     };
     historyActions.append(merge);
 
-    const content: Node[] = [this.KtcGitActionTree(project)];
-    if (model.summaryDraft?.repositoryId === project.repository.id) content.push(this.KtcSummaryEditor(model));
+    const content: Node[] = [];
+    if (project.repository.loaded
+      && !project.repository.error
+      && model.summaryDraft?.repositoryId === project.repository.id) {
+      content.push(this.KtcSummaryEditor(model));
+    }
     content.push(heading, latest, history, historyActions);
     container.append(...content);
     return container;
   }
 
-  private KtcGitActionTree(project: KtcGitProject): KtcGitTreeElement {
+  private KtcGitActionTree(project: KtcGitProject | undefined, model: KtcGitViewModel): KtcGitTreeElement {
     const tree = document.createElement("pnw-navigation-tree") as KtcGitTreeElement;
     tree.className = "git-action-tree";
-    const rootId = `git-actions:${project.repository.id}`;
+    const rootId = `git-actions:${project?.repository.id ?? "workspace"}`;
     if (!this.KtcExpandedGitActionNodes.has(rootId)) this.KtcExpandedGitActionNodes.add(rootId);
-    const squash = project.actions.find((action) => action.id === "squashLocalCommits");
+    const squash = project?.actions.find((action) => action.id === "squashLocalCommits");
+    const searching = model.discovery.status === "searching";
+    const discoveryAction = searching ? "stopRepositorySearch" : "searchRepositories";
     tree.model = {
       ariaLabel: "Git 工具操作",
       expandedNodeIds: [...this.KtcExpandedGitActionNodes],
@@ -584,13 +561,24 @@ export class KtcGitPrimaryPanel extends HTMLElement {
         label: "Git 操作",
         iconKey: "settings",
         children: [
+          {
+            id: `git-action:${discoveryAction}`,
+            label: searching ? "停止搜索所有子目录" : "搜索所有子目录",
+            description: searching
+              ? `已检查 ${model.discovery.scannedDirectories} 个目录，找到 ${model.discovery.foundRepositories} 个仓库`
+              : model.workspaceFolderCount > 0 ? "递归发现工作区内现有仓库" : "请先打开工作区目录",
+            iconKey: searching ? "warning" as const : "search" as const,
+            disabled: !searching && model.workspaceFolderCount === 0,
+          },
           ...(squash ? [{
-            id: `git-action:${project.repository.id}:${squash.id}`,
+            id: `git-action:${project!.repository.id}:${squash.id}`,
             label: "合并 commit 区间",
             iconKey: squash.enabled ? "catalog" as const : "warning" as const,
           }] : []),
-          { id: `git-action:${project.repository.id}:scm`, label: "源代码管理", iconKey: "folder" as const },
-          { id: `git-action:${project.repository.id}:output`, label: "Git 日志", iconKey: "info" as const },
+          ...(project ? [
+            { id: `git-action:${project.repository.id}:scm`, label: "源代码管理", iconKey: "folder" as const },
+            { id: `git-action:${project.repository.id}:output`, label: "Git 日志", iconKey: "info" as const },
+          ] : []),
         ],
       }],
     };
@@ -603,6 +591,15 @@ export class KtcGitPrimaryPanel extends HTMLElement {
         tree.model = { ...tree.model!, expandedNodeIds: [...this.KtcExpandedGitActionNodes] };
         return;
       }
+      if (action.nodeId === "git-action:searchRepositories") {
+        this.KtcEmit({ action: "searchRepositories" });
+        return;
+      }
+      if (action.nodeId === "git-action:stopRepositorySearch") {
+        this.KtcEmit({ action: "stopRepositorySearch" });
+        return;
+      }
+      if (!project) return;
       if (!action.nodeId.startsWith(`git-action:${project.repository.id}:`)) return;
       const actionId = action.nodeId.slice(`git-action:${project.repository.id}:`.length);
       if (actionId === "squashLocalCommits" && squash?.enabled) {
@@ -629,6 +626,7 @@ export class KtcGitPrimaryPanel extends HTMLElement {
     checkbox.type = "checkbox";
     checkbox.className = "commit-select";
     checkbox.checked = selectedOids.has(commit.oid);
+    checkbox.title = "勾选生成简报";
     checkbox.setAttribute("aria-label", `选择 ${commit.shortOid} 生成简报`);
     checkbox.onchange = () => {
       if (checkbox.checked) selectedOids.add(commit.oid);

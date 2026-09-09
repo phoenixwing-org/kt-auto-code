@@ -24,6 +24,7 @@ export interface WebviewPreviewDefinition {
   readonly eventRoute?: string;
   readonly target?: string;
   readonly sourcemap?: false | "inline";
+  readonly esbuildPlugins?: readonly esbuild.Plugin[];
 }
 
 export interface WebviewPreviewServer {
@@ -130,7 +131,7 @@ export async function startWebviewPreviewServer(
       sourcemap: definition.sourcemap ?? false,
       write: false,
       logLevel: "info",
-      plugins: [captureBundlePlugin],
+      plugins: [...(definition.esbuildPlugins ?? []), captureBundlePlugin],
     });
     await buildContext.rebuild();
     await buildContext.watch();

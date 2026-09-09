@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveCadSiblingRoot } from "./cad-sibling-resolution.mjs";
+import { validateExtensionHostSmokeReceipt } from "./extension-host-smoke-receipt.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const codeExtensionPath = repoRoot;
@@ -64,10 +65,9 @@ try {
   }
   if (!existsSync(receiptPath)) throw new Error(`跨仓 Host 未写入回执：${receiptPath}`);
   const receipt = JSON.parse(readFileSync(receiptPath, "utf8"));
-  if (receipt.extension?.active !== true
-      || receipt.cadExtension?.id !== "kuntai.kt-auto-cad"
-      || receipt.cadExtension?.active !== true) {
-    throw new Error(`跨仓 Host 回执不完整：${JSON.stringify(receipt)}`);
+  const receiptIssues = validateExtensionHostSmokeReceipt(receipt, { requireCad: true });
+  if (receiptIssues.length > 0) {
+    throw new Error(`跨仓 Host 回执不完整：${receiptIssues.join("；")}；${JSON.stringify(receipt)}`);
   }
   process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`);
   process.stdout.write("[integration] Auto + CAD sibling Extension Host passed\n");

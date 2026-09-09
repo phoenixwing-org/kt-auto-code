@@ -47,11 +47,12 @@ import { KtcCodegenWorkspaceWatchService } from "./workspaceWatchService.js";
 import { ktcCodegenRuntimeDiagnosticsText } from "./diagnostics.js";
 import type { KtcCodegenRuntimeDiagnostics } from "../../runtimeDiagnostics.js";
 import { KtcCodegenFileEventQueue } from "./fileEventQueue.js";
+import { KtcCodegenDocumentSaveController } from "./documentSaveController.js";
 import {
   KtcCodegenWorkspaceOperationCoordinator,
   type KtcCodegenWorkspaceOperationKind,
 } from "./workspaceOperationCoordinator.js";
-import { ktcFindCodegenControlLocation } from "./controlNavigation.js";
+import { ktcFindCodegenSessionControlLocation } from "./controlNavigation.js";
 import { KtcCodegenControlSessionController } from "./controlSessionController.js";
 import { ktcCodegenPrimaryUiModel } from "./primaryViewModel.js";
 import { ktcResolveCodegenWorkspaceRoot } from "./workspaceRootResolver.js";
@@ -128,6 +129,7 @@ import { ktcRequireToolRegistration } from "../toolRegistrationCatalog.js";
 
 const TOOL_ID = "codegen";
 const CODEGEN_TOOL_REGISTRATION = ktcRequireToolRegistration(TOOL_ID);
+const CODEGEN_TOOL_ICON = "media/tools/codegen.svg";
 
 const CODEGEN_META_FIELDS = new Set<KtcCodegenMetaField>([
   "namePrefix",
@@ -185,6 +187,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
   private readonly preflightTasks = new Map<string, vscode.CancellationTokenSource>();
   private readonly sessionOperationCounts = new Map<string, number>();
   private readonly externalJsonEvents = new KtcCodegenFileEventQueue();
+  private readonly documentSaves = new KtcCodegenDocumentSaveController(this.externalJsonEvents);
   private readonly workspaceOperations = new KtcCodegenWorkspaceOperationCoordinator<
     vscode.CancellationTokenSource
   >();
@@ -1089,6 +1092,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     const session = this.sessions.get(uri.toString());
     const ctx = currentContext();
     if (!session) return undefined;
+    this.preflightTasks.get(session.identity.uri)?.cancel();
     const result = await this.documentSessions.reconcile(session, { discardDirty });
     if (this.sessions.get(session.identity.uri) !== session) return result;
     if (result.kind === "current") {
@@ -1439,13 +1443,16 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     this.sessionPresenter.post(session, { type: "codegenStatus", status: "idle", message: "正在扫描控制标记…" });
     this.sessionPresenter.post(session, { type: "codegenPreflightState", running: true });
     try {
+      session.setPreflight(undefined);
+      this.sessionPresenter.publishControls(session);
+      const input = session.capturePreflightInput();
       const result = await ktcRunCodegenPreflight({
         workspaceRoot,
         scopeId: ctx.workspaceFileScopeId,
         ignoreSources: ctx,
         documentUri: vscode.Uri.file(session.identity.fsPath),
-        controller: session.controller,
-        blockKeys: session.selectedBlockKeys,
+        controller: input.controller,
+        blockKeys: input.blockKeys,
         forceRefresh: this.staleSourceRoots.has(workspaceRoot),
         cancellationToken: cancellation.token,
         reportProgress: (message) => {
@@ -1454,8 +1461,15 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
         },
       });
       if (this.preflightTasks.get(session.identity.uri) !== cancellation) return;
+      if (cancellation.token.isCancellationRequested
+        || this.sessions.get(session.identity.uri) !== session
+        || !session.acceptPreflight(result, input.version)) {
+        const message = "预检输入或会话已变化，旧结果已丢弃，请重新预检。";
+        this.sessionPresenter.post(session, { type: "codegenStatus", status: "idle", message });
+        ctx.log(`[Codegen][Preflight][info] preflight.stale：${message}；json=${session.identity.fsPath}`);
+        return;
+      }
       this.staleSourceRoots.delete(workspaceRoot);
-      session.setPreflight(result);
       const plan = result.plan;
       const message = ktcCodegenPreflightSummary({
         reused: result.reused,
@@ -1472,6 +1486,8 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       this.sessionPresenter.publishControls(session);
       this.publish(ctx, message, plan.diagnostics.some((item) => item.severity === "error") ? "error" : "done");
     } catch (error) {
+      if (this.preflightTasks.get(session.identity.uri) !== cancellation
+        || this.sessions.get(session.identity.uri) !== session) return;
       if (error instanceof vscode.CancellationError) {
         if (this.preflightTasks.get(session.identity.uri) !== cancellation) return;
         const message = `预检已取消；耗时 ${timer.elapsedText()}。`;
@@ -1502,8 +1518,8 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
   ): Promise<void> {
     if (message.type === "codegenControlOpen") {
       const session = this.sessions.get(message.uri);
-      const location = ktcFindCodegenControlLocation(
-        session?.preflight?.plan,
+      const location = ktcFindCodegenSessionControlLocation(
+        session,
         message.path,
         message.line,
       );
@@ -1543,7 +1559,9 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       && message.type !== "codegenControlOutput") return;
     const session = this.sessions.get(message.uri);
     if (!session) return;
+    const inputVersion = session.inputVersion;
     const result = this.controlSessions.handle(session, message);
+    if (session.inputVersion !== inputVersion) this.preflightTasks.get(session.identity.uri)?.cancel();
     if (result.modelChanged) this.sessionPresenter.publishControls(session);
     for (const line of result.logLines ?? []) ctx.log(line);
     if (result.editorStatusMessage) {
@@ -1878,63 +1896,95 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       this.publish(ctx, `保存失败：${message}`, "error");
       return;
     }
+    const snapshot = session.captureSaveSnapshot(result.value);
     try {
-      const uri = vscode.Uri.file(session.identity.fsPath);
-      let diskSnapshot: Awaited<ReturnType<KtcCodegenDocumentService["readSnapshot"]>> | undefined;
-      try {
-        diskSnapshot = await this.documents.readSnapshot(uri);
-      } catch (error) {
-        if (!ktcCodegenIsFileNotFoundError(error)) throw error;
-        session.markExternalDeleted();
-      }
-      const diskState = ktcCodegenClassifySaveDiskState(
-        session.diskFingerprint,
-        diskSnapshot?.fingerprint,
-        session.hasExternalConflict,
-      );
-      let writeGuard: { expectedFingerprint?: string; requireMissing?: boolean } = {
-        expectedFingerprint: session.diskFingerprint,
-      };
-      if (diskState !== "current") {
-        const actions = diskState === "changed"
-          ? ["从磁盘重新加载", "覆盖保存"] as const
-          : ["重新创建文件"] as const;
-        const answer = await vscode.window.showWarningMessage(
-          diskState === "changed"
-            ? `${session.identity.fileName} 已在磁盘上被外部修改。重新加载会放弃当前草稿，覆盖保存会替换外部内容。`
-            : `${session.identity.fileName} 已从磁盘删除。是否用当前草稿重新创建？`,
-          { modal: true },
-          ...actions,
-        );
-        if (answer === "从磁盘重新加载" && diskSnapshot) {
-          await this.reloadSnapshot(session, diskSnapshot, ctx, "已重新加载外部修改");
-          return;
-        }
-        if (answer !== "覆盖保存" && answer !== "重新创建文件") {
-          this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message: "保存已取消，外部变更和当前草稿均保留。" });
-          this.publish(ctx, "保存已取消：检测到外部文件变更。", "error");
-          return;
-        }
-        writeGuard = answer === "重新创建文件" ? { requireMissing: true } : {};
-      }
-      this.internalWrites.add(session.identity.uri);
-      const saved = await this.documents.writeValidatedJson(uri, result.value, writeGuard);
-      session.markSaved(result.diagnostics.length, saved.fingerprint);
-      this.sessionPresenter.publishDocumentState(session);
-      this.rememberSession(session);
-      this.sessionPresenter.post(session, {
-        type: "codegenStatus",
-        status: "saved",
-        message: result.diagnostics.length ? `已保存，${result.diagnostics.length} 条兼容提示` : "已保存",
-        documentRevision: session.revision,
+      const completion = await this.documentSaves.save(session, snapshot, {
+        isCurrent: () => this.sessions.get(session.identity.uri) === session,
+        write: async () => {
+          const uri = vscode.Uri.file(session.identity.fsPath);
+          let diskSnapshot: Awaited<ReturnType<KtcCodegenDocumentService["readSnapshot"]>> | undefined;
+          try {
+            diskSnapshot = await this.documents.readSnapshot(uri);
+          } catch (error) {
+            if (!ktcCodegenIsFileNotFoundError(error)) throw error;
+            session.markExternalDeleted();
+          }
+          const diskState = ktcCodegenClassifySaveDiskState(
+            session.diskFingerprint,
+            diskSnapshot?.fingerprint,
+            session.hasExternalConflict,
+          );
+          let writeGuard: { expectedFingerprint?: string; requireMissing?: boolean } = {
+            expectedFingerprint: session.diskFingerprint,
+          };
+          if (diskState !== "current") {
+            const actions = diskState === "changed"
+              ? ["从磁盘重新加载", "覆盖保存"] as const
+              : ["重新创建文件"] as const;
+            const answer = await vscode.window.showWarningMessage(
+              diskState === "changed"
+                ? `${session.identity.fileName} 已在磁盘上被外部修改。重新加载会放弃当前草稿，覆盖保存会替换外部内容。`
+                : `${session.identity.fileName} 已从磁盘删除。是否用当前草稿重新创建？`,
+              { modal: true },
+              ...actions,
+            );
+            if (answer === "从磁盘重新加载" && diskSnapshot) {
+              await this.reloadSnapshot(session, diskSnapshot, ctx, "已重新加载外部修改");
+              return;
+            }
+            if (answer !== "覆盖保存" && answer !== "重新创建文件") {
+              this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message: "保存已取消，外部变更和当前草稿均保留。" });
+              this.publish(ctx, "保存已取消：检测到外部文件变更。", "error");
+              return;
+            }
+            writeGuard = answer === "重新创建文件" ? { requireMissing: true } : {};
+          }
+          if (this.sessions.get(session.identity.uri) !== session || session.revision !== snapshot.revision) {
+            this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message: "保存期间文档已重新加载或会话已变化，旧保存请求已取消。" });
+            return;
+          }
+          this.internalWrites.add(session.identity.uri);
+          try {
+            const saved = await this.documents.writeValidatedJson(uri, snapshot.json, writeGuard);
+            return { fingerprint: saved.fingerprint, diagnosticCount: result.diagnostics.length };
+          } finally {
+            this.internalWrites.delete(session.identity.uri);
+          }
+        },
+        saved: () => {
+          this.sessionPresenter.publishDocumentState(session);
+          this.rememberSession(session);
+          this.sessionPresenter.post(session, {
+            type: "codegenStatus",
+            status: "saved",
+            message: session.dirty ? "已保存先前快照；较新的草稿尚未保存"
+              : result.diagnostics.length ? `已保存，${result.diagnostics.length} 条兼容提示` : "已保存",
+            documentRevision: session.revision,
+            savedTable: snapshot.table,
+            savedCurrent: !session.dirty,
+          });
+          this.publish(ctx, `已保存 ${session.identity.fileName}。`);
+        },
       });
-      this.publish(ctx, `已保存 ${session.identity.fileName}。`);
+      if (completion === "cancelled") return;
+      if (completion !== "saved") {
+        const message = completion === "written-stale"
+          ? "先前快照已写出，但当前会话已变化；未覆盖当前草稿或 checkpoint，请重新加载检查。"
+          : "保存期间文档已重新加载或会话已变化，旧保存请求已取消。";
+        ctx.log(`[Codegen][Save] ${message}；json=${session.identity.fsPath}`);
+        if (this.sessions.get(session.identity.uri) === session) {
+          this.sessionPresenter.publishDocumentState(session);
+          this.sessionPresenter.publishControls(session);
+          this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message });
+        }
+        return;
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message: `写盘失败：${message}` });
+      if (this.sessions.get(session.identity.uri) === session) {
+        this.sessionPresenter.post(session, { type: "codegenStatus", status: "error", message: `写盘失败：${message}` });
+      }
       this.publish(ctx, `写盘失败：${message}`, "error");
-    } finally {
-      this.internalWrites.delete(session.identity.uri);
     }
   }
 
@@ -1997,6 +2047,7 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
     ctx: ToolRunContext,
     message = `已更新 ${session.identity.fileName} 的文档草稿。`,
   ): void {
+    this.preflightTasks.get(session.identity.uri)?.cancel();
     this.sessionPresenter.publishDocumentState(session);
     this.sessionPresenter.publishControls(session);
     this.rememberSession(session);
@@ -2186,7 +2237,9 @@ export const codegenTool: KtTool = {
   id: TOOL_ID,
   title: CODEGEN_TOOL_REGISTRATION.title,
   description: CODEGEN_TOOL_REGISTRATION.description,
-  icon: CODEGEN_TOOL_REGISTRATION.icon,
+  // Primary 的 Ribbon 通过 Webview URI 加载资源；Catalog 的 `sliders`
+  // 仍供 Preview、Current Tool 与 Open Items 使用同一语义图标。
+  icon: CODEGEN_TOOL_ICON,
   getPanelModel(): ToolPanelModel {
     return { summary: { id: this.id, title: this.title, description: this.description, icon: this.icon } };
   },

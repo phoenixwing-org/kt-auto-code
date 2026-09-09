@@ -160,6 +160,22 @@
       "reason": "避开 0.8.2 重叠文件的下一发布目标简表"
     },
     {
+      "path": "docs/0.9.0-发布冻结清单.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.9.0",
+      "lastVerified": "2026-09-08",
+      "reason": "0.9.0 收尾冻结、三视图关闭规则与正式 Registry 发布前置门禁"
+    },
+    {
+      "path": "docs/0.9.0-内测说明.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.9.0",
+      "lastVerified": "2026-09-08",
+      "reason": "当前 Wing 控件、自动代码点检与编译工具 TypeScript 迁移目标和验收记录"
+    },
+    {
       "path": "docs/0.9.0-Primary迁移需求归档.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
@@ -187,8 +203,17 @@
       "path": "docs/0.9.0-Wing控件与自动代码整改目标.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
-      "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-08"
+      "appliesTo": "0.9.0",
+      "lastVerified": "2026-09-08",
+      "reason": "当前 Wing 控件、自动代码点检与编译工具 TypeScript 迁移目标和验收记录"
+    },
+    {
+      "path": "docs/0.9.1-代码辅助Primary整改计划.md",
+      "status": "draft",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.9.1",
+      "lastVerified": "2026-09-08",
+      "reason": "用户排期的仅 Primary 代码辅助工具内部文字工具栏与 UI Preview；本轮仅记录，未实施"
     },
     {
       "path": "docs/2026-07-20-功能修复人工点检表.md",
@@ -219,11 +244,28 @@
       "lastVerified": "2026-09-08"
     },
     {
+      "path": "docs/编译工具/Export跨平台支持讨论.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.9.0",
+      "lastVerified": "2026-09-08",
+      "reason": "当前 Wing 控件、自动代码点检与编译工具 TypeScript 迁移目标和验收记录"
+    },
+    {
       "path": "docs/编译工具/README.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
-      "appliesTo": "0.8.x",
-      "lastVerified": "2026-09-08"
+      "appliesTo": "0.9.0",
+      "lastVerified": "2026-09-08",
+      "reason": "当前 Wing 控件、自动代码点检与编译工具 TypeScript 迁移目标和验收记录"
+    },
+    {
+      "path": "docs/编译工具/TypeScript运行时迁移计划.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.9.0",
+      "lastVerified": "2026-09-08",
+      "reason": "当前 Wing 控件、自动代码点检与编译工具 TypeScript 迁移目标和验收记录"
     },
     {
       "path": "docs/仓库结构与扁平化迁移计划.md",
@@ -231,6 +273,14 @@
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",
       "lastVerified": "2026-09-08"
+    },
+    {
+      "path": "docs/插件开发指导.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.9.0 及后续",
+      "lastVerified": "2026-09-08",
+      "reason": "用户确认的业务按钮呈现默认规则与理由"
     },
     {
       "path": "docs/产品功能归属矩阵.md",
@@ -419,6 +469,14 @@
       "lastVerified": "2026-09-08"
     },
     {
+      "path": "docs/头文件引用修正Primary整改计划.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.9.0",
+      "lastVerified": "2026-09-08",
+      "reason": "头文件引用修正 Primary 已完成共享布局与正式 typed 接线；持续记录 Ignore 证据、规则限制和剩余人工验收"
+    },
+    {
       "path": "docs/文件克隆与改名计划.md",
       "status": "draft",
       "owner": "KT Auto Code maintainers",
@@ -500,6 +558,14 @@
       "lastVerified": "2026-09-08",
       "sourceOfTruth": "docs/current-roadmap.md",
       "reason": "旧版本、已完成点检或阶段性共享提取证据"
+    },
+    {
+      "path": "docs/bug/自动代码-CAA-combo的信号问题.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.9.0",
+      "lastVerified": "2026-09-08",
+      "reason": "用户要求本轮修复的 CAA Combo 通知生成错误；索引回填/读取保持，真实 CAA 运行验收单列"
     },
     {
       "path": "docs/CAA-UI-DeskTools人工验收清单.md",

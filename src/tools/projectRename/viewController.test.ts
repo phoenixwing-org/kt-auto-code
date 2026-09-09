@@ -10,6 +10,8 @@ const {
   ProjectRenameCancelledError,
   showInformationMessage,
   showWarningMessage,
+  showOpenDialog,
+  workspaceFolders,
   executeCommand,
   FakeFileSystemError,
 } = vi.hoisted(() => {
@@ -36,6 +38,8 @@ const {
     ProjectRenameCancelledError: HoistedProjectRenameCancelledError,
     showInformationMessage: vi.fn(),
     showWarningMessage: vi.fn(),
+    showOpenDialog: vi.fn(),
+    workspaceFolders: [{ uri: { fsPath: "/workspace/phoenix-dev-hub" } }],
     executeCommand: vi.fn(),
     FakeFileSystemError: HoistedFileSystemError,
   };
@@ -57,7 +61,7 @@ vi.mock("vscode", () => ({
   },
   commands: { executeCommand },
   workspace: {
-    workspaceFolders: [{ uri: { fsPath: "/workspace/phoenix-dev-hub" } }],
+    workspaceFolders,
     fs: workspaceFs,
   },
   window: {
@@ -66,6 +70,7 @@ vi.mock("vscode", () => ({
     showErrorMessage: vi.fn(),
     showInformationMessage,
     showWarningMessage,
+    showOpenDialog,
   },
 }));
 
@@ -126,6 +131,8 @@ describe("project rename analysis View", () => {
     analyzeProjectRename.mockReset();
     showInformationMessage.mockReset();
     showWarningMessage.mockReset();
+    showOpenDialog.mockReset();
+    workspaceFolders.splice(0, workspaceFolders.length, { uri: { fsPath: "/workspace/phoenix-dev-hub" } });
     executeCommand.mockReset();
   });
 
@@ -189,6 +196,14 @@ describe("project rename analysis View", () => {
     expect(panel.webview.html).toContain('默认：文本 · 文件名 · 文件夹名 · UTF-8');
     expect(panel.webview.html).toContain('id="toggle-rules"');
     expect(panel.webview.html).toContain('aria-label="取消勾选全部规则">全不选</button>');
+    expect(panel.webview.html).toContain('.section-title .scope-note { min-width: 0; flex: 1 1 160px; overflow: hidden;');
+    expect(panel.webview.html).toContain('.section-title-actions { display: inline-flex; min-width: 0; max-width: 100%; flex: 0 0 auto;');
+    expect(panel.webview.html).toContain('justify-content: flex-end; gap: 5px; margin-left: auto; flex-wrap: wrap;');
+    const schemeActions = panel.webview.html.slice(
+      panel.webview.html.indexOf('<span class="section-title-actions">'),
+      panel.webview.html.indexOf('</span></summary><div class="body">'),
+    );
+    expect(schemeActions).toMatch(/id="add-rule"[\s\S]*id="common-rules"[\s\S]*id="caa-rules"[\s\S]*id="toggle-rules"[\s\S]*id="derive"/u);
     expect(panel.webview.html).toContain('.scheme-table-row,.rule { display: grid;');
     expect(panel.webview.html).toContain('aria-label="改名方案表格"');
     expect(panel.webview.html).toContain('<span role="columnheader">启用</span><span role="columnheader">类型</span><span role="columnheader">原来</span><span role="columnheader">目标</span><span role="columnheader">操作</span>');
@@ -206,6 +221,7 @@ describe("project rename analysis View", () => {
     expect(panel.webview.html).toContain('class="col-action"');
     const entrySource = await readFile(new URL("./viewEntry.ts", import.meta.url), "utf8");
     expect(entrySource).toContain('const rightShell = ktcRequiredElement<KtcRightViewShell>("right-shell")');
+    expect(entrySource).toContain('rightShell.model = { title: rightShellTitle, contextPath: state.root ?? "" }');
     expect(entrySource).toContain('ktcRequireToolRegistration("projectRename").title');
     expect(entrySource).not.toContain('rightShell.model = { title: "项目改名" };');
   });
@@ -250,6 +266,75 @@ describe("project rename analysis View", () => {
     await new Promise<void>((resolve) => setImmediate(resolve));
     expect(second.webview.postMessage).toHaveBeenCalledTimes(1);
     expect(createWebviewPanel).toHaveBeenCalledTimes(2);
+  });
+
+  it("已绑定目录禁用 Primary 选择且拒绝旧 Right chooseRoot 消息", async () => {
+    const panel = fakePanel();
+    createWebviewPanel.mockReturnValue(panel);
+    const controller = new KtcProjectRenameViewController(
+      { fsPath: "/extension" } as vscode.Uri, new KtcProjectRenameHost(),
+    );
+    controller.show("/workspace/project-a");
+    const receiver = vi.mocked(panel.webview.onDidReceiveMessage).mock.calls[0]![0];
+    receiver({ type: "ready" });
+    await vi.waitFor(() => expect(controller.getCompanionSnapshot()?.ready).toBe(true));
+    const snapshot = controller.getCompanionSnapshot()!;
+    expect(snapshot.actions.find(({ id }) => id === "chooseRoot"))
+      .toMatchObject({ enabled: false, disabledReason: expect.stringContaining("目录已固定") });
+    await expect(controller.runCompanionAction({
+      toolId: "projectRename", panelId: snapshot.panelId, sessionId: snapshot.sessionId,
+      revision: snapshot.revision, actionId: "chooseRoot",
+    })).resolves.toMatchObject({ accepted: false, reason: "action-unavailable" });
+    receiver({ type: "chooseRoot" });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(showOpenDialog).not.toHaveBeenCalled();
+    expect(controller.getCompanionSnapshot()?.primary).toMatchObject({ model: { root: "/workspace/project-a" } });
+  });
+
+  it("无工作区启动可选择一次目录，迟到的第二次选择不能覆盖已绑定根", async () => {
+    workspaceFolders.splice(0);
+    const panel = fakePanel();
+    createWebviewPanel.mockReturnValue(panel);
+    const controller = new KtcProjectRenameViewController(
+      { fsPath: "/extension" } as vscode.Uri, new KtcProjectRenameHost(),
+    );
+    controller.show();
+    const receiver = vi.mocked(panel.webview.onDidReceiveMessage).mock.calls[0]![0];
+    receiver({ type: "ready" });
+    await vi.waitFor(() => expect(controller.getCompanionSnapshot()?.ready).toBe(true));
+    expect(controller.getCompanionSnapshot()?.actions.find(({ id }) => id === "chooseRoot")?.enabled).toBe(true);
+    let finishSecond!: (value: { fsPath: string }[]) => void;
+    showOpenDialog.mockResolvedValueOnce([{ fsPath: "/workspace/first" }])
+      .mockImplementationOnce(() => new Promise((resolve) => { finishSecond = resolve; }));
+    receiver({ type: "chooseRoot" });
+    receiver({ type: "chooseRoot" });
+    await vi.waitFor(() => expect(controller.getCompanionSnapshot()?.primary).toMatchObject({ model: { root: "/workspace/first" } }));
+    finishSecond([{ fsPath: "/workspace/late" }]);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(controller.getCompanionSnapshot()?.primary).toMatchObject({ model: { root: "/workspace/first" } });
+    expect(controller.getCompanionSnapshot()?.actions.find(({ id }) => id === "chooseRoot")?.enabled).toBe(false);
+    expect(workspaceFolders).toHaveLength(0);
+  });
+
+  it("空目录选择期间关闭 Right，迟到选择不污染重新打开的任务", async () => {
+    workspaceFolders.splice(0);
+    const first = fakePanel();
+    const second = fakePanel();
+    createWebviewPanel.mockReturnValueOnce(first).mockReturnValueOnce(second);
+    const controller = new KtcProjectRenameViewController(
+      { fsPath: "/extension" } as vscode.Uri, new KtcProjectRenameHost(),
+    );
+    controller.show();
+    let finish!: (value: { fsPath: string }[]) => void;
+    showOpenDialog.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const receiver = vi.mocked(first.webview.onDidReceiveMessage).mock.calls[0]![0];
+    receiver({ type: "chooseRoot" });
+    await vi.waitFor(() => expect(showOpenDialog).toHaveBeenCalledTimes(1));
+    first.dispose();
+    controller.show("/workspace/new-task");
+    finish([{ fsPath: "/workspace/old-choice" }]);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(controller.getCompanionSnapshot()?.primary).toMatchObject({ model: { root: "/workspace/new-task" } });
   });
 
   it("向 Primary 发布可识别的创建、激活、状态与关闭生命周期", async () => {

@@ -63,8 +63,7 @@ describe("AutoBuild Primary view model", () => {
       defaultWorkingDirectory: "",
       platform: "darwin",
       scriptStatus: { status: "different", source: "/extension/script.ps1", target: "/workspace/tools/script.ps1" },
-      repositoryCleanupStatus: "安全预检待执行",
-      rootCleanupStatus: "待确认规则",
+      cleanupEnabled: true,
     });
 
     expect(model.metrics).toEqual([
@@ -103,10 +102,17 @@ describe("AutoBuild Primary view model", () => {
     expect(model.maintenance).toEqual({
       scriptStatus: "脚本不一致",
       scriptDetail: "/extension/script.ps1 → /workspace/tools/script.ps1",
-      repositoryCleanupStatus: "安全预检待执行",
-      rootCleanupStatus: "待确认规则",
-      rootCleanupYaml: KTC_DEFAULT_ROOT_CLEANUP_PATTERNS_YAML,
     });
+    expect(model.cleanup).toMatchObject({
+      selectedModeId: "rules",
+      rulesYaml: KTC_DEFAULT_ROOT_CLEANUP_PATTERNS_YAML,
+      previewEnabled: true,
+      executeEnabled: false,
+    });
+    expect(model.cleanup.targets.filter(({ selected }) => selected).map(({ id }) => id)).toEqual([
+      "rules:root",
+      "rules:working",
+    ]);
   });
 
   it("没有配置时保持诚实的空状态，不写入 Preview fixture", () => {
@@ -131,9 +137,8 @@ describe("AutoBuild Primary view model", () => {
     expect(model.environment).toContainEqual({ label: "平台", value: "Windows · 本机执行" });
     expect(model.maintenance).toMatchObject({
       scriptStatus: "正在检查",
-      repositoryCleanupStatus: "仅手动触发",
-      rootCleanupStatus: "待确认规则",
     });
+    expect(model.cleanup).toMatchObject({ previewEnabled: false, executeEnabled: false });
   });
 
   it("保存配置默认不脏，并由 Host 显式 dirty 信号覆盖", () => {

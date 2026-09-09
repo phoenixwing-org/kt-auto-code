@@ -65,8 +65,10 @@ export async function ktcExecuteCodegenEditorCommand(
     return;
   }
   if (command.kind === "dirty") {
+    const needsPresentation = !session.dirty || !!session.preflight;
     session.markTableDirty(command.itemCount);
-    actions.didMutate(`正在编辑 ${session.identity.fileName}；尚未写盘。`);
+    if (needsPresentation) actions.didMutate(`正在编辑 ${session.identity.fileName}；尚未写盘。`);
+    else actions.cancelPreflight(session.identity.uri);
     return;
   }
   if (command.kind === "exchange") {

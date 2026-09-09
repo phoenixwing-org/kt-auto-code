@@ -66,34 +66,73 @@ export function KtcSuggestGitCommitTime(
   return KtcFormatGitDate(`${timestamp} +0000`);
 }
 
-async function KtcRunGit(
+/** @internal Process boundary, exported for deterministic stream-failure regression tests. */
+export async function KtcRunGit(
   args: readonly string[],
   cwd: string,
   options: KtcGitRunOptions = {},
 ): Promise<{ readonly exitCode: number; readonly stdout: string; readonly stderr: string }> {
   return await new Promise((resolve, reject) => {
+    const hasInput = options.input !== undefined;
     const child = spawn("git", [...args], {
       cwd,
       windowsHide: true,
       env: { ...process.env, ...options.env },
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: [hasInput ? "pipe" : "ignore", "pipe", "pipe"],
     });
     let stdout = "";
     let stderr = "";
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (value: string) => { stdout += value; });
-    child.stderr.on("data", (value: string) => { stderr += value; });
-    child.on("error", reject);
-    child.on("close", (code) => {
-      const exitCode = code ?? -1;
+    let closed = false;
+    let childExitCode = -1;
+    let inputFinished = !hasInput;
+    let inputError: Error | undefined;
+    let settled = false;
+    const settle = (): void => {
+      if (settled || !closed || !inputFinished) return;
+      settled = true;
+      const exitCode = inputError && childExitCode === 0 ? -1 : childExitCode;
+      const diagnostic = inputError
+        ? `${stderr}${stderr && !stderr.endsWith("\n") ? "\n" : ""}Git 输入写入失败：${inputError.message}`
+        : stderr;
       if (exitCode !== 0 && options.allowFailure !== true) {
-        reject(new Error(stderr.trim() || stdout.trim() || `git ${args[0] ?? ""} 失败（${exitCode}）`));
+        reject(new Error(diagnostic.trim() || stdout.trim() || `git ${args[0] ?? ""} 失败（${exitCode}）`));
         return;
       }
-      resolve({ exitCode, stdout, stderr });
+      resolve({ exitCode, stdout, stderr: diagnostic });
+    };
+    const finishInput = (error?: Error | null): void => {
+      if (error) inputError ??= error;
+      inputFinished = true;
+      settle();
+    };
+    child.stdout!.setEncoding("utf8");
+    child.stderr!.setEncoding("utf8");
+    child.stdout!.on("data", (value: string) => { stdout += value; });
+    child.stderr!.on("data", (value: string) => { stderr += value; });
+    child.on("error", (error) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
     });
-    child.stdin.end(options.input ?? "");
+    child.on("close", (code) => {
+      closed = true;
+      childExitCode = code ?? -1;
+      settle();
+    });
+    if (!hasInput) return;
+    const input = child.stdin;
+    if (!input) {
+      finishInput(new Error("Git stdin 管道不可用"));
+      return;
+    }
+    // stdin is a separate EventEmitter: child.error does not observe EPIPE.
+    input.on("error", finishInput);
+    try {
+      if (options.input === "") input.end(finishInput);
+      else input.end(options.input, finishInput);
+    } catch (error) {
+      finishInput(error instanceof Error ? error : new Error(String(error)));
+    }
   });
 }
 

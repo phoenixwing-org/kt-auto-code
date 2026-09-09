@@ -32,7 +32,7 @@ import { setCaaDialogRunContextFactory } from "../tools/caaDialog/index.js";
 import { setReorderMembersRunContextFactory } from "../tools/reorderMembers/index.js";
 import { setIgnoreSettingsCommandRunner } from "../tools/ignoreSettings/index.js";
 import { notifyCodegenIgnorePolicyChanged, setCodegenRunContextFactory } from "../tools/codegen/index.js";
-import { setCodeAssistantRunContextFactory, updateCodeAssistantIgnoreSources } from "../tools/codeAssistant/index.js";
+import { refreshCodeAssistantIgnorePolicy, setCodeAssistantRunContextFactory, updateCodeAssistantIgnoreSources } from "../tools/codeAssistant/index.js";
 import { getPreserveGbk, getStripBom } from "../tools/headerAscii/options.js";
 import { getFileScope, setFileScopeOption, type ScopeOptionKey } from "../scopeOptions.js";
 import { getWorkspaceLabel, getWorkspaceRoot } from "../workspace.js";
@@ -336,7 +336,9 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       });
     });
     webviewView.onDidDispose(() => {
-      if (this.moduleView === webviewView) this.moduleView = undefined;
+      if (this.moduleView !== webviewView) return;
+      this.moduleView = undefined;
+      void this.invalidateRunCleanupSession("Webview 已销毁");
     });
     webviewView.onDidChangeVisibility(() => {
       if (webviewView.visible) ktcActivateResultAccordion(SidebarViewProvider.moduleViewType);
@@ -350,6 +352,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   }
 
   refreshIgnoreConfig(): void {
+    refreshCodeAssistantIgnorePolicy();
     this.postToViews({
       type: "ignoreConfig",
       ignoreConfig: ktcIgnoreController.snapshot(this.getWorkingContext().resolvedDirectory),
@@ -402,10 +405,11 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     }
     const requestedTool = getTool(requestedToolId);
     if (!requestedTool) return;
+    const navigationCollapsed = await this.collapseUnrelatedNavigationGroup(requestedToolId);
     const legacyFeatureChanged = this.codeAssistantFeatureId !== undefined;
     this.codeAssistantFeatureId = undefined;
     if (this.isToolBlockVisible(requestedToolId)) {
-      if (legacyFeatureChanged && this.moduleView) await this.sendInit(this.moduleView);
+      if ((legacyFeatureChanged || navigationCollapsed) && this.moduleView) await this.sendInit(this.moduleView);
       this.postToViews({ type: "revealToolSurface", toolId: requestedToolId });
       if (requestedToolId === "environmentSettings") await requestedTool.runAction("refresh", this.createRunContext(requestedToolId));
       if (requestedToolId === "caaDialog") await requestedTool.runAction("checkConnection", this.createRunContext(requestedToolId));
@@ -459,6 +463,15 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     } else {
       try { await vscode.commands.executeCommand(`${SidebarViewProvider.moduleViewType}.focus`); } catch { /* view resolves lazily */ }
     }
+  }
+
+  /** A leaf outside the expanded Group hides its Navigator, never its open Tools or Editor tasks. */
+  private async collapseUnrelatedNavigationGroup(toolId: string): Promise<boolean> {
+    if (!this.codeAssistantTreeUiState.treeExpanded
+      || KTC_TOOL_REGISTRATION_BY_ID[toolId]?.groupId === "codeAssistant") return false;
+    this.codeAssistantTreeUiState = { ...this.codeAssistantTreeUiState, treeExpanded: false };
+    await this.globalState.update(CODE_ASSISTANT_TREE_UI_STATE_KEY, this.codeAssistantTreeUiState);
+    return true;
   }
 
   /** Activates a complex tool before its Editor opens, so the Editor keeps final focus. */
@@ -524,13 +537,26 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
         editorCompanion: projectedSnapshot,
       });
     }
-    if (snapshot.lifecycle === "disposed") this.pruneEditorCompanionTombstones(snapshot.toolId);
+    if (snapshot.lifecycle === "disposed") {
+      this.pruneEditorCompanionTombstones(snapshot.toolId);
+      // These three task-owned Right Views own the lifetime of their Primary.
+      // Codegen's per-JSON Editors do not use this companion protocol.
+      if (!ktcResolveEditorPrimaryCompanionRoute(this.editorCompanionState, snapshot.toolId)) {
+        await this.closeToolBlock(snapshot.toolId, true);
+        return;
+      }
+    }
     if (!transition.activation) return;
 
     await this.activateModule("code");
     this.openToolIds = [...transition.state.openToolIds];
     this.activeToolId = transition.state.activeToolId ?? snapshot.toolId;
+    const navigationCollapsed = await this.collapseUnrelatedNavigationGroup(this.activeToolId);
     await this.setModulePanelContext(true, this.activeToolId);
+    if (navigationCollapsed && this.moduleView) {
+      await this.sendInit(this.moduleView);
+      return;
+    }
     this.postToViews({
       type: "openTools",
       activeToolId: this.activeToolId,
@@ -623,7 +649,11 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     }
     const moduleTools = this.getModuleTools(moduleId);
     if (!moduleTools.some((tool) => tool.moduleId === moduleId && tool.id === toolId)) return false;
-    if (this.isToolBlockVisible(toolId)) return true;
+    const navigationCollapsed = await this.collapseUnrelatedNavigationGroup(toolId);
+    if (this.isToolBlockVisible(toolId)) {
+      if (navigationCollapsed && this.moduleView) await this.sendInit(this.moduleView);
+      return true;
+    }
     if (!await this.activateModule(moduleId)) return false;
 
     this.activateToolHistory(toolId, "command");
@@ -650,7 +680,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     return this.closeToolBlock(toolId);
   }
 
-  async closeToolBlock(toolId = this.activeToolId): Promise<KtcToolBlockState> {
+  async closeToolBlock(toolId = this.activeToolId, preserveFocus = false): Promise<KtcToolBlockState> {
     if (!toolId || this.isGroupToolId(toolId) || !this.openToolIds.includes(toolId)) {
       return this.getToolBlockState();
     }
@@ -659,7 +689,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     this.editorCompanionState = closed.state;
     this.openToolIds = [...closed.state.openToolIds];
     if (closed.nextToolId) {
-      await this.restoreToolBlock(closed.nextToolId);
+      await this.restoreToolBlock(closed.nextToolId, preserveFocus);
       return this.getToolBlockState();
     }
     await this.setModulePanelContext(false);
@@ -764,6 +794,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     const workingContext = this.getWorkingContext();
     return {
       workspaceRoot: workingContext.resolvedDirectory,
+      isCurrentWorkingDirectory: () => this.getWorkingContext().resolvedDirectory === workingContext.resolvedDirectory,
       workspaceLabel: workingContext.label,
       workspaceFileScopeId: "workspace",
       pluginIgnoreEnabled: workingContext.pluginIgnoreEnabled,
@@ -882,8 +913,11 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     for (const [toolId, state] of this.toolStates) {
       // The rule picker is a one-time UI request, not durable tool state. Replaying
       // it after switching tools would reopen the modal without a user action.
-      const { associatedRulePicker: _associatedRulePicker, ...replayableState } = state;
-      postToWebview(target, { type: "state", toolId, state: replayableState });
+      const { associatedRulePicker: _associatedRulePicker, runCleanup, ...replayableState } = state;
+      postToWebview(target, { type: "state", toolId, state: {
+        ...replayableState,
+        ...(runCleanup ? { runCleanup: { ...runCleanup, openRequestId: 0 } } : {}),
+      } });
     }
     await this.sendActiveModuleBlock(target);
   }
@@ -1222,6 +1256,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     });
 
     const result = await ktcIgnoreController.handle(message, requestedRoot, (summary) => {
+      refreshCodeAssistantIgnorePolicy();
       if (this.getWorkingContext().resolvedDirectory === requestedRoot) {
         this.postToViews({ type: "ignoreConfig", ignoreConfig: summary });
       }
@@ -1460,24 +1495,28 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       && this.moduleView?.visible === true;
   }
 
-  private async restoreToolBlock(toolId: string): Promise<boolean> {
+  private async restoreToolBlock(toolId: string, preserveFocus = false): Promise<boolean> {
     if (this.isGroupToolId(toolId)) return false;
     const moduleId = this.getToolModuleId(toolId);
     if (!moduleId) return false;
+    const restoringState = this.editorCompanionState;
+    const superseded = () => preserveFocus && this.editorCompanionState !== restoringState;
     // Restoring an existing logical Tool is projection-only. It must not route
     // through showTool/showModuleTool because those paths may run onDidShow,
     // refresh commands, or feature-specific activation work.
-    if (!await this.activateModule(moduleId)) return false;
+    if (!await this.activateModule(moduleId) || superseded()) return false;
+    await this.collapseUnrelatedNavigationGroup(toolId);
+    if (superseded()) return false;
     this.activeToolId = toolId;
     await this.setModulePanelContext(true, toolId);
-    if (!this.moduleView?.visible) {
+    if (!preserveFocus && !this.moduleView?.visible) {
       await vscode.commands.executeCommand("workbench.view.extension.kt-auto-code");
     }
     if (this.moduleView) {
       this.moduleView.title = MODULE_VIEW_TITLE;
       await this.sendInit(this.moduleView);
-      if (!this.moduleView.visible) this.moduleView.show(false);
-    } else {
+      if (!preserveFocus && !this.moduleView.visible) this.moduleView.show(false);
+    } else if (!preserveFocus) {
       try { await vscode.commands.executeCommand(`${SidebarViewProvider.moduleViewType}.focus`); } catch { /* view resolves lazily */ }
     }
     return true;
@@ -1634,6 +1673,9 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       customIgnoreEnabled: context.customIgnoreEnabled,
     });
     if (changed) {
+      const cleanupDirectory = this.toolStates.get("run")?.runCleanup?.model.targets
+        .find((target) => target.id === "workspace")?.path;
+      if (cleanupDirectory !== context.resolvedDirectory) void this.invalidateRunCleanupSession("工作目录已切换");
       ktcIgnoreController.invalidateRecommendations();
       if (this.toolStates.has("ignoreSettings")) {
         this.setToolState("ignoreSettings", {
@@ -1670,6 +1712,18 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     }
     this.postToViews({ type: "workingContext", context, directories: this.getRecentWorkingDirectories() });
     this.postToViews({ type: "ignoreConfig", ignoreConfig: ktcIgnoreController.snapshot(context.resolvedDirectory) });
+  }
+
+  /** Revoke only the Run cleanup authorization; this never stops ordinary Run Tasks. */
+  private async invalidateRunCleanupSession(reason: string): Promise<void> {
+    if (!this.toolStates.get("run")?.runCleanup) return;
+    const tool = getTool("run");
+    if (!tool?.clearSession) return;
+    try {
+      await tool.clearSession(this.createRunContext("run"));
+    } catch (error: unknown) {
+      logOutput(`[Run][清理][ERROR] ${reason}时撤销清理会话失败：${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   private async selectWorkingDirectory(value: string): Promise<void> {

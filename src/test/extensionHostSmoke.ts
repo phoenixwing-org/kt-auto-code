@@ -19,6 +19,8 @@ import type {
 } from "../tools/projectRename/contracts.js";
 import { KtcProjectRenameViewController } from "../tools/projectRename/viewController.js";
 import type { ToolUiState } from "../tools/types.js";
+import { ktcRunCodegenPersistenceSmoke } from "./codegenPersistenceSmoke.js";
+import { ktcRunPackageIncludesSmoke } from "./packageIncludesSmoke.js";
 
 interface ExtensionApi {
   readonly version: number;
@@ -241,7 +243,7 @@ export async function run(): Promise<void> {
   assert.equal(finalGitState.status, "done");
   assert.equal(finalGitState.git.projects.length, 0);
   assert.equal(finalGitState.git.workspaceRepositoryCount, 0);
-  assert.equal(finalGitState.git.statusText, "当前工作区未发现 Git 仓库。");
+  assert.equal(finalGitState.git.statusText, "请选择 Git 仓库。");
   assert.ok(
     gitLogs.some((line) => line.includes("posting empty repository state")),
     "Git refresh must reach the final empty repository state",
@@ -396,6 +398,14 @@ export async function run(): Promise<void> {
   assert.equal(decoder.decode(await vscode.workspace.fs.readFile(rollbackA)), "before-a");
   assert.equal(decoder.decode(await vscode.workspace.fs.readFile(rollbackB)), "before-b");
 
+  const codegenPersistence = await ktcRunCodegenPersistenceSmoke({
+    workspace,
+    documentUri,
+    controller: current.controller,
+    blockKeys,
+  });
+  const packageIncludes = await ktcRunPackageIncludesSmoke(workspace.uri.fsPath);
+
   const projectRenameCancel = await ktcRunProjectRenameCancelSmoke(
     workspace,
     vscode.Uri.file(extension.extensionPath),
@@ -424,6 +434,10 @@ export async function run(): Promise<void> {
       apply: true,
       saveReload: true,
       rollback: true,
+      preflightDiskCache: true,
+      sourcePlanInvalidation: true,
+      jsonRecreateGuard: true,
+      packageIncludesService: true,
       gitBlock: true,
       gitEmptyState: true,
       runBlock: true,
@@ -434,6 +448,8 @@ export async function run(): Promise<void> {
       candidateFileCount: preflight.candidateFileCount,
       markerRegionCount: preflight.plan.markerRegions.length,
       changedFileCount: applyWrites.length,
+      codegenPersistence,
+      packageIncludes,
       projectRenameCancel,
       commands: [
         "ktAutoCode.codegen.open",

@@ -12,6 +12,7 @@ export interface PreviewAutoBuildState {
   readonly status: string;
   readonly tone: PreviewBuildStatusTone;
   readonly parallelBuild: boolean;
+  readonly cmakeBuildTypes: readonly ("Debug" | "Release")[];
   readonly currentConfigName: string;
   readonly probeColumnsVisible: boolean;
   readonly updateRootDirectory: boolean;
@@ -58,6 +59,7 @@ export type PreviewAutoBuildIntent =
   | { readonly type: "stop" }
   | { readonly type: "toggleRun" }
   | { readonly type: "setParallel"; readonly enabled: boolean }
+  | { readonly type: "setCmakeBuildTypes"; readonly selected: readonly ("Debug" | "Release")[] }
   | { readonly type: "selectRecent"; readonly name: string }
   | { readonly type: "setProbeColumnsVisible"; readonly visible: boolean }
   | { readonly type: "setRepositoryUpdate"; readonly target: "root" | "thirdParty"; readonly enabled: boolean }
@@ -85,6 +87,7 @@ export function createDefaultPreviewAutoBuildState(
     status: sample.initial.status,
     tone: sample.initial.tone,
     parallelBuild: sample.initial.parallelBuild,
+    cmakeBuildTypes: ["Debug", "Release"] as const,
     currentConfigName: sample.configuration.currentConfigName,
     probeColumnsVisible: sample.initial.probeColumnsVisible,
     updateRootDirectory: sample.configuration.updateRootDirectory,
@@ -140,16 +143,23 @@ export function reducePreviewAutoBuildState(
   sample: PreviewAutoBuildSample = PREVIEW_AUTO_BUILD_SAMPLE,
 ): PreviewAutoBuildTransition {
   switch (intent.type) {
+    case "setCmakeBuildTypes": {
+      if (state.phase === "running") return unchanged(state);
+      const selected = (["Debug", "Release"] as const).filter((type) => intent.selected.includes(type));
+      return changed(state, { cmakeBuildTypes: selected }, `[编译工具] CMake 配置：${selected.join(" + ") || "未选择（无法启动）"}（模拟）`);
+    }
     case "preflight": {
       if (state.phase === "running") return unchanged(state);
       const projects = sample.repositories.filter(({ kind, enabled }) => kind === "项目" && enabled);
       const cmakeProjects = projects.filter(({ operations }) => operations.some(({ id, enabled }) => id === "cmake" && enabled)).length;
       const caaProjects = projects.filter(({ operations }) => operations.some(({ id, enabled }) => id === "caa" && enabled)).length;
+      if (cmakeProjects && !state.cmakeBuildTypes.length) return changed(state, { status: "请选择 Debug 或 Release", tone: "warning" }, "[编译工具] 预检未通过：至少选择一种 CMake 编译配置");
       return changed(state, { phase: "preflightPassed", status: "预检通过", tone: "success" },
         `[编译工具] 预检通过：${projects.length} 个项目，CMake ${cmakeProjects} 个，CAA ${caaProjects} 个，失败 0 个`);
     }
     case "start": {
       if (state.phase === "running") return unchanged(state);
+      if (!state.cmakeBuildTypes.length) return changed(state, { status: "请选择 Debug 或 Release", tone: "warning" }, "[编译工具] 未启动：至少选择一种 CMake 编译配置");
       return changed(state, { phase: "running", status: "运行中", tone: "progress" },
         `[编译工具] 模拟启动：${sample.tasks[0]!.name} → ${state.parallelBuild ? "CMake + CAA（并行执行）" : "CMake → CAA（顺序执行）"}`);
     }

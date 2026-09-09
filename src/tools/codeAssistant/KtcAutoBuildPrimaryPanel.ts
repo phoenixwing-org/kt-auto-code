@@ -2,10 +2,7 @@ import type {
   KtcAutoBuildPrimaryPanelAction,
   KtcAutoBuildPrimaryPanelModel,
 } from "../../core/autoBuildPrimaryContracts.js";
-import {
-  KTC_DEFAULT_ROOT_CLEANUP_PATTERNS_YAML,
-  KTC_ROOT_CLEANUP_PATTERNS_MAX_LENGTH,
-} from "../../core/rootCleanupPatterns.js";
+import { ktcCreateCmakeBuildOptions } from "../../ui/KtcCmakeBuildOptions.js";
 
 export const KtcAutoBuildPrimaryPanelTag = "ktc-auto-build-primary-panel";
 
@@ -19,7 +16,7 @@ const styleText = `
   * { box-sizing: border-box; }
   button { font: inherit; }
   button:focus-visible, summary:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
-  .section-heading, .subheading, .config, details > summary { display: flex; min-width: 0; min-height: 28px; align-items: center; gap: 6px; padding: 4px 7px; border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
+  .section-heading, .subheading, .config, .config-status, details > summary { display: flex; min-width: 0; min-height: 28px; align-items: center; gap: 6px; padding: 4px 7px; border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
   .section-heading { border-top: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); font-weight: 650; }
   .status { margin-left: auto; padding: 1px 5px; color: var(--vscode-descriptionForeground); border: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); border-radius: 999px; font-size: 10px; font-weight: 400; white-space: nowrap; }
   .status.running { color: var(--vscode-progressBar-background, var(--vscode-focusBorder)); }
@@ -31,7 +28,7 @@ const styleText = `
   .metric strong { font-size: 14px; }
   .metric small { color: var(--vscode-descriptionForeground); font-size: 10px; }
   .actions { display: flex; min-width: 0; flex-wrap: wrap; justify-content: flex-start; gap: 5px; padding: 5px 7px; border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
-  .execution-options { display: flex; min-height: 27px; align-items: center; padding: 3px 7px; border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
+  .execution-options { display: flex; flex-wrap: wrap; gap: 5px; min-height: 27px; align-items: center; padding: 3px 7px; border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
   .execution-options label { display: inline-flex; align-items: center; gap: 5px; }
   .execution-options input { width: 14px; height: 14px; margin: 0; }
   .status-line { display: flex; min-width: 0; align-items: center; gap: 6px; padding: 4px 7px; border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); color: var(--vscode-descriptionForeground); }
@@ -43,11 +40,15 @@ const styleText = `
   button.primary:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
   button.danger { color: var(--vscode-errorForeground); }
   button:disabled { opacity: .5; cursor: not-allowed; }
-  .config { flex-wrap: wrap; padding-block: 3px; }
+  .config { max-width: 100%; flex-wrap: wrap; gap: 4px; padding-block: 3px; }
+  .config:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+  .config-action-slot { display: inline-flex; flex: 0 0 auto; }
+  .config-status { flex-wrap: nowrap; }
+  .config-status strong { flex: 0 0 auto; white-space: nowrap; }
   .config-name { flex: 1 1 auto; min-width: 0; overflow: hidden; color: var(--vscode-descriptionForeground); text-overflow: ellipsis; white-space: nowrap; }
   .config-state { flex: 0 0 auto; color: var(--vscode-descriptionForeground); font-size: 10px; white-space: nowrap; }
   .config-state.dirty { color: var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground)); }
-  .config button { flex: 0 0 auto; min-height: 23px; }
+  .config button { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; min-width: 0; white-space: nowrap; }
   .config-warning { display: grid; gap: 5px; padding: 6px 7px; color: var(--vscode-editorWarning-foreground, var(--vscode-foreground)); background: var(--vscode-inputValidation-warningBackground, transparent); border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
   .config-warning-actions { display: flex; gap: 5px; flex-wrap: wrap; }
   .config-recent { display: flex; min-width: 0; padding: 4px 7px; border-bottom: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
@@ -66,11 +67,6 @@ const styleText = `
   .maintenance-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; padding: 6px 7px 7px 21px; }
   .maintenance-copy { display: grid; min-width: 0; gap: 1px; }
   .maintenance-copy small { overflow: hidden; color: var(--vscode-descriptionForeground); text-overflow: ellipsis; white-space: nowrap; }
-  .cleanup { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; padding: 7px 7px 7px 21px; border-top: 1px solid var(--ktc-ui-border, var(--vscode-panel-border)); }
-  .cleanup strong, .cleanup small { grid-column: 1 / -1; }
-  .cleanup textarea { min-width: 0; min-height: 68px; padding: 4px 6px; resize: vertical; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, var(--ktc-ui-border, var(--vscode-panel-border))); font: 11px/1.35 var(--vscode-editor-font-family, monospace); }
-  .cleanup button { align-self: end; }
-  .cleanup small { color: var(--vscode-descriptionForeground); }
 `;
 
 export class KtcAutoBuildPrimaryPanel extends HTMLElement {
@@ -78,19 +74,10 @@ export class KtcAutoBuildPrimaryPanel extends HTMLElement {
   private currentModel: KtcAutoBuildPrimaryPanelModel | undefined;
   private environmentExpanded = true;
   private maintenanceExpanded = true;
-  private cleanupPatternsYaml = KTC_DEFAULT_ROOT_CLEANUP_PATTERNS_YAML;
-  private projectedCleanupPatternsYaml = KTC_DEFAULT_ROOT_CLEANUP_PATTERNS_YAML;
-  private saveConfigurationButton?: HTMLButtonElement;
 
   get model(): KtcAutoBuildPrimaryPanelModel | undefined { return this.currentModel; }
   set model(value: KtcAutoBuildPrimaryPanelModel | undefined) {
-    const incomingCleanupYaml = value?.maintenance.rootCleanupYaml;
-    if (typeof incomingCleanupYaml === "string" && incomingCleanupYaml !== this.projectedCleanupPatternsYaml) {
-      this.projectedCleanupPatternsYaml = incomingCleanupYaml;
-      this.cleanupPatternsYaml = incomingCleanupYaml;
-    }
     this.currentModel = value;
-    this.saveConfigurationButton = undefined;
     this.render();
   }
 
@@ -147,7 +134,7 @@ export class KtcAutoBuildPrimaryPanel extends HTMLElement {
 
     const actions = document.createElement("div");
     actions.className = "actions";
-    for (const id of ["openScript", "preflight", "start", "stop"]) {
+    for (const id of ["openScript", "preflight", "start", "stop", "openCleanup"]) {
       const action = model.actions.find((candidate) => candidate.id === id);
       if (action) actions.append(this.actionButton(action, model.ready));
     }
@@ -167,6 +154,12 @@ export class KtcAutoBuildPrimaryPanel extends HTMLElement {
       executionOptions.append(label);
     }
 
+    const cmakeAction = model.actions.find(({ id }) => id === "setCmakeBuildTypes");
+    if (cmakeAction) executionOptions.append(ktcCreateCmakeBuildOptions(
+      model.cmakeBuildTypes,
+      !model.ready || !cmakeAction.enabled,
+      (selected) => this.emitAction(cmakeAction.id, selected.join(",")),
+    ));
     const statusLine = document.createElement("div");
     statusLine.className = "status-line";
     const statusCopy = document.createElement("span");
@@ -200,6 +193,11 @@ export class KtcAutoBuildPrimaryPanel extends HTMLElement {
     section.setAttribute("data-section", "configuration");
     const row = document.createElement("div");
     row.className = "config";
+    row.setAttribute("role", "group");
+    row.setAttribute("aria-label", "配置操作");
+    row.tabIndex = 0;
+    const statusRow = document.createElement("div");
+    statusRow.className = "config-status";
     const label = document.createElement("strong");
     label.textContent = "当前配置";
     const name = document.createElement("span");
@@ -209,13 +207,17 @@ export class KtcAutoBuildPrimaryPanel extends HTMLElement {
     const state = document.createElement("small");
     state.className = `config-state${model.configuration.dirty ? " dirty" : ""}`;
     state.textContent = model.configuration.statusLabel;
-    row.append(label, name, state);
+    statusRow.append(label, name, state);
     for (const id of ["openConfig", "saveConfig", "saveAsConfig", "closeConfig", "reveal"]) {
       const action = model.actions.find((candidate) => candidate.id === id);
       if (action) {
         const button = this.actionButton(action, model.ready);
-        if (id === "saveConfig") this.saveConfigurationButton = button;
-        row.append(button);
+        const slot = document.createElement("span");
+        slot.className = "config-action-slot";
+        // Disabled native buttons may not surface their own hover tooltip.
+        slot.title = button.title;
+        slot.append(button);
+        row.append(slot);
       }
     }
     const recentRow = document.createElement("div");
@@ -245,7 +247,7 @@ export class KtcAutoBuildPrimaryPanel extends HTMLElement {
       if (action?.enabled && model.ready) this.emitAction(actionId);
     };
     recentRow.append(select);
-    section.append(row);
+    section.append(row, recentRow, statusRow);
     if (model.configuration.workingDirectoryMismatch) {
       const warning = document.createElement("div");
       warning.className = "config-warning";
@@ -261,7 +263,6 @@ export class KtcAutoBuildPrimaryPanel extends HTMLElement {
       warning.append(copy, actions);
       section.append(warning);
     }
-    section.append(recentRow);
     return section;
   }
 
@@ -295,7 +296,7 @@ export class KtcAutoBuildPrimaryPanel extends HTMLElement {
     details.open = this.maintenanceExpanded;
     details.ontoggle = () => { this.maintenanceExpanded = details.open; };
     const summary = document.createElement("summary");
-    summary.append(document.createTextNode("维护与清理"));
+    summary.append(document.createTextNode("维护"));
     const hint = document.createElement("span");
     hint.className = "summary-hint";
     hint.textContent = "低频";
@@ -317,55 +318,6 @@ export class KtcAutoBuildPrimaryPanel extends HTMLElement {
     if (sync) scriptRow.append(this.actionButton(sync, model.ready));
     body.append(scriptRow);
 
-    const cleanRepositories = model.actions.find(({ id }) => id === "cleanRepositories");
-    const repositoryCleanupRow = document.createElement("div");
-    repositoryCleanupRow.className = "maintenance-row";
-    const repositoryCleanupCopy = document.createElement("span");
-    repositoryCleanupCopy.className = "maintenance-copy";
-    const repositoryCleanupLabel = document.createElement("strong");
-    repositoryCleanupLabel.textContent = "清理仓库";
-    const repositoryCleanupStatus = document.createElement("small");
-    repositoryCleanupStatus.textContent = model.maintenance.repositoryCleanupStatus;
-    repositoryCleanupCopy.append(repositoryCleanupLabel, repositoryCleanupStatus);
-    repositoryCleanupRow.append(repositoryCleanupCopy);
-    if (cleanRepositories) {
-      repositoryCleanupRow.append(this.actionButton(cleanRepositories, model.ready, "清理"));
-    }
-    body.append(repositoryCleanupRow);
-
-    const cleanupAction = model.actions.find(({ id }) => id === "cleanRootArtifacts");
-    const cleanup = document.createElement("div");
-    cleanup.className = "cleanup";
-    const cleanupTitle = document.createElement("strong");
-    cleanupTitle.textContent = "手动清理 Root";
-    const cleanupStatus = document.createElement("small");
-    cleanupStatus.textContent = `高风险 · ${model.maintenance.rootCleanupStatus}`;
-    const input = document.createElement("textarea");
-    input.value = this.cleanupPatternsYaml;
-    input.maxLength = KTC_ROOT_CLEANUP_PATTERNS_MAX_LENGTH;
-    input.rows = 4;
-    input.spellcheck = false;
-    input.placeholder = KTC_DEFAULT_ROOT_CLEANUP_PATTERNS_YAML;
-    input.disabled = !model.ready || !cleanupAction?.enabled;
-    input.setAttribute("aria-label", "Root 清理 YAML 规则");
-    input.oninput = () => {
-      this.cleanupPatternsYaml = input.value.slice(0, KTC_ROOT_CLEANUP_PATTERNS_MAX_LENGTH);
-      if (this.saveConfigurationButton && model.ready) {
-        this.saveConfigurationButton.disabled = false;
-        this.saveConfigurationButton.title = "保存";
-      }
-    };
-    input.onchange = () => this.emitAction("updateRootCleanupYaml", this.cleanupPatternsYaml);
-    cleanup.append(cleanupTitle, cleanupStatus, input);
-    if (cleanupAction) {
-      const button = this.actionButton(cleanupAction, model.ready, "清理");
-      button.onclick = () => this.emitAction(cleanupAction.id, this.cleanupPatternsYaml.trim());
-      cleanup.append(button);
-    }
-    const note = document.createElement("small");
-    note.textContent = "只匹配 ROOT 直接子项；目录链接不跟随。执行前冻结并显示精确清单，确认后由插件 TypeScript 清理。";
-    cleanup.append(note);
-    body.append(cleanup);
     details.append(summary, body);
     return details;
   }
@@ -383,13 +335,7 @@ export class KtcAutoBuildPrimaryPanel extends HTMLElement {
     button.title = button.disabled ? action.disabledReason || "当前动作不可用。" : action.label;
     button.setAttribute("aria-label", displayLabel);
     button.setAttribute("data-action-id", action.id);
-    button.onclick = () => {
-      if (action.id === "saveConfig" && !action.enabled) {
-        this.emitAction("saveRootCleanupConfig", this.cleanupPatternsYaml);
-        return;
-      }
-      this.emitAction(action.id);
-    };
+    button.onclick = () => this.emitAction(action.id);
     return button;
   }
 

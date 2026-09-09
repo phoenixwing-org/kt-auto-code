@@ -1,5 +1,6 @@
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import type { Plugin } from "esbuild";
 import {
   readWebviewPreviewPort,
   resolveWebviewPreviewAsset,
@@ -8,6 +9,12 @@ import {
   type WebviewPreviewStaticAsset,
   type WebviewPreviewStaticAssets,
 } from "./webview-preview/server.js";
+import {
+  createLocalWingEsbuildPlugin,
+  LOCAL_WING_CODE_PACKAGES,
+  resolveLocalWingRoot,
+  validateRequiredLocalWingPackages,
+} from "./local-wing-resolution.mjs";
 
 const scriptFile = fileURLToPath(import.meta.url);
 const repositoryRoot = path.resolve(path.dirname(scriptFile), "..");
@@ -41,12 +48,16 @@ export type KtcPrimaryPreviewServer = WebviewPreviewServer;
 export async function ktcStartPrimaryPreviewServer(
   options: { readonly port?: number } = {},
 ): Promise<KtcPrimaryPreviewServer> {
+  const wingRoot = resolveLocalWingRoot({ repoRoot: repositoryRoot });
+  validateRequiredLocalWingPackages(wingRoot, LOCAL_WING_CODE_PACKAGES);
+  process.stdout.write(`[ui-preview] Wing：${wingRoot}\n`);
   return startWebviewPreviewServer({
     label: "KT Auto Code · Primary + Editor",
     workingDirectory: repositoryRoot,
     entryPoint: previewEntry,
     bundleRoute: "/primary-preview.js",
     staticAssets: STATIC_ASSETS,
+    esbuildPlugins: [createLocalWingEsbuildPlugin(wingRoot) as Plugin],
   }, options.port ?? defaultPort);
 }
 

@@ -51,6 +51,12 @@ interface KtcPackageIncludeSessionFile {
 export interface KtcPackageIncludePreviewSession {
   readonly preview: KtcPackageIncludePreview;
   readonly files: readonly KtcPackageIncludeSessionFile[];
+  /** Mapping depends on header paths, not header contents. Keep its exact input set. */
+  readonly mappingSnapshot: {
+    readonly headerPaths: readonly string[];
+    readonly ignorePatterns: readonly string[];
+    readonly useBuiltInIgnore: boolean;
+  };
 }
 
 export interface KtcPackageIncludeApplyResult {
@@ -205,27 +211,46 @@ export async function ktcPreviewPackageIncludes(options: {
       rows,
     },
     files,
+    mappingSnapshot: {
+      headerPaths: coreWalk.files,
+      ignorePatterns: [...options.coreIgnorePatterns ?? []],
+      useBuiltInIgnore: options.useBuiltInIgnore ?? true,
+    },
   };
 }
 
 /** Fails closed when any previewed file has changed after Preview. */
-export async function ktcApplyPackageIncludes(session: KtcPackageIncludePreviewSession): Promise<KtcPackageIncludeApplyResult> {
+export async function ktcApplyPackageIncludes(session: KtcPackageIncludePreviewSession, options: { readonly signal?: AbortSignal } = {}): Promise<KtcPackageIncludeApplyResult> {
+  let changedFiles = 0;
+  let changedIncludes = 0;
+  const checkContinue = () => {
+    if (options.signal?.aborted) throw new Error(`已停止写入；已写入 ${changedFiles} 个文件，不自动回滚已完成项。`);
+  };
+  checkContinue();
+  const mapping = session.mappingSnapshot;
+  if (!mapping) throw new Error("缺少 Package 映射快照，请重新预览。");
+  const headers = await walkFiles(session.preview.coreIncludeDirectory, KTC_CMAKE_PACKAGE_HEADER_EXTENSIONS,
+    mapping.ignorePatterns, mapping.useBuiltInIgnore, options.signal);
+  if (JSON.stringify(headers.files) !== JSON.stringify(mapping.headerPaths)) throw new Error("Package 头文件映射输入已改变，请重新预览后再写入。");
   for (const file of session.files) {
+    checkContinue();
     const current = ktcDecodeSourceText(await readFile(file.filePath));
     if (!current || current.fingerprint !== file.fingerprint) {
       throw new Error(`预览后文件已改变，请重新预览：${file.relativePath}`);
     }
   }
-  let changedFiles = 0;
-  let changedIncludes = 0;
   for (const file of session.files) {
+    checkContinue();
     const current = ktcDecodeSourceText(await readFile(file.filePath));
     if (!current) throw new Error(`无法读取文件：${file.relativePath}`);
+    if (current.fingerprint !== file.fingerprint) throw new Error(`预览后文件已改变，请重新预览：${file.relativePath}；已写入 ${changedFiles} 个文件。`);
     const text = ktcApplyCmakePackageIncludeMatches(current.text, file.matches);
     if (text === current.text) continue;
+    checkContinue();
     await writeFile(file.filePath, ktcEncodeSourceText(text, file.encoding));
     changedFiles += 1;
     changedIncludes += file.matches.length;
+    checkContinue();
   }
   return { changedFiles, changedIncludes };
 }

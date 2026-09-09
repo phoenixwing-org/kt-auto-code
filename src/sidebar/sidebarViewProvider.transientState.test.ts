@@ -77,6 +77,7 @@ import type {
   WebviewOutboundMessage,
 } from "../tools/types.js";
 import type { KtcEditorPrimaryCompanionSnapshot } from "../core/editorPrimaryCompanionContracts.js";
+import type { KtcRunCleanupProjection } from "../core/cleanupContracts.js";
 import {
   ktcIgnoreController,
   type KtcIgnoreControllerResult,
@@ -131,6 +132,8 @@ const testTool: KtTool = {
 };
 
 registerTool(testTool);
+const runClearSession = vi.fn<(ctx: ToolRunContext) => void | Promise<void>>();
+registerTool({ ...testTool, id: "run", clearSession: runClearSession });
 registerTool(encodingFixTool);
 registerTool(reorderMembersTool);
 registerNavigationDescriptor({
@@ -209,6 +212,7 @@ registerTool({
 
 interface FakeWebviewView extends vscode.WebviewView {
   readonly messages: WebviewOutboundMessage[];
+  fireDispose(): void;
 }
 
 interface ProviderInternals {
@@ -265,6 +269,20 @@ function workingContext(resolvedDirectory: string): KtcWorkingContext {
   };
 }
 
+function runCleanupProjection(): KtcRunCleanupProjection {
+  return {
+    sessionId: "run-cleanup-session", revision: 7, openRequestId: 3,
+    model: {
+      title: "Run 清理", modes: [{ id: "build", label: "删除 build 目录", risk: "high" }],
+      selectedModeId: "build", targets: [{ id: "workspace", label: "当前目录", path: "/workspace/project", selected: true }],
+      rulesVisible: false, rulesLabel: "固定规则", rulesYaml: "",
+      preview: { state: "ready", token: "frozen-token", items: ["/workspace/project/build"] },
+      previewEnabled: true, executeEnabled: true, previewLabel: "预览", executeLabel: "清理", cancelLabel: "取消",
+      highRiskConfirmationLabel: "已确认",
+    },
+  };
+}
+
 function memory(): vscode.Memento {
   const values = new Map<string, unknown>();
   return {
@@ -285,6 +303,7 @@ function extensionUri(): vscode.Uri {
 
 function webviewView(viewType: string): FakeWebviewView {
   const messages: WebviewOutboundMessage[] = [];
+  let disposeListener = () => {};
   return {
     viewType,
     messages,
@@ -305,7 +324,11 @@ function webviewView(viewType: string): FakeWebviewView {
     },
     show: vi.fn(),
     onDidChangeVisibility: vi.fn(() => ({ dispose: vi.fn() })),
-    onDidDispose: vi.fn(() => ({ dispose: vi.fn() })),
+    onDidDispose: vi.fn((listener: () => void) => {
+      disposeListener = listener;
+      return { dispose: vi.fn() };
+    }),
+    fireDispose: () => disposeListener(),
   } as unknown as FakeWebviewView;
 }
 
@@ -372,6 +395,7 @@ describe("SidebarViewProvider transient tool state", () => {
     runEditorCompanionAction.mockClear();
     runProjectRenameCompanionAction.mockClear();
     testToolDidShow.mockClear();
+    runClearSession.mockReset();
     nextState = {
       status: "idle",
       message: "请选择要添加的关联规则。",
@@ -383,6 +407,107 @@ describe("SidebarViewProvider transient tool state", () => {
     setInstalledExtensions();
     (vscode.workspace as unknown as { workspaceFolders?: unknown }).workspaceFolders = undefined;
     vi.restoreAllMocks();
+  });
+
+  it("Run 逻辑关闭和关闭其他项保持原契约，不撤销清理会话或停止普通任务", async () => {
+    const { provider, internals } = createProvider();
+    await provider.showTool(TEST_TOOL_ID);
+    await provider.showTool("run");
+    const state: ToolUiState = { status: "running", message: "普通 Task 仍运行中", runCleanup: runCleanupProjection() };
+    internals.toolStates.set("run", state);
+    await provider.closeToolBlock("run");
+    expect(internals.openToolIds).toEqual([TEST_TOOL_ID]);
+    expect(internals.toolStates.get("run")).toBe(state);
+    expect(runClearSession).not.toHaveBeenCalled();
+    await provider.showTool("run");
+    await provider.showTool(SECOND_TEST_TOOL_ID);
+    await provider.closeOtherToolBlocks(TEST_TOOL_ID);
+    expect(internals.openToolIds).toEqual([TEST_TOOL_ID]);
+    expect(internals.toolStates.get("run")).toBe(state);
+    expect(runClearSession).not.toHaveBeenCalled();
+  });
+
+  it("Run 清理仅在真实目录改变时失效，同目录初始化或 Ignore 策略变化不撤销", async () => {
+    const { internals } = createProvider();
+    let currentContext = workingContext("/workspace/project");
+    vi.spyOn(internals, "getWorkingContext").mockImplementation(() => currentContext);
+    const state: ToolUiState = { status: "running", message: "普通 Task 仍运行中", runCleanup: runCleanupProjection() };
+    internals.toolStates.set("run", state);
+    internals.postWorkingContext();
+    expect(runClearSession).not.toHaveBeenCalled();
+    currentContext = { ...currentContext, customIgnoreEnabled: true };
+    internals.postWorkingContext();
+    expect(runClearSession).not.toHaveBeenCalled();
+    currentContext = workingContext("/workspace/other");
+    internals.postWorkingContext();
+    await Promise.resolve();
+    expect(runClearSession).toHaveBeenCalledOnce();
+    expect(runClearSession.mock.calls[0]![0].workspaceRoot).toBe("/workspace/other");
+    expect(internals.toolStates.get("run")).toBe(state);
+    internals.postWorkingContext();
+    expect(runClearSession).toHaveBeenCalledOnce();
+  });
+
+  it("没有 Run 清理投影时目录变化与 Webview dispose 不调用 clearSession", async () => {
+    const { provider, internals, module } = createProvider();
+    internals.toolStates.set("run", { status: "running", message: "普通 Task 仍运行中" });
+    vi.spyOn(internals, "getWorkingContext").mockReturnValue(workingContext("/workspace/other"));
+    internals.postWorkingContext();
+    provider.resolveWebviewView(module, {} as vscode.WebviewViewResolveContext, {} as vscode.CancellationToken);
+    module.fireDispose();
+    await Promise.resolve();
+    expect(runClearSession).not.toHaveBeenCalled();
+  });
+
+  it("只有当前 Webview dispose 撤销 Run 清理授权，旧 Webview 销毁不影响新视图", async () => {
+    const { provider, internals, module } = createProvider();
+    const state: ToolUiState = { status: "running", message: "普通 Task 仍运行中", runCleanup: runCleanupProjection() };
+    internals.toolStates.set("run", state);
+    provider.resolveWebviewView(module, {} as vscode.WebviewViewResolveContext, {} as vscode.CancellationToken);
+    const rebuilt = webviewView(SidebarViewProvider.moduleViewType);
+    provider.resolveWebviewView(rebuilt, {} as vscode.WebviewViewResolveContext, {} as vscode.CancellationToken);
+    module.fireDispose();
+    expect(runClearSession).not.toHaveBeenCalled();
+    expect(internals.moduleView).toBe(rebuilt);
+    rebuilt.fireDispose();
+    await Promise.resolve();
+    expect(runClearSession).toHaveBeenCalledOnce();
+    expect(internals.moduleView).toBeUndefined();
+    expect(internals.toolStates.get("run")).toBe(state);
+    rebuilt.fireDispose();
+    expect(runClearSession).toHaveBeenCalledOnce();
+  });
+
+  it("Run 清理生命周期的同步异常和异步拒绝都捕获并写入 log", async () => {
+    const { provider, internals, module } = createProvider();
+    internals.toolStates.set("run", { status: "idle", message: "已预览", runCleanup: runCleanupProjection() });
+    vi.spyOn(internals, "getWorkingContext").mockReturnValue(workingContext("/workspace/other"));
+    runClearSession.mockImplementationOnce(() => { throw new Error("sync revoke failed"); });
+    expect(() => internals.postWorkingContext()).not.toThrow();
+    expect(vscodeHost.outputLines).toContainEqual(expect.stringContaining("工作目录已切换时撤销清理会话失败：sync revoke failed"));
+    runClearSession.mockRejectedValueOnce(new Error("async revoke failed"));
+    provider.resolveWebviewView(module, {} as vscode.WebviewViewResolveContext, {} as vscode.CancellationToken);
+    module.fireDispose();
+    await Promise.resolve();
+    expect(vscodeHost.outputLines).toContainEqual(expect.stringContaining("Webview 已销毁时撤销清理会话失败：async revoke failed"));
+  });
+
+  it("sendInit 仅发送 openRequestId 0 副本，不改变缓存的 Run 清理 projection/token", async () => {
+    const { internals } = createProvider();
+    const projection = runCleanupProjection();
+    const state: ToolUiState = { status: "running", message: "普通 Task 仍运行中", runCleanup: projection };
+    internals.toolStates.set("run", state);
+    const rebuilt = webviewView(SidebarViewProvider.moduleViewType);
+    await internals.sendInit(rebuilt);
+    const replay = stateMessages(rebuilt).find(({ toolId }) => toolId === "run")!.state.runCleanup!;
+    expect(replay.openRequestId).toBe(0);
+    expect(replay).not.toBe(projection);
+    expect(replay.model).toBe(projection.model);
+    expect(internals.toolStates.get("run")).toBe(state);
+    expect(internals.toolStates.get("run")!.runCleanup).toBe(projection);
+    expect(projection.openRequestId).toBe(3);
+    expect(projection.model.preview.token).toBe("frozen-token");
+    expect(runClearSession).not.toHaveBeenCalled();
   });
 
   it("Primary Webview 允许已安装可选模块加载自己的 extension: 图标资源", () => {
@@ -981,6 +1106,54 @@ describe("SidebarViewProvider transient tool state", () => {
     ]);
   });
 
+  it("Ribbon、menu 与 command 激活组外工具时收起二级目录，但保留已打开的组内工具", async () => {
+    for (const source of ["ribbon", "menu", "command"] as const) {
+      const { provider, internals, module, globalState } = createProvider();
+      await provider.showTool("encodingFix");
+      expect(internals.codeAssistantTreeUiState.treeExpanded).toBe(true);
+      if (source === "command") await provider.showTool(TEST_TOOL_ID);
+      else await internals.onMessage({ type: "selectTool", toolId: TEST_TOOL_ID, source }, module);
+
+      expect(internals.codeAssistantTreeUiState.treeExpanded).toBe(false);
+      expect(globalState.get("ktAutoCode.codeAssistant.treeUi.v1")).toMatchObject({ treeExpanded: false });
+      expect(internals.openToolIds).toEqual(["encodingFix", TEST_TOOL_ID]);
+      expect(module.messages.filter(message => message.type === "init").at(-1)).toMatchObject({
+        activeToolId: TEST_TOOL_ID, codeAssistantTreeUiState: { treeExpanded: false },
+      });
+    }
+  });
+
+  it("组无已打开叶子时展开目录，再点当前独立工具也要收起并同步 Webview", async () => {
+    const { provider, internals, module } = createProvider();
+    await provider.showTool(TEST_TOOL_ID);
+    await provider.showTool("codeAssistant");
+    expect(internals.activeToolId).toBe(TEST_TOOL_ID);
+    expect(internals.codeAssistantTreeUiState.treeExpanded).toBe(true);
+    module.messages.length = 0;
+
+    await internals.onMessage({ type: "selectTool", toolId: TEST_TOOL_ID, source: "ribbon" }, module);
+
+    expect(internals.codeAssistantTreeUiState.treeExpanded).toBe(false);
+    expect(module.messages.filter(message => message.type === "init").at(-1)).toMatchObject({
+      activeToolId: TEST_TOOL_ID, codeAssistantTreeUiState: { treeExpanded: false },
+    });
+  });
+
+  it("Open Items 切换到组外工具收起目录；随后重开组恢复 MRU，不丢叶子", async () => {
+    const { provider, internals, module } = createProvider();
+    await provider.showTool(TEST_TOOL_ID);
+    await provider.showTool("encodingFix");
+    await provider.showTool("codeAssistant");
+    expect(internals.codeAssistantTreeUiState.treeExpanded).toBe(true);
+
+    await internals.onMessage({ type: "activateOpenTool", toolId: TEST_TOOL_ID }, module);
+    expect(internals.codeAssistantTreeUiState.treeExpanded).toBe(false);
+    expect(internals.openToolIds).toContain("encodingFix");
+    await provider.showTool("codeAssistant");
+    expect(internals.codeAssistantTreeUiState.treeExpanded).toBe(true);
+    expect(internals.activeToolId).toBe("encodingFix");
+  });
+
   it("Open Items 只激活已打开工具并更新 MRU，不重新执行 Tool onDidShow", async () => {
     const { provider, internals, module } = createProvider();
     await provider.showTool(TEST_TOOL_ID);
@@ -1023,12 +1196,16 @@ describe("SidebarViewProvider transient tool state", () => {
     });
     const { provider, internals, module } = createProvider();
     await provider.showModuleTool("cad", "cadFilename");
+    expect(internals.codeAssistantTreeUiState.treeExpanded).toBe(false);
     await provider.showTool(TEST_TOOL_ID);
+    await provider.showTool("codeAssistant");
+    expect(internals.codeAssistantTreeUiState.treeExpanded).toBe(true);
     vscodeHost.executeCommand.mockClear();
 
     await internals.onMessage({ type: "activateOpenTool", toolId: "cadFilename" }, module);
 
     expect(internals.activeToolId).toBe("cadFilename");
+    expect(internals.codeAssistantTreeUiState.treeExpanded).toBe(false);
     expect(internals.openToolIds).toEqual([TEST_TOOL_ID, "cadFilename"]);
     expect(vscodeHost.executeCommand).not.toHaveBeenCalledWith("ktAutoCad.block.filename");
   });
@@ -1210,6 +1387,74 @@ describe("SidebarViewProvider transient tool state", () => {
       activeToolId: "packageIncludes",
       openToolIds: [TEST_TOOL_ID, "packageIncludes"],
     });
+  });
+
+  it.each(["projectRename", "autoBuild", "packageIncludes"] as const)("%s 最后一个 Right 关闭时同时移除 Primary 和打开项，按 MRU 回退但不触发业务", async (toolId) => {
+    const { provider, internals, module } = createProvider();
+    await provider.showTool(TEST_TOOL_ID);
+    const live = companionSnapshot(toolId, `${toolId}-right`, { revision: 1, lifecycle: "active" });
+    await internals.updateEditorCompanion(live);
+    expect(internals.openToolIds).toEqual([TEST_TOOL_ID, toolId]);
+    const didShowCount = testToolDidShow.mock.calls.length;
+    module.messages.length = 0;
+    await internals.updateEditorCompanion({ ...live, revision: 2, lifecycle: "disposed", ready: false });
+    expect(internals.openToolIds).toEqual([TEST_TOOL_ID]);
+    expect(internals.activeToolId).toBe(TEST_TOOL_ID);
+    expect(internals.editorCompanionState).toMatchObject({ openToolIds: [TEST_TOOL_ID], activeToolId: TEST_TOOL_ID });
+    expect(internals.editorCompanionSnapshots.has(live.panelId)).toBe(false);
+    expect(testToolDidShow).toHaveBeenCalledTimes(didShowCount);
+    expect(module.messages.filter((message) => message.type === "init").at(-1)).toMatchObject({ activeToolId: TEST_TOOL_ID, openToolIds: [TEST_TOOL_ID] });
+    // Repeated dispose or a late snapshot cannot remove a newly opened task.
+    const reopened = { ...live, panelId: `${toolId}-reopened`, sessionId: "new-session", revision: 1 };
+    await internals.updateEditorCompanion(reopened);
+    await internals.updateEditorCompanion({ ...live, revision: 3, lifecycle: "disposed", ready: false });
+    expect(internals.openToolIds).toEqual([TEST_TOOL_ID, toolId]);
+    expect(internals.editorCompanionSnapshots.get(reopened.panelId)?.sessionId).toBe("new-session");
+  });
+
+  it("关闭后台 Right 只移除对应 Primary，不抢当前工具或重新显示隐藏的侧栏", async () => {
+    const { provider, internals, module } = createProvider();
+    const live = companionSnapshot("packageIncludes", "header-background", { lifecycle: "active", revision: 1 });
+    await internals.updateEditorCompanion(live);
+    await provider.showTool(TEST_TOOL_ID);
+    Object.assign(module, { visible: false });
+    vscodeHost.executeCommand.mockClear();
+    const didShowCount = testToolDidShow.mock.calls.length;
+    await internals.updateEditorCompanion({ ...live, revision: 2, lifecycle: "disposed", ready: false });
+    expect(internals.openToolIds).toEqual([TEST_TOOL_ID]);
+    expect(internals.activeToolId).toBe(TEST_TOOL_ID);
+    expect(testToolDidShow).toHaveBeenCalledTimes(didShowCount);
+    expect(module.visible).toBe(false);
+    expect(vscodeHost.executeCommand).not.toHaveBeenCalledWith("workbench.view.extension.kt-auto-code");
+    expect(vscodeHost.executeCommand).not.toHaveBeenCalledWith(`${SidebarViewProvider.moduleViewType}.focus`);
+  });
+
+  it("唯一 Right 关闭后不残留 Primary 打开项，回到欢迎内容", async () => {
+    const { internals, provider, module } = createProvider();
+    const live = companionSnapshot("packageIncludes", "only-right", { lifecycle: "active", revision: 1 });
+    await internals.updateEditorCompanion(live);
+    await internals.updateEditorCompanion({ ...live, revision: 2, lifecycle: "disposed", ready: false });
+    expect(internals.openToolIds).toEqual([]);
+    expect(provider.getRuntimeDiagnosticsSnapshot().openToolIds).toEqual([]);
+    expect(module.messages.filter((message) => message.type === "openTools").at(-1)).toMatchObject({ openToolIds: [] });
+  });
+
+  it("Right关闭的异步MRU回退不得覆盖随后已完成的用户工具选择", async () => {
+    const { provider, internals } = createProvider();
+    await provider.showTool(TEST_TOOL_ID);
+    const live = companionSnapshot("packageIncludes", "close-during-navigation", { lifecycle: "active", revision: 1 });
+    await internals.updateEditorCompanion(live);
+    const pending = deferred<boolean>();
+    const activation = vi.spyOn(provider as unknown as { activateModule(moduleId: string): Promise<boolean> }, "activateModule")
+      .mockReturnValueOnce(pending.promise);
+    const closing = internals.updateEditorCompanion({ ...live, revision: 2, lifecycle: "disposed", ready: false });
+    await vi.waitFor(() => expect(activation).toHaveBeenCalledTimes(1));
+    await provider.showTool(SECOND_TEST_TOOL_ID);
+    pending.resolve(true);
+    await closing;
+    expect(internals.activeToolId).toBe(SECOND_TEST_TOOL_ID);
+    expect(internals.openToolIds).toEqual([TEST_TOOL_ID, SECOND_TEST_TOOL_ID]);
+    activation.mockRestore();
   });
 
   it("visible 与 open-inactive 生命周期只更新摘要，不激活 Primary 或抢焦点", async () => {
@@ -1443,6 +1688,7 @@ describe("SidebarViewProvider transient tool state", () => {
       toolId: "projectRename",
       state: { message: "左侧任务", editorCompanion: { panelId: "rename-left", lifecycle: "active" } },
     });
+    expect(internals.openToolIds).toContain("projectRename");
 
     await internals.onMessage({
       type: "editorCompanionAction",

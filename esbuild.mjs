@@ -262,6 +262,7 @@ const sharedUiComponentEntries = [
   { entryPoint: "src/ui/KtcCurrentToolRegionEntry.ts", outfile: "dist/ktc-current-tool-region.js" },
   { entryPoint: "src/ui/KtcOpenItemsBarEntry.ts", outfile: "dist/ktc-open-items-bar.js" },
   { entryPoint: "src/ui/KtcRightViewShellEntry.ts", outfile: "dist/ktc-right-view-shell.js" },
+  { entryPoint: "src/ui/KtcPackageIncludesPrimaryEntry.ts", outfile: "dist/ktc-package-includes-primary.js" },
 ];
 
 // This component only imitates VS Code Output inside `pnpm ui`. Older formal

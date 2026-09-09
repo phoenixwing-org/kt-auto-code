@@ -21,6 +21,7 @@ import {
   snapshotExtensionPaths,
 } from "./extension-host-snapshot.mjs";
 import { resolveCadSiblingRoot } from "./cad-sibling-resolution.mjs";
+import { readDevelopmentWorkspaceStatus } from "./development-workspace-summary.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const codeExtensionPath = repoRoot;
@@ -38,6 +39,7 @@ const dryRun = process.argv.includes("--dry-run");
 const codegenFixture = process.argv.includes("--codegen-fixture");
 const prepareOnly = process.argv.includes("--prepare-only");
 const localWingDevelopment = isLocalWingExtensionHostEnvironment();
+const localDevelopmentSummary = process.argv.includes("--local-dev-summary");
 const CODEGEN_BULK_SOURCE_COUNT = 1200;
 const sourceExtensions = codeOnly
   ? [{ id: "kt-auto-code", path: codeExtensionPath }]
@@ -148,6 +150,15 @@ if (codegenFixture) console.log(`  压测: 运行时生成 ${CODEGEN_BULK_SOURCE
 if (workspacePath) console.log(`  验收: pnpm ext:verify:codegen -- ${workspacePath}`);
 if (workspacePath) console.log(`  报告: ${join(workspacePath, ".phoenix", "codegen-qa-report.json")}`);
 if (workspacePath) console.log(`  进度: pnpm ext:report:codegen -- ${workspacePath}`);
+if (localDevelopmentSummary) {
+  const wingRoot = String(process.env.PHOENIX_WING_ROOT ?? "").trim();
+  console.log("");
+  console.log("联调工作目录（启动前最终状态）");
+  console.log(`  ${readDevelopmentWorkspaceStatus("Auto", codeExtensionPath)}`);
+  if (cadExtensionPath) console.log(`  ${readDevelopmentWorkspaceStatus("CAD", cadExtensionPath)}`);
+  if (wingRoot) console.log(`  ${readDevelopmentWorkspaceStatus("Wing", wingRoot)}`);
+  console.log("  Wing 来源门禁: 本地 dist 已嵌入；Registry 引用无本地 override；正式 manifests 与 lockfile 未修改");
+}
 console.log("");
 if (prepareOnly) {
   console.log(`CODEGEN_FIXTURE_PATH=${workspacePath}`);

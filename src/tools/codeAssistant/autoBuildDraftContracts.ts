@@ -7,6 +7,7 @@ import {
 export type KtcAutoBuildExecutionAction = "preflight" | "start";
 export type KtcAutoBuildDraftRequestAction = KtcAutoBuildExecutionAction
   | "toggleParallelBuild"
+  | "setCmakeBuildTypes"
   | "saveConfig"
   | "saveAsConfig"
   | "closeConfig"
@@ -14,7 +15,7 @@ export type KtcAutoBuildDraftRequestAction = KtcAutoBuildExecutionAction
   | "selectRecent"
   | "newConfigForDirectory"
   | "keepProjectsForDirectory"
-  | "cleanRepositories";
+  | "cleanupDialog";
 
 export interface KtcAutoBuildDraftReadyMessage {
   readonly type: "ready";
@@ -72,6 +73,11 @@ export function ktcIsAutoBuildConfiguration(value: unknown): value is KtcAutoBui
     && (configuration.buildExecutionMode === undefined
       || configuration.buildExecutionMode === "sequential"
       || configuration.buildExecutionMode === "parallel")
+    && (configuration.cmakeBuildTypes === undefined
+      || (Array.isArray(configuration.cmakeBuildTypes)
+        && configuration.cmakeBuildTypes.length <= 2
+        && new Set(configuration.cmakeBuildTypes).size === configuration.cmakeBuildTypes.length
+        && configuration.cmakeBuildTypes.every((type) => type === "Debug" || type === "Release")))
     && Array.isArray(configuration.projects)
     && configuration.projects.length <= 500
     && configuration.projects.every((project) => isRecord(project)

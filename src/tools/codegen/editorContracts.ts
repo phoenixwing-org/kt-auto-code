@@ -135,4 +135,7 @@ export type KtcCodegenEditorOutboundMessage =
       readonly status: "idle" | "saving" | "saved" | "error";
       readonly message: string;
       readonly documentRevision?: number;
+      /** 保存回执只确认此快照；重载回执不携带此字段。 */
+      readonly savedTable?: KtCodegenTableData;
+      readonly savedCurrent?: boolean;
     };

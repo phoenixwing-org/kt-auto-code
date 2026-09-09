@@ -4,9 +4,9 @@
 
 Owner：KT Auto Code maintainers
 
-适用版本：KT Auto Code 0.6.0
+适用版本：KT Auto Code 0.6.0 基线；0.9.0 Run 清理增量
 
-最后核验：2026-07-21
+最后核验：2026-09-09（Run 清理增量；原运行基线不代表全部重验）
 
 本目录记录 Run（运行）Primary Block 的可行性、已冻结交互、共享边界与 0.6.0 实现基线。参考工程只用于只读发现核验；自动测试不启动真实 CAA/CNext。
 
@@ -30,11 +30,70 @@ Owner：KT Auto Code maintainers
 - 参考脚本不会原样写入用户工作区。提炼后的内置 runner 默认随 VSIX 放在只读 `resources/run/`，通过 `ExtensionContext.extensionUri` 定位；没有 task/项目脚本也能直接运行。为调试和定制，可由用户显式把自包含 runner 与 manifest 生成到 `.phoenix/run/<project>/`；扫描/打开 Block 不自动写文件，也不覆盖用户改过的副本。
 - CAA 内置 runner 计划摆脱 PowerShell 硬依赖，但不能摆脱 Windows 厂商 `.bat`。它必须在一个 `cmd.exe` 会话中依次 `call` 环境与构建/运行脚本，保留批处理设置的环境，并把真实退出码传给 VS Code Task。
 - 项目根命中 `.clang-format` 时，`内置`组增加一个跨平台 `Clang Format`；没有 marker 时不生成。它通过随 VSIX 安装的 Node runner 递归格式化 C/C++ 文件，跳过构建、生成、依赖与工具目录，不依赖项目中的 `clangfile.ps1`；项目脚本若存在仍在“自定义”组并列显示。
-- Wing 建议建立有真实消费者的 `run-core`；`run-node` 只在本地发现、runner 资产和 Node launch plan 开始被 Auto Code 消费时建立，禁止预建空包。VS Code Task、Terminal 和 Primary 状态始终留在 Auto Code adapter；Run 叶子命令单击直接执行，前置的 Workspace Trust、平台、并发和 CAA 预检仍不可绕过。
+- Wing 的 `run-core/run-node` 已有实际 Run 消费者。VS Code Task、Terminal 和 Primary 状态始终留在 Auto Code adapter；Run 叶子命令单击执行，前置的 Workspace Trust、平台、并发和 CAA 预检仍不可绕过。下述三个产物清理快捷项按用户要求继续单击执行、不询问；首行独立“清理”按钮打开统一对话框。
 
 详细方案见 [Run Primary Block 可行性与实施计划](Run-Primary-Block可行性与实施计划.md)。
 
 暂不实施的命令行与流水线方向见 [TODO：Phoenix Wing CLI 与 CAA CI/CD](TODO-Wing-CLI与CAA-CICD.md)。
+
+## 0.9 包后增量：Run 统一清理
+
+本节是 2026-09-09 已交付 0.9.0 安全修订包之后的源码阶段，**不在该包内**。
+该包 SHA-256 为 `a162e52d20cf1c1750dddce691ea01e00a4e07d5352e96ed8ce9c696672d9fef`；
+独立分发目录和随包说明保持原样，不用本节覆盖旧制品边界。
+
+| 原叶子 | 新点击行为 | 保留的清理能力 |
+| --- | --- | --- |
+| 删除 build 目录 | 原快捷叶子直接清理，不确认 | 当前工作目录内递归匹配 build（大小写不敏感） |
+| 删除 objects 目录 | 原快捷叶子直接清理，不确认 | 当前工作目录内递归匹配 objects（大小写不敏感） |
+| 删除 `*.obj` | 原快捷叶子直接清理，不确认 | 当前工作目录内递归匹配目标文件 |
+| Git 未跟踪清理 | 移到 Run 内容首行“清理”按钮，对话框默认 git-untracked | 递归发现仓库，单 force clean 删除未跟踪和 ignored；不 reset，不删嵌套仓库 |
+
+没有删除原有清理方式；Git 树入口迁入首行“清理”。首行“刷新”也改为文字按钮，与“清理”组成类似自动代码的紧凑按钮 block，右侧保留“仅当前系统”。
+用户明确要求三个产物快捷项保持“点击即执行，不询问”，因此不强制打开确认对话框；内部扫描/冻结/复验不等于 UI 确认。
+用户随后明确删除 Run 清理对话框里的额外风险勾选行；Run 设置 `requireHighRiskConfirmation: false`，
+仍显示模式/目录/风险和预览清单，取得有效 token 后点击“清理”执行。不增加第二次询问。
+Wing 的新选项默认仍为 true，不改变 AutoBuild 或其他调用方的既有风险确认行为。
+清理树恢复原图标与紧凑布局，分组说明为“当前工作目录 · 跳过 .git · 点击即执行，不询问”，三个子项无额外 secondary。
+TODO（用户指定的后续扩展）：快捷项变多时，改为类似代码辅助的紧凑图标+文字按钮网格；仍单击直接清理、不询问。本次不提前改为网格。
+正式 Controller 不再调用本仓旧 `KtcManualCleanup`，该旧 helper 仍保留作兼容参考/测试，不是另一条生产删除路径。
+AutoBuild 的 ROOT/工作目录直属规则、CMake 清理和高风险 `reset --hard + clean -ffdx` 不受影响；Run 的 Git 模式不能映射成强制恢复。
+
+### 运行边界
+
+- Wing 提供 `pnwPreviewRecursiveCleanupArtifacts/pnwCleanPreviewedRecursiveArtifacts` 和
+  `pnwPreviewGitUntrackedCleanup/pnwExecuteGitUntrackedCleanup`。快照留在 Node Host，不传给 Webview；
+  Auto 只把可读清单和随机 token 投影给 Wing 对话框。新 API 尚未通过 Registry 发布。
+- 当前 `@phoenix-wing/run-node` Registry 锁定版本不提供这四个新 API；普通 Registry 模式不得标记此阶段已就绪。
+  缺能力会明确报错且不回退直接删除；发布前必须先发布 Wing、更新受审依赖/lock，并改用正式类型导出。
+  本轮仅受控本地 Wing 构建，不擅自发布新版本或写本地依赖 override。
+- 本地准备脚本在 Wing build 后检查四个真实函数导出；VSIX 校验还要求 bundle 包含四个实际实现体，
+  不能用 Host 调用字符串冒充能力。新门禁不追认旧包已具备本阶段增量。
+- 递归扫描跳过 `.git` 和符号链接；匹配目录中有嵌套仓库或链接时保留这些边界，拆分可安全处理的子项。
+  执行核对根、祖先路径身份与目标完整树，拒绝新增/替换的内容进入旧计划。文件系统根不是合法目标。
+- Git 模式保持 tracked 的工作区与暂存区内容，冻结完整 index；确认后暂存区改变时拒绝旧计划。
+  使用 literal pathspec 和精确冻结目标，不对整个根再次运行无范围 clean；每个实际删除路径才报告成功。
+- Host 校验 Workspace Trust、当前目录、模式/目标指纹、session/revision/token、运行与清理互斥。
+  对话框不能传入任意路径或隐藏 YAML 扩大固定规则。
+- 预览和执行都接收协作取消信号，在递归节点/仓库边界检查；取消使旧 token 与后续操作失效，直到正在执行的 provider 退出才允许新的清理/运行。
+  取消不是回滚，也不承诺打断已启动的 Git 命令；错误与部分完成信息保留到 Output。测试前停止其他写入者。
+- 工具 Header 的 `×` / 关闭其他工具仍只更新逻辑打开项与 MRU，不取消任务或清空结果。
+  清理弹窗自身的 `×` / 取消才撤销清理授权；工作目录变化、实际 Webview 销毁也使旧授权失效，
+  不调用普通 VS Code Task 的停止动作。重建 Webview 的 init 重放不得主动重开旧清理弹窗。
+- Preview 使用正式 Run 面板和 Wing 对话框，但数据及执行反馈都是内存模拟，不进行任何真实删除。
+  AutoBuild Preview 的原有手写弹窗尚待收敛，不宣称所有原型都已使用同一组件实例。
+
+### 验收与剩余点检
+
+- Wing run-node 的真实临时目录与类型检查通过：包含临时目录递归清理、大小写、链接/嵌套仓库、祖先替换、
+  目标变化、Git index、literal pathspec、单 force 保留 tracked 以及取消。未在用户工程执行删除。
+- 本地 `pnpm ext:dev:prepare` 完成：Auto 六个 Wing 输入来自并列仓库，consumer node_modules 命中 0；
+  CAD 的 Registry 准备、50 项测试和构建通过。正式 manifests 与 lockfile 不变。
+- 2026-09-09 解锁后的浏览器点检已覆盖：原三项清理树、build 快捷项模拟直达、Git 默认方式、精确预览、清理/关闭日志；弹窗没有额外风险确认勾选，未执行真实删除。
+- 同日 Wing run-node 47 项、code-core 103 项测试通过；Auto 全量 220 文件、1354 项通过（2 项条件跳过），`pnpm ext:dev:prepare` 再次通过。
+- 真实 Extension Host 代表流程 smoke 通过，保留回执 `/tmp/ktc-eh-4fSDjs/workspace/.phoenix/extension-host-smoke-v1.json`；它覆盖 Run Block 注册，不代表四个清理入口的真实人工点检。
+- Extension Host 深浅主题、焦点、弹层避让、真实四入口和 Windows/Linux 实机删除仍待人工验收；DOM 和 Preview 不能替代这些项目。
+- 自动代码 Right、AutoBuild 后续 link/export/CAA TS provider 与真实清单 clone 等不在本 Run 阶段完成范围。
 
 ## 已修复问题
 

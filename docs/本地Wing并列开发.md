@@ -65,6 +65,7 @@ phoenix/
 2. 在 Auto 构建前运行 `verify:wing-dependencies`，确认提交态依赖仍是精确 Registry 版本。
 3. 构建 Auto 使用的 Code/Git/Run/Codegen 六包与 CAD 使用的三包。
 4. 直接加载刚生成的 `kt-codegen/dist`，用隔离的 `PNXBomAnalysisCmd` 反例执行 Marker 自检：两个 Start 缺 End 只能产生两条 `marker.missing-end`，后续五个完整同级块必须恢复，旧 `nested-start/mismatched-end` 必须为 0。任何偏差都会在启动 VS Code 前失败。
+5. 在启动 Extension Development Host 前重新打印 Auto、CAD（完整联调时）和 Wing 的绝对路径、包版本、分支关系及未提交项数量，并再次汇总本地 Wing 来源门禁。以最后这段摘要为本轮实际联调目录，避免开头信息被构建日志刷走。
 5. 只为本次 esbuild 注入 `PHOENIX_WING_ROOT` 和内部模式开关；解析全部 `@phoenix-wing/*` 公共入口，包括 `@phoenix-wing/kt-codegen/table`。
 6. 分别读取 Code 与 CAD bundle 的 esbuild metafile：各自预期包必须来自并列 Wing，consumer `node_modules` 命中必须为 0。
 7. 再次运行 Registry 依赖门禁，并逐字核对两个仓库各自的 manifest 与 lockfile 未被构建修改。

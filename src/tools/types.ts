@@ -25,6 +25,7 @@ import type {
   KtcCodegenSourceCandidateSummary,
 } from "./codegen/primaryViewModel.js";
 import type { KtcRunViewModel } from "../core/run/KtcRunModel.js";
+import type { KtcCleanupDialogHostAction, KtcRunCleanupProjection } from "../core/cleanupContracts.js";
 import type { KtcGitViewModel } from "../core/git/KtcGitModel.js";
 import type { PnwCodeUuidFileResultRow } from "@phoenix-wing/code-core/ui/model";
 import type {
@@ -81,11 +82,19 @@ export type WebviewInboundMessage =
   | {
       type: "runAction";
       toolId: "run";
-      action: "refresh" | "openOutput" | "openProblems" | "openTerminal" | "runTarget" | "dryRunTarget" | "stopRun" | "setCaaVersion" | "openSource";
+      action: "refresh" | "openCleanup" | "openOutput" | "openProblems" | "openTerminal" | "runTarget" | "dryRunTarget" | "stopRun" | "setCaaVersion" | "openSource" | "cleanBuild" | "cleanObjects" | "cleanObj" | "cleanGitUntracked";
       targetId?: string;
       runId?: string;
       projectId?: string;
       value?: string;
+    }
+  | {
+      type: "runAction";
+      toolId: "run";
+      action: "cleanupDialog";
+      sessionId: string;
+      revision: number;
+      payload: KtcCleanupDialogHostAction;
     }
   | {
       type: "gitAction";
@@ -441,6 +450,7 @@ export interface ToolUiState {
   pluginSettingValues?: KtcPluginSettingValueSummary[];
   codegen?: KtcCodegenPrimaryViewModel;
   run?: KtcRunViewModel;
+  runCleanup?: KtcRunCleanupProjection;
   git?: KtcGitViewModel;
   /** Host-owned summary of a complex Editor View; never a second executable draft. */
   editorCompanion?: KtcEditorPrimaryCompanionSnapshot;
@@ -504,6 +514,8 @@ export interface ToolPanelModel {
 
 export interface ToolRunContext {
   workspaceRoot: string | undefined;
+  /** Host-owned live check that prevents a destructive operation outliving its directory context. */
+  isCurrentWorkingDirectory?: () => boolean;
   workspaceLabel: string;
   workspaceFileScopeId: string;
   pluginIgnoreEnabled: boolean;

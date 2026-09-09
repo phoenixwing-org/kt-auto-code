@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { dirname } from "node:path";
 import type {
   KtcCodegenEditorInboundMessage,
   KtcCodegenEditorModel,
@@ -53,7 +54,9 @@ export class KtcCodegenEditorViewController implements vscode.Disposable {
       KTC_CODEGEN_EDITOR_LAYOUT_STATE_KEY,
       KTC_CODEGEN_DEFAULT_EDITOR_LAYOUT,
     ));
-    panel.webview.html = getCodegenEditorHtml(panel.webview, this.extensionUri, model, layout);
+    const documentUri = vscode.Uri.parse(model.uri);
+    const contextPath = documentUri.scheme === "file" ? dirname(documentUri.fsPath) : "";
+    panel.webview.html = getCodegenEditorHtml(panel.webview, this.extensionUri, model, layout, contextPath);
     panel.webview.onDidReceiveMessage((message: KtcCodegenEditorInboundMessage) => {
       if (message.type === "codegenEditorLayout") {
         if (message.uri === model.uri) {

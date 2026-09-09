@@ -11,16 +11,20 @@ const autoBuildVsCode = acquireVsCodeApi();
 const autoBuildDocumentId = crypto.randomUUID();
 
 interface AutoBuildRightShellElement extends HTMLElement {
-  model: { readonly title: string; readonly scrollMode: "vertical" };
+  model: { readonly title: string; readonly contextPath?: string; readonly scrollMode: "vertical" };
 }
 
 const rightShell = document.getElementById("autoBuildRightShell") as AutoBuildRightShellElement | null;
-if (rightShell) {
+const rightShellTitle = ktcRequireToolRegistration("autoBuild").title;
+const syncRightShellContext = (contextPath = ""): void => {
+  if (!rightShell) return;
   rightShell.model = {
-    title: ktcRequireToolRegistration("autoBuild").title,
+    title: rightShellTitle,
+    contextPath,
     scrollMode: "vertical",
   };
-}
+};
+syncRightShellContext();
 
 window.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("pnw-collapsible-block").forEach((legacy) => {
@@ -49,12 +53,13 @@ window.addEventListener("DOMContentLoaded", () => {
   let rootEnabled = true;
   let thirdPartyEnabled = true;
   let rootCleanupYaml = KTC_DEFAULT_ROOT_CLEANUP_PATTERNS_YAML;
+  let cmakeBuildTypes: ("Debug" | "Release")[] = ["Debug", "Release"];
   type ProjectRow = KtcAutoBuildProjectRow;
   let projects: ProjectRow[] = [];
   let publishDraft = (_configuration?: KtcAutoBuildConfiguration): number => 0;
   let scheduleDraftPublication = (): void => undefined;
   type DraftScopedProjectRequest = {
-    readonly type: "pickProjectDirectories" | "discoverProjectDirectories" | "probeProject" | "runProject" | "runTask";
+    readonly type: "pickProjectDirectories" | "discoverProjectDirectories" | "probeProject" | "updateProject" | "runProject" | "runTask";
     readonly projectId?: string;
     readonly taskId?: string;
   };
@@ -63,7 +68,7 @@ window.addEventListener("DOMContentLoaded", () => {
   style.textContent = ".auto-build-block{display:block;margin:0 0 9px;border:1px solid var(--vscode-panel-border,var(--vscode-contrastBorder));border-radius:4px;background:var(--vscode-editor-background)}.auto-build-block[hidden]{display:none}.auto-build-block>summary{display:flex;min-height:29px;align-items:center;gap:5px;padding:3px 7px;box-sizing:border-box;border-bottom:1px solid var(--vscode-panel-border,var(--vscode-contrastBorder));color:var(--vscode-foreground);background:var(--vscode-sideBarSectionHeader-background,transparent);font-weight:600;cursor:pointer;list-style:none;flex-wrap:wrap}.auto-build-block>summary::-webkit-details-marker{display:none}.auto-build-block>summary::before{width:14px;content:'›';font-size:18px;line-height:1;transform:rotate(0deg)}.auto-build-block[open]>summary::before{transform:rotate(90deg)}.auto-build-block:not([open])>summary{border-bottom:0}.auto-build-block-heading{flex:none}.auto-build-block-summary-controls{display:flex;min-width:0;margin-left:auto;align-items:center;gap:6px;flex-wrap:wrap;color:var(--vscode-foreground);font-size:11px;font-weight:400}.auto-build-block-summary-controls label{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}.auto-build-block-summary-controls input[type=checkbox]{width:14px;height:14px;margin:0}.auto-build-block-summary-status{min-width:0;margin-left:auto;overflow:hidden;color:var(--vscode-descriptionForeground);font-size:11px;font-weight:400;text-overflow:ellipsis;white-space:nowrap}.auto-build-block-body{padding:8px}.header-actions{display:flex;min-width:0;align-items:center;gap:7px;overflow-x:auto;scrollbar-width:none}.header-actions::-webkit-scrollbar{display:none}.header-actions>button{flex:none}.header-actions button.primary{color:var(--vscode-button-foreground);background:var(--vscode-button-background)}.project-version{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.project-kind{white-space:nowrap}.project-build-options,.project-operations{display:flex;gap:5px;align-items:center;flex-wrap:nowrap}.project-build-options label{display:inline-flex;gap:3px;align-items:center;white-space:nowrap}.project-action-button{display:inline-flex;width:26px;height:26px;align-items:center;justify-content:center;flex:none;padding:0;border:1px solid transparent;border-radius:3px;color:var(--vscode-foreground);background:transparent}.project-action-button svg{display:block;width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}.project-action-button:hover{border-color:var(--vscode-panel-border);background:var(--vscode-toolbar-hoverBackground,var(--vscode-list-hoverBackground))}@media(max-width:640px){.header-actions,.auto-build-block-summary-controls{gap:4px}}";
   document.head.append(style);
   const projectTableStyle = document.createElement("style");
-  projectTableStyle.textContent = "#projectRows{display:block;width:100%;max-width:100%;min-width:0;overflow-x:auto;contain:inline-size}.project-table{width:100%;min-width:1140px;border-spacing:0;border-collapse:separate;table-layout:fixed}.project-table[data-probe-columns-visible=false]{min-width:820px}.project-table[data-probe-columns-visible=false] [data-project-probe-column]{display:none}.project-table th,.project-table td{height:36px;box-sizing:border-box;padding:4px 7px;overflow:hidden;text-align:left;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;border-bottom:1px solid var(--vscode-panel-border);background:var(--vscode-editor-background)}.project-table th{color:var(--vscode-descriptionForeground);font-size:11px;font-weight:500}.project-table input:not([type=checkbox]){min-width:0;width:100%;box-sizing:border-box}.project-table .project-col-enabled{width:48px}.project-table .project-col-kind{width:78px}.project-table .project-col-branch{width:90px}.project-table .project-col-repository{width:220px}.project-table .project-col-commit{width:105px}.project-table .project-col-origin{width:185px}.project-table .project-col-status{width:75px}.project-table .project-col-build{width:245px}.project-table .project-col-actions{width:92px}.project-table th:last-child,.project-table td:last-child{position:sticky;right:0;z-index:2;border-left:1px solid var(--vscode-panel-border);background:var(--vscode-editor-background);box-shadow:-5px 0 7px -7px var(--vscode-foreground)}.project-table th:last-child{z-index:3}";
+  projectTableStyle.textContent = "#projectRows{display:block;width:100%;max-width:100%;min-width:0;overflow-x:auto;contain:inline-size}.project-table{width:100%;min-width:1140px;border-spacing:0;border-collapse:separate;table-layout:fixed}.project-table[data-probe-columns-visible=false]{min-width:820px}.project-table[data-probe-columns-visible=false] [data-project-probe-column]{display:none}.project-table th,.project-table td{height:36px;box-sizing:border-box;padding:4px 7px;overflow:hidden;text-align:left;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;border-bottom:1px solid var(--vscode-panel-border);background:var(--vscode-editor-background)}.project-table th{color:var(--vscode-descriptionForeground);font-size:11px;font-weight:500}.project-table input:not([type=checkbox]){min-width:0;width:100%;box-sizing:border-box}.project-table .project-col-enabled{width:48px}.project-table .project-col-kind{width:78px}.project-table .project-col-branch{width:90px}.project-table .project-col-repository{width:220px}.project-table .project-col-commit{width:105px}.project-table .project-col-origin{width:185px}.project-table .project-col-status{width:75px}.project-table .project-col-build{width:245px}.project-table .project-col-actions{width:123px}.project-table th:last-child,.project-table td:last-child{position:sticky;right:0;z-index:2;border-left:1px solid var(--vscode-panel-border);background:var(--vscode-editor-background);box-shadow:-5px 0 7px -7px var(--vscode-foreground)}.project-table th:last-child{z-index:3}";
   document.head.append(projectTableStyle);
   const treeStyle = document.createElement("style");
   treeStyle.textContent = ".task-tree>summary{position:relative;padding-left:18px;cursor:pointer;list-style:none}.task-tree>summary::-webkit-details-marker{display:none}.task-tree>summary::before{content:'›';position:absolute;left:3px;top:50%;font-size:19px;line-height:1;transform:translateY(-50%);transform-origin:center;transition:transform .1s ease}.task-tree[open]>summary::before{transform:translateY(-50%) rotate(90deg)}";
@@ -91,7 +96,7 @@ window.addEventListener("DOMContentLoaded", () => {
     runToggle.textContent = busy ? "停止" : "运行";
     runToggle.title = busy ? "停止当前请求或任务" : "运行全部任务";
     runToggle.setAttribute("aria-label", runToggle.title);
-    document.querySelectorAll<HTMLButtonElement>('button[data-row-action="runProject"],button[data-task-id]').forEach((button) => { button.disabled = busy; });
+    document.querySelectorAll<HTMLButtonElement>('button[data-row-action="runProject"],button[data-row-action="updateProject"],button[data-task-id]').forEach((button) => { button.disabled = busy; });
   };
   runToggle.addEventListener("click", () => {
     if (stopButton && !stopButton.disabled) stopButton.click();
@@ -198,8 +203,8 @@ window.addEventListener("DOMContentLoaded", () => {
       const buildOptions = document.createElement("span"); buildOptions.className = "project-build-options";
       for (const [key, label] of [["update", "更新"], ["cmake", "CMake"], ["caa", "CAA"], ["linkCaa", "linkCAA"]] as const) { const option = document.createElement("label"); const input = document.createElement("input"); input.type = "checkbox"; input.checked = project.operations[key]; input.dataset.projectId = project.id; input.dataset.projectField = key; input.onchange = () => { project.operations[key] = input.checked; }; option.append(input, label); buildOptions.append(option); }
       const operations = document.createElement("span"); operations.className = "project-operations";
-      const actionIcons = { probeProject: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4"></circle><path d="m10 10 3 3"></path></svg>', runProject: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5 12 8l-7 4.5z"></path></svg>', removeProject: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"></path></svg>' } as const;
-      for (const [label, action] of [["探测", "probeProject"], ["运行", "runProject"], ["移除", "removeProject"]] as const) { const button = document.createElement("button"); button.className = "project-action-button"; button.dataset.rowAction = action; button.dataset.projectId = project.id; button.dataset.projectField = action; button.innerHTML = actionIcons[action]; button.title = label; button.disabled = action === "runProject" && executionBusy; button.setAttribute("aria-label", `${label} ${project.name}`); button.onclick = () => { if (action === "removeProject") { projects = projects.filter((item) => item.id !== project.id); renderProjects(); scheduleDraftPublication(); } else postProjectRequest({ type: action, projectId: project.id }); }; operations.append(button); }
+      const actionIcons = { probeProject: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4"></circle><path d="m10 10 3 3"></path></svg>', updateProject: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 7a5 5 0 1 0-1 4M13 3v4H9"></path></svg>', runProject: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5 12 8l-7 4.5z"></path></svg>', removeProject: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"></path></svg>' } as const;
+      for (const [label, action] of [["探测", "probeProject"], ["更新", "updateProject"], ["运行", "runProject"], ["移除", "removeProject"]] as const) { const button = document.createElement("button"); button.className = "project-action-button"; button.dataset.rowAction = action; button.dataset.projectId = project.id; button.dataset.projectField = action; button.innerHTML = actionIcons[action]; button.title = action === "updateProject" ? `更新 Git 到 ${project.branch}（仅此仓库，不编译）` : label; button.disabled = (action === "runProject" || action === "updateProject") && executionBusy; button.setAttribute("aria-label", `${label} ${project.name}`); button.onclick = () => { if (action === "removeProject") { projects = projects.filter((item) => item.id !== project.id); renderProjects(); scheduleDraftPublication(); } else postProjectRequest({ type: action, projectId: project.id }); }; operations.append(button); }
       row.append(cell(enabled), cell(text("项目", "project-kind")), cell(branch), cell(path), cell(commit, true), cell(origin, true), cell(state, true), cell(buildOptions), cell(operations)); return row;
     });
     tableBody.append(...projectBody); table.append(columns, head, tableBody); projectRows.replaceChildren(table);
@@ -230,6 +235,7 @@ window.addEventListener("DOMContentLoaded", () => {
     buildExecutionMode: (document.getElementById("parallelBuild") as HTMLInputElement).checked ? "parallel" : "sequential",
     clean: false,
     rootCleanupYaml,
+    cmakeBuildTypes,
     repositorySnapshot,
   });
   let draftRevision = 0;
@@ -258,7 +264,12 @@ window.addEventListener("DOMContentLoaded", () => {
     autoBuildVsCode.postMessage({ ...request, documentId: autoBuildDocumentId, draftRevision: currentDraftRevision, configuration });
   };
   const autoBuildMain = document.getElementById("autoBuildMain");
-  autoBuildMain?.addEventListener("input", scheduleDraftPublication);
+  autoBuildMain?.addEventListener("input", (event) => {
+    if ((event.target as HTMLElement | null)?.id === "workingDirectory") {
+      syncRightShellContext((event.target as HTMLInputElement).value.trim());
+    }
+    scheduleDraftPublication();
+  });
   autoBuildMain?.addEventListener("change", scheduleDraftPublication);
   document.getElementById("pickProjects")?.addEventListener("click", () => postProjectRequest({ type: "pickProjectDirectories" }));
   document.getElementById("discoverProjects")?.addEventListener("click", () => postProjectRequest({ type: "discoverProjectDirectories" }));
@@ -281,7 +292,7 @@ window.addEventListener("DOMContentLoaded", () => {
   document.body.append(scriptWindow);
   const scriptTarget = document.getElementById("scriptTargetDirectory") as HTMLInputElement, scriptNote = document.getElementById("scriptKindNote")!, buildTab = document.getElementById("buildScriptTab")!, checkoutTab = document.getElementById("checkoutScriptTab")!, manifestTab = document.getElementById("manifestScriptTab")!;
   let selectedScriptKind: "build" | "checkout" | "manifest" = "build";
-  const selectScriptTab = (kind: "build" | "checkout" | "manifest") => { selectedScriptKind = kind; buildTab.setAttribute("aria-selected", String(kind === "build")); checkoutTab.setAttribute("aria-selected", String(kind === "checkout")); manifestTab.setAttribute("aria-selected", String(kind === "manifest")); (document.getElementById("checkoutScriptOptions") as HTMLElement).hidden = kind !== "checkout"; (document.getElementById("manifestScriptOptions") as HTMLElement).hidden = kind !== "manifest"; (document.getElementById("scriptOutputDirectory") as HTMLElement).hidden = kind === "manifest"; scriptNote.textContent = kind === "checkout" ? "默认仅克隆项目表仓库；各仓库独立执行，最后统计结果。Root、3rdParty 需单独勾选。" : kind === "manifest" ? "输出一个 BUILD_MANIFEST.json；记录 Root、3rdParty 和本次勾选编译的项目，并按 Git 地址稳定排序。" : "按当前界面配置输出 Invoke-AutoBuild.local.ps1，可脱离 UI 运行。"; };
+  const selectScriptTab = (kind: "build" | "checkout" | "manifest") => { selectedScriptKind = kind; buildTab.setAttribute("aria-selected", String(kind === "build")); checkoutTab.setAttribute("aria-selected", String(kind === "checkout")); manifestTab.setAttribute("aria-selected", String(kind === "manifest")); (document.getElementById("checkoutScriptOptions") as HTMLElement).hidden = kind !== "checkout"; (document.getElementById("manifestScriptOptions") as HTMLElement).hidden = kind !== "manifest"; (document.getElementById("scriptOutputDirectory") as HTMLElement).hidden = kind === "manifest"; scriptNote.textContent = kind === "checkout" ? "默认仅克隆项目表仓库；各仓库独立执行，最后统计结果。Root、3rdParty 需单独勾选。" : kind === "manifest" ? "输出一个 BUILD_MANIFEST.json；记录 Root、3rdParty 和本次勾选编译的项目，并按 Git 地址稳定排序。" : "输出 Windows Invoke-AutoBuild.local.ps1；CMake 配置仍按项目 mk.ps1 执行，不消费界面的 Debug/Release 选择。"; };
   const openScriptManager = () => { scriptTarget.value = (document.getElementById("workingDirectory") as HTMLInputElement).value.trim(); selectScriptTab(selectedScriptKind); scriptWindow.hidden = false; scriptWindow.style.left = `${Math.max(16, (window.innerWidth - scriptWindow.offsetWidth) / 2)}px`; scriptWindow.style.top = "70px"; scriptTarget.focus(); };
   buildTab.addEventListener("click", () => selectScriptTab("build"));
   checkoutTab.addEventListener("click", () => selectScriptTab("checkout"));
@@ -322,7 +333,7 @@ window.addEventListener("DOMContentLoaded", () => {
       const statusHint = document.getElementById("status");
       if (event.data.platform && event.data.platform !== "win32") {
         const platformName = event.data.platform === "darwin" ? "macOS" : event.data.platform;
-        if (statusHint?.textContent === "空闲") statusHint.textContent = `${platformName} 检查模式：可编辑、探测、预检和生成脚本；运行仍会尝试现有链路，仅作盲开发检查，不能替代 Windows 实际构建。`;
+        if (statusHint?.textContent === "空闲") statusHint.textContent = `${platformName} ：Git / CMake 原生运行；export.ps1、linkCAA 和 CAA 暂跳过，日志说明原因。`;
       }
       const configuration = event.data.configuration || {};
       const rootDirectory = typeof configuration.rootDirectory === "string"
@@ -334,6 +345,7 @@ window.addEventListener("DOMContentLoaded", () => {
       (document.getElementById("branch") as HTMLInputElement).value = configuration.branch || "develop";
       (document.getElementById("cmakeBranch") as HTMLInputElement).value = configuration.cmakeBranch || "master";
       (document.getElementById("workingDirectory") as HTMLInputElement).value = configuration.workingDirectory || "";
+      syncRightShellContext(configuration.workingDirectory || "");
       rootEnabled = configuration.rootEnabled !== false;
       thirdPartyEnabled = configuration.thirdPartyEnabled !== false;
       rootCleanupYaml = typeof configuration.rootCleanupYaml === "string"
@@ -343,6 +355,7 @@ window.addEventListener("DOMContentLoaded", () => {
       (document.getElementById("updateThirdParty") as HTMLInputElement).checked = !!configuration.updateThirdParty;
       repositorySnapshot = configuration.repositorySnapshot;
       projects = configuration.projects || []; renderProjects();
+      cmakeBuildTypes = configuration.cmakeBuildTypes ?? ["Debug", "Release"];
       updateParallelBuildDisplay(configuration.buildExecutionMode === "parallel");
       scheduleDraftPublication();
     }
@@ -365,8 +378,12 @@ window.addEventListener("DOMContentLoaded", () => {
       }
     }
     if (event.data?.type === "repositorySnapshot") { if (!isCurrentDraftResponse(event.data)) return; repositorySnapshot = event.data.snapshot; renderProjects(); }
-    if (event.data?.type === "workingDirectory") { (document.getElementById("workingDirectory") as HTMLInputElement).value = event.data.value || ""; scheduleDraftPublication(); }
+    if (event.data?.type === "workingDirectory") { (document.getElementById("workingDirectory") as HTMLInputElement).value = event.data.value || ""; syncRightShellContext(event.data.value || ""); scheduleDraftPublication(); }
     if (event.data?.type === "buildExecutionMode") { updateParallelBuildDisplay(event.data.value === "parallel"); scheduleDraftPublication(); }
+    if (event.data?.type === "cmakeBuildTypes") {
+      cmakeBuildTypes = event.data.value;
+      scheduleDraftPublication();
+    }
     if (event.data?.type === "rootCleanupYaml") {
       rootCleanupYaml = typeof event.data.value === "string"
         ? event.data.value.slice(0, 4_096)
@@ -384,7 +401,7 @@ window.addEventListener("DOMContentLoaded", () => {
       const row = document.createElement("div");
       row.style.cssText = "display:grid;grid-template-columns:minmax(160px,1fr) minmax(180px,2fr) 72px 58px;gap:8px;padding:5px;border-bottom:1px solid var(--vscode-panel-border)";
       const name = document.createElement("span"), command = document.createElement("code"), state = document.createElement("span"), run = document.createElement("button");
-      const statusText: Record<string, string> = { waiting: "等待", in_progress: "进行中", done: "完成", error: "失败" };
+      const statusText: Record<string, string> = { waiting: "等待", in_progress: "进行中", done: "完成", error: "失败", skipped: "已跳过", cancelled: "已取消" };
       name.textContent = `${taskIndex + 1}. ${task.name}`; command.textContent = task.commandSummary; command.title = task.commandSummary; state.textContent = statusText[task.status] || task.status;
       run.textContent = "运行"; run.title = `单独运行：${task.name}`; run.disabled = executionBusy || task.status === "in_progress";
       run.dataset.taskId = task.id;

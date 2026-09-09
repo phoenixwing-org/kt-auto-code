@@ -66,6 +66,8 @@ describe("KtcRightViewShell", () => {
     element.model = { title: "  编译工具  " };
 
     expect(byClass(element.shadow, "title").textContent).toBe("编译工具");
+    expect(byClass(element.shadow, "context").textContent).toBe("未关联目录");
+    expect(byClass(element.shadow, "context").title).toBe("未关联目录");
     expect(byClass(element.shadow, "shell").attributes.get("aria-labelledby")).toBe("ktc-right-view-title");
     expect(byClass(element.shadow, "main").attributes.get("aria-label")).toBe("编译工具内容");
     const slots = findNodes(element.shadow, (node) => node.tagName === "slot");
@@ -81,6 +83,59 @@ describe("KtcRightViewShell", () => {
     expect(style).toContain(".shell {\n    display:grid; width:100%; height:100%");
     expect(style).toContain("margin:0; padding:0");
     expect(style).toContain(".main {\n    width:100%; height:100%");
+    expect(style).toContain(".heading {\n    display:flex; min-width:0; flex:1 1 auto");
+    expect(style).toContain("text-overflow:ellipsis; white-space:nowrap");
+    expect(style).toContain("max-width:60%; flex:0 0 auto");
+  });
+
+  it.each([
+    ["/workspace/Phoenix/projects/", "projects @ /workspace/Phoenix"],
+    ["/workspace", "workspace @ /"],
+    ["C:\\Phoenix\\projects\\", "projects @ C:\\Phoenix"],
+    ["C:\\Phoenix", "Phoenix @ C:\\"],
+    ["C:/Phoenix/projects", "projects @ C:/Phoenix"],
+    ["C:/Phoenix", "Phoenix @ C:/"],
+    ["C:\\", "C:\\ @ C:\\"],
+    ["\\\\server\\share\\project", "project @ \\\\server\\share"],
+    ["project", "project @ ."],
+  ])("跨平台格式化 %s 为目录名与父路径", async (contextPath, expectedLabel) => {
+    installFakeDom();
+    const browser = await import("./KtcRightViewShell.js");
+    expect(browser.ktcFormatRightViewContextPath(contextPath)).toEqual({
+      label: expectedLabel,
+      title: contextPath,
+    });
+  });
+
+  it("目录上下文与工具标题独立，完整路径仅进入 title，并可由消费者明确隐藏", async () => {
+    installFakeDom();
+    const browser = await import("./KtcRightViewShell.js");
+    const element = new browser.KtcRightViewShell() as unknown as FakeElement & {
+      model: KtcRightViewShellModel;
+    };
+    element.model = { title: "项目改名", contextPath: "/workspace/Phoenix/projects" };
+    expect(byClass(element.shadow, "title").textContent).toBe("项目改名");
+    expect(byClass(element.shadow, "title").title).toBe("项目改名");
+    expect(byClass(element.shadow, "context").textContent).toBe("projects @ /workspace/Phoenix");
+    expect(byClass(element.shadow, "context").title).toBe("/workspace/Phoenix/projects");
+    expect(byClass(element.shadow, "context").attributes.get("aria-label")).toBe(
+      "关联目录：/workspace/Phoenix/projects",
+    );
+
+    element.model = { title: "项目改名", contextPath: "/workspace/Phoenix/projects", hideContext: true };
+    expect(findNodes(element.shadow, (node) => node.className === "context")).toHaveLength(0);
+  });
+
+  it("相同规范化模型重复赋值时不重建 Shadow，避免无关业务状态打断 Header 操作", async () => {
+    installFakeDom();
+    const browser = await import("./KtcRightViewShell.js");
+    const element = new browser.KtcRightViewShell() as unknown as FakeElement & {
+      model: KtcRightViewShellModel;
+    };
+    element.model = { title: "  项目改名 ", contextPath: " /workspace/project " };
+    const header = byClass(element.shadow, "header");
+    element.model = { title: "项目改名", contextPath: "/workspace/project", hideContext: false };
+    expect(byClass(element.shadow, "header")).toBe(header);
   });
 
   it.each([
@@ -108,14 +163,28 @@ describe("KtcRightViewShell", () => {
     const element = new browser.KtcRightViewShell() as unknown as FakeElement & {
       model: KtcRightViewShellModel;
     };
-    const input = { title: "  构建结果  ", scrollMode: "both" as const };
+    const input = {
+      title: "  构建结果  ",
+      contextPath: "  C:\\Phoenix\\projects  ",
+      scrollMode: "both" as const,
+    };
     element.model = input;
     input.title = "被外部修改";
-    expect(element.model).toEqual({ title: "构建结果", scrollMode: "both" });
+    expect(element.model).toEqual({
+      title: "构建结果",
+      contextPath: "C:\\Phoenix\\projects",
+      hideContext: false,
+      scrollMode: "both",
+    });
     expect(Object.isFrozen(element.model)).toBe(true);
 
     element.model = { title: "  ", scrollMode: "invalid" as "vertical" };
-    expect(element.model).toEqual({ title: "Right View", scrollMode: "vertical" });
+    expect(element.model).toEqual({
+      title: "Right View",
+      contextPath: "",
+      hideContext: false,
+      scrollMode: "vertical",
+    });
     expect(byClass(element.shadow, "main").attributes.get("aria-label")).toBe("Right View内容");
   });
 

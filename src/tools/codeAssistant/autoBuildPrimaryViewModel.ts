@@ -1,6 +1,9 @@
 import type { KtcAutoBuildPrimaryViewModel } from "../../core/autoBuildPrimaryContracts.js";
-import { KTC_DEFAULT_ROOT_CLEANUP_PATTERNS_YAML } from "../../core/rootCleanupPatterns.js";
 import type { KtcAutoBuildConfiguration, KtcAutoBuildTask } from "./autoBuildContracts.js";
+import {
+  ktcCreateAutoBuildCleanupViewModel,
+  type KtcAutoBuildCleanupProjectionState,
+} from "./autoBuildCleanupViewModel.js";
 
 export type KtcAutoBuildScriptStatus = "same" | "different" | "missing" | "unavailable" | "foreign";
 
@@ -22,8 +25,9 @@ export interface KtcCreateAutoBuildPrimaryViewModelInput {
   readonly defaultWorkingDirectory: string;
   readonly platform: NodeJS.Platform;
   readonly scriptStatus?: KtcAutoBuildScriptStatusSnapshot;
-  readonly repositoryCleanupStatus?: string;
-  readonly rootCleanupStatus?: string;
+  readonly cleanupEnabled?: boolean;
+  readonly cleanupDisabledReason?: string;
+  readonly cleanupState?: KtcAutoBuildCleanupProjectionState;
 }
 
 function platformLabels(platform: NodeJS.Platform): { short: string; execution: string } {
@@ -89,6 +93,7 @@ export function ktcCreateAutoBuildPrimaryViewModel(
       })),
     },
     parallelBuild: input.configuration?.buildExecutionMode === "parallel",
+    cmakeBuildTypes: input.configuration?.cmakeBuildTypes ?? ["Debug", "Release"],
     environmentLabel: platform.short,
     environment: [
       { label: "工作目录", value: workingDirectory },
@@ -101,9 +106,14 @@ export function ktcCreateAutoBuildPrimaryViewModel(
     maintenance: {
       scriptStatus: script.label,
       scriptDetail: script.detail,
-      repositoryCleanupStatus: input.repositoryCleanupStatus ?? "仅手动触发",
-      rootCleanupStatus: input.rootCleanupStatus ?? "待确认规则",
-      rootCleanupYaml: input.configuration?.rootCleanupYaml ?? KTC_DEFAULT_ROOT_CLEANUP_PATTERNS_YAML,
     },
+    cleanup: ktcCreateAutoBuildCleanupViewModel({
+      configuration: input.configuration,
+      defaultWorkingDirectory: input.defaultWorkingDirectory,
+      platform: input.platform,
+      enabled: input.cleanupEnabled ?? false,
+      disabledReason: input.cleanupDisabledReason,
+      state: input.cleanupState,
+    }),
   };
 }
