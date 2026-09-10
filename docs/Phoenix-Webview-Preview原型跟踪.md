@@ -762,7 +762,7 @@ Primary 隐藏：Right View 填满工作台，无残留焦点或不可见状态
 - `develop` 的 `91ee870` 已带历史合入 `v0.9.0`，合并提交为 `666d651`，没有冲突；原型归档提交 `8bde01a` 保留在第一父历史中。
 - 正式 Primary 已消费六个生产 Web Component bundle；正式 AutoBuild、项目改名与 PackageIncludes Right View 已消费薄 `KtcRightViewShell`。Preview-only `KtcSystemOutputBlock` 不在正式 build graph 中，构建会清理旧 bundle，制品验证器也会主动拒绝它进入 VSIX。
 - 全量门禁通过：`190` 个测试文件、`1117` 项通过、`1` 项跳过；`typecheck`、`docs:check`、`verify:architecture`、正式 `pnpm build` 和 `git diff --check` 通过。
-- 受控 `PHOENIX_WING_ROOT=/Users/kathy/phoenix/phoenix-wing pnpm ext:dev:prepare` 通过；六个 Code Wing 输入全部来自并列仓库，consumer `node_modules` 命中为 0，CAD 的独立 Registry 门禁同时通过。
+- 受控 `pnpm ext:dev:prepare` 通过，wrapper 解析 `<PhoenixRoot>/phoenix-wing` 并设置配套本地开发环境；六个 Code Wing 输入全部来自并列仓库，consumer `node_modules` 命中为 0，CAD 的独立 Registry 门禁同时通过。
 - VS Code `1.136.1` 的隔离 Extension Host smoke 通过打开、预览、冲突、应用、保存 / 重载、回滚、Git、Run、项目改名分析与取消等代表流程；扩展 `kuntai.kt-auto-code@0.9.0` 已激活。
 - 已按阶段展示规则启动使用本地 Wing 快照的可见 Extension Development Host。用户在真实深色 Host 中确认整体 Primary 效果可接受，且确认 Group 不再生成独立 View；当前显示的“编译工具”是叶子 Tool，而不是“代码辅助”Group 占位内容。
 - 用户确认 Open Items 下方的少量空隙属于 VS Code Workbench / View 宿主边界，可以接受。该差异登记为宿主点检结论，不通过插件 CSS 的负边距、绝对定位或遮盖方式强行抵消，Preview 仍保留其已确认的紧凑几何基线。

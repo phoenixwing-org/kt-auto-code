@@ -138,6 +138,22 @@ describe("KtcRightViewShell", () => {
     expect(byClass(element.shadow, "header")).toBe(header);
   });
 
+  it("文件上下文可使用紧凑标签，保留完整路径 tooltip，清空标签恢复默认目录格式", async () => {
+    installFakeDom();
+    const browser = await import("./KtcRightViewShell.js");
+    const element = new browser.KtcRightViewShell() as unknown as FakeElement & { model: KtcRightViewShellModel };
+    const contextPath = "/workspace/PNXBomAnalysisWsp/PNXBomAnalysisParam.json";
+    element.model = { title: "自动代码", contextPath, contextLabel: " PNXBomAnalysisParam.json @ PNXBomAnalysisWsp " };
+    const context = byClass(element.shadow, "context");
+    expect(context.textContent).toBe("PNXBomAnalysisParam.json @ PNXBomAnalysisWsp");
+    expect(context.title).toBe(contextPath);
+    expect(context.attributes.get("aria-label")).toBe(`PNXBomAnalysisParam.json @ PNXBomAnalysisWsp；${contextPath}`);
+    element.model = { title: "自动代码", contextPath, contextLabel: "PNXBomAnalysisParam.json @ PNXBomAnalysisWsp" };
+    expect(byClass(element.shadow, "context")).toBe(context);
+    element.model = { title: "自动代码", contextPath, contextLabel: "" };
+    expect(byClass(element.shadow, "context").textContent).toBe("PNXBomAnalysisParam.json @ /workspace/PNXBomAnalysisWsp");
+  });
+
   it.each([
     [undefined, "scroll-vertical", "overflow-x:hidden; overflow-y:auto", true],
     ["vertical", "scroll-vertical", "overflow-x:hidden; overflow-y:auto", true],
@@ -157,6 +173,24 @@ describe("KtcRightViewShell", () => {
     expect(style).toContain(css);
   });
 
+  it("仅在 none 模式为默认内容插槽传递确定高度，让内层滚动区受限", async () => {
+    installFakeDom();
+    const browser = await import("./KtcRightViewShell.js");
+    const element = new browser.KtcRightViewShell() as unknown as FakeElement & {
+      model: KtcRightViewShellModel;
+    };
+    element.model = { title: "自动代码", scrollMode: "none" };
+    const style = findNodes(element.shadow, (node) => node.tagName === "style")[0]!.textContent;
+    expect(style).toContain(".scroll-none > slot:not([name]) { height:100%; min-height:0; }");
+    const defaultSlotRule = style.match(/(?:^|\n)\s*slot:not\(\[name\]\) \{([^}]*)\}/u)?.[1];
+    // vertical/both retain naturally growing content; the actions slot is not constrained.
+    expect(style).toContain("slot:not([name]) { display:block; min-width:100%; min-height:100%; }");
+    expect(defaultSlotRule).toBeTruthy();
+    expect(defaultSlotRule).not.toMatch(/(?:^|;)\s*height:/u);
+    expect(style).not.toMatch(/slot\[name[\s\S]*?height:100%/u);
+    expect(byClass(element.shadow, "main").className).toContain("scroll-none");
+  });
+
   it("安全复制、规范化并冻结输入，非法值回退为可访问默认值", async () => {
     installFakeDom();
     const browser = await import("./KtcRightViewShell.js");
@@ -173,6 +207,7 @@ describe("KtcRightViewShell", () => {
     expect(element.model).toEqual({
       title: "构建结果",
       contextPath: "C:\\Phoenix\\projects",
+      contextLabel: "",
       hideContext: false,
       scrollMode: "both",
     });
@@ -182,6 +217,7 @@ describe("KtcRightViewShell", () => {
     expect(element.model).toEqual({
       title: "Right View",
       contextPath: "",
+      contextLabel: "",
       hideContext: false,
       scrollMode: "vertical",
     });

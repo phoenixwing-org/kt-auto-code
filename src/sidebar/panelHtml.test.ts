@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import {
   ktcEditorCompanionStatusText,
   getPanelHtml,
-  ktcCodeAssistantFeatureBlock,
   ktcGitPanelModel,
   ktcResolveGroupMruToolId,
   ktcSearchReplaceButtonState,
@@ -266,25 +265,6 @@ describe("sidebar panel HTML", () => {
     })).toBe("任务已连接。");
   });
 
-  it("代码辅助内部功能统一由同一 Block 外壳生成", () => {
-    expect(ktcCodeAssistantFeatureBlock({
-      id: "feature",
-      title: "功能操作",
-      closeId: "close",
-      closeTitle: "关闭",
-      closeAriaLabel: "关闭功能",
-      body: "<button>执行</button>",
-    })).toContain('<details class="code-assistant-feature" id="feature" open>');
-    expect(ktcCodeAssistantFeatureBlock({
-      id: "feature",
-      title: "功能操作",
-      closeId: "close",
-      closeTitle: "关闭",
-      closeAriaLabel: "关闭功能",
-      body: "<button>执行</button>",
-    })).toContain('id="close"');
-  });
-
   it("Git 状态尚未到达时也渲染空状态按钮，并只请求一次刷新", () => {
     expect(ktcGitPanelModel(undefined, true)).toMatchObject({
       projects: [],
@@ -481,16 +461,13 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('type: "runModuleTool"');
     expect(html).toContain('t.shortTitle || t.title');
     expect(html).not.toContain('const shortTitles =');
-    expect(html).toContain('<ktc-reorder-members-panel id="reorder-members-panel"></ktc-reorder-members-panel>');
-    expect(html).toContain('<ktc-tool-navigator id="code-assistant-navigator" slot="group-content" hidden></ktc-tool-navigator>');
-    expect(html).toContain('id="code-assistant-reorder-actions"');
-    expect(html).toContain('id="code-assistant-reorder-results"');
-    expect(html).toContain("test-webview:/extension/dist/reorder-members-panel.js");
-    expect(html).toContain('els.reorderMembersPanel.model = {');
-    expect(html).toContain('"pnw-code-reorder-members-action"');
-    expect(html).toContain('type: "reorderAction"');
-    expect(html).toContain('type: "reorderSelection"');
-    expect(html).toContain('type: "run", toolId: "reorderMembers", action: detail.action');
+    expect(html).toContain('<ktc-selection-primary id="reorder-primary" hidden>');
+    expect(html).toContain('<ktc-tool-navigator id="code-assistant-navigator" slot="group-content" hidden>');
+    expect(html).toContain("test-webview:/extension/dist/ktc-code-assistant-primary.js");
+    expect(html).toContain('codeAssistantPrimary.ktcProjectSelectionPrimary');
+    expect(html).toContain('"ktc-selection-primary-action"');
+    expect(html).not.toContain('id="code-assistant-reorder-actions"');
+    expect(html).not.toContain('id="code-assistant-generic-actions"');
     expect(html).not.toContain('id="btn-reorder-apply"');
     expect(html).not.toContain("function createReorderGroup");
     expect(html).not.toContain("function renderReorderResults");
@@ -499,27 +476,28 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('.tab.open:not(.active)');
     expect(html).toContain('msg.type === "openTools"');
     expect(html).not.toContain('body.detail-block #results');
-    expect(html).toContain('renderEncodingResults(ts, !!state.showEncDetails)');
-    expect(html).toContain('id="encoding-default-target"');
-    expect(html).toContain('id="btn-encoding-settings"');
-    expect(html).toContain('id="target-overrides"');
-    expect(html).toContain('type: "setEncodingDefaultTarget"');
-    expect(html).toContain('type: "openEncodingSettings"');
-    expect(html).toContain('"项目覆盖：" + overrides.join(" · ")');
-    expect(html).toContain('"所有文件均符合当前项目编码目标。"');
-    expect(html).toContain('renderHeaderResults(ts, !!state.showDetails)');
+    expect(html).toContain('<ktc-text-repair-primary id="header-ascii-primary" hidden>');
+    expect(html).toContain('<ktc-text-repair-primary id="encoding-fix-primary" hidden>');
+    expect(html).toContain('codeAssistantPrimary.ktcCreateTextRepairPrimaryModel');
+    expect(html).toContain('codeAssistantPrimary.ktcTextRepairPrimaryActionToMessage');
+    expect(html).toContain('showDetails: state.showDetails, showEncDetails: state.showEncDetails');
+    expect(html).toContain('detail.action === "setOption" && detail.key === "showDetails"');
+    expect(html).not.toContain('renderHeaderResults');
+    expect(html).not.toContain('renderEncodingResults');
     expect(html).toContain('<ktc-rename-results-panel id="rename-results-panel" hidden>');
     expect(html).toContain("test-webview:/extension/dist/rename-results-panel.js");
     expect(html).toContain('syncRenameResultsPanel(ts)');
     expect(html).toContain('"pnw-code-rename-results-action"');
     expect(html).not.toContain('renderCodeRenameResults(ts)');
     expect(html).toContain('syncIgnorePrimaryPanel(state.toolStates.ignoreSettings || { status: "idle" })');
-    expect(html).toContain('<ktc-uuid-results-panel id="uuid-results-panel" hidden>');
-    expect(html).toContain("test-webview:/extension/dist/uuid-results-panel.js");
-    expect(html).toContain('syncUuidResultsPanel(ts)');
-    expect(html).toContain('"pnw-code-uuid-results-action"');
-    expect(html).not.toContain('renderUuidResults(ts)');
-    expect(html).toContain('renderCaaResults(ts)');
+    expect(html).toContain('<ktc-selection-primary id="uuid-primary" hidden>');
+    expect(html).toContain('codeAssistantPrimary.ktcSelectionPrimaryMessage');
+    expect(html).toContain('uuidStrategy: state.uuidStrategy');
+    expect(html).toContain('<ktc-caa-primary id="caa-primary" hidden>');
+    expect(html).toContain('codeAssistantPrimary.ktcCreateCaaPrimaryModel');
+    expect(html).toContain('codeAssistantPrimary.ktcCaaPrimaryMessageForAction');
+    expect(html).not.toContain('renderUuidResults');
+    expect(html).not.toContain('renderCaaResults');
     expect(html).toContain('renderEnvironment(ts)');
     expect(html).toContain('id="environment-block"');
     expect(html).toContain('className = "environment-row-body"');
@@ -580,19 +558,14 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('action: "set"');
     expect(html).toContain('action: "clear"');
     expect(html).not.toContain('id="btn-apply-ignore-recommendations"');
-    expect(html).toContain('type: "uuidAction"');
-    expect(html).toContain('id="uuid-options"');
-    expect(html).toContain('id="uuid-strategy"');
-    expect(html).toContain('uuidStrategy: isUuidTool() ? state.uuidStrategy : undefined');
-    expect(html).toContain('type: "caaDialogAction"');
-    expect(html).toContain('id="btn-caa-check-connection"');
-    expect(html).toContain('action: "checkConnection"');
-    expect(html).toContain('ts.caaDeskConnection');
+    expect(html).toContain('codeAssistantPrimary.ktcSelectionPrimaryMessage(detail)');
+    expect(html).toContain('detail.kind === "setStrategy"');
+    expect(html).toContain('codeAssistantPrimary.ktcCaaPrimaryMessageForAction(detail)');
     expect(html).toContain('type: "codeRenameAction"');
-    expect(html).toContain('mark.result-hit');
-    expect(html).toContain('.ktc-compact-label { display: block;');
-    expect(html).toContain('main.className = "compact-file-main ktc-compact-label"');
-    expect(html).not.toContain('.compact-file-name { flex:');
+    // Text repair owns the shared compact labels and issue highlights now.
+    const textRepair = readFileSync(new URL("../ui/KtcTextRepairPrimary.ts", import.meta.url), "utf8");
+    expect(textRepair).toContain('KtcCompactManagerLabelStyle');
+    expect(textRepair).toContain('mark.result-hit');
     expect(html).not.toContain('body.ribbon-only #tool-area-shell > :not(#ribbon-shell)');
     expect(html).toContain('className = "module-group"');
     expect(html).toContain('className = "module-group-label"');
@@ -660,16 +633,16 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('els.ignorePanel.hidden = !ignore');
     expect(html).toContain('els.environmentBlock.hidden = !environment');
     expect(html).not.toContain('els.btnRibbonIgnore.onclick');
-    expect(html).toContain('id="code-assistant-block"');
+    expect(html).toContain('const codeAssistantSurfaces = [');
     expect(html).toContain('id="code-assistant-navigator"');
     expect(html).toContain("test-webview:/extension/dist/ktc-tool-navigator.js");
     expect(html).toContain('const codeAssistantNavigation = [{"kind":"group"');
-    expect(html).toContain('.code-assistant-block { margin: 0; }');
+    expect(html).not.toContain('.code-assistant-block { margin: 0; }');
     expect(html).toContain('ktc-tool-navigator { display: block; min-width: 0; }');
     expect(html).toContain('"toolId":"autoBuild"');
     expect(html).toContain('"description":"CAA / MSVC 批量构建"');
     expect(html).toContain('type: "openCodeAssistantFeature", feature: toolId');
-    expect(html).toContain('els.primaryBody.insertBefore(els.codeAssistantBlock, els.primaryBody.firstElementChild)');
+    expect(html).toContain('surface.hidden = surfaceToolId !== toolId');
     expect(html).toContain('? { itemId: activeOpenTool.id, title: activeOpenTool.title, icon: semanticToolIcon(activeOpenTool.id) }');
     expect(html).not.toContain('"代码辅助 / " + tool.title');
     expect(html).not.toContain('"代码辅助 · " + tool.title');
@@ -691,10 +664,10 @@ describe("sidebar panel HTML", () => {
     expect(html).not.toContain('function collapseCodeAssistantDirectory()');
     expect(html).not.toContain('state.codeAssistantTreeUiState.treeExpanded = false');
     expect(html).toContain('vscode.postMessage({ type: "selectTool", toolId, source: "menu" })');
-    expect(html).toContain('toolId: currentContentToolId()');
+    expect(html).toContain('currentContentToolId() !== toolId');
     expect(html).not.toContain('type: "closeCodeAssistantFeature"');
-    expect(html).toContain('id="code-assistant-generic-actions"');
-    expect(html).toContain('id="btn-code-assistant-generic-close"');
+    expect(html).not.toContain('id="code-assistant-generic-actions"');
+    expect(html).not.toContain('id="btn-code-assistant-generic-close"');
     expect(html).not.toContain('state.codeAssistantFeature = "packageIncludes"');
     expect(html).not.toContain('if (!treeUi.reorderActionsExpanded && !treeUi.reorderResultsExpanded)');
     expect(html).not.toContain('els.codeAssistantGenericActions.open = true');
@@ -868,7 +841,7 @@ describe("sidebar panel HTML", () => {
   it("Welcome 和可选模块早退前始终刷新固定 Directory 投影", () => {
     const source = readFileSync(new URL("./panelHtml.ts", import.meta.url), "utf8");
     const renderStart = source.indexOf("    function render() {");
-    const renderEnd = source.indexOf("    function escapeHtml", renderStart);
+    const renderEnd = source.indexOf("    // Each cached surface", renderStart);
     const renderBody = source.slice(renderStart, renderEnd);
     const directoryRender = renderBody.indexOf("renderWorkingContext();");
     const welcomeReturn = renderBody.indexOf("if (welcomeMode) {");
@@ -960,18 +933,14 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('btn.onclick = () => openTool(t, "ribbon")');
     expect(html).toContain('openTool(selected, "menu")');
 
-    expect(html).toContain('els.codeAssistantBlock.hidden = !reorder');
+    expect(html).toContain('renderCodeAssistantPrimary(ts)');
     expect(html).toContain('els.codeAssistantNavigator.hidden = !groupContentVisible');
     expect(html).toContain('els.codeAssistantNavigator.model = {');
-    expect(html).toContain('els.codeAssistantReorderActions.hidden = !reorder');
-    expect(html).toContain('els.codeAssistantReorderResults.hidden = !reorder');
-    expect(html).toContain('if (reorder) renderCodeAssistantArea(reorderState, running)');
-    expect(html).toContain('const genericActionFeature = enc || header || uuid || caaDialog');
-    expect(html).toContain('els.codeAssistantGenericActions.hidden = !genericActionFeature');
-    expect(html).toContain('els.generalActions.hidden = !genericActionFeature');
-
-    expect(html).toContain('els.btnCodeAssistantReorderClose.hidden = true');
-    expect(html).toContain('els.btnCodeAssistantGenericClose.hidden = true');
+    expect(html).toContain('surface.hidden = surfaceToolId !== toolId');
+    expect(html).toContain('if (surface.hidden) continue');
+    expect(html).toContain('const primaryCodeAssistant = enc || header || reorder || uuid || caaDialog');
+    expect(html).not.toContain('btn-code-assistant-reorder-close');
+    expect(html).not.toContain('btn-code-assistant-generic-close');
     expect(html).not.toContain('type: "closeCodeAssistantFeature"');
     expect(html.match(/vscode\.postMessage\(\{ type: "closeToolBlock" \}\)/gu) ?? []).toHaveLength(0);
     expect(html.match(/vscode\.postMessage\(\{ type: "closeToolBlock", toolId: detail\.itemId \}\)/gu)).toHaveLength(2);
@@ -1064,8 +1033,8 @@ describe("sidebar panel HTML", () => {
     expect(source).toContain('<div id="replace-details">');
     expect(source).not.toContain('<div class="replace-only" id="replace-details">');
     expect(source).toContain('state.replace.collapsed = !state.replace.collapsed');
-    expect(source).toContain('els.compactTools.hidden = !caaDialog');
-    expect(source).not.toContain('els.compactTools.hidden = !(rename || uuid || caaDialog)');
+    expect(source).toContain('["caaDialog", els.caaPrimary]');
+    expect(source).not.toContain('els.compactTools');
   });
 
   it("Primary 常用变形显式派生大驼峰、小写、全大写、空格和 Web 分隔符", () => {

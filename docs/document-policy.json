@@ -5,6 +5,30 @@
   "appliesTo": "0.8.x",
   "rules": [
     {
+      "match": "^docs/codegen-plan/Codegen生成规则版本\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.1 及后续",
+      "reason": "独立生成规则版本、输出注释及预检缓存来源隔离约定"
+    },
+    {
+      "match": "^docs/bug/自动代码-构造函数结束标记缩进\\.md$",
+      "status": "current",
+      "appliesTo": "后续修复",
+      "reason": "用户要求只记录的 clang-format 结束标记对齐问题及最小夹具，尚未修复"
+    },
+    {
+      "match": "^docs/0\\.9\\.1-内测收尾\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.1",
+      "reason": "0.9.1 本地内测冻结、来源归档、人工验收边界及正式发布门禁"
+    },
+    {
+      "match": "^docs/0\\.9\\.2-Git合并区间原型计划\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.2",
+      "reason": "用户明确延期的 Git 合并 Right 原型及与正式行为对齐计划，本轮未实现"
+    },
+    {
       "match": "^docs/0\\.9\\.0-发布冻结清单\\.md$",
       "status": "current",
       "appliesTo": "0.9.0",
@@ -18,9 +42,9 @@
     },
     {
       "match": "^docs/0\\.9\\.1-代码辅助Primary整改计划\\.md$",
-      "status": "draft",
+      "status": "current",
       "appliesTo": "0.9.1",
-      "reason": "用户排期的仅 Primary 代码辅助工具内部文字工具栏与 UI Preview；本轮仅记录，未实施"
+      "reason": "v0.9.1 五项 Primary 与 Git 正式修正完成记录；Git Right 原型已移至0.9.2"
     },
     {
       "match": "^docs/插件开发指导\\.md$",

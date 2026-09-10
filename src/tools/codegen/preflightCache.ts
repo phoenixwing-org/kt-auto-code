@@ -1,13 +1,28 @@
 import type { KtCodegenPlan } from "@phoenix-wing/kt-codegen";
+import * as CodegenRuntime from "@phoenix-wing/kt-codegen";
 
 export const KTC_CODEGEN_CACHE_SCHEMA_VERSION = 1 as const;
 /**
+ * 独立生成规则版本；与插件/package、旧 JSON 4.0、Plan/cache schema 无关。
  * 解析/渲染语义变化时递增，阻止复用旧 Plan。
  * 0.3.2：Marker 边界恢复语义变化，丢弃含旧 nested/mismatched 级联诊断的缓存并重新 Analyze。
  * 0.3.3：正式切换到 Wing 0.4.3，拒绝复用 Registry 0.4.2 生成的计划。
+ * 1.0.0：启用独立规则版本，包含 CAA Combo 选择通知修正并拒绝旧 0.3.3 计划。
+ * 与 Wing KT_CODEGEN_GENERATOR_VERSION 保持一致，由本地运行门禁核验；
+ * 当前 Registry 尚无该导出，因此不通过声明扩展伪装已发布支持。
  * 缓存失效只负责重算计划；Apply 仍由新 Plan、指纹、dirty 与事务门禁共同决定。
  */
-export const KTC_CODEGEN_GENERATOR_VERSION = "0.3.3";
+export const KTC_CODEGEN_GENERATOR_VERSION = "1.0.0";
+
+/** Optional capability read: a Registry without this export remains explicitly unversioned. */
+export function ktcCodegenRuntimeIdentity(runtime: unknown): string {
+  const version = runtime && typeof runtime === "object"
+    ? (runtime as Record<string, unknown>).KT_CODEGEN_GENERATOR_VERSION : undefined;
+  return typeof version === "string" && /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(version)
+    ? `wing.codegen.rules:${version}` : "wing.codegen.legacy-unversioned";
+}
+
+export const KTC_CODEGEN_RUNTIME_IDENTITY = ktcCodegenRuntimeIdentity(CodegenRuntime);
 
 export interface KtcCodegenMarkerIndexEntry {
   readonly path: string;
@@ -39,6 +54,8 @@ export interface KtcCodegenPreflightCache {
   readonly configFingerprint: string;
   readonly markerIndexRevision: number;
   readonly generatorVersion: string;
+  /** Actual runtime capability, separate from the consumer's desired rules/cache revision. */
+  readonly runtimeIdentity: string;
   readonly plan: KtCodegenPlan;
 }
 
@@ -61,6 +78,7 @@ export function ktcValidCodegenPreflightCache(
   documentUri: string,
   configFingerprint: string,
   markerIndexRevision: number,
+  runtimeIdentity = KTC_CODEGEN_RUNTIME_IDENTITY,
 ): value is KtcCodegenPreflightCache {
   const containsLegacyMarkerCascade = Array.isArray(value?.plan?.diagnostics)
     && value.plan.diagnostics.some((diagnostic) =>
@@ -72,6 +90,7 @@ export function ktcValidCodegenPreflightCache(
     && value.configFingerprint === configFingerprint
     && value.markerIndexRevision === markerIndexRevision
     && value.generatorVersion === KTC_CODEGEN_GENERATOR_VERSION
+    && value.runtimeIdentity === runtimeIdentity
     && value.plan?.kind === "kt.codegen.plan"
     // 0.3.2 期间 Registry 0.4.2 与本地 Wing 曾使用相同版本；继续保留
     // 特征诊断兜底，防止外部或损坏缓存伪造为当前生成器版本。

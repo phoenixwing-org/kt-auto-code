@@ -38,6 +38,21 @@ export function getCodegenEditorHtml(
   );
   const model = safeJson(initialModel);
   const layout = safeJson(ktcNormalizeCodegenEditorLayout(initialLayout));
+  let directory = contextPath.trim();
+  if (!directory) {
+    try {
+      const uri = new URL(initialModel.uri);
+      if (uri.protocol === "file:") {
+        const path = decodeURIComponent(uri.pathname).replace(/^\/(?=[A-Za-z]:\/)/u, "");
+        directory = `${uri.host ? `//${uri.host}` : ""}${path.slice(0, path.lastIndexOf("/")) || "/"}`;
+      }
+    } catch { /* Unknown URI schemes retain the complete URI as accessible context. */ }
+  }
+  const directoryName = directory.replace(/[\\/]+$/u, "").split(/[\\/]/u).at(-1) || directory || "未关联目录";
+  const separator = directory.includes("\\") && !directory.includes("/") ? "\\" : "/";
+  const documentPath = directory
+    ? `${directory.replace(/[\\/]+$/u, "")}${separator}${initialModel.fileName}`
+    : initialModel.uri;
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -105,61 +120,24 @@ export function getCodegenEditorHtml(
       outline: 1px solid var(--vscode-focusBorder);
       outline-offset: 1px;
     }
-    .view-toolbar {
+    .document-actions {
       display: flex;
-      flex: 0 0 auto;
-      position: sticky;
-      top: 0;
-      z-index: 20;
       align-items: center;
       gap: 6px;
-      min-height: 42px;
-      padding: 6px 8px;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 6px;
-      background: var(--vscode-sideBar-background);
-      box-shadow: 0 2px 0 var(--vscode-panel-border);
+      width: max-content;
+      white-space: nowrap;
     }
-    .document-title { flex: 1 1 180px; min-width: 120px; margin-right: auto; }
-    .document-title strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .document-title span { color: var(--vscode-descriptionForeground); font-size: 11px; }
-    .document-title span.dirty { color: var(--vscode-editorWarning-foreground); }
-    .document-title span.conflict { color: var(--vscode-errorForeground); }
+    .document-actions > * { flex: 0 0 auto; }
+    .document-state { color: var(--vscode-descriptionForeground); font-size: 11px; }
+    .document-state[hidden] { display: none; }
+    .document-state.dirty { color: var(--vscode-editorWarning-foreground); }
+    .document-state.conflict { color: var(--vscode-errorForeground); }
     .separator { width: 1px; height: 22px; margin: 0 2px; background: var(--vscode-panel-border); }
     kt-codegen-table { flex: 0 0 auto; min-height: 0; }
-    .control-drawer {
-      position: relative;
-      flex: 0 0 auto;
-      overflow: visible;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 6px;
-      background: var(--vscode-editor-background);
-    }
-    .control-drawer[open] {
-      display: block;
-      height: auto;
-      min-height: 0;
-    }
-    .control-drawer > summary {
-      display: flex;
-      flex: 0 0 auto;
-      align-items: center;
-      gap: 8px;
-      min-height: 34px;
-      padding: 6px 10px;
-      color: var(--vscode-descriptionForeground);
-      background: var(--vscode-sideBar-background);
-      cursor: pointer;
-      user-select: none;
-    }
-    .control-drawer > summary::-webkit-details-marker { display: none; }
-    .control-drawer > summary::before { content: "›"; font-size: 18px; line-height: 1; }
-    .control-drawer[open] > summary::before { transform: rotate(90deg); }
-    .control-summary-title { color: var(--vscode-foreground); font-weight: 650; }
-    .control-summary-meta { margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
-    .control-drawer[open] > ktc-codegen-control-panel {
+    #control-panel {
       position: static;
       display: block;
+      flex: 0 0 auto;
       height: auto;
       min-height: 0;
     }
@@ -184,49 +162,28 @@ export function getCodegenEditorHtml(
       --pnw-kt-codegen-border: var(--vscode-contrastBorder, var(--vscode-panel-border));
       --pnw-kt-codegen-focus: var(--vscode-focusBorder);
     }
-    body.vscode-high-contrast .view-toolbar,
-    body.vscode-high-contrast .control-drawer,
-    body.vscode-high-contrast-light .view-toolbar,
-    body.vscode-high-contrast-light .control-drawer {
-      border-color: var(--vscode-contrastBorder, var(--vscode-panel-border));
-    }
     body.vscode-high-contrast button:focus-visible,
     body.vscode-high-contrast summary:focus-visible,
     body.vscode-high-contrast-light button:focus-visible,
     body.vscode-high-contrast-light summary:focus-visible {
       outline-width: 2px;
     }
-    @media (max-width: 800px) {
-      .view-toolbar { align-items: stretch; flex-wrap: wrap; }
-      .document-title { flex: 1 0 100%; }
-      .view-toolbar button { flex: 1 1 auto; }
-      .separator { display: none; }
-    }
   </style>
 </head>
 <body>
   <ktc-right-view-shell id="codegen-right-shell">
-  <main class="codegen-main">
-  <header class="view-toolbar" aria-label="Codegen 文档操作">
-    <div class="document-title">
-      <strong id="file-name"></strong>
-      <span id="document-state" role="status" aria-live="polite" aria-atomic="true">Codegen JSON 编辑 View</span>
-    </div>
+  <div class="document-actions" slot="actions" role="group" aria-label="自动代码文档操作">
+    <span id="document-state" role="status" aria-live="polite" aria-atomic="true" class="document-state" hidden></span>
     <button id="preflight" type="button" aria-label="运行 Codegen 预检" aria-pressed="false">预检</button>
-    <button id="controls" type="button" aria-expanded="false">预检结果</button>
+    <button id="controls" type="button" aria-expanded="false" aria-controls="control-panel">预检结果</button>
     <button id="apply" type="button" title="没有缓存时会先自动预检；写入前重验源码指纹">应用</button>
     <span class="separator" aria-hidden="true"></span>
-    <button id="reload" type="button" title="重新读取磁盘 JSON；未保存时会先确认">↻ 重新加载</button>
+    <button id="reload" type="button" title="重新读取磁盘 JSON；未保存时会先确认">重新加载</button>
     <button class="primary" id="save" type="button">保存 JSON</button>
-  </header>
+  </div>
+  <main class="codegen-main">
   <kt-codegen-table id="codegen-table" layout="page" collapsible></kt-codegen-table>
-  <details class="control-drawer" id="control-drawer">
-    <summary>
-      <span class="control-summary-title">预检结果</span>
-      <span class="control-summary-meta" id="control-summary">尚未预检</span>
-    </summary>
-    <ktc-codegen-control-panel id="control-panel" mode="full"></ktc-codegen-control-panel>
-  </details>
+  <ktc-codegen-control-panel id="control-panel" collapsible></ktc-codegen-control-panel>
   <div class="batch-overlay" id="batch-overlay" role="status" aria-live="assertive"
     aria-label="全部应用正在运行，当前 JSON View 操作暂时锁定" hidden>
     <strong id="batch-overlay-title">正在全部应用</strong>
@@ -238,22 +195,16 @@ export function getCodegenEditorHtml(
   <script nonce="${nonce}" src="${tableComponentUri}"></script>
   <script nonce="${nonce}" src="${controlCatalogUri}"></script>
   <script nonce="${nonce}">
-    document.getElementById("codegen-right-shell").model = {
-      title: ${safeJson(CODEGEN_TOOL_REGISTRATION.title)},
-      contextPath: ${safeJson(contextPath)},
-      scrollMode: "none",
-    };
+    const rightShell = document.getElementById("codegen-right-shell");
     const vscode = acquireVsCodeApi();
     const table = document.getElementById("codegen-table");
-    const fileName = document.getElementById("file-name");
     const documentState = document.getElementById("document-state");
     const save = document.getElementById("save");
     const reload = document.getElementById("reload");
     const preflight = document.getElementById("preflight");
     const controls = document.getElementById("controls");
-    const controlDrawer = document.getElementById("control-drawer");
     const controlPanel = document.getElementById("control-panel");
-    const viewToolbar = document.querySelector(".view-toolbar");
+    const codegenMain = document.querySelector(".codegen-main");
     const batchOverlay = document.getElementById("batch-overlay");
     const batchOverlayTitle = document.getElementById("batch-overlay-title");
     const batchOverlayFile = document.getElementById("batch-overlay-file");
@@ -268,27 +219,41 @@ export function getCodegenEditorHtml(
     }
 
     function syncDetailStickyTop() {
-      const height = viewToolbar ? Math.ceil(viewToolbar.getBoundingClientRect().height) : 50;
-      const stickyTop = height + 8;
+      // The document actions now live outside this scrollport, in the Shell Header.
+      const stickyTop = 8;
+      const viewportHeight = codegenMain ? codegenMain.clientHeight : window.innerHeight;
+      if (viewportHeight <= 0) return;
       document.body.style.setProperty("--pnw-codegen-detail-sticky-top", stickyTop + "px");
       document.body.style.setProperty(
         "--pnw-codegen-detail-height",
-        Math.max(240, window.innerHeight - stickyTop - 8) + "px",
+        Math.max(240, viewportHeight - stickyTop - 8) + "px",
       );
     }
-    if (viewToolbar) new ResizeObserver(syncDetailStickyTop).observe(viewToolbar);
+    const detailResizeObserver = new ResizeObserver(syncDetailStickyTop);
+    if (codegenMain) detailResizeObserver.observe(codegenMain);
     window.addEventListener("resize", syncDetailStickyTop);
     syncDetailStickyTop();
 
     function syncHeader() {
-      fileName.textContent = model.fileName;
+      rightShell.model = {
+        title: ${safeJson(CODEGEN_TOOL_REGISTRATION.title)},
+        contextPath: ${safeJson(documentPath)},
+        contextLabel: model.fileName + " @ " + ${safeJson(directoryName)},
+        scrollMode: "none",
+      };
       save.textContent = model.dirty ? "保存 JSON *" : "保存 JSON";
-      documentState.textContent = model.externalState === "deleted"
+      const stateMessage = model.externalState === "deleted"
         ? "磁盘文件已删除 · 当前内容仍保留"
         : model.externalConflict
         ? "外部文件已变更 · 请重新加载或保存时处理"
-        : model.dirty ? "Codegen JSON 编辑 View · 未保存" : "Codegen JSON 编辑 View";
-      documentState.className = model.externalConflict ? "conflict" : model.dirty ? "dirty" : "";
+        : model.dirty ? "未保存" : "";
+      documentState.textContent = model.externalState === "deleted" ? "已删除"
+        : model.externalConflict ? "外部变更" : stateMessage;
+      documentState.hidden = !stateMessage;
+      documentState.title = stateMessage;
+      documentState.setAttribute("aria-label", stateMessage);
+      documentState.className = "document-state " + (model.externalConflict || model.externalState === "deleted"
+        ? "conflict" : model.dirty ? "dirty" : "");
     }
 
     function markDirty(itemCount) {
@@ -320,15 +285,9 @@ export function getCodegenEditorHtml(
       post({ type: "codegenEditorExchange", action: "sync", model: currentExchangeModel() });
     }
 
-    function syncControlSummary() {
-      const headerSummary = document.getElementById("control-summary");
-      if (!controlsModel.preflight) {
-        headerSummary.textContent = "尚未预检 · 应用可自动执行预检";
-        return;
-      }
-      const plan = controlsModel.preflight.plan;
-      const issueCount = plan.diagnostics.filter((item) => item.severity === "error" || item.severity === "warning").length;
-      headerSummary.textContent = plan.markerRegions.length + " 命中 · " + issueCount + " 问题";
+    function setControlsExpanded(expanded) {
+      controlPanel.collapsed = !expanded;
+      controls.setAttribute("aria-expanded", String(expanded));
     }
 
     function setControlsModel(next) {
@@ -336,15 +295,15 @@ export function getCodegenEditorHtml(
       controlsModel = next;
       model.controls = next;
       controlPanel.model = controlsModel;
-      syncControlSummary();
-      if (gainedPreflight) controlDrawer.open = true;
+      if (gainedPreflight) setControlsExpanded(true);
     }
 
     table.setData(model.table);
     syncHeader();
+    controlPanel.collapsible = true;
+    setControlsExpanded(false);
     controlPanel.splitRatio = initialLayout.controlSplitPercent;
     controlPanel.model = controlsModel;
-    syncControlSummary();
 
     table.addEventListener("kt-codegen-table-dirty-change", (event) => {
       if (event.detail && event.detail.dirty && markDirty(event.detail.itemCount)) exchangeDraft();
@@ -367,8 +326,10 @@ export function getCodegenEditorHtml(
         post({ type: "codegenEditorAction", action: "preflight", table: table.getData() });
       }
     };
-    controls.onclick = () => { controlDrawer.open = !controlDrawer.open; };
-    controlDrawer.ontoggle = () => controls.setAttribute("aria-expanded", String(controlDrawer.open));
+    controls.onclick = () => setControlsExpanded(controlPanel.collapsed);
+    controlPanel.addEventListener("kt-codegen-control-collapse-change", () => {
+      controls.setAttribute("aria-expanded", String(!controlPanel.collapsed));
+    });
     document.getElementById("apply").onclick = () => post({
       type: "codegenEditorAction", action: "apply", table: table.getData(),
     });
@@ -412,7 +373,7 @@ export function getCodegenEditorHtml(
         preflight.textContent = message.running ? "取消预检" : "预检";
         preflight.setAttribute("aria-pressed", String(!!message.running));
         preflight.setAttribute("aria-label", message.running ? "取消 Codegen 预检" : "运行 Codegen 预检");
-        if (message.running) controlDrawer.open = true;
+        if (message.running) setControlsExpanded(true);
       } else if (message.type === "codegenBatchState") {
         batchOverlay.hidden = !message.running;
         batchOverlayTitle.textContent = message.running && message.total

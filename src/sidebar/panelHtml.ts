@@ -10,7 +10,6 @@ import {
 } from "../core/editorPrimaryCompanionContracts.js";
 import { ktcGitRepositoryOptionLabels, type KtcGitViewModel } from "../core/git/KtcGitModel.js";
 import { ktcCreateWebviewSecurity } from "../webviewSupport.js";
-import { KtcCompactManagerLabelStyle } from "../ui/KtcCompactManagerLabel.js";
 import { KTC_CODE_ASSISTANT_NAVIGATION } from "../tools/codeAssistant/navigation.js";
 
 export function ktcSearchReplaceButtonState(input: {
@@ -110,30 +109,6 @@ export function ktcGitPanelModel(
   };
 }
 
-/**
- * Shared inner operation Block for Code Assistant leaves. The legacy close
- * control stays in this reusable markup, but direct Primary leaves hide it and
- * use the single Tool Surface floating close/MRU path.
- */
-export function ktcCodeAssistantFeatureBlock(input: {
-  readonly id: string;
-  readonly titleId?: string;
-  readonly title: string;
-  readonly closeId: string;
-  readonly closeTitle: string;
-  readonly closeAriaLabel: string;
-  readonly body: string;
-  readonly hidden?: boolean;
-}): string {
-  const title = input.titleId
-    ? `<span id="${input.titleId}">${input.title}</span>`
-    : `<span>${input.title}</span>`;
-  return `<details class="code-assistant-feature" id="${input.id}" open${input.hidden ? " hidden" : ""}>
-        <summary>${title}<button class="code-assistant-feature-close" id="${input.closeId}" type="button" title="${input.closeTitle}" aria-label="${input.closeAriaLabel}">×</button></summary>
-        ${input.body}
-      </details>`;
-}
-
 export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string {
   const { nonce, csp } = ktcCreateWebviewSecurity(webview, { allowImages: true });
   const basePath = extensionUri.path.replace(/\/$/, "");
@@ -155,11 +130,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
   const packageIncludesPrimaryUri = webview.asWebviewUri(
     extensionUri.with({ path: `${basePath}/dist/ktc-package-includes-primary.js` }),
   );
-  const reorderMembersPanelUri = webview.asWebviewUri(
-    extensionUri.with({ path: `${basePath}/dist/reorder-members-panel.js` }),
-  );
-  const uuidResultsPanelUri = webview.asWebviewUri(
-    extensionUri.with({ path: `${basePath}/dist/uuid-results-panel.js` }),
+  const codeAssistantPrimaryUri = webview.asWebviewUri(
+    extensionUri.with({ path: `${basePath}/dist/ktc-code-assistant-primary.js` }),
   );
   const renameResultsPanelUri = webview.asWebviewUri(
     extensionUri.with({ path: `${basePath}/dist/rename-results-panel.js` }),
@@ -197,7 +169,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>KT Auto Code</title>
   <style>
-    ${KtcCompactManagerLabelStyle}
     * { box-sizing: border-box; }
     [hidden] { display: none !important; }
     button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
@@ -517,49 +488,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       margin-bottom: 12px;
     }
     .replace-block { margin: 2px 0 6px; }
-    .compact-tools { display: flex; justify-content: flex-end; gap: 8px; margin: -4px 0 8px; }
-    .uuid-options {
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr);
-      align-items: center;
-      gap: 5px 8px;
-      margin: -2px 0 8px;
-      font-size: 12px;
-    }
-    .uuid-options select {
-      min-width: 0;
-      height: 28px;
-      padding: 0 6px;
-      border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border));
-      border-radius: 2px;
-      color: var(--vscode-dropdown-foreground);
-      background: var(--vscode-dropdown-background);
-    }
-    .uuid-options .hint { grid-column: 1 / -1; margin: 0; color: var(--vscode-descriptionForeground); font-size: 11px; }
-    .uuid-options .hint.warning { color: var(--vscode-editorWarning-foreground); }
-    .caa-connection { display: flex; align-items: center; gap: 6px; margin: 2px 0 8px; color: var(--vscode-descriptionForeground); font-size: 11px; }
-    .caa-connection.online { color: var(--vscode-testing-iconPassed, var(--vscode-descriptionForeground)); }
-    .caa-connection.offline, .caa-connection.incompatible { color: var(--vscode-errorForeground); }
-    .compact-results { margin-top: 4px; }
-    .compact-group { border-top: 1px solid var(--vscode-panel-border); }
-    .compact-group:first-child { border-top: 0; }
-    .compact-group-header { display: flex; align-items: center; gap: 5px; min-height: 29px; font-weight: 600; }
-    .compact-group-header .detail { margin-left: auto; font-weight: 400; }
-    .compact-list { list-style: none; padding: 0 0 0 18px; margin: 0; }
-    .compact-file-row { display: flex; align-items: center; gap: 5px; min-width: 0; min-height: 28px; padding: 2px 3px; }
-    .compact-file-row:hover { background: var(--vscode-list-hoverBackground); }
-    .compact-kind { flex: 0 0 22px; color: var(--vscode-symbolIcon-classForeground, var(--vscode-foreground)); font-weight: 600; font-size: 10px; text-align: center; }
-    .compact-file-main { cursor: pointer; }
-    .compact-inline { display: flex; flex: 0 0 auto; opacity: 0; }
-    .compact-file-row:hover .compact-inline, .compact-inline:focus-within { opacity: 1; }
-    .compact-icon { width: 24px; height: 24px; padding: 0; border: 1px solid var(--ktc-ui-border, transparent); border-radius: 3px; color: var(--vscode-foreground); background: transparent; cursor: pointer; font-size: 15px; line-height: 22px; }
-    .compact-icon:hover { background: var(--vscode-toolbar-hoverBackground); border-color: var(--ktc-ui-active-border, var(--ktc-ui-border, transparent)); }
-    .compact-state { flex: 0 0 auto; max-width: 86px; overflow: hidden; color: var(--vscode-descriptionForeground); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-    .compact-state.error, .compact-state.blocked { color: var(--vscode-errorForeground); }
-    .compact-state.applied, .compact-state.ok { color: var(--vscode-testing-iconPassed, var(--vscode-descriptionForeground)); }
-    .compact-subtext { padding: 1px 4px 5px 49px; color: var(--vscode-descriptionForeground); font-size: 10px; line-height: 1.35; }
-    .compact-rules { margin: 0; padding: 0 4px 6px 49px; color: var(--vscode-descriptionForeground); font-size: 10px; line-height: 1.45; }
-    mark.result-hit { padding: 0 1px; color: inherit; background: var(--vscode-editor-findMatchBackground, rgba(234, 201, 58, .5)); outline: 1px solid var(--vscode-editor-findMatchBorder, transparent); border-radius: 1px; }
     .environment-block { margin: 0; }
     .environment-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; margin-bottom: 9px; }
     .environment-values { border-top: 1px solid var(--vscode-panel-border); }
@@ -679,59 +607,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .folder-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     .action-tooltip { display: block; min-width: 0; }
     .action-tooltip .action { width: 100%; height: 100%; }
-    .text-button { border: 0; padding: 2px 0; color: var(--vscode-textLink-foreground); background: transparent; cursor: pointer; font-size: 11px; }
-    .text-button:disabled { opacity: 0.45; cursor: default; }
-    .scope-block {
-      margin-bottom: 12px;
-      font-size: 12px;
-    }
-    .scope-title {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--vscode-descriptionForeground);
-      margin-bottom: 6px;
-    }
-    .scope-block label {
-      display: flex;
-      align-items: flex-start;
-      gap: 6px;
-      cursor: pointer;
-      line-height: 1.4;
-      margin-bottom: 4px;
-    }
-    .scope-block label.disabled {
-      opacity: 0.55;
-      cursor: default;
-    }
-    .scope-block input { margin-top: 2px; }
-    .scope-hint {
-      font-size: 11px;
-      color: var(--vscode-descriptionForeground);
-      margin: 4px 0 0 0;
-      line-height: 1.4;
-    }
-    .actions {
-      display: flex;
-      gap: 6px;
-      margin-bottom: 12px;
-    }
-    .code-assistant-block { margin: 0; }
     ktc-tool-navigator { display: block; min-width: 0; }
-    .code-assistant-feature { margin-top: 4px; border-top: 1px solid var(--vscode-panel-border); }
-    .code-assistant-feature > summary { display: flex; min-height: 23px; align-items: center; gap: 2px; padding: 0 2px; cursor: pointer; color: var(--vscode-foreground); font-size: 12px; font-weight: 600; list-style: none; }
-    .code-assistant-feature > summary::-webkit-details-marker { display: none; }
-    .code-assistant-feature > summary::before { content: "›"; margin-right: 3px; font-size: 17px; }
-    .code-assistant-feature[open] > summary::before { transform: rotate(90deg); }
-    .code-assistant-feature-close { width: 22px; height: 22px; margin-left: auto; padding: 0; border: 1px solid transparent; border-radius: 3px; color: var(--vscode-foreground); background: transparent; cursor: pointer; font: inherit; font-size: 18px; line-height: 1; }
-    .code-assistant-feature-close:hover { border-color: var(--ktc-ui-active-border, var(--vscode-focusBorder)); background: var(--vscode-toolbar-hoverBackground); }
-    .code-assistant-feature-actions { display: flex; align-items: center; gap: 6px; padding: 1px 0 5px; }
-    .code-assistant-feature-actions .action { margin: 0; }
-    .code-assistant-feature-status { min-width: 0; margin: 0 0 5px; color: var(--vscode-descriptionForeground); font-size: 11px; line-height: 1.4; }
-    .code-assistant-feature-result-count { margin-left: auto; color: var(--vscode-descriptionForeground); font-size: 11px; font-weight: 400; }
-    .code-assistant-feature-results { padding: 0 0 4px; }
-    .code-assistant-feature-results ktc-reorder-members-panel { display: block; width: 100%; min-width: 0; }
-    .code-assistant-empty { margin: 5px 0 0; color: var(--vscode-descriptionForeground); font-size: 11px; }
-    #general-actions button { flex: 1 1 0; }
     button.action {
       min-height: 28px;
       padding: 4px 12px;
@@ -784,84 +660,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       background: var(--vscode-dropdown-background);
     }
     .workspace-file-scope .scope-error { grid-column: 2 / -1; color: var(--vscode-errorForeground); }
-    .results-title {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0;
-      color: var(--vscode-descriptionForeground);
-      margin-bottom: 6px;
-    }
-    .results { list-style: none; padding: 0; margin: 0; }
-    .results li {
-      padding: 6px 8px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 12px;
-      font-family: var(--vscode-editor-font-family);
-    }
-    .results li:hover { background: var(--vscode-list-hoverBackground); }
-    .results .file { font-weight: 500; }
-    .results .detail { color: var(--vscode-descriptionForeground); font-size: 11px; }
-    .results .file-row { padding: 6px 8px; border-radius: 4px; cursor: pointer; }
-    .results .file-row:hover { background: var(--vscode-list-hoverBackground); }
-    .issue-details { list-style: none; padding: 0 0 4px 12px; margin: 0; }
-    .issue-details li {
-      padding: 3px 8px;
-      font-size: 11px;
-      color: var(--vscode-descriptionForeground);
-      cursor: pointer;
-      border-radius: 3px;
-      font-family: var(--vscode-editor-font-family);
-    }
-    .issue-details li:hover { background: var(--vscode-list-hoverBackground); color: var(--vscode-foreground); }
-    .issue-details .arrow { opacity: 0.7; margin: 0 4px; }
-    .issue-details .to { color: var(--vscode-foreground); }
-    .empty { font-size: 12px; color: var(--vscode-descriptionForeground); }
-    .options {
-      margin-bottom: 12px;
-      font-size: 12px;
-    }
-    .options label {
-      display: flex;
-      align-items: flex-start;
-      gap: 6px;
-      cursor: pointer;
-      line-height: 1.4;
-    }
-    .options input { margin-top: 2px; }
-    .options .hint {
-      font-size: 11px;
-      color: var(--vscode-descriptionForeground);
-      margin-top: 4px;
-      margin-left: 20px;
-    }
-    .enc-row .status-ok { color: var(--vscode-testing-iconPassed); }
-    .enc-row .status-warn { color: var(--vscode-editorWarning-foreground); }
-    .enc-row .status-bad { color: var(--vscode-errorForeground); }
-    .target-hint {
-      font-size: 11px;
-      color: var(--vscode-descriptionForeground);
-      margin: -6px 0 12px;
-    }
-    .target-setting-row {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .target-setting-row label { flex: 0 0 auto; }
-    .target-setting-row select {
-      min-width: 0;
-      flex: 1 1 110px;
-      color: var(--vscode-dropdown-foreground);
-      background: var(--vscode-dropdown-background);
-      border: 1px solid var(--vscode-dropdown-border, transparent);
-      padding: 2px 4px;
-    }
-    .target-overrides {
-      margin: 5px 0 0;
-      line-height: 1.4;
-    }
     .editor-companion-block { display: grid; gap: 8px; padding: 8px 12px 12px; }
     .editor-companion-block[hidden] { display: none; }
     .editor-companion-status { margin: 0; color: var(--vscode-descriptionForeground); line-height: 1.45; }
@@ -903,7 +701,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     .project-rename-primary-summary dt,.project-rename-primary-summary dd { min-width: 0; min-height: 25px; margin: 0; padding-block: 4px; border-bottom: 1px solid color-mix(in srgb,var(--vscode-panel-border) 55%,transparent); }
     .project-rename-primary-summary dt { color: var(--vscode-descriptionForeground); }
     .project-rename-primary-summary dd { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #header-options label + .hint { display: block; }
   </style>
 </head>
 <body>
@@ -963,55 +760,14 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       <button class="git-repository-action" id="git-repository-refresh" type="button" title="重新发现并刷新仓库" aria-label="重新发现并刷新仓库" hidden>↻</button>
       <button class="git-repository-action" id="git-repository-remove" type="button" title="从我的仓库移除" aria-label="从我的仓库移除" hidden>−</button>
     </p>
-    <section class="code-assistant-block" id="code-assistant-block" hidden aria-label="代码辅助功能">
-      <p class="code-assistant-empty" id="code-assistant-empty">从上方功能目录选择一项开始。</p>
-      ${ktcCodeAssistantFeatureBlock({
-        id: "code-assistant-reorder-actions",
-        title: "排序操作",
-        closeId: "btn-code-assistant-reorder-close",
-        closeTitle: "关闭成员排序，返回功能列表",
-        closeAriaLabel: "关闭成员排序",
-        hidden: true,
-        body: `<div class="code-assistant-feature-actions">
-          <button class="action secondary" id="btn-code-assistant-reorder-scan" type="button">扫描排序</button>
-          <button class="action" id="btn-code-assistant-reorder-apply" type="button" disabled>应用所选</button>
-        </div>
-        <p class="code-assistant-feature-status" id="code-assistant-reorder-status"></p>`,
-      })}
-      <details class="code-assistant-feature" id="code-assistant-reorder-results" open hidden>
-        <summary>预览结果 <span class="code-assistant-feature-result-count" id="code-assistant-reorder-result-count"></span></summary>
-        <div class="code-assistant-feature-results">
-          <ktc-reorder-members-panel id="reorder-members-panel"></ktc-reorder-members-panel>
-        </div>
-      </details>
-    </section>
-    ${ktcCodeAssistantFeatureBlock({
-      id: "code-assistant-generic-actions",
-      titleId: "code-assistant-generic-title",
-      title: "功能操作",
-      closeId: "btn-code-assistant-generic-close",
-      closeTitle: "关闭当前功能，返回功能目录",
-      closeAriaLabel: "关闭当前代码辅助功能",
-      hidden: true,
-      body: `<div class="code-assistant-feature-actions actions" id="general-actions">
-        <button class="action secondary" id="btn-scan">预检</button>
-        <button class="action" id="btn-fix">修复</button>
-      </div>`,
-    })}
+    <ktc-text-repair-primary id="header-ascii-primary" hidden></ktc-text-repair-primary>
+    <ktc-text-repair-primary id="encoding-fix-primary" hidden></ktc-text-repair-primary>
+    <ktc-selection-primary id="reorder-primary" hidden></ktc-selection-primary>
+    <ktc-selection-primary id="uuid-primary" hidden></ktc-selection-primary>
+    <ktc-caa-primary id="caa-primary" hidden></ktc-caa-primary>
     <ktc-codegen-primary-panel id="codegen-panel" hidden></ktc-codegen-primary-panel>
     <ktc-run-primary-panel id="run-panel" hidden></ktc-run-primary-panel>
     <ktc-git-primary-panel id="git-panel" hidden></ktc-git-primary-panel>
-    <div class="uuid-options" id="uuid-options" hidden>
-      <label for="uuid-strategy">生成策略</label>
-      <select id="uuid-strategy" aria-label="UUID 生成策略">
-        <option value="map_per_value">同值同替换（推荐）</option>
-        <option value="fresh_per_hit">每处独立新值</option>
-      </select>
-      <p class="hint" id="uuid-strategy-hint">相同旧 UUID 在所有文件中替换为同一个新 UUID；策略在扫描时固定。</p>
-    </div>
-    <div class="compact-tools" id="compact-tools" hidden>
-      <button class="text-button" id="btn-caa-check-connection" type="button" hidden>连接 Desk Tools</button>
-    </div>
     <ktc-ignore-primary-panel id="ignore-panel" hidden></ktc-ignore-primary-panel>
     <section class="settings-block" id="environment-block" hidden aria-label="设置">
       <details class="settings-section" id="environment-settings-section" open>
@@ -1077,62 +833,8 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       <ktc-ignore-policy-block id="replace-ignore-summary" aria-label="Ignore 使用策略"></ktc-ignore-policy-block>
       </div>
     </section>
-    <ktc-uuid-results-panel id="uuid-results-panel" hidden></ktc-uuid-results-panel>
     <ktc-rename-results-panel id="rename-results-panel" hidden></ktc-rename-results-panel>
-    <div class="scope-block" id="scope-block">
-      <div class="scope-title">范围</div>
-      <label>
-        <input type="checkbox" id="scope-headers" />
-        <span>头文件（.h / .hpp / …）</span>
-      </label>
-      <label>
-        <input type="checkbox" id="scope-source" />
-        <span>源文件（.cpp / .c / …）</span>
-      </label>
-      <label id="scope-md-wrap">
-        <input type="checkbox" id="scope-md" />
-        <span>.md 文档（仅编码修正）</span>
-      </label>
-    </div>
-    <div class="target-hint" id="target-hint" hidden>
-      <div class="target-setting-row">
-        <label for="encoding-default-target">默认目标</label>
-        <select id="encoding-default-target" aria-label="当前项目默认目标编码" title="保存到当前项目的 VS Code 工作区设置">
-          <option value="utf8">UTF-8</option>
-          <option value="gbk">GBK（本地）</option>
-        </select>
-        <button class="text-button" id="btn-encoding-settings" type="button" title="配置头文件、源文件和 Markdown 的项目级目标">更多设置…</button>
-      </div>
-      <p class="target-overrides" id="target-overrides"></p>
-    </div>
-    <div class="options" id="options-panel" hidden>
-      <div id="header-options">
-        <label>
-          <input type="checkbox" id="opt-preserve-gbk" />
-          <span>保留 GBK 中文注释</span>
-        </label>
-        <p class="hint" id="opt-hint">关闭时修正全部非 ASCII。</p>
-        <label style="margin-top:8px">
-          <input type="checkbox" id="opt-strip-bom" />
-          <span>去除 BOM（含 UTF-8 BOM / UTF-16）→ UTF-8</span>
-        </label>
-        <p class="hint" id="opt-bom-hint">宽字节 BOM 文件将转为 UTF-8。</p>
-      </div>
-      <div id="encoding-options" hidden>
-        <label>
-          <input type="checkbox" id="opt-enc-details" />
-          <span>显示详细（BOM 十六进制、检测说明）</span>
-        </label>
-      </div>
-      <label style="margin-top:8px" id="opt-show-details-wrap">
-        <input type="checkbox" id="opt-show-details" />
-        <span id="opt-show-details-label">显示详细（原字符 → 修正为）</span>
-      </label>
-    </div>
     <p class="status" id="status"></p>
-    <div class="results-title" id="results-title">预检结果</div>
-    <div class="results compact-results" id="results"></div>
-    <p class="empty" id="empty-hint">点击「预检」查看头文件中的问题字节。</p>
         </div>
       </ktc-current-tool-region>
       <ktc-open-items-bar id="open-items-bar" slot="open-items"></ktc-open-items-bar>
@@ -1144,8 +846,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
   <script nonce="${nonce}" src="${ignorePrimaryPanelUri}"></script>
   <script nonce="${nonce}" src="${autoBuildPrimaryPanelUri}"></script>
   <script nonce="${nonce}" src="${packageIncludesPrimaryUri}"></script>
-  <script nonce="${nonce}" src="${reorderMembersPanelUri}"></script>
-  <script nonce="${nonce}" src="${uuidResultsPanelUri}"></script>
+  <script nonce="${nonce}" src="${codeAssistantPrimaryUri}"></script>
   <script nonce="${nonce}" src="${renameResultsPanelUri}"></script>
   <script nonce="${nonce}" src="${ribbonCustomizationMenuUri}"></script>
   <script nonce="${nonce}" src="${toolNavigatorUri}"></script>
@@ -1326,22 +1027,13 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       autoBuildCleanupDialog: document.getElementById("auto-build-cleanup-dialog"),
       runCleanupDialog: document.getElementById("run-cleanup-dialog"),
       replaceBlock: document.getElementById("replace-block"),
-      codeAssistantBlock: document.getElementById("code-assistant-block"),
       codeAssistantNavigator: document.getElementById("code-assistant-navigator"),
-      codeAssistantEmpty: document.getElementById("code-assistant-empty"),
-      codeAssistantReorderActions: document.getElementById("code-assistant-reorder-actions"),
-      codeAssistantReorderResults: document.getElementById("code-assistant-reorder-results"),
-      btnCodeAssistantReorderScan: document.getElementById("btn-code-assistant-reorder-scan"),
-      btnCodeAssistantReorderApply: document.getElementById("btn-code-assistant-reorder-apply"),
-      btnCodeAssistantReorderClose: document.getElementById("btn-code-assistant-reorder-close"),
-      codeAssistantGenericActions: document.getElementById("code-assistant-generic-actions"),
-      codeAssistantGenericTitle: document.getElementById("code-assistant-generic-title"),
-      btnCodeAssistantGenericClose: document.getElementById("btn-code-assistant-generic-close"),
-      codeAssistantReorderStatus: document.getElementById("code-assistant-reorder-status"),
-      codeAssistantReorderResultCount: document.getElementById("code-assistant-reorder-result-count"),
+      headerAsciiPrimary: document.getElementById("header-ascii-primary"),
+      encodingFixPrimary: document.getElementById("encoding-fix-primary"),
+      reorderPrimary: document.getElementById("reorder-primary"),
+      uuidPrimary: document.getElementById("uuid-primary"),
+      caaPrimary: document.getElementById("caa-primary"),
       replaceToggle: document.getElementById("btn-replace-toggle"),
-      reorderMembersPanel: document.getElementById("reorder-members-panel"),
-      uuidResultsPanel: document.getElementById("uuid-results-panel"),
       renameResultsPanel: document.getElementById("rename-results-panel"),
       replaceSearch: document.getElementById("replace-search"),
       replaceWith: document.getElementById("replace-with"),
@@ -1359,15 +1051,9 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       replaceApply: document.getElementById("btn-replace-apply"),
       replacePreviewTooltip: document.getElementById("replace-preview-tooltip"),
       replaceApplyTooltip: document.getElementById("replace-apply-tooltip"),
-      generalActions: document.getElementById("general-actions"),
       codegenPanel: document.getElementById("codegen-panel"),
       runPanel: document.getElementById("run-panel"),
       gitPanel: document.getElementById("git-panel"),
-      compactTools: document.getElementById("compact-tools"),
-      uuidOptions: document.getElementById("uuid-options"),
-      uuidStrategy: document.getElementById("uuid-strategy"),
-      uuidStrategyHint: document.getElementById("uuid-strategy-hint"),
-      btnCaaCheckConnection: document.getElementById("btn-caa-check-connection"),
       ignorePanel: document.getElementById("ignore-panel"),
       environmentBlock: document.getElementById("environment-block"),
       environmentValues: document.getElementById("environment-values"),
@@ -1382,32 +1068,7 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       gitRepositoryAdd: document.getElementById("git-repository-add"),
       gitRepositoryRefresh: document.getElementById("git-repository-refresh"),
       gitRepositoryRemove: document.getElementById("git-repository-remove"),
-      scopeBlock: document.getElementById("scope-block"),
-      scopeHeaders: document.getElementById("scope-headers"),
-      scopeSource: document.getElementById("scope-source"),
-      scopeMd: document.getElementById("scope-md"),
-      scopeMdWrap: document.getElementById("scope-md-wrap"),
-      targetHint: document.getElementById("target-hint"),
-      encodingDefaultTarget: document.getElementById("encoding-default-target"),
-      btnEncodingSettings: document.getElementById("btn-encoding-settings"),
-      targetOverrides: document.getElementById("target-overrides"),
-      headerOptions: document.getElementById("header-options"),
-      encodingOptions: document.getElementById("encoding-options"),
-      encDetails: document.getElementById("opt-enc-details"),
-      showDetailsWrap: document.getElementById("opt-show-details-wrap"),
-      showDetailsLabel: document.getElementById("opt-show-details-label"),
-      optionsPanel: document.getElementById("options-panel"),
-      preserveGbk: document.getElementById("opt-preserve-gbk"),
-      stripBom: document.getElementById("opt-strip-bom"),
-      showDetails: document.getElementById("opt-show-details"),
-      optHint: document.getElementById("opt-hint"),
-      optBomHint: document.getElementById("opt-bom-hint"),
       status: document.getElementById("status"),
-      results: document.getElementById("results"),
-      resultsTitle: document.getElementById("results-title"),
-      empty: document.getElementById("empty-hint"),
-      btnScan: document.getElementById("btn-scan"),
-      btnFix: document.getElementById("btn-fix"),
     };
 
     function toolOptions() {
@@ -1494,269 +1155,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       return editorPrimaryCompanionToolIds.has(state.activeToolId);
     }
 
-    function updateOptHint() {
-      if (isEncodingTool()) {
-        els.empty.textContent = "点击「预检」检查文件整体编码。";
-        return;
-      }
-      const preserve = !!toolOptions().preserveGbk;
-      els.optHint.textContent = preserve
-        ? "已开启：仅修复弯引号等问题字节，GBK 中文保留。"
-        : "默认关闭：扫描并清除所有非 ASCII（推荐）。";
-      els.empty.textContent = preserve
-        ? "点击「预检」检查弯引号等问题字节。"
-        : "点击「预检」检查头文件中的非 ASCII 内容。";
-    }
-
-    function encodingTargetLabel(value) {
-      if (value === "ascii") return "ASCII";
-      if (value === "gbk") return "GBK";
-      return "UTF-8";
-    }
-
-    function renderEncodingTargetSettings(running) {
-      const options = toolOptions();
-      els.encodingDefaultTarget.value = options.encodingDefaultTarget === "gbk" ? "gbk" : "utf8";
-      els.encodingDefaultTarget.disabled = running;
-      const overrides = [
-        options.encodingHeaderTarget && options.encodingHeaderTarget !== "inherit"
-          ? "头文件 " + encodingTargetLabel(options.encodingHeaderTarget)
-          : "",
-        options.encodingSourceTarget && options.encodingSourceTarget !== "inherit"
-          ? "源文件 " + encodingTargetLabel(options.encodingSourceTarget)
-          : "",
-        options.encodingMarkdownTarget && options.encodingMarkdownTarget !== "inherit"
-          ? "Markdown " + encodingTargetLabel(options.encodingMarkdownTarget)
-          : "",
-      ].filter(Boolean);
-      els.targetOverrides.textContent = overrides.length
-        ? "项目覆盖：" + overrides.join(" · ")
-        : "头文件、源文件和 Markdown 均继承默认目标。";
-    }
-
-    function resultPathParts(value) {
-      const normalized = String(value || "").replace(/\\\\/g, "/").replace(/^\\.\\//, "");
-      const index = normalized.lastIndexOf("/");
-      return index < 0
-        ? { name: normalized, directory: "" }
-        : { name: normalized.slice(index + 1), directory: normalized.slice(0, index) };
-    }
-
-    function resultKind(path, explicit) {
-      if (explicit) return explicit;
-      const lower = String(path || "").toLowerCase();
-      if (/\\.(h|hpp|hh|hxx)$/.test(lower)) return "C";
-      if (/\\.(c|cc|cpp|cxx)$/.test(lower)) return "C++";
-      if (/\\.catdlg$/.test(lower)) return "<>";
-      if (/\\.md$/.test(lower)) return "M";
-      return "·";
-    }
-
-    function highlightRanges(label, terms, nonAscii) {
-      const ranges = [];
-      if (nonAscii) {
-        for (let index = 0; index < label.length; index += 1) {
-          if (label.charCodeAt(index) > 127) ranges.push([index, index + 1]);
-        }
-      }
-      const haystack = label.toLocaleLowerCase();
-      for (const raw of terms || []) {
-        const term = String(raw || "");
-        if (!term) continue;
-        const needle = term.toLocaleLowerCase();
-        let start = 0;
-        while ((start = haystack.indexOf(needle, start)) >= 0) {
-          ranges.push([start, start + term.length]);
-          start += Math.max(1, term.length);
-        }
-      }
-      ranges.sort((left, right) => left[0] - right[0] || left[1] - right[1]);
-      const merged = [];
-      for (const range of ranges) {
-        const last = merged[merged.length - 1];
-        if (last && range[0] <= last[1]) last[1] = Math.max(last[1], range[1]);
-        else merged.push(range.slice());
-      }
-      return merged;
-    }
-
-    function appendHighlightedText(target, label, terms, nonAscii) {
-      const ranges = highlightRanges(label, terms, nonAscii);
-      let cursor = 0;
-      for (const range of ranges) {
-        if (range[0] > cursor) target.appendChild(document.createTextNode(label.slice(cursor, range[0])));
-        const mark = document.createElement("mark");
-        mark.className = "result-hit";
-        mark.textContent = label.slice(range[0], range[1]);
-        target.appendChild(mark);
-        cursor = range[1];
-      }
-      if (cursor < label.length) target.appendChild(document.createTextNode(label.slice(cursor)));
-    }
-
-    function createCompactIcon(text, title, onClick) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "compact-icon";
-      button.textContent = text;
-      button.title = title;
-      button.setAttribute("aria-label", title);
-      button.onclick = (event) => { event.stopPropagation(); onClick(); };
-      return button;
-    }
-
-    function createCompactRow(config) {
-      const item = document.createElement("div");
-      item.className = "compact-file-row";
-      if (config.checkbox) {
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.checked = !!config.checkbox.checked;
-        checkbox.disabled = !!config.checkbox.disabled;
-        checkbox.setAttribute("aria-label", config.checkbox.label || ("选择 " + config.path));
-        checkbox.onchange = () => config.checkbox.onChange(checkbox.checked);
-        item.appendChild(checkbox);
-      }
-      const kind = document.createElement("span");
-      kind.className = "compact-kind";
-      kind.textContent = resultKind(config.path, config.kind);
-      const parts = resultPathParts(config.path);
-      const main = document.createElement("span");
-      main.className = "compact-file-main ktc-compact-label";
-      main.title = config.title || config.path;
-      const name = document.createElement("span");
-      name.className = "compact-file-name ktc-compact-label-primary";
-      appendHighlightedText(name, config.name || parts.name, config.highlightTerms, config.highlightNonAscii);
-      const directory = document.createElement("span");
-      directory.className = "compact-file-dir ktc-compact-label-secondary";
-      directory.textContent = config.directory === undefined ? parts.directory : config.directory;
-      main.append(name, directory);
-      if (config.onOpen) main.onclick = config.onOpen;
-      const actions = document.createElement("span");
-      actions.className = "compact-inline";
-      for (const action of config.actions || []) actions.appendChild(createCompactIcon(action.text, action.title, action.onClick));
-      const status = document.createElement("span");
-      status.className = "compact-state " + (config.statusClass || "");
-      status.textContent = config.status || "";
-      status.title = config.statusTitle || config.status || "";
-      item.append(kind, main, actions, status);
-      return item;
-    }
-
-    function createCompactGroup(title, detail, rows, checkbox) {
-      const group = document.createElement("section");
-      group.className = "compact-group";
-      const header = document.createElement("div");
-      header.className = "compact-group-header";
-      if (checkbox) {
-        const input = document.createElement("input");
-        input.type = "checkbox";
-        input.checked = !!checkbox.checked;
-        input.indeterminate = !!checkbox.indeterminate;
-        input.disabled = !!checkbox.disabled;
-        input.setAttribute("aria-label", checkbox.label || ("选择 " + title));
-        input.onchange = () => checkbox.onChange(input.checked);
-        header.appendChild(input);
-      }
-      const label = document.createElement("span");
-      label.textContent = title;
-      const description = document.createElement("span");
-      description.className = "detail";
-      description.textContent = detail || "";
-      header.append(label, description);
-      const list = document.createElement("div");
-      list.className = "compact-list";
-      for (const row of rows) list.appendChild(row);
-      group.append(header, list);
-      return group;
-    }
-
-    function renderHeaderResults(ts, showDetailRows) {
-      const items = ts.results || [];
-      if (items.length === 0) {
-        els.empty.style.display = ts.status === "done" ? "block" : (ts.status === "idle" ? "block" : "none");
-        if (ts.status === "done" && ts.issueFiles === 0) {
-          els.empty.textContent = toolOptions().preserveGbk
-            ? "未发现弯引号等问题字节。"
-            : "未发现非 ASCII 或问题字节。";
-        }
-        return;
-      }
-      els.empty.style.display = "none";
-      for (const item of items) {
-        const open = () => vscode.postMessage({ type: "openIssue", toolId: currentContentToolId(), file: item.fullPath, line: item.topLine });
-        const row = createCompactRow({
-          path: item.relativePath || item.file,
-          highlightNonAscii: true,
-          status: "L" + item.topLine + " ×" + item.issueCount,
-          statusClass: "error",
-          onOpen: open,
-          actions: [{ text: "↗", title: "打开并定位", onClick: open }],
-          title: item.fullPath,
-        });
-        const block = document.createElement("div");
-        block.appendChild(row);
-
-        if (showDetailRows && item.issues && item.issues.length) {
-          const ul = document.createElement("ul");
-          ul.className = "issue-details";
-          for (const iss of item.issues) {
-            const dli = document.createElement("li");
-            dli.innerHTML = 'L' + iss.line + ':C' + iss.column + ' ' +
-              escapeHtml(iss.fromLabel) + '<span class="arrow">→</span><span class="to">' +
-              escapeHtml(iss.toLabel) + '</span>';
-            dli.onclick = (e) => {
-              e.stopPropagation();
-              vscode.postMessage({
-                type: "openIssue",
-                toolId: currentContentToolId(),
-                file: item.fullPath,
-                line: iss.line,
-              });
-            };
-            ul.appendChild(dli);
-          }
-          block.appendChild(ul);
-        }
-        els.results.appendChild(block);
-      }
-    }
-
-    function renderEncodingResults(ts, showEncDetails) {
-      const items = ts.encodingResults || [];
-      if (items.length === 0) {
-        els.empty.style.display = ts.status === "done" ? "block" : (ts.status === "idle" ? "block" : "none");
-        if (ts.status === "done" && ts.issueFiles === 0) {
-          els.empty.textContent = "所有文件均符合当前项目编码目标。";
-        }
-        return;
-      }
-      els.empty.style.display = "none";
-      const rows = items.map((item) => {
-        const open = () => vscode.postMessage({ type: "openEncodingFile", toolId: currentContentToolId(), file: item.fullPath });
-        const row = createCompactRow({
-          path: item.relativePath,
-          status: item.suggestedAction === "—" ? "✓" : item.suggestedAction,
-          statusClass: item.status === "ok" ? "ok" : (item.status === "unsupported" ? "" : "error"),
-          statusTitle: item.detected + " → " + item.expected,
-          onOpen: open,
-          actions: [{ text: "↗", title: "打开文件", onClick: open }],
-          title: item.fullPath + "\\n" + item.detected + " → " + item.expected,
-        });
-
-        if (showEncDetails && item.detail) {
-          const det = document.createElement("div");
-          det.className = "compact-subtext";
-          det.textContent = item.detail;
-          const wrapper = document.createElement("div");
-          wrapper.append(row, det);
-          return wrapper;
-        }
-        return row;
-      });
-      els.results.appendChild(createCompactGroup("文件", items.length + " 个", rows));
-    }
-
     function syncRenameResultsPanel(ts) {
       const report = ts.codeRenameResults;
       const summary = report?.summary;
@@ -1783,51 +1181,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         running: ts.status === "running",
         message: ts.message || state.ignoreConfig?.statusText || "",
       };
-    }
-
-    function syncUuidResultsPanel(ts) {
-      const rows = Array.isArray(ts.uuidResults)
-        ? ts.uuidResults.filter((row) => row.state !== "cancelled")
-        : [];
-      const selectedPending = rows.filter((row) => row.state === "pending" && (ts.uuidSelectedUris || []).includes(row.uri));
-      els.btnFix.disabled = ts.status === "running" || selectedPending.length === 0;
-      els.btnFix.textContent = selectedPending.length ? "替换所选（" + selectedPending.length + "）" : "替换所选";
-      els.uuidResultsPanel.model = {
-        presentation: "files",
-        running: ts.status === "running",
-        files: rows,
-        selectedIds: ts.uuidSelectedUris || [],
-        emptyMessage: Array.isArray(ts.uuidResults) ? "没有 UUID 候选。" : "点击“扫描 UUID”生成固定映射。",
-        capabilities: { selection: true, open: true, apply: true, cancel: true, gitDiff: true },
-      };
-    }
-    function renderCaaResults(ts) {
-      const connection = ts.caaDeskConnection || { status: "checking", text: "等待连接 Desk Tools…" };
-      const connectionRow = document.createElement("div");
-      connectionRow.className = "caa-connection " + connection.status;
-      const connectionIcon = connection.status === "online" ? "●" : (connection.status === "checking" ? "◌" : (connection.status === "custom-command" ? "◆" : "○"));
-      connectionRow.textContent = connectionIcon + " " + connection.text;
-      if (connection.endpoint) connectionRow.title = connection.endpoint;
-      els.results.appendChild(connectionRow);
-      const rows = ts.caaDialogResults;
-      if (!Array.isArray(rows)) { els.empty.style.display = "block"; els.empty.textContent = "点击“扫描 CATDlg”定位文件。"; return; }
-      if (!rows.length) { els.empty.style.display = "block"; els.empty.textContent = "没有找到 .CATDlg 文件。"; return; }
-      els.empty.style.display = "none";
-      const items = rows.map((item) => {
-        const open = () => vscode.postMessage({ type: "caaDialogAction", toolId: "caaDialog", action: "open", uri: item.uri });
-        return createCompactRow({
-          path: item.relativePath,
-          status: item.selected ? "已交接" : "",
-          statusClass: item.selected ? "applied" : "",
-          onOpen: open,
-          actions: [
-            { text: "↗", title: "在 VS Code 中打开", onClick: open },
-            { text: "□", title: "在 Desk Tools 中打开", onClick: () => vscode.postMessage({ type: "caaDialogAction", toolId: "caaDialog", action: "openExternal", uri: item.uri }) },
-          ],
-          title: item.relativePath,
-        });
-      });
-      els.results.appendChild(createCompactGroup("CATDlg 文件 · " + rows.length + " 个", ts.caaSettingsText || "", items));
     }
 
     function renderEnvironment(ts) {
@@ -2452,39 +1805,34 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       });
     }
 
-    function renderCodeAssistantArea(reorderState, running) {
-      const treeUi = state.codeAssistantTreeUiState;
-      const reorder = isReorderMembersTool();
-      els.codeAssistantReorderActions.open = !!treeUi.reorderActionsExpanded;
-      els.codeAssistantReorderResults.open = !!treeUi.reorderResultsExpanded;
-      els.codeAssistantEmpty.hidden = reorder;
-      els.codeAssistantReorderActions.hidden = !reorder;
-      els.codeAssistantReorderResults.hidden = !reorder;
-      els.btnCodeAssistantReorderClose.hidden = true;
-      if (!reorder) return;
-      const rows = reorderState.reorderResults || [];
-      const pending = rows.filter((row) => row.state === "pending");
-      const selected = new Set(reorderState.reorderSelectedUris || pending.map((row) => row.uri));
-      const selectedPending = pending.filter((row) => selected.has(row.uri));
-      els.btnCodeAssistantReorderScan.disabled = running;
-      els.btnCodeAssistantReorderApply.disabled = running || selectedPending.length === 0;
-      els.btnCodeAssistantReorderApply.textContent = selectedPending.length
-        ? "应用所选（" + selectedPending.length + "）"
-        : "应用所选";
-      els.codeAssistantReorderStatus.textContent = reorderState.message
-        || "扫描当前工作目录中的 C++ 头文件和源文件；写入前会再次确认文件没有变化。";
-      els.codeAssistantReorderResultCount.textContent = rows.length
-        ? "扫描 " + (reorderState.scanned || rows.length) + " · 可排序 " + pending.length
-        : "尚未扫描";
-      els.reorderMembersPanel.model = {
-        presentation: "results",
-        status: reorderState.status,
-        message: reorderState.message,
-        scanned: reorderState.scanned,
-        reorderResults: reorderState.reorderResults,
-        reorderRevision: reorderState.reorderRevision,
-        reorderSelectedUris: reorderState.reorderSelectedUris,
-      };
+    const codeAssistantPrimary = globalThis.ktcCodeAssistantPrimary;
+    const codeAssistantSurfaces = [
+      ["headerAscii", els.headerAsciiPrimary],
+      ["encodingFix", els.encodingFixPrimary],
+      ["reorderMembers", els.reorderPrimary],
+      ["uuidReplace", els.uuidPrimary],
+      ["caaDialog", els.caaPrimary],
+    ];
+
+    function renderCodeAssistantPrimary(ts) {
+      const toolId = currentContentToolId();
+      const directory = state.workingContext.resolvedDirectory || "";
+      for (const [surfaceToolId, surface] of codeAssistantSurfaces) {
+        surface.hidden = surfaceToolId !== toolId;
+        if (surface.hidden) continue;
+        if (toolId === "headerAscii" || toolId === "encodingFix") {
+          surface.model = codeAssistantPrimary.ktcCreateTextRepairPrimaryModel({
+            toolId, directory, toolState: ts, options: toolOptions(), scope: state.scope,
+            showDetails: state.showDetails, showEncDetails: state.showEncDetails,
+          });
+        } else if (toolId === "caaDialog") {
+          surface.model = codeAssistantPrimary.ktcCreateCaaPrimaryModel({ state: ts, directory });
+        } else {
+          surface.model = codeAssistantPrimary.ktcProjectSelectionPrimary({
+            toolId, directory, state: ts, uuidStrategy: state.uuidStrategy,
+          });
+        }
+      }
     }
 
     function render() {
@@ -2762,7 +2110,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         return;
       }
       const ts = toolState();
-      const reorderState = state.toolStates.reorderMembers || { status: "idle" };
       const reorder = isReorderMembersTool();
       const running = ts.status === "running";
       document.body.classList.toggle("task-running", running);
@@ -2782,14 +2129,13 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       const projectRenamePrimary = editorCompanion
         && currentContentToolId() === "projectRename"
         && ts.editorCompanion?.primary?.kind === "projectRename";
-      const genericActionFeature = enc || header || uuid || caaDialog;
+      const primaryCodeAssistant = enc || header || reorder || uuid || caaDialog;
       els.btnProjectRenameAnalysis.disabled = running;
       renderGitRepositoryContext(ts, running, git);
       document.body.classList.toggle("codegen-tool", codegen);
       document.body.classList.toggle("run-tool", run);
       document.body.classList.toggle("git-tool", git);
-      // 代码辅助目录与成员排序复用一个容器，但始终是两个直接 toolId 的投影。
-      els.desc.hidden = ignore || reorder || genericActionFeature || editorCompanion;
+      els.desc.hidden = ignore || primaryCodeAssistant || editorCompanion;
       els.editorCompanionBlock.hidden = !editorCompanion || autoBuildPrimary || projectRenamePrimary || packageIncludesPrimary;
       els.projectRenamePrimary.hidden = !projectRenamePrimary;
       els.autoBuildPrimaryPanel.hidden = !autoBuildPrimary;
@@ -2799,51 +2145,17 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       else if (packageIncludesPrimary) renderPackageIncludesPrimary(ts);
       else if (editorCompanion) renderEditorCompanion(ts);
       els.replaceBlock.hidden = !rename;
-      els.codeAssistantBlock.hidden = !reorder;
-      if (reorder) els.primaryBody.insertBefore(els.codeAssistantBlock, els.primaryBody.firstElementChild);
+      renderCodeAssistantPrimary(ts);
       els.codegenPanel.hidden = !codegen;
       els.runPanel.hidden = !run;
       els.gitPanel.hidden = !git;
-      els.uuidResultsPanel.hidden = !uuid;
       els.renameResultsPanel.hidden = !rename;
       els.ignorePanel.hidden = !ignore;
       els.environmentBlock.hidden = !environment;
-      els.codeAssistantGenericActions.hidden = !genericActionFeature;
-      els.codeAssistantGenericTitle.textContent = enc
-        ? "编码操作"
-        : header
-          ? "头文件操作"
-          : uuid
-            ? "UUID 操作"
-            : "CAA UI 操作";
-      els.btnCodeAssistantGenericClose.hidden = true;
-      els.generalActions.hidden = !genericActionFeature;
-      els.uuidOptions.hidden = !uuid;
-      els.uuidStrategy.value = state.uuidStrategy;
-      els.uuidStrategy.disabled = running;
-      els.uuidStrategyHint.textContent = state.uuidStrategy === "fresh_per_hit"
-        ? "每个命中生成不同 UUID，可能打破原有引用关系；仅在确认每处都应拥有独立身份时使用。"
-        : "相同旧 UUID 在所有文件中替换为同一个新 UUID；策略在扫描时固定。";
-      els.uuidStrategyHint.className = "hint" + (state.uuidStrategy === "fresh_per_hit" ? " warning" : "");
-      els.compactTools.hidden = !caaDialog;
-      els.btnCaaCheckConnection.hidden = !caaDialog;
-      els.btnCaaCheckConnection.textContent = ts.caaDeskConnection?.status === "online" ? "重新检测" : "连接 Desk Tools";
-      els.btnScan.disabled = running;
-      els.btnFix.disabled = running;
-      els.btnScan.textContent = rename ? "打开" : (ignore ? "打开规则" : (uuid ? "扫描 UUID" : (caaDialog ? "扫描 CATDlg" : "预检")));
-      els.btnFix.textContent = enc ? "按目标转换" : (ignore ? "从 .gitignore 同步" : (uuid ? "替换所选" : (caaDialog ? "Desk Tools 设置" : "修复")));
-      els.btnFix.style.display = rename ? "none" : "inline-block";
-
-      els.targetHint.hidden = !enc;
-      if (enc) renderEncodingTargetSettings(running);
-      els.scopeBlock.hidden = rename || reorder || codegen || run || git || ignore || uuid || caaDialog || environment || editorCompanion;
-
       if (codegen) renderCodegen(ts, running);
       if (run) renderRun(ts, running);
       if (git) renderGit(ts, running);
 
-      if (reorder) renderCodeAssistantArea(reorderState, running);
-      if (uuid) syncUuidResultsPanel(ts);
       if (rename) syncRenameResultsPanel(ts);
 
       if (rename) {
@@ -2863,79 +2175,51 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         updateReplaceButtons();
       }
 
-      els.scopeHeaders.checked = !!state.scope.includeHeaders;
-      els.scopeSource.checked = !!state.scope.includeSource;
-      els.scopeMd.checked = !!state.scope.includeMarkdown;
-      els.scopeMdWrap.className = enc ? "" : "disabled";
-      els.scopeMd.disabled = !enc;
-
       syncIgnorePrimaryPanel(state.toolStates.ignoreSettings || { status: "idle" });
-
-      els.optionsPanel.hidden = rename || reorder || codegen || run || git || ignore || uuid || caaDialog || environment || editorCompanion;
-      els.headerOptions.hidden = enc;
-      els.encodingOptions.hidden = !enc;
-      els.showDetailsWrap.hidden = !header;
-      if (!enc) {
-        els.preserveGbk.checked = !!toolOptions().preserveGbk;
-        els.stripBom.checked = !!toolOptions().stripBom;
-        els.showDetails.checked = !!state.showDetails;
-        updateOptHint();
-      } else {
-        els.encDetails.checked = !!state.showEncDetails;
-        updateOptHint();
-      }
 
       els.status.textContent = ts.message || "";
       els.status.className = "status" + (ts.status === "error" ? " error" : "");
-      els.status.hidden = reorder || codegen || run || git || ignore || editorCompanion;
-      els.resultsTitle.hidden = reorder || codegen || run || git || rename || ignore || uuid || environment || editorCompanion;
-      els.results.hidden = reorder || codegen || run || git || rename || ignore || uuid || environment || editorCompanion;
-      els.results.innerHTML = "";
-      els.resultsTitle.textContent = header ? "问题文件" : (enc ? "编码结果" : (rename ? "替换结果" : (ignore ? "推荐规则" : (uuid ? "UUID 结果" : (caaDialog ? "CATDlg 文件" : "结果")))));
-
-      if (environment) {
-        renderEnvironment(ts);
-        els.empty.style.display = "none";
-      } else if (codegen) {
-        els.empty.style.display = "none";
-      } else if (reorder) {
-        els.empty.style.display = "none";
-      } else if (run) {
-        els.empty.style.display = "none";
-      } else if (git) {
-        els.empty.style.display = "none";
-      } else if (editorCompanion) {
-        els.empty.style.display = "none";
-      } else if (header) {
-        renderHeaderResults(ts, !!state.showDetails);
-      } else if (enc) {
-        renderEncodingResults(ts, !!state.showEncDetails);
-      } else if (rename) {
-        els.empty.style.display = "none";
-      } else if (ignore) {
-        els.empty.style.display = "none";
-      } else if (uuid) {
-        els.empty.style.display = "none";
-      } else if (caaDialog) {
-        renderCaaResults(ts);
-      } else {
-        els.empty.style.display = "block";
-      }
+      els.status.hidden = primaryCodeAssistant || codegen || run || git || ignore || editorCompanion;
+      if (environment) renderEnvironment(ts);
     }
 
-    function escapeHtml(s) {
-      return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
-
-    els.btnScan.onclick = () => {
-      if (isIgnoreTool()) vscode.postMessage({ type: "openIgnoreFile" });
-      else vscode.postMessage({
-        type: "run",
-        toolId: currentContentToolId(),
-        action: isCodeRenameTool() ? "open" : "scan",
-        uuidStrategy: isUuidTool() ? state.uuidStrategy : undefined,
+    // Each cached surface is bound to its own tool. Hidden/inactive surfaces may
+    // keep results, but cannot issue commands for another logical tool.
+    for (const [toolId, surface] of codeAssistantSurfaces) {
+      const eventName = toolId === "caaDialog" ? "ktc-caa-primary-action"
+        : toolId === "headerAscii" || toolId === "encodingFix" ? "ktc-text-repair-primary-action"
+        : "ktc-selection-primary-action";
+      surface.addEventListener(eventName, (event) => {
+        if (currentContentToolId() !== toolId || surface.hidden
+          || !(state.openToolIds || []).includes(toolId) || surface.model?.running || surface.model?.busy) return;
+        const detail = event.detail;
+        if (!detail) return;
+        let message;
+        if (toolId === "headerAscii" || toolId === "encodingFix") {
+          if (detail.action === "setOption" && detail.key === "showDetails") {
+            if (toolId === "headerAscii") state.showDetails = detail.value === true;
+            else state.showEncDetails = detail.value === true;
+            persistUiState();
+            render();
+            return;
+          }
+          message = codeAssistantPrimary.ktcTextRepairPrimaryActionToMessage(surface.model, detail);
+        } else if (toolId === "caaDialog") {
+          message = codeAssistantPrimary.ktcCaaPrimaryMessageForAction(detail);
+        } else {
+          if (detail.toolId !== toolId) return;
+          if (detail.kind === "setStrategy") {
+            state.uuidStrategy = detail.strategy === "fresh_per_hit" ? "fresh_per_hit" : "map_per_value";
+            persistUiState();
+            render();
+            return;
+          }
+          message = codeAssistantPrimary.ktcSelectionPrimaryMessage(detail);
+        }
+        if (message) vscode.postMessage(message);
       });
-    };
+    }
+
     function activateCodeAssistantNavigatorTool(toolId) {
       if (toolId === "packageIncludes" || toolId === "autoBuild") {
         // Editor View features keep the navigator visible and reuse the existing
@@ -2997,26 +2281,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         vscode.postMessage({ type: "closeOtherToolBlocks", toolId: detail.itemId });
       }
     });
-    els.codeAssistantReorderActions.ontoggle = () => {
-      state.codeAssistantTreeUiState.reorderActionsExpanded = els.codeAssistantReorderActions.open;
-      persistCodeAssistantTreeUiState();
-    };
-    els.codeAssistantReorderResults.ontoggle = () => {
-      state.codeAssistantTreeUiState.reorderResultsExpanded = els.codeAssistantReorderResults.open;
-      persistCodeAssistantTreeUiState();
-    };
-    els.btnCodeAssistantReorderScan.onclick = () => vscode.postMessage({
-      type: "run",
-      toolId: "reorderMembers",
-      action: "scan",
-    });
-    els.btnCodeAssistantReorderApply.onclick = () => {
-      const reorderState = state.toolStates.reorderMembers || {};
-      const pending = (reorderState.reorderResults || []).filter((row) => row.state === "pending");
-      const selected = new Set(reorderState.reorderSelectedUris || pending.map((row) => row.uri));
-      const uris = pending.filter((row) => selected.has(row.uri)).map((row) => row.uri);
-      if (uris.length) vscode.postMessage({ type: "reorderAction", toolId: "reorderMembers", action: "apply", uris });
-    };
     els.codegenPanel.addEventListener("kt-codegen-primary-action", (event) => {
       const detail = event.detail || {};
       const message = { type: "codegenAction", toolId: "codegen", action: detail.action };
@@ -3156,44 +2420,12 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
         blockKeys: event.detail.blockKeys,
       });
     });
-    els.reorderMembersPanel.addEventListener("pnw-code-reorder-members-action", (event) => {
-      const detail = event.detail;
-      if (detail.kind === "run") {
-        vscode.postMessage({ type: "run", toolId: "reorderMembers", action: detail.action });
-      } else if (detail.kind === "reorderSelection") {
-        vscode.postMessage({ type: "reorderSelection", toolId: "reorderMembers", uris: [...detail.uris] });
-      } else {
-        vscode.postMessage({ type: "reorderAction", toolId: "reorderMembers", action: detail.action, uris: [...detail.uris] });
-      }
-    });
-    els.uuidResultsPanel.addEventListener("pnw-code-uuid-results-action", (event) => {
-      const detail = event.detail;
-      if (detail.kind === "selection") {
-        vscode.postMessage({ type: "uuidSelection", toolId: "uuidReplace", uris: [...detail.ids] });
-      } else {
-        vscode.postMessage({ type: "uuidAction", toolId: "uuidReplace", action: detail.action, uris: [...detail.ids] });
-      }
-    });
     els.renameResultsPanel.addEventListener("pnw-code-rename-results-action", (event) => {
       const detail = event.detail;
       if (detail?.kind === "open") {
         vscode.postMessage({ type: "codeRenameAction", toolId: "codeRename", action: "open", rowId: detail.id });
       }
     });
-    els.btnFix.onclick = () => {
-      if (isIgnoreTool()) vscode.postMessage({ type: "syncIgnoreFromGit" });
-      else vscode.postMessage({
-        type: "run",
-        toolId: currentContentToolId(),
-        action: isEncodingTool() ? "convert" : "fix",
-      });
-    };
-    els.btnCaaCheckConnection.onclick = () => vscode.postMessage({ type: "run", toolId: "caaDialog", action: "checkConnection" });
-    els.uuidStrategy.onchange = () => {
-      state.uuidStrategy = els.uuidStrategy.value === "fresh_per_hit" ? "fresh_per_hit" : "map_per_value";
-      persistUiState();
-      render();
-    };
     els.btnEnvironmentRefresh.onclick = () => vscode.postMessage({ type: "environmentAction", toolId: "environmentSettings", action: "refresh" });
     els.btnEnvironmentSystem.onclick = () => vscode.postMessage({ type: "environmentAction", toolId: "environmentSettings", action: "openSystemSettings" });
     els.btnEnvironmentPluginSettings.onclick = () => vscode.postMessage({ type: "environmentAction", toolId: "environmentSettings", action: "openPluginSettings" });
@@ -3477,15 +2709,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     for (const input of [els.replaceSearch, els.replaceWith]) {
       input.onkeydown = stopTextInputEnter;
     }
-    els.scopeHeaders.onchange = () => vscode.postMessage({
-      type: "setOption", toolId: "scope", key: "includeHeaders", value: els.scopeHeaders.checked,
-    });
-    els.scopeSource.onchange = () => vscode.postMessage({
-      type: "setOption", toolId: "scope", key: "includeSource", value: els.scopeSource.checked,
-    });
-    els.scopeMd.onchange = () => vscode.postMessage({
-      type: "setOption", toolId: "scope", key: "includeMarkdown", value: els.scopeMd.checked,
-    });
     els.ignorePanel.addEventListener("ktc-ignore-primary-action", (event) => {
       const detail = event.detail || {};
       if (detail.action === "setSourceEnabled") {
@@ -3518,37 +2741,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
             });
       }
     });
-    els.preserveGbk.onchange = () => vscode.postMessage({
-      type: "setOption",
-      toolId: "headerAscii",
-      key: "preserveGbk",
-      value: els.preserveGbk.checked,
-    });
-    els.stripBom.onchange = () => vscode.postMessage({
-      type: "setOption",
-      toolId: "headerAscii",
-      key: "stripBom",
-      value: els.stripBom.checked,
-    });
-    els.encodingDefaultTarget.onchange = () => vscode.postMessage({
-      type: "setEncodingDefaultTarget",
-      toolId: "encodingFix",
-      target: els.encodingDefaultTarget.value === "gbk" ? "gbk" : "utf8",
-    });
-    els.btnEncodingSettings.onclick = () => vscode.postMessage({
-      type: "openEncodingSettings",
-      toolId: "encodingFix",
-    });
-    els.showDetails.onchange = () => {
-      state.showDetails = els.showDetails.checked;
-      persistUiState();
-      render();
-    };
-    els.encDetails.onchange = () => {
-      state.showEncDetails = els.encDetails.checked;
-      persistUiState();
-      render();
-    };
     for (const button of els.welcomePanel.querySelectorAll("[data-welcome-action]")) {
       button.addEventListener("click", () => vscode.postMessage({
         type: "welcomeAction",
@@ -3665,11 +2857,10 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
           saveReplaceState();
         }
       } else if (msg.type === "state") {
+        // uuidStrategy in the snapshot belongs to the frozen Host scan plan;
+        // never overwrite the user's current strategy preference with a late
+        // result. The adapter makes mismatched plans read-only until a rescan.
         state.toolStates[msg.toolId] = msg.state;
-        if (msg.toolId === "uuidReplace" && msg.state.uuidStrategy) {
-          state.uuidStrategy = msg.state.uuidStrategy;
-          persistUiState();
-        }
         render();
       }
     });

@@ -2,6 +2,12 @@
 
 本文记录将 **KT Auto Code** 发布到 [Visual Studio Marketplace](https://marketplace.visualstudio.com/) 的操作流程，以及发布时应保留的版权与许可信息。
 
+## 当前本地内测状态（2026-09-10）
+
+`0.9.1` 正在收尾本地内测，不是 Marketplace 公开发布。本轮的冻结范围、本地 Wing 来源、制品回执、未完成门禁与人工点检见 [0.9.1 内测收尾](./0.9.1-内测收尾.md)。Git“合并区间”Right 原型已按用户决定移至 [0.9.2 Git 合并区间原型计划](./0.9.2-Git合并区间原型计划.md)，不作为 0.9.1 内测包的完成项或阻塞项。
+
+在 0.9.1 最终源码提交、全部门禁、本地 VSIX、`publishable: false` 来源回执及独立哈希归档完成前，不得将当前工作树描述为已冻结或已交付制品。本地 Wing VSIX 只供内测，不能替代本文后续的 Registry、detached worktree、`release:preflight` 与 `release:receipt` 正式发布链。本轮不执行 push、tag、npm 发布或 Marketplace 上传。
+
 ## 项目信息
 
 - 扩展目录：仓库根目录（[`package.json`](../package.json) 为唯一 manifest）
@@ -9,7 +15,7 @@
 - Marketplace 发布者 ID：`kuntai`
 - Marketplace 发布者名称：`Shanghai Kuntai`
 - 当前版本：以 [`package.json`](../package.json) 的 `version` 为准
-- 本仓发布记录中最近已发布的 KT Auto Code 版本为 `0.8.1`，由 `kuntai` 发布；`0.7.4` 未单独发布，`0.8.0` 初始候选也已由 `0.8.1` 取代。下一目标 `0.8.3` 必须先整体合入正式 `0.8.2`，不能把当前开发分支冒充最终候选。CAD 当前版本由 [KT Auto CAD 发布说明](https://gitee.com/PhoenixWing321/kt-auto-cad/blob/master/docs/发布.md)维护。
+- 本仓发布记录中最近已发布的 KT Auto Code 版本为 `0.8.1`，由 `kuntai` 发布；`0.7.4` 未单独发布，`0.8.0` 初始候选也已由 `0.8.1` 取代。当前 `0.9.1` 仅处于本地内测收尾，不改写早期版本的历史候选与发布记录，也不代表已获公开发布授权。CAD 当前版本由 [KT Auto CAD 发布说明](https://gitee.com/PhoenixWing321/kt-auto-cad/blob/master/docs/发布.md)维护。
 - 开源许可：[Apache License 2.0](../LICENSE)
 
 当前扩展标识由下列清单字段组成：

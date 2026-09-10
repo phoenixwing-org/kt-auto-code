@@ -300,6 +300,19 @@ const extensionHostSmokeOptions = {
   plugins: localWingPlugins,
 };
 
+const codeAssistantPrimaryOptions = {
+  entryPoints: ["src/sidebar/codeAssistantPrimaryEntry.ts"],
+  bundle: true,
+  outfile: "dist/ktc-code-assistant-primary.js",
+  platform: "browser",
+  format: "iife",
+  target: "es2022",
+  sourcemap: true,
+  logLevel: "info",
+  metafile: Boolean(localWing),
+  plugins: localWingPlugins,
+};
+
 const buildOptions = [
   extensionOptions,
   codegenTableOptions,
@@ -309,6 +322,7 @@ const buildOptions = [
   runPrimaryPanelOptions,
   gitPrimaryPanelOptions,
   ignorePrimaryPanelOptions,
+  codeAssistantPrimaryOptions,
   reorderMembersPanelOptions,
   uuidResultsPanelOptions,
   renameResultsPanelOptions,
@@ -331,6 +345,7 @@ if (watch) {
   const runPrimaryPanelContext = await esbuild.context(runPrimaryPanelOptions);
   const gitPrimaryPanelContext = await esbuild.context(gitPrimaryPanelOptions);
   const ignorePrimaryPanelContext = await esbuild.context(ignorePrimaryPanelOptions);
+  const codeAssistantPrimaryContext = await esbuild.context(codeAssistantPrimaryOptions);
   const reorderMembersPanelContext = await esbuild.context(reorderMembersPanelOptions);
   const uuidResultsPanelContext = await esbuild.context(uuidResultsPanelOptions);
   const renameResultsPanelContext = await esbuild.context(renameResultsPanelOptions);
@@ -344,6 +359,7 @@ if (watch) {
     sharedUiComponentOptions.map((options) => esbuild.context(options)),
   );
   await Promise.all([
+    codeAssistantPrimaryContext.watch(),
     extensionContext.watch(), tableContext.watch(), controlCatalogContext.watch(), primaryPanelContext.watch(), applyReportContext.watch(),
     runPrimaryPanelContext.watch(), gitPrimaryPanelContext.watch(), ignorePrimaryPanelContext.watch(), reorderMembersPanelContext.watch(), uuidResultsPanelContext.watch(), renameResultsPanelContext.watch(), associatedRulePickerContext.watch(), autoBuildViewContext.watch(), autoBuildPrimaryPanelContext.watch(), projectRenameAnalysisContext.watch(), ribbonCustomizationMenuContext.watch(), toolNavigatorContext.watch(),
     ...sharedUiComponentContexts.map((context) => context.watch()),

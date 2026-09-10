@@ -91,6 +91,8 @@ describe("KtcGitWingAdapter 本地 Wing 提交图联调", () => {
         await git("commit", "-m", "main commit");
         await git("merge", "--no-ff", "topic", "-m", "merge topic");
         await git("tag", "v0.1.0");
+        await git("update-ref", "refs/remotes/origin/main", "HEAD");
+        await git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
 
         const adapter = new KtcGitWingAdapter();
         const first = await adapter.readCommitGraphPage(root, {
@@ -102,6 +104,7 @@ describe("KtcGitWingAdapter 本地 Wing 提交图联调", () => {
         expect(first.graphRows).toHaveLength(2);
         expect(first.commits[0]?.parentOids).toHaveLength(2);
         expect(first.commits[0]?.decorations.some((item) => item.kind === "tag")).toBe(true);
+        expect(first.commits[0]?.remoteTrackingRefs?.map(ref => ref.name)).toEqual(["refs/remotes/origin/HEAD", "refs/remotes/origin/main"]);
         expect(first.nextBeforeCursor).toEqual(expect.any(String));
 
         const next = await adapter.readCommitGraphPage(root, {

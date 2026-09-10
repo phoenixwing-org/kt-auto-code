@@ -198,8 +198,8 @@ remote 名不写死为 `origin`，因此用户使用 `check` 等 remote 时可�
 ```text
 Commit: 4b4622df4580439c1b93876a87565c2420a4f253
 Parents: 8f8f40e4ddff2ae6f790801c31004c7da50851e7
-Author: Phoenix Wing <3301647@qq.com>
-Committer: Phoenix Wing <3301647@qq.com>
+Author: Example Developer <developer@example.com>
+Committer: Example Developer <developer@example.com>
 Date: Sat Jul 18 2026 14:55:00 GMT+0800
 
 修复：补齐曲线分割命令构造控制符 审查：Kevin

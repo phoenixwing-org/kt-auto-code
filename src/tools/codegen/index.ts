@@ -139,9 +139,14 @@ const CODEGEN_META_FIELDS = new Set<KtcCodegenMetaField>([
 ]);
 
 let runContextFactory: (() => ToolRunContext) | undefined;
+let activateEditorPrimary: (() => Promise<void>) | undefined;
 
-export function setCodegenRunContextFactory(factory: () => ToolRunContext): void {
+export function setCodegenRunContextFactory(
+  factory: () => ToolRunContext,
+  onEditorActive?: () => Promise<void>,
+): void {
   runContextFactory = factory;
+  activateEditorPrimary = onEditorActive;
 }
 
 function currentContext(): ToolRunContext | undefined {
@@ -267,7 +272,13 @@ class KtcCodegenWorkspaceController implements vscode.Disposable {
       onActive: (uri) => {
         const session = this.sessions.get(uri);
         const ctx = currentContext();
-        if (session && ctx) this.setActive(session, ctx);
+        if (!session || !ctx) return;
+        // Publish the active JSON before restoring its Primary projection. This
+        // must not run the normal tool activation/discovery pipeline.
+        this.setActive(session, ctx);
+        void activateEditorPrimary?.().catch((error) => {
+          ctx.log(`显示自动代码 Primary 失败：${error instanceof Error ? error.message : String(error)}`);
+        });
       },
       onDispose: (uri) => {
         const session = this.sessions.get(uri);

@@ -90,6 +90,7 @@ import { createPreviewRunSurface } from "./previewRunCleanup.js";
 import { createPreviewAutoBuildCleanupSurface, type PreviewAutoBuildCleanupMode } from "./previewAutoBuildCleanup.js";
 import { createPreviewGitSurface } from "./previewGitSurface.js";
 import { createPreviewPackageIncludesSurface } from "./previewPackageIncludes.js";
+import { createPreviewCodeAssistantSurfaces } from "./previewCodeAssistantSurface.js";
 import { createPreviewTaskDirectory } from "./previewTaskDirectory.js";
 import { type KtcIgnorePolicyBlock, type KtcIgnorePolicyBlockActionDetail, type KtcIgnorePolicyBlockModel } from "../../src/ui/KtcIgnorePolicyBlock.js";
 import "../../src/ui/KtcIgnorePolicyBlockEntry.js";
@@ -210,6 +211,11 @@ const previewRunSurface = createPreviewRunSurface({
   directory: currentPreviewDirectory,
   log: recordPreviewOutput,
 });
+const previewCodeAssistantSurfaces = createPreviewCodeAssistantSurfaces({
+  directory: currentPreviewDirectory,
+  log: recordPreviewOutput,
+});
+window.addEventListener("pagehide", () => previewCodeAssistantSurfaces.dispose());
 let previewIgnorePolicy: KtcIgnorePolicyBlockModel = {
   enabled: true, builtInEnabled: true, gitEnabled: true, customEnabled: false, customCount: 0,
 };
@@ -281,6 +287,7 @@ directoryRow.addEventListener(KTC_DIRECTORY_BAR_ACTION, (event) => {
   if (detail.kind !== "select" && detail.kind !== "choose") return;
   directoryIndex = (directoryIndex + 1) % directoryChoices.length;
   previewRunSurface.directoryChanged();
+  previewCodeAssistantSurfaces.directoryChanged();
   const directory = directoryChoices[directoryIndex] ?? directoryChoices[0]!;
   recordPreviewOutput(`[界面] ${detail.kind === "select" ? "切换目录" : "选择目录（模拟）"}：${directory}`);
   renderDirectoryVisibility();
@@ -656,6 +663,8 @@ function renderPrimaryContent(): void {
 
 function createToolSummary(toolId: string): HTMLElement {
   const meta = PREVIEW_TOOL_CATALOG_BY_ID[toolId];
+  const codeAssistantPrimary = previewCodeAssistantSurfaces.createPrimary(toolId);
+  if (codeAssistantPrimary) return codeAssistantPrimary;
   if (meta?.toolId === "git") return previewGitSurface.createPrimary();
   if (meta?.toolId === "autoBuild") return createAutoBuildPrimary(meta);
   if (meta?.toolId === "codegen") {
@@ -1979,6 +1988,7 @@ function defaultUtilitySelections(): Record<UtilityToolId, boolean[]> {
 
 function resetVolatilePreviewState(): void {
   releasePreviewPackageSurface();
+  previewCodeAssistantSurfaces.reset();
   previewAutoBuildCleanupSurface.close();
   autoBuildState = createDefaultPreviewAutoBuildState();
   utilitySelections = defaultUtilitySelections();

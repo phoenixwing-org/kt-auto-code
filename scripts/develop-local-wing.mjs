@@ -90,6 +90,9 @@ const localEnvironment = {
   [LOCAL_WING_ENV]: wingRoot,
   [LOCAL_WING_MODE_ENV]: "1",
 };
+// Build-only acceptance exercises the actual sibling runtime, not only the
+// older capabilities present in the pinned Registry packages.
+if (prepareOnly) run(pnpm, ["test"], { env: localEnvironment });
 run(pnpm, ["ext:build"], { env: localEnvironment });
 if (cadRoot) run(pnpm, ["--dir", cadRoot, "dev:prepare"], { env: localEnvironment });
 assertDependencyFilesUntouched();

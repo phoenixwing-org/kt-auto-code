@@ -86,7 +86,9 @@ describe("Codegen MVC dependency boundary", () => {
   });
 
   it("预检结果内嵌 JSON View，不再维护第二个 WebviewPanel", () => {
-    expect(source("./editorHtml.ts")).toContain('id="control-drawer"');
+    expect(source("./editorHtml.ts")).toContain('<ktc-codegen-control-panel id="control-panel" collapsible>');
+    expect(source("./editorHtml.ts")).not.toContain('id="control-drawer"');
+    expect(source("./editorHtml.ts")).toContain('"kt-codegen-control-collapse-change"');
     expect(source("./editorViewController.ts")).toContain("ViewColumn.Active");
     expect(source("./index.ts")).not.toContain("KtcCodegenControlViewController");
     expect(existsSync(new URL("./controlViewController.ts", import.meta.url))).toBe(false);
@@ -125,7 +127,7 @@ describe("Codegen MVC dependency boundary", () => {
     const sidebar = source("../../sidebar/panelHtml.ts");
     const controlEntry = source("./controlCatalogEntry.ts");
     const primaryEntry = source("./primaryPanelEntry.ts");
-    expect(editor).toContain('<ktc-codegen-control-panel id="control-panel" mode="full">');
+    expect(editor).toContain('<ktc-codegen-control-panel id="control-panel" collapsible>');
     expect(sidebar).toContain('<ktc-codegen-primary-panel id="codegen-panel" hidden>');
     expect(primaryEntry).toContain('@phoenix-wing/kt-codegen/ui');
     expect(primaryEntry).toContain('ktCodegenDefinePrimaryPanelElement("ktc-codegen-primary-panel")');

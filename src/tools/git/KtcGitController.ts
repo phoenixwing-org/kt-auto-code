@@ -47,13 +47,17 @@ import {
 import {
   KtcAssessGitBranchRange,
   KtcCompactGitCommitMessage,
-  KtcCreateGitRangeSelection,
+  KtcLoadedGitFirstParentOids,
   KtcProjectGitRangeSelection,
   KtcSameGitOidSelection,
   KtcUpdateGitRangeSelection,
   KtcValidateGitSelectionOids,
 } from "./KtcGitSelection.js";
-import { KtcReadLocalGitBranchLines, KtcSwitchToLocalGitBranch } from "./KtcGitBranchService.js";
+import {
+  KtcReadLocalGitBranchLines,
+  KtcReadLocalGitBranchOptions,
+  KtcSwitchToLocalGitBranch,
+} from "./KtcGitBranchService.js";
 import { KtcReadGitCommitBody } from "./KtcGitCommitBodyService.js";
 import {
   KtcAnalyzeGitCommitTimeReset,
@@ -135,6 +139,7 @@ interface KtcGitGraphSession {
   readonly repositoryId: string;
   readonly root: string;
   readonly headOid: string;
+  readonly currentRef: string;
   readonly refsScope: KtcPnwGitCommitGraphRefsScope;
   readonly commits: readonly KtcPnwGitCommitGraphCommit[];
   readonly graphRows: readonly KtcPnwGitCommitGraphRow[];
@@ -142,6 +147,9 @@ interface KtcGitGraphSession {
   readonly hasMore: boolean;
   readonly selectedOids: readonly string[];
   readonly selectableOids: readonly string[];
+  readonly firstParentOids: readonly string[];
+  readonly branchOptions: NonNullable<KtcGitSquashGraphState["branchOptions"]>;
+  readonly selectionDisabledReason?: string;
   readonly selectionAnchorOid?: string;
   readonly selectionEndpointOid?: string;
   readonly branchSwitch?: KtcGitPendingBranchSwitch;
@@ -240,11 +248,25 @@ export class KtcGitController {
       onMessage: async (message) => {
         const ctx = this.KtcLastRunContext;
         if (!ctx) return;
+        const messageBinding = message.type === "selectBranch" ? this.KtcSquashViewBinding : undefined;
+        const messageGraph = messageBinding ? this.KtcGraphSessions.get(messageBinding.repositoryId) : undefined;
         try {
           await this.KtcHandleSquashViewMessage(message, ctx);
         } catch (error) {
+          if (message.type === "selectBranch" && (
+            !messageBinding
+            || !messageGraph
+            || this.KtcSquashView?.isOpen !== true
+            || this.KtcSquashViewBinding !== messageBinding
+            || this.KtcGraphSessions.get(messageBinding.repositoryId) !== messageGraph
+          )) {
+            ctx.log(`[Git][分支切换][INFO] 已忽略关闭或替换的合并 View 的过期错误回执：${KtcErrorMessage(error)}`);
+            return;
+          }
           const stage = message.type === "execute"
             ? "合并执行"
+            : message.type === "selectBranch"
+              ? "分支切换"
             : message.type === "resetCommitTime"
               ? "时间重置"
               : message.type === "copySummary"
@@ -255,9 +277,20 @@ export class KtcGitController {
           if (message.type !== "copySummary" && repositoryId && this.KtcGraphSessions.has(repositoryId)) {
             // 执行失败不丢弃安全预检草稿。用户可处理工作区、HEAD 或
             // Git 锁等问题后，直接在原页再次确认执行。
-            this.KtcShowSquashView(repositoryId, "error", "合并未执行：" + KtcErrorMessage(error), this.KtcSquashDraft);
+            const prefix = message.type === "selectBranch" ? "分支切换未完成：" : "合并未执行：";
+            this.KtcShowSquashView(repositoryId, "error", prefix + KtcErrorMessage(error), this.KtcSquashDraft);
           }
           this.KtcPostState(ctx, "error", KtcErrorMessage(error));
+          if (message.type === "selectBranch") {
+            void vscode.window.showWarningMessage(
+              "无法切换 Git 分支",
+              {
+                modal: true,
+                detail: `${KtcErrorMessage(error)}\n\n未执行 force、stash 或清理工作区；请处理提示的问题后重试。`,
+              },
+              "知道了",
+            );
+          }
         }
       },
       onDispose: () => this.KtcClearSquashViewSession(this.KtcSquashViewBinding?.repositoryId),
@@ -304,8 +337,9 @@ export class KtcGitController {
     const repositoryId = this.KtcSquashViewBinding?.repositoryId;
     const graph = repositoryId ? this.KtcGraphSessions.get(repositoryId) : undefined;
     const session = repositoryId ? this.KtcSessions.get(repositoryId) : undefined;
-    if (repositoryId && graph && session && graph.headOid !== session.snapshot.headOid) {
-      this.KtcInvalidateSquashView(repositoryId, "HEAD 已变化；合并 View 保持打开，请关闭后重新打开。");
+    if (repositoryId && graph && session && (graph.headOid !== session.snapshot.headOid
+      || KtcGitRefKey(graph.currentRef) !== KtcGitRefKey(session.snapshot.currentRef))) {
+      this.KtcDisableStaleGraph(graph);
     }
   }
 
@@ -472,7 +506,7 @@ export class KtcGitController {
       return;
     }
     if (action.action === "openSquashWithSelection") {
-      await this.KtcOpenSquashView(action.repositoryId, ctx, "local-branches", action.selectedOids, action.expectedHeadOid);
+      await this.KtcOpenSquashView(action.repositoryId, ctx, action.selectedOids, action.expectedHeadOid);
       return;
     }
     if (action.action === "executeSquash") {
@@ -1096,13 +1130,24 @@ export class KtcGitController {
   private async KtcOpenSquashView(
     repositoryId: string,
     ctx: ToolRunContext,
-    refsScope: KtcPnwGitCommitGraphRefsScope = "local-branches",
     selectedOids: readonly string[] = [],
     expectedHeadOid?: string,
     readyMessage?: string,
     reloadExisting = false,
   ): Promise<void> {
     const existingBinding = this.KtcSquashViewBinding;
+    const existingGraph = this.KtcGraphSessions.get(repositoryId);
+    const reloadGeneration = this.KtcGraphReadGeneration;
+    if (reloadExisting && (!existingBinding
+      || existingBinding.repositoryId !== repositoryId
+      || !existingGraph
+      || this.KtcSquashView?.isOpen !== true)) return;
+    const reloadOwnerIsCurrent = () => !reloadExisting || (
+      this.KtcSquashView?.isOpen === true
+      && this.KtcSquashViewBinding === existingBinding
+      && this.KtcGraphSessions.get(repositoryId) === existingGraph
+      && this.KtcGraphReadGeneration === reloadGeneration
+    );
     if (existingBinding && existingBinding.repositoryId !== repositoryId) {
       this.KtcSquashView?.reveal();
       void vscode.window.showWarningMessage(
@@ -1122,23 +1167,39 @@ export class KtcGitController {
     if (expectedHeadOid && expectedHeadOid !== session.snapshot.headOid) {
       throw new Error("HEAD 已变化，不能使用旧的勾选结果；请重新读取后再合并。");
     }
+    try {
+      await this.KtcAssertRepositoryIdentity(
+        session.snapshot.root,
+        session.snapshot.headOid,
+        session.snapshot.currentRef,
+      );
+    } catch (error) {
+      // A reload belongs to the Right session that requested it. If that
+      // session was closed or replaced while the identity read was pending,
+      // its late failure must not reach the current View's message handler.
+      if (!reloadOwnerIsCurrent()) return;
+      throw error;
+    }
+    if (!reloadOwnerIsCurrent()) return;
     // Selection identity is an OID list. The fresh graph below, rather than a
     // potentially stale Primary summary page, decides whether every OID exists.
     const initialSelection = KtcValidateGitSelectionOids(selectedOids);
     this.KtcSummaryDraft = undefined;
     this.KtcSquashDraft = undefined;
     const generation = ++this.KtcGraphReadGeneration;
-    ctx.postState({ status: "running", message: "正在读取合并视图的最近 5 条提交图…" });
+    ctx.postState({ status: "running", message: "正在读取合并视图的最近 5 条当前分支提交图…" });
     const cancellation = this.KtcBeginGraphRead();
     try {
       const page = await this.KtcAdapter.readCommitGraphPage(session.snapshot.root, {
         limit: 5,
-        refsScope,
+        refsScope: "head",
         signal: cancellation.signal,
       });
       if (generation !== this.KtcGraphReadGeneration) return;
-      if (KtcGitPathKey(page.root) !== KtcGitPathKey(session.snapshot.root) || page.headOid !== session.snapshot.headOid) {
-        throw new Error("HEAD 或仓库根目录在打开提交图期间变化，请刷新后重试。");
+      if (KtcGitPathKey(page.root) !== KtcGitPathKey(session.snapshot.root)
+        || page.headOid !== session.snapshot.headOid
+        || page.refsScope !== "head") {
+        throw new Error("HEAD、仓库根目录或当前分支提交图范围在打开期间变化，请刷新后重试。");
       }
       const commits = [...page.commits];
       const graphRows = [...page.graphRows];
@@ -1153,14 +1214,14 @@ export class KtcGitController {
           expectedHeadOid: session.snapshot.headOid,
           beforeCursor: nextBeforeCursor,
           limit: Math.min(5, 1_000 - commits.length),
-          refsScope,
+          refsScope: "head",
           signal: cancellation.signal,
         });
         if (generation !== this.KtcGraphReadGeneration) return;
         if (
           KtcGitPathKey(continuation.root) !== KtcGitPathKey(session.snapshot.root)
           || continuation.headOid !== session.snapshot.headOid
-          || continuation.refsScope !== refsScope
+          || continuation.refsScope !== "head"
         ) {
           throw new Error("HEAD、仓库根目录或提交图范围在补齐勾选期间变化，请刷新后重试。");
         }
@@ -1170,15 +1231,34 @@ export class KtcGitController {
         nextBeforeCursor = continuation.nextBeforeCursor;
         hasMore = continuation.hasMore;
       }
-      const projection = KtcProjectGitRangeSelection(commits, initialSelection);
+      await this.KtcAssertRepositoryIdentity(page.root, page.headOid, session.snapshot.currentRef);
+      if (generation !== this.KtcGraphReadGeneration) return;
+      const localBranches = await KtcReadLocalGitBranchOptions(page.root);
+      if (generation !== this.KtcGraphReadGeneration) return;
+      if (KtcGitPathKey(localBranches.root) !== KtcGitPathKey(page.root)
+        || localBranches.headOid !== page.headOid
+        || KtcGitRefKey(localBranches.currentBranchName) !== KtcGitRefKey(session.snapshot.currentRef)) {
+        throw new Error("当前分支已变更，请重新打开合并视图。");
+      }
+      await this.KtcAssertRepositoryIdentity(page.root, page.headOid, session.snapshot.currentRef);
+      if (generation !== this.KtcGraphReadGeneration) return;
+      const firstParentOids = KtcLoadedGitFirstParentOids(commits, page.headOid);
+      if (firstParentOids[0] !== page.headOid) {
+        throw new Error("当前 HEAD 未出现在提交图中；请刷新后重试。");
+      }
+      const projection = KtcProjectGitRangeSelection(commits, initialSelection, firstParentOids);
       if (projection.missingOids.length > 0) {
-        throw new Error(`带入的 ${projection.missingOids.length} 个 commit 不在当前可见本地分支图中；请刷新后重新选择。`);
+        throw new Error(`带入的 ${projection.missingOids.length} 个 commit 不在当前分支提交图中；请刷新后重新选择。`);
+      }
+      if (projection.ineligibleOids.length > 0) {
+        throw new Error("所选 commit 不属于当前分支，不能合并。");
       }
       const rangeSelection = projection.selection;
       this.KtcGraphSessions.set(repositoryId, {
         repositoryId,
         root: page.root,
         headOid: page.headOid,
+        currentRef: session.snapshot.currentRef,
         refsScope: page.refsScope,
         commits,
         graphRows,
@@ -1186,6 +1266,13 @@ export class KtcGitController {
         hasMore,
         selectedOids: rangeSelection.selectedOids,
         selectableOids: rangeSelection.selectableOids,
+        firstParentOids,
+        branchOptions: localBranches.options.map((option) => ({
+          name: option.name,
+          current: option.current,
+          enabled: !option.disabled,
+          ...(option.reason ? { disabledReason: option.reason } : {}),
+        })),
         ...(rangeSelection.anchorOid ? { selectionAnchorOid: rangeSelection.anchorOid } : {}),
         ...(rangeSelection.endpointOid ? { selectionEndpointOid: rangeSelection.endpointOid } : {}),
       });
@@ -1207,7 +1294,7 @@ export class KtcGitController {
         this.KtcShowSquashView(
           repositoryId,
           "ready",
-          readyMessage ?? "已读取最近 5 条本地分支提交图；按需继续加载。",
+          readyMessage ?? "已读取最近 5 条当前分支提交图；按需继续加载。",
           undefined,
         );
       }
@@ -1241,6 +1328,7 @@ export class KtcGitController {
     }
     if (message.type === "select") {
       const graph = this.KtcRequireGraphSession(repositoryId);
+      await this.KtcAssertGraphIdentity(graph);
       const rangeSelection = KtcUpdateGitRangeSelection(
         graph.commits,
         {
@@ -1252,6 +1340,7 @@ export class KtcGitController {
         message.oid,
         message.checked,
         message.anchorOid,
+        graph.firstParentOids,
       );
       const selectedOids = rangeSelection.selectedOids;
       // 用户选择优先于打开 View 时自动启动的预检；作废尚未返回的旧分析，避免其覆盖反选结果。
@@ -1274,6 +1363,7 @@ export class KtcGitController {
     }
     if (message.type === "preflight") {
       const graph = this.KtcRequireGraphSession(repositoryId);
+      await this.KtcAssertGraphIdentity(graph);
       const selectedOids = KtcGraphSelectedOids(graph, message.selectedOids);
       if (selectedOids.length < 2) {
         this.KtcShowSquashView(repositoryId, "error", "至少选择 2 个 commit。", undefined);
@@ -1286,6 +1376,7 @@ export class KtcGitController {
     }
     if (message.type === "stashAndPreflight") {
       const graph = this.KtcRequireGraphSession(repositoryId);
+      await this.KtcAssertGraphIdentity(graph);
       const selectedOids = KtcGraphSelectedOids(graph, message.selectedOids);
       if (selectedOids.length < 2) {
         this.KtcShowSquashView(repositoryId, "error", "至少选择 2 个 commit。", undefined);
@@ -1294,11 +1385,16 @@ export class KtcGitController {
       await this.KtcStashAndAnalyzeSquash(repositoryId, selectedOids, ctx);
       return;
     }
+    if (message.type === "selectBranch") {
+      await this.KtcSelectBranchFromSquashView(repositoryId, message.branchName, ctx);
+      return;
+    }
     if (message.type === "switchBranch") {
       await this.KtcSwitchBranchAndAnalyzeSquash(repositoryId, ctx);
       return;
     }
     const graph = this.KtcRequireGraphSession(repositoryId);
+    await this.KtcAssertGraphIdentity(graph);
     const selectedOids = KtcGraphSelectedOids(graph, message.selectedOids);
     // 保持预检编辑页可见，并禁止用户误以为按钮未生效而重复提交。
     this.KtcShowSquashView(repositoryId, "loading", "正在执行本地 commit 合并…", this.KtcSquashDraft);
@@ -1348,12 +1444,15 @@ export class KtcGitController {
 
   private async KtcResetGraphCommitTime(repositoryId: string, oid: string, ctx: ToolRunContext): Promise<void> {
     const graph = this.KtcRequireGraphSession(repositoryId);
+    await this.KtcAssertGraphIdentity(graph);
     const session = this.KtcRequireSession(repositoryId);
     const commit = graph.commits.find((item) => item.oid === oid);
     if (!commit) throw new Error("所选 commit 已不在当前提交图中；请重新加载后再试。");
     if (this.KtcRunningRepositories.has(repositoryId)) throw new Error("这个仓库已有 Git 操作正在执行。");
     const current = await this.KtcAdapter.readRepository(graph.root, 1);
-    if (current.headOid !== graph.headOid) throw new Error("HEAD 已变化，请刷新提交图后重试。");
+    if (current.headOid !== graph.headOid || KtcGitRefKey(current.currentRef) !== KtcGitRefKey(graph.currentRef)) {
+      throw new Error("当前分支已变更，请重新打开合并视图。");
+    }
     if (!current.clean || current.operationState !== "idle") {
       throw new Error("工作区存在未归档改动或正在进行 Git 操作，请处理后再重置提交时间。");
     }
@@ -1400,6 +1499,8 @@ export class KtcGitController {
       ctx.log(`[Git][时间重置][INFO] 已取消：commit ${oid.slice(0, 12)}。`);
       return;
     }
+    await this.KtcAssertGraphIdentity(graph);
+    if (this.KtcRunningRepositories.has(repositoryId)) throw new Error("这个仓库已有 Git 操作正在执行。");
     this.KtcRunningRepositories.add(repositoryId);
     this.KtcShowSquashView(repositoryId, "loading", "正在重置提交时间并重建后续本地历史…", this.KtcSquashDraft);
     try {
@@ -1427,7 +1528,6 @@ export class KtcGitController {
       await this.KtcOpenSquashView(
         repositoryId,
         ctx,
-        graph.refsScope,
         [],
         refreshedSnapshot.headOid,
         `时间已重置：${oid.slice(0, 7)}；提交图已刷新。`,
@@ -1442,6 +1542,7 @@ export class KtcGitController {
   private async KtcLoadOlderGraphCommits(repositoryId: string, count: 1 | 5, ctx: ToolRunContext): Promise<void> {
     const graph = this.KtcRequireGraphSession(repositoryId);
     if (!graph.hasMore || !graph.nextBeforeCursor) return;
+    await this.KtcAssertGraphIdentity(graph);
     const session = this.KtcRequireSession(repositoryId);
     const generation = ++this.KtcGraphReadGeneration;
     const cancellation = this.KtcBeginGraphRead();
@@ -1451,30 +1552,32 @@ export class KtcGitController {
         expectedHeadOid: graph.headOid,
         beforeCursor: graph.nextBeforeCursor,
         limit: count,
-        refsScope: graph.refsScope,
+        refsScope: "head",
         signal: cancellation.signal,
       });
       if (generation !== this.KtcGraphReadGeneration) return;
-      if (page.headOid !== graph.headOid || KtcGitPathKey(page.root) !== KtcGitPathKey(session.snapshot.root)) {
-        throw new Error("提交图分页期间 HEAD 或仓库根目录已变化。");
+      if (page.headOid !== graph.headOid
+        || page.refsScope !== "head"
+        || KtcGitPathKey(page.root) !== KtcGitPathKey(session.snapshot.root)) {
+        throw new Error("当前分支提交图分页期间 HEAD、范围或仓库根目录已变化。");
       }
-      const rangeSelection = graph.selectionAnchorOid
-        ? KtcUpdateGitRangeSelection(
-            [...graph.commits, ...page.commits],
-            KtcCreateGitRangeSelection([...graph.commits, ...page.commits]),
-            graph.selectionEndpointOid ?? graph.selectionAnchorOid,
-            true,
-            graph.selectionAnchorOid,
-          )
-        : KtcCreateGitRangeSelection([...graph.commits, ...page.commits]);
+      await this.KtcAssertGraphIdentity(graph);
+      const commits = [...graph.commits, ...page.commits];
+      const firstParentOids = KtcLoadedGitFirstParentOids(commits, graph.headOid);
+      const projection = KtcProjectGitRangeSelection(commits, graph.selectedOids, firstParentOids);
+      if (projection.missingOids.length > 0 || projection.ineligibleOids.length > 0) {
+        throw new Error("原选择已不属于当前分支，不能继续合并。");
+      }
+      const rangeSelection = projection.selection;
       this.KtcGraphSessions.set(repositoryId, {
         ...graph,
-        commits: [...graph.commits, ...page.commits],
+        commits,
         graphRows: [...graph.graphRows, ...page.graphRows],
         ...(page.nextBeforeCursor ? { nextBeforeCursor: page.nextBeforeCursor } : {}),
         hasMore: page.hasMore,
         selectedOids: rangeSelection.selectedOids,
         selectableOids: rangeSelection.selectableOids,
+        firstParentOids,
         selectionAnchorOid: rangeSelection.anchorOid,
         selectionEndpointOid: rangeSelection.endpointOid,
       });
@@ -1487,6 +1590,110 @@ export class KtcGitController {
       );
     } finally {
       if (this.KtcGraphReadCancellation === cancellation) this.KtcGraphReadCancellation = undefined;
+    }
+  }
+
+  private async KtcSelectBranchFromSquashView(
+    repositoryId: string,
+    branchName: string,
+    ctx: ToolRunContext,
+  ): Promise<void> {
+    const graph = this.KtcRequireGraphSession(repositoryId);
+    const option = graph.branchOptions.find((item) => item.name === branchName);
+    if (!option) throw new Error("所选本地分支已不存在，请刷新后重试。");
+    if (!option.enabled) throw new Error(option.disabledReason ?? "所选本地分支当前不可切换。");
+    if (this.KtcRunningRepositories.has(repositoryId)) throw new Error("这个仓库已有 Git 操作正在执行。");
+    this.KtcRunningRepositories.add(repositoryId);
+    const binding = this.KtcSquashViewBinding;
+    const operationGeneration = this.KtcGraphReadGeneration;
+    const isCurrentIntent = () => this.KtcSquashView?.isOpen === true
+      && this.KtcSquashViewBinding === binding
+      && binding?.repositoryId === repositoryId
+      && this.KtcGraphSessions.get(repositoryId) === graph
+      && this.KtcGraphReadGeneration === operationGeneration;
+    try {
+      await this.KtcAssertGraphIdentity(graph);
+      if (option.current) {
+        this.KtcShowSquashView(repositoryId, "ready", "当前分支未变化。", this.KtcSquashDraft);
+        return;
+      }
+      const changes = await KtcReadGitWorktreeChanges(graph.root);
+      await this.KtcAssertGraphIdentity(graph);
+      if (changes.total > 0) {
+        throw new Error("工作区有未提交或未跟踪改动，不能直接切换分支；请先在源代码管理中处理。");
+      }
+      const confirmLabel = "切换分支";
+      const answer = await vscode.window.showWarningMessage(
+        `切换到本地分支“${branchName}”？`,
+        {
+          modal: true,
+          detail: "将切换这个合并 View 所绑定工作树的实际分支，并清空旧勾选与预检；不会 force、stash、创建分支或自动合并。",
+        },
+        confirmLabel,
+      );
+      if (answer !== confirmLabel) {
+        ctx.log(`[Git][分支切换][INFO] 已取消：${graph.currentRef} → ${branchName}。`);
+        if (isCurrentIntent()) {
+          this.KtcShowSquashView(repositoryId, "ready", "已取消分支切换；当前提交图与选择保持不变。", this.KtcSquashDraft);
+        }
+        return;
+      }
+      await this.KtcAssertGraphIdentity(graph);
+      if (!isCurrentIntent()) throw new Error("分支切换已取消，未修改工作树。");
+      this.KtcShowSquashView(repositoryId, "loading", `正在切换到“${branchName}”…`, this.KtcSquashDraft);
+      const sourceBranchName = KtcGitRefKey(graph.currentRef);
+      if (!sourceBranchName) throw new Error("当前本地分支身份无效，未执行分支切换。");
+      await KtcSwitchToLocalGitBranch(graph.root, branchName, undefined, isCurrentIntent, {
+        root: graph.root,
+        headOid: graph.headOid,
+        currentRef: `refs/heads/${sourceBranchName}`,
+      });
+      if (!isCurrentIntent()) {
+        ctx.log(`[Git][分支切换][OK] ${graph.currentRef} → ${branchName}；合并 View 已关闭，未重新打开。`);
+        return;
+      }
+      const session = this.KtcRequireSession(repositoryId);
+      const summary = await this.KtcAdapter.readRepositorySummary(graph.root, 2, true);
+      if (KtcGitPathKey(summary.root) !== KtcGitPathKey(graph.root)
+        || KtcGitRefKey(summary.currentRef) !== branchName) {
+        throw new Error("切换后分支或仓库根目录与选择不一致；请重新打开合并视图。");
+      }
+      if (!isCurrentIntent()) {
+        ctx.log(`[Git][分支切换][OK] ${graph.currentRef} → ${branchName}；合并 View 已关闭，未重新打开。`);
+        return;
+      }
+      const snapshot = KtcGitReadSnapshotFromSummary(summary, session.snapshot.name);
+      const refreshedSession: KtcGitSession = {
+        snapshot,
+        ...(summary.commits.at(-1)?.oid ? { nextBeforeOid: summary.commits.at(-1)!.oid } : {}),
+        hasMoreCommits: summary.commits.length > 0,
+      };
+      this.KtcSessions.set(repositoryId, refreshedSession);
+      this.KtcRepositoryInputs = this.KtcRepositoryInputs.map((item) => item.id === repositoryId
+        ? this.KtcRepositoryInput(snapshot, item, refreshedSession.hasMoreCommits)
+        : item);
+      this.KtcSummaryDraft = undefined;
+      this.KtcSquashDraft = undefined;
+      this.KtcDirtyWorktree = undefined;
+      this.KtcPostState(ctx);
+      ctx.log(`[Git][分支切换][OK] ${graph.currentRef} → ${branchName}；已清空旧选择并重新读取当前分支提交图。`);
+      await this.KtcOpenSquashView(
+        repositoryId,
+        ctx,
+        [],
+        snapshot.headOid,
+        `已切换到“${branchName}”；旧选择已清空。`,
+        true,
+      );
+    } catch (error) {
+      // The service may have completed checkout before a later verification
+      // failed. Re-checking the frozen identity clears any now-stale draft.
+      if (this.KtcGraphSessions.get(repositoryId) === graph) {
+        await this.KtcAssertGraphIdentity(graph).catch(() => undefined);
+      }
+      throw error;
+    } finally {
+      this.KtcRunningRepositories.delete(repositoryId);
     }
   }
 
@@ -1518,6 +1725,7 @@ export class KtcGitController {
       this.KtcShowSquashView(repositoryId, "error", "已取消暂存；请处理工作区改动后再试。", undefined);
       return;
     }
+    await this.KtcAssertGraphIdentity(graph);
     this.KtcShowSquashView(repositoryId, "loading", "正在暂存工作区改动并重新预检…", undefined);
     const receipt = await KtcStashGitWorktree(
       graph.root,
@@ -1544,26 +1752,22 @@ export class KtcGitController {
   ): Promise<void> {
     const session = this.KtcRequireSession(repositoryId);
     const graph = this.KtcRequireGraphSession(repositoryId);
+    const trustedSelectedOids = KtcGraphSelectedOids(graph, selectedOids);
+    await this.KtcAssertGraphIdentity(graph);
     this.KtcDirtyWorktree = undefined;
     const currentBranchName = session.snapshot.branch ?? session.snapshot.currentRef?.replace(/^refs\/heads\//u, "");
     const branches = await KtcReadLocalGitBranchLines(graph.root);
-    const branchAssessment = KtcAssessGitBranchRange(branches, currentBranchName, selectedOids);
+    await this.KtcAssertGraphIdentity(graph);
+    const branchAssessment = KtcAssessGitBranchRange(branches, currentBranchName, trustedSelectedOids);
     if (branchAssessment.kind === "other-branch") {
-      const targetBranchName = branchAssessment.candidateBranchNames[0]!;
-      const branchSwitch: KtcGitPendingBranchSwitch = {
-        currentBranchName: currentBranchName ?? "detached",
-        targetBranchName,
-        selectedOids: branchAssessment.selectedOids,
-      };
-      this.KtcGraphSessions.set(repositoryId, { ...graph, branchSwitch });
-      const message = `所选 ${selectedOids.length} 个 commit 在本地分支“${targetBranchName}”上相邻连续；当前为“${branchSwitch.currentBranchName}”。请切换后重新预检。`;
+      const message = "所选 commit 不属于当前分支，不能合并。";
       this.KtcPostState(ctx, "done", message);
       this.KtcShowSquashView(repositoryId, "ready", message, undefined);
       ctx.log(`[Git][合并预检][INFO] ${message}`);
       return;
     }
     if (branchAssessment.kind === "ambiguous-branch") {
-      const message = `所选 commit 同时出现在多个本地分支的连续历史中：${branchAssessment.candidateBranchNames.join("、")}。请在 Git Primary 切换到目标分支后重新预检。`;
+      const message = "所选 commit 不属于当前分支，不能合并。";
       this.KtcPostState(ctx, "error", message);
       this.KtcShowSquashView(repositoryId, "error", message, undefined);
       ctx.log(`[Git][合并预检][ERROR] ${message}`);
@@ -1578,13 +1782,14 @@ export class KtcGitController {
     }
     const operationGeneration = ++this.KtcGraphReadGeneration;
     const expectedHeadOid = session.snapshot.headOid;
-    ctx.log(`[Git][合并预检][INFO] 开始：仓库 ${session.snapshot.name}；分支 ${session.snapshot.branch ?? session.snapshot.currentRef ?? "detached"}；选择 ${selectedOids.length} 个 commit。`);
+    ctx.log(`[Git][合并预检][INFO] 开始：仓库 ${session.snapshot.name}；分支 ${session.snapshot.branch ?? session.snapshot.currentRef ?? "detached"}；选择 ${trustedSelectedOids.length} 个 commit。`);
     this.KtcShowSquashView(repositoryId, "preflight", "正在执行 Git 安全预检…", undefined);
-    const analysis = await this.KtcAdapter.analyzeSquash(graph.root, selectedOids);
+    const analysis = await this.KtcAdapter.analyzeSquash(graph.root, trustedSelectedOids);
     if (operationGeneration !== this.KtcGraphReadGeneration) return;
     if (analysis.snapshot.headOid !== expectedHeadOid
-      || KtcGitPathKey(analysis.snapshot.root) !== KtcGitPathKey(session.snapshot.root)) {
-      this.KtcInvalidateSquashView(repositoryId, "HEAD 或仓库根目录已变化。请关闭 View 后重新打开。");
+      || KtcGitPathKey(analysis.snapshot.root) !== KtcGitPathKey(session.snapshot.root)
+      || KtcGitRefKey(analysis.snapshot.currentRef) !== KtcGitRefKey(graph.currentRef)) {
+      this.KtcDisableStaleGraph(graph);
       return;
     }
     if (!analysis.plan.valid || !analysis.draft || !analysis.plan.currentRef || !analysis.plan.oldHeadOid
@@ -1669,12 +1874,11 @@ export class KtcGitController {
     this.KtcRepositoryInputs = this.KtcRepositoryInputs.map((item) => item.id === repositoryId
       ? this.KtcRepositoryInput(snapshot, item, refreshedSession.hasMoreCommits)
       : item);
-    ctx.log(`[Git][分支切换][OK] ${pending.currentBranchName} → ${pending.targetBranchName}；重新读取并预检 ${pending.selectedOids.length} 个 commit。`);
+    ctx.log(`[Git][分支切换][OK] ${pending.currentBranchName} → ${pending.targetBranchName}；已清空旧选择并重新读取当前分支提交图。`);
     await this.KtcOpenSquashView(
       repositoryId,
       ctx,
-      "local-branches",
-      pending.selectedOids,
+      [],
       snapshot.headOid,
       undefined,
       true,
@@ -1701,11 +1905,13 @@ export class KtcGitController {
       graphRows: graph.graphRows,
       selectedOids: graph.selectedOids,
       selectableOids: graph.selectableOids,
+      ...(graph.selectionDisabledReason ? { selectionDisabledReason: graph.selectionDisabledReason } : {}),
       selectionAnchorOid: graph.selectionAnchorOid,
       selectionEndpointOid: graph.selectionEndpointOid,
       hasMore: graph.hasMore,
       status,
       message,
+      branchOptions: graph.branchOptions,
       ...(graph.branchSwitch ? { branchSwitch: graph.branchSwitch } : {}),
       ...(draft ? { draft } : {}),
       ...(this.KtcDirtyWorktree ? { dirtyWorktree: this.KtcDirtyWorktree } : {}),
@@ -1716,6 +1922,63 @@ export class KtcGitController {
     const graph = this.KtcGraphSessions.get(repositoryId);
     if (!graph) throw new Error("合并提交图已关闭或过期，请重新打开。");
     return graph;
+  }
+
+  private async KtcAssertGraphIdentity(graph: KtcGitGraphSession): Promise<void> {
+    try {
+      await this.KtcAssertRepositoryIdentity(graph.root, graph.headOid, graph.currentRef);
+      if (this.KtcGraphSessions.get(graph.repositoryId) !== graph
+        || this.KtcSquashViewBinding?.repositoryId !== graph.repositoryId
+        || this.KtcSquashView?.isOpen !== true) {
+        throw new Error("合并提交图已关闭或过期，请重新打开。");
+      }
+    } catch (error) {
+      if (this.KtcGraphSessions.get(graph.repositoryId) !== graph
+        || this.KtcSquashViewBinding?.repositoryId !== graph.repositoryId
+        || this.KtcSquashView?.isOpen !== true) {
+        throw error;
+      }
+      this.KtcDisableStaleGraph(graph);
+      throw error;
+    }
+  }
+
+  private KtcDisableStaleGraph(graph: KtcGitGraphSession): void {
+    if (this.KtcGraphSessions.get(graph.repositoryId) !== graph
+      || this.KtcSquashViewBinding?.repositoryId !== graph.repositoryId
+      || this.KtcSquashView?.isOpen !== true) return;
+    this.KtcGraphReadGeneration += 1;
+    this.KtcSquashDraft = undefined;
+    this.KtcDirtyWorktree = undefined;
+    this.KtcGraphSessions.set(graph.repositoryId, {
+      ...graph,
+      selectedOids: [],
+      selectableOids: [],
+      selectionAnchorOid: undefined,
+      selectionEndpointOid: undefined,
+      branchSwitch: undefined,
+      selectionDisabledReason: "当前分支已变更，请重新打开合并视图",
+    });
+    this.KtcShowSquashView(
+      graph.repositoryId,
+      "error",
+      "当前分支已变更，请重新打开合并视图。",
+      undefined,
+    );
+  }
+
+  private async KtcAssertRepositoryIdentity(
+    repositoryRoot: string,
+    expectedHeadOid: string,
+    expectedCurrentRef: string,
+  ): Promise<void> {
+    const current = await this.KtcAdapter.readRepositorySummary(repositoryRoot, 1, false);
+    if (KtcGitPathKey(current.root) !== KtcGitPathKey(repositoryRoot)
+      || current.headOid !== expectedHeadOid
+      || !current.currentRef
+      || KtcGitRefKey(current.currentRef) !== KtcGitRefKey(expectedCurrentRef)) {
+      throw new Error("当前分支已变更，请重新打开合并视图。");
+    }
   }
 
   private KtcClearSquashViewSession(repositoryId = this.KtcSquashViewBinding?.repositoryId): void {
@@ -1798,6 +2061,14 @@ export class KtcGitController {
       this.KtcShowSquashView(action.repositoryId, "ready", "已取消合并；安全预检结果与编辑内容已保留。", trusted);
       return;
     }
+    const beforeExecute = await this.KtcAdapter.readRepository(canonicalRoot, 1);
+    if (beforeExecute.headOid !== action.expectedHeadOid
+      || KtcGitRefKey(beforeExecute.currentRef) !== KtcGitRefKey(trusted.currentRef)
+      || !beforeExecute.clean
+      || beforeExecute.operationState !== "idle") {
+      throw new Error("当前分支或工作区状态已变化，不能执行合并；请重新预检。");
+    }
+    if (this.KtcRunningRepositories.has(action.repositoryId)) throw new Error("这个仓库已有 Git 操作正在执行。");
     ctx.log(`[Git][合并执行][INFO] 开始：仓库 ${session.snapshot.name}；分支 ${current.branch ?? current.currentRef ?? "detached"}；区间 ${trusted.selectedOids.length} 个 commit；不会 push。`);
     this.KtcRunningRepositories.add(action.repositoryId);
     ctx.postState({ status: "running", message: "正在隔离 worktree 中合并并重放 commit…" });
@@ -1839,7 +2110,7 @@ export class KtcGitController {
         this.KtcGraphSessions.set(action.repositoryId, {
           ...previousGraph,
           selectedOids: [],
-          selectableOids: previousGraph.commits.map((commit) => commit.oid),
+          selectableOids: [],
           selectionAnchorOid: undefined,
           selectionEndpointOid: undefined,
         });
@@ -1850,7 +2121,6 @@ export class KtcGitController {
           await this.KtcOpenSquashView(
             action.repositoryId,
             ctx,
-            "local-branches",
             [],
             refreshedSnapshot.headOid,
             successMessage,
@@ -2084,12 +2354,15 @@ function KtcGraphSelectedOids(
   graph: KtcGitGraphSession,
   requestedOids: readonly string[],
 ): readonly string[] {
-  if (requestedOids.length > 100) throw new Error("一次最多选择 100 个 commit。 ");
-  const requested = new Set(requestedOids);
-  if (requested.size !== requestedOids.length) throw new Error("合并选择包含重复 commit。 ");
+  const validated = KtcValidateGitSelectionOids(requestedOids);
+  const requested = new Set(validated);
   const known = new Set(graph.commits.map((commit) => commit.oid));
   if ([...requested].some((oid) => !known.has(oid))) {
-    throw new Error("合并选择包含未加载的 commit，请先在提交图中加载并选择。 ");
+    throw new Error("合并选择包含未加载的 commit，请先在提交图中加载并选择。");
+  }
+  const eligible = new Set(graph.firstParentOids);
+  if ([...requested].some((oid) => !eligible.has(oid))) {
+    throw new Error("所选 commit 不属于当前分支，不能合并。");
   }
   return graph.commits.filter((commit) => requested.has(commit.oid)).map((commit) => commit.oid);
 }
@@ -2120,7 +2393,7 @@ function KtcBlockerMessage(blockers: readonly KtcPnwGitSquashBlocker[]): string 
     "dirty-worktree": "工作区存在本地变更",
     "operation-in-progress": "存在进行中的 Git 操作",
     "selection-too-small": "至少选择 2 个 commit",
-    "selection-not-found": "所选 commit 不在当前分支的可改写连续区间中；如属于其他本地分支，请按提示切换后重新预检",
+    "selection-not-found": "所选 commit 不属于当前分支，不能合并",
     "selection-not-contiguous": "所选 commit 必须是相邻的连续节点；不能跳过中间 commit",
     "history-not-linear": "所选到 HEAD 之间不是单父直线历史",
     "root-commit": "不能合并根 commit",

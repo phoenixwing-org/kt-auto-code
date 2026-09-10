@@ -24,6 +24,7 @@ export interface KtcGitRangeSelection {
 export interface KtcGitRangeSelectionProjection {
   readonly selection: KtcGitRangeSelection;
   readonly missingOids: readonly string[];
+  readonly ineligibleOids: readonly string[];
 }
 
 /** Validates the OID-only selection contract received from any UI or saved state. */
@@ -44,13 +45,21 @@ export function KtcValidateGitSelectionOids(requestedOids: readonly string[]): r
 export function KtcProjectGitRangeSelection(
   commits: readonly KtcGitRangeCommit[],
   requestedOids: readonly string[],
+  eligibleOids?: readonly string[],
 ): KtcGitRangeSelectionProjection {
   const requested = KtcValidateGitSelectionOids(requestedOids);
   const known = new Set(commits.map((commit) => commit.oid));
+  const eligible = new Set(eligibleOids ?? commits.map((commit) => commit.oid));
   const missingOids = requested.filter((oid) => !known.has(oid));
+  const ineligibleOids = requested.filter((oid) => known.has(oid) && !eligible.has(oid));
   return {
-    selection: KtcCreateGitRangeSelection(commits, missingOids.length === 0 ? requested : []),
+    selection: KtcCreateGitRangeSelection(
+      commits,
+      missingOids.length === 0 && ineligibleOids.length === 0 ? requested : [],
+      eligibleOids,
+    ),
     missingOids,
+    ineligibleOids,
   };
 }
 
@@ -125,17 +134,21 @@ function KtcIsContiguousOidInterval(firstParentOids: readonly string[], selected
 export function KtcCreateGitRangeSelection(
   commits: readonly KtcGitRangeCommit[],
   requestedOids: readonly string[] = [],
+  eligibleOids?: readonly string[],
 ): KtcGitRangeSelection {
-  const known = new Set(commits.map((commit) => commit.oid));
-  const selected = commits.filter((commit) => requestedOids.includes(commit.oid)).map((commit) => commit.oid);
-  if (selected.length === 0) return { selectedOids: [], selectableOids: commits.map((commit) => commit.oid) };
+  const eligible = new Set(eligibleOids ?? commits.map((commit) => commit.oid));
+  const eligibleCommits = commits.filter((commit) => eligible.has(commit.oid));
+  const selected = eligibleCommits.filter((commit) => requestedOids.includes(commit.oid)).map((commit) => commit.oid);
+  if (selected.length === 0) {
+    return { selectedOids: [], selectableOids: eligibleCommits.map((commit) => commit.oid) };
+  }
   const anchorOid = selected[0]!;
   const endpointOid = selected.at(-1)!;
-  const range = KtcGitFirstParentRange(commits, anchorOid, endpointOid);
+  const range = KtcGitFirstParentRange(eligibleCommits, anchorOid, endpointOid);
   if (!range || selected.some((oid) => !range.includes(oid))) {
-    return KtcGitRangeFromEndpoints(commits, anchorOid, anchorOid);
+    return KtcGitRangeFromEndpoints(eligibleCommits, anchorOid, anchorOid);
   }
-  return KtcGitRangeFromEndpoints(commits, anchorOid, endpointOid);
+  return KtcGitRangeFromEndpoints(eligibleCommits, anchorOid, endpointOid);
 }
 
 /** Applies one checkbox or drag-end intent without trusting a Webview-provided OID set. */
@@ -145,35 +158,61 @@ export function KtcUpdateGitRangeSelection(
   targetOid: string,
   checked: boolean,
   dragAnchorOid?: string,
+  eligibleOids?: readonly string[],
 ): KtcGitRangeSelection {
   const known = new Set(commits.map((commit) => commit.oid));
   if (!known.has(targetOid)) throw new Error("合并区间包含未加载的 commit。");
+  const eligible = new Set(eligibleOids ?? commits.map((commit) => commit.oid));
+  if (!eligible.has(targetOid)) throw new Error("非当前分支，不能合并");
+  const eligibleCommits = commits.filter((commit) => eligible.has(commit.oid));
 
-  const anchorOid = current.anchorOid && known.has(current.anchorOid)
+  const anchorOid = current.anchorOid && eligible.has(current.anchorOid)
     ? current.anchorOid
-    : dragAnchorOid && known.has(dragAnchorOid)
+    : dragAnchorOid && eligible.has(dragAnchorOid)
       ? dragAnchorOid
       : undefined;
   if (!anchorOid) {
     return checked
-      ? KtcGitRangeFromEndpoints(commits, targetOid, targetOid)
-      : KtcCreateGitRangeSelection(commits);
+      ? KtcGitRangeFromEndpoints(eligibleCommits, targetOid, targetOid)
+      : KtcCreateGitRangeSelection(commits, [], eligibleOids);
   }
 
   if (checked) {
-    return KtcGitFirstParentRange(commits, anchorOid, targetOid)
-      ? KtcGitRangeFromEndpoints(commits, anchorOid, targetOid)
+    return KtcGitFirstParentRange(eligibleCommits, anchorOid, targetOid)
+      ? KtcGitRangeFromEndpoints(eligibleCommits, anchorOid, targetOid)
       : current;
   }
 
   if (!current.selectedOids.includes(targetOid)) return current;
-  if (targetOid === anchorOid) return KtcCreateGitRangeSelection(commits);
+  if (targetOid === anchorOid) return KtcCreateGitRangeSelection(commits, [], eligibleOids);
   const endpointOid = current.endpointOid ?? current.selectedOids.at(-1);
-  if (!endpointOid) return KtcCreateGitRangeSelection(commits);
-  const directionalRange = KtcGitFirstParentRange(commits, anchorOid, endpointOid);
+  if (!endpointOid) return KtcCreateGitRangeSelection(commits, [], eligibleOids);
+  const directionalRange = KtcGitFirstParentRange(eligibleCommits, anchorOid, endpointOid);
   const targetIndex = directionalRange?.indexOf(targetOid) ?? -1;
   if (!directionalRange || targetIndex <= 0) return current;
-  return KtcGitRangeFromEndpoints(commits, anchorOid, directionalRange[targetIndex - 1]!);
+  return KtcGitRangeFromEndpoints(eligibleCommits, anchorOid, directionalRange[targetIndex - 1]!);
+}
+
+/**
+ * Projects the visible portion of the frozen HEAD first-parent line. Side
+ * branches remain in the graph for topology, but never become rewrite inputs.
+ */
+export function KtcLoadedGitFirstParentOids(
+  commits: readonly KtcGitRangeCommit[],
+  headOid: string,
+): readonly string[] {
+  const byOid = new Map(commits.map((commit) => [commit.oid, commit]));
+  const result: string[] = [];
+  const visited = new Set<string>();
+  let currentOid: string | undefined = headOid;
+  while (currentOid && !visited.has(currentOid)) {
+    const commit = byOid.get(currentOid);
+    if (!commit) break;
+    result.push(currentOid);
+    visited.add(currentOid);
+    currentOid = commit.parentOids[0];
+  }
+  return result;
 }
 
 /** Returns the anchor-to-endpoint path when both commits are first-parent comparable. */

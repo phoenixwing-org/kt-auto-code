@@ -13,10 +13,10 @@ Owner：KT Auto Code maintainers
 ## 当前路线与架构
 
 - [当前路线](current-roadmap.md)
-- [0.9.1 代码辅助 Primary 整改计划](0.9.1-代码辅助Primary整改计划.md)（仅 Primary 工具：内部文字工具栏与 UI Preview，下一阶段实施）
+- [0.9.1 代码辅助 Primary 整改计划](0.9.1-代码辅助Primary整改计划.md)（当前开发线：五个仅 Primary 工具的内部文字工具栏与 UI Preview）
 - [0.8.3 发布准备](0.8.3发布准备.md)（统一 Ignore、项目改名安全边界、Windows 点检与制品回执）
 - [0.8.3 开发计划](0.8.3开发计划.md)（0.8.3 已归档范围与后续待定项）
-- [0.9.0 Primary 与 Editor View 联动及统一工具运行时计划](0.9.0-Primary与Editor联动讨论稿.md)（两区 Shell 与无 Header Tool Surface 已确认；含 Header 目录显隐、当前 Ribbon 项显隐、悬浮关闭、项目改名/自动编译 companion、Group/Tool 导航、Action Registry、分阶段迁移与隐私点检）
+- [0.9.0 Primary 与 Editor View 联动及统一工具运行时计划](0.9.0-Primary与Editor联动讨论稿.md)（四区 Shell、三视图关闭联动及自动代码例外；早期两区方案保留为历史）
 - [0.9.0 Primary 迁移需求归档](0.9.0-Primary迁移需求归档.md)（本轮连续 UI 决策、项目改名/搜索替换/PnwCombo、脚本同步、TS Root 清理与未完成验收项）
 - [头文件引用修正 Primary 整改计划](头文件引用修正Primary整改计划.md)（共享 Primary 与正式接线已完成；Ignore 证据、布局及剩余人工点检）
 - [PnwCombo 组件提炼 TODO](PnwCombo组件提炼TODO.md)（菜单内逐行删除、全部清空、当前消费者与下版迁入 Wing 的边界）
