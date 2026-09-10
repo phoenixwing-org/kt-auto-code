@@ -20,22 +20,23 @@ vi.mock("@phoenix-wing/code-core/ui", () => ({
 
 import { createPreviewAutoBuildCleanupModel, createPreviewAutoBuildCleanupSurface } from "../../ui-preview/src/previewAutoBuildCleanup.js";
 import { createDefaultPreviewAutoBuildState, type PreviewAutoBuildState } from "../../ui-preview/src/previewAutoBuildState.js";
+import type { PreviewCleanupYamlDiscoveryLimits } from "../../ui-preview/src/previewCleanupYamlWorkspace.js";
 
 interface DialogFixture extends HTMLElement { model: KtcCleanupDialogModel; open: boolean; openedMode: string; }
 afterEach(() => document.body.replaceChildren());
 
-function setup() {
+function setup(discoveryLimits?: PreviewCleanupYamlDiscoveryLimits) {
   let state = createDefaultPreviewAutoBuildState();
   const log = vi.fn<(line: string) => void>();
   const execute = vi.fn();
   const updateRules = vi.fn((value: string) => { state = { ...state, cleanupPatternsYaml: value }; });
-  const surface = createPreviewAutoBuildCleanupSurface({ state: () => state, log, execute, updateRules });
+  const surface = createPreviewAutoBuildCleanupSurface({ state: () => state, log, execute, updateRules, discoveryLimits });
   const dialog = () => document.querySelector<DialogFixture>("#preview-auto-build-cleanup-dialog")!;
   const send = (detail: unknown) => dialog().dispatchEvent(new CustomEvent("pnw-cleanup-dialog-action", { detail }));
   const request = (): KtcCleanupDialogRequest => ({ modeId: dialog().model.selectedModeId!, rulesYaml: dialog().model.rulesYaml,
     targetIds: dialog().model.targets.filter(({ selected, supportedModeIds }) => selected && supportedModeIds?.includes(dialog().model.selectedModeId!)).map(({ id }) => id) });
   const preview = () => { send({ kind: "preview", request: request() }); return dialog().model.preview.token!; };
-  return { surface, log, execute, updateRules, dialog, send, request, preview,
+  return { surface, log, execute, updateRules, dialog, send, request, preview, state: () => state,
     setState(patch: Partial<PreviewAutoBuildState>) { state = { ...state, ...patch }; } };
 }
 
@@ -52,6 +53,7 @@ describe("AutoBuild Preview Wing cleanup Host adapter", () => {
     expect(model.description).toContain("不读取或删除真实文件");
     expect(model.executeEnabled).toBe(false);
     expect(model.preview.token).toBeUndefined();
+    expect(model).toMatchObject({ modePresentation: "radio", collapsibleSections: true, actionsPlacement: "header" });
   });
 
   it("复用一个 Wing 元素且支持三种 mode 直达，不新增手写 dialog", () => {
@@ -63,6 +65,9 @@ describe("AutoBuild Preview Wing cleanup Host adapter", () => {
       expect(view.dialog().model.executeLabel).toBe(mode === "git-force" ? "强制清理" : "清理");
     }
     expect(document.querySelectorAll("pnw-cleanup-dialog")).toHaveLength(1);
+    expect(Array.from(view.dialog().querySelectorAll('[slot="header-actions"]')).map((button) => button.textContent))
+      .toEqual(["在 VS Code 中编辑", "探测配置"]);
+    expect(view.dialog().querySelectorAll('[slot="workspace"]')).toHaveLength(1);
     expect(document.querySelector("dialog")).toBeNull();
     expect(view.execute).not.toHaveBeenCalled();
   });
@@ -150,5 +155,74 @@ describe("AutoBuild Preview Wing cleanup Host adapter", () => {
     expect(source).not.toMatch(/from ["'](?:node:|vscode|@phoenix-wing\/run-node)/u);
     expect(source).not.toContain('createElement("dialog")');
     expect(source).toContain('createElement("pnw-cleanup-dialog")');
+  });
+
+  it("YAML 行直接执行仅影响对应来源，不确认、不复用全局清理回调", () => {
+    const view = setup(); view.surface.open();
+    const workspace = view.dialog().querySelector("ktc-cleanup-yaml-workspace")!;
+    workspace.dispatchEvent(new CustomEvent("ktc-cleanup-yaml-action", { detail: { kind: "clean-source", sourceId: "sample-cleanup", revision: 1 }, bubbles: true }));
+    expect(view.execute).not.toHaveBeenCalled();
+    expect(view.dialog().model.preview.state).toBe("complete");
+    expect(view.dialog().model.preview.items).toEqual(["/workspace/Phoenix/projects/sample/objects（样例）", "/workspace/Phoenix/projects/sample/module.obj（样例）"]);
+    workspace.dispatchEvent(new CustomEvent("ktc-cleanup-yaml-action", { detail: { kind: "clean-source", sourceId: "sample-cleanup", revision: 1 }, bubbles: true }));
+    expect(view.dialog().model.preview.state).toBe("error");
+    view.surface.close();
+    workspace.dispatchEvent(new CustomEvent("ktc-cleanup-yaml-action", { detail: { kind: "clean-source", sourceId: "working-cleanup", revision: 1 }, bubbles: true }));
+    expect(view.dialog().model.preview.state).toBe("idle");
+  });
+
+  it("原生编辑模拟发当前规则，不引入tabs/导入/保存对话框；迟到编辑不能认领新context", () => {
+    const view = setup(); view.surface.open();
+    const yaml = "delete:\n  files:\n    - '*.obj'";
+    view.dialog().model = { ...view.dialog().model, rulesYaml: yaml };
+    view.send({ kind: "change-rules", rulesYaml: yaml });
+    view.dialog().querySelector<HTMLButtonElement>('[data-cleanup-yaml-action="edit-rules"]')!.click();
+    expect(view.log).toHaveBeenCalledWith(expect.stringContaining(`[YAML 草稿（模拟）]\n${yaml}`));
+    view.setState({ rootEnabled: false });
+    view.send({ kind: "change-rules", rulesYaml: "late" });
+    expect(view.updateRules).toHaveBeenCalledTimes(1);
+    expect(view.dialog().model.preview.message).toContain("编译配置已变化");
+  });
+
+  it("Header探测按钮冒泡到共享adapter，来源列表不重复提供全局操作", () => {
+    const view = setup(); view.surface.open();
+    const workspace = view.dialog().querySelector("ktc-cleanup-yaml-workspace")!;
+    expect(workspace.shadowRoot?.querySelector('[role="toolbar"]')).toBeNull();
+    expect(workspace.shadowRoot?.querySelector('[data-focus="discover"], [data-focus="edit-rules"]')).toBeNull();
+    const discover = view.dialog().querySelector<HTMLButtonElement>('[data-cleanup-yaml-action="discover"]')!;
+    discover.click();
+    expect(workspace.shadowRoot?.querySelector(".notice")?.textContent).toContain("探测到 2 份 cleanup.yaml");
+    expect(view.log).toHaveBeenCalledWith(expect.stringContaining("仅从当前工作目录向下：/workspace/Phoenix/projects；发现 2 份 cleanup.yaml"));
+    expect(view.execute).not.toHaveBeenCalled();
+  });
+
+  it.each([{ maxDepth: 0 }, { maxSources: 1 }])("探测 %o 明细进日志，列表仅保留数量与简短不完整状态", (limits) => {
+    const view = setup(limits); view.surface.open();
+    const workspace = view.dialog().querySelector("ktc-cleanup-yaml-workspace")!;
+    view.dialog().querySelector<HTMLButtonElement>('[data-cleanup-yaml-action="discover"]')!.click();
+    const notice = workspace.shadowRoot?.querySelector(".notice")?.textContent;
+    expect(notice).toBe("探测到 1 份 cleanup.yaml（内存样例） · 不完整，详情见日志");
+    expect(notice).not.toMatch(/深度|限额|\/workspace/);
+    expect(view.log).toHaveBeenCalledWith(expect.stringMatching(/\[YAML 探测\]\[跳过\/限额\]\[模拟\].*(深度 0|1 份 YAML 来源限额)/));
+    workspace.dispatchEvent(new CustomEvent("ktc-cleanup-yaml-action", { detail: { kind: "clean-source", sourceId: "sample-cleanup", revision: 1 }, bubbles: true }));
+    expect(view.dialog().model.preview.message).toContain("未找到当前探测中的 YAML");
+    expect(view.execute).not.toHaveBeenCalled();
+  });
+
+  it("工作目录变化使旧来源失效，重开只使用新工作目录及子目录", () => {
+    const view = setup(); view.surface.open();
+    const previous = view.state();
+    view.setState({ session: { ...previous.session, draft: { ...previous.session.draft,
+      configuration: { ...previous.session.draft.configuration, workingDirectory: "/workspace/new-working" } } } });
+    const workspace = view.dialog().querySelector("ktc-cleanup-yaml-workspace")!;
+    workspace.dispatchEvent(new CustomEvent("ktc-cleanup-yaml-action", { detail: { kind: "clean-source", sourceId: "working-cleanup", revision: 1 }, bubbles: true }));
+    expect(view.dialog().model.preview.message).toContain("编译配置已变化");
+    view.surface.close(); view.surface.open();
+    const text = workspace.shadowRoot?.textContent ?? "";
+    expect(text).toContain("/workspace/new-working/cleanup.yaml");
+    expect(text).toContain("/workspace/new-working/sample/cleanup.yaml");
+    expect(text).not.toContain("/workspace/Phoenix");
+    expect(view.log).toHaveBeenCalledWith(expect.stringContaining("仅从当前工作目录向下：/workspace/new-working；发现 2 份"));
+    expect(view.execute).not.toHaveBeenCalled();
   });
 });

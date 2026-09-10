@@ -2,12 +2,15 @@ import {
   PREVIEW_AUTO_BUILD_SAMPLE,
   type PreviewAutoBuildSample,
 } from "./previewAutoBuildSample.js";
+import { createPreviewAutoBuildSession, reducePreviewAutoBuildSession, type PreviewAutoBuildSession, type PreviewBuildSessionIntent } from "./previewAutoBuildSession.js";
+import { updatePreviewAutoBuildExecution, updatePreviewAutoBuildRepository } from "./previewAutoBuildDraft.js";
 
 export type PreviewBuildStatusTone = "idle" | "progress" | "success" | "warning";
 
 export type PreviewAutoBuildPhase = "idle" | "preflightPassed" | "running" | "stopped";
 
 export interface PreviewAutoBuildState {
+  readonly session: PreviewAutoBuildSession;
   readonly phase: PreviewAutoBuildPhase;
   readonly status: string;
   readonly tone: PreviewBuildStatusTone;
@@ -27,7 +30,7 @@ export interface PreviewAutoBuildState {
   readonly maintenanceExpanded: boolean;
 }
 
-export type PreviewAutoBuildExecutionActionId = "openScript" | "preflight" | "start" | "stop" | "openCleanup";
+export type PreviewAutoBuildExecutionActionId = "openScript" | "preflight" | "start" | "stop";
 
 export interface PreviewAutoBuildExecutionAction {
   readonly actionId: PreviewAutoBuildExecutionActionId;
@@ -54,6 +57,7 @@ export interface PreviewAutoBuildDerivedState {
 }
 
 export type PreviewAutoBuildIntent =
+  | { readonly type: "session"; readonly action: PreviewBuildSessionIntent }
   | { readonly type: "preflight" }
   | { readonly type: "start" }
   | { readonly type: "stop" }
@@ -83,6 +87,7 @@ export function createDefaultPreviewAutoBuildState(
   sample: PreviewAutoBuildSample = PREVIEW_AUTO_BUILD_SAMPLE,
 ): PreviewAutoBuildState {
   return Object.freeze({
+    session: createPreviewAutoBuildSession(sample),
     phase: sample.initial.phase,
     status: sample.initial.status,
     tone: sample.initial.tone,
@@ -108,7 +113,7 @@ export function derivePreviewAutoBuildState(
   sample: PreviewAutoBuildSample = PREVIEW_AUTO_BUILD_SAMPLE,
 ): PreviewAutoBuildDerivedState {
   const running = state.phase === "running";
-  const projects = sample.repositories.filter(({ kind }) => kind === "项目");
+  const projects = state.session.draft.repositories.filter(({ kind }) => kind === "项目");
   const enabledProjects = projects.filter(({ enabled }) => enabled).length;
   return Object.freeze({
     executionActions: Object.freeze([
@@ -116,12 +121,11 @@ export function derivePreviewAutoBuildState(
       Object.freeze({ actionId: "preflight", label: "预检配置", primary: false, disabled: running }),
       Object.freeze({ actionId: "start", label: "启动", primary: true, disabled: running }),
       Object.freeze({ actionId: "stop", label: "停止", primary: false, disabled: !running }),
-      Object.freeze({ actionId: "openCleanup", label: "清理", primary: false, disabled: running }),
     ]),
     enabledProjectMetric: `${enabledProjects} / ${projects.length}`,
     // A ready/preflight snapshot is not a completed build.
-    taskProgress: running ? `1 / ${sample.tasks.length}` : `0 / ${sample.tasks.length}`,
-    failedTaskMetric: String(sample.tasks.filter(({ tone }) => tone === "error").length),
+    taskProgress: `${state.session.tasks.filter((task) => !["waiting", "running"].includes(task.status)).length} / ${state.session.tasks.length}`,
+    failedTaskMetric: String(state.session.tasks.filter((task) => task.status === "failed").length),
     parallelDisabled: running,
     recentConfigDisabled: running,
     maintenanceActionsDisabled: running,
@@ -143,44 +147,50 @@ export function reducePreviewAutoBuildState(
   sample: PreviewAutoBuildSample = PREVIEW_AUTO_BUILD_SAMPLE,
 ): PreviewAutoBuildTransition {
   switch (intent.type) {
+    case "session": return withSession(state, reducePreviewAutoBuildSession(state.session, intent.action));
     case "setCmakeBuildTypes": {
       if (state.phase === "running") return unchanged(state);
       const selected = (["Debug", "Release"] as const).filter((type) => intent.selected.includes(type));
-      return changed(state, { cmakeBuildTypes: selected }, `[编译工具] CMake 配置：${selected.join(" + ") || "未选择（无法启动）"}（模拟）`);
+      const session = reducePreviewAutoBuildSession(state.session, { type: "edit", change: updatePreviewAutoBuildExecution(state.session.draft, { parallelBuild: state.parallelBuild, cmakeBuildTypes: selected }) });
+      return changed(state, { session, cmakeBuildTypes: selected, phase: "idle", status: "编译选项已变更，请重新预检", tone: "idle" }, `[编译工具] CMake 配置：${selected.join(" + ") || "未选择（无法启动）"}（模拟）`);
     }
     case "preflight": {
       if (state.phase === "running") return unchanged(state);
-      const projects = sample.repositories.filter(({ kind, enabled }) => kind === "项目" && enabled);
+      const projects = state.session.draft.repositories.filter(({ kind, enabled }) => kind === "项目" && enabled);
       const cmakeProjects = projects.filter(({ operations }) => operations.some(({ id, enabled }) => id === "cmake" && enabled)).length;
       const caaProjects = projects.filter(({ operations }) => operations.some(({ id, enabled }) => id === "caa" && enabled)).length;
       if (cmakeProjects && !state.cmakeBuildTypes.length) return changed(state, { status: "请选择 Debug 或 Release", tone: "warning" }, "[编译工具] 预检未通过：至少选择一种 CMake 编译配置");
-      return changed(state, { phase: "preflightPassed", status: "预检通过", tone: "success" },
+      const session = reducePreviewAutoBuildSession(state.session, { type: "preflight" });
+      if (session.preflightRevision === undefined) return withSession(state, session);
+      return changed(state, { session, phase: "preflightPassed", status: "预检通过", tone: "success" },
         `[编译工具] 预检通过：${projects.length} 个项目，CMake ${cmakeProjects} 个，CAA ${caaProjects} 个，失败 0 个`);
     }
     case "start": {
       if (state.phase === "running") return unchanged(state);
       if (!state.cmakeBuildTypes.length) return changed(state, { status: "请选择 Debug 或 Release", tone: "warning" }, "[编译工具] 未启动：至少选择一种 CMake 编译配置");
-      return changed(state, { phase: "running", status: "运行中", tone: "progress" },
+      if (!state.session.draft.repositories.some((row) => row.kind === "项目" && row.enabled)) return changed(state, { status: "没有启用项目", tone: "warning" });
+      const session = reducePreviewAutoBuildSession(state.session, { type: "start" });
+      return changed(state, { session, phase: "running", status: "运行中", tone: "progress" },
         `[编译工具] 模拟启动：${sample.tasks[0]!.name} → ${state.parallelBuild ? "CMake + CAA（并行执行）" : "CMake → CAA（顺序执行）"}`);
     }
     case "stop": {
       if (state.phase !== "running") return unchanged(state);
-      return changed(state, { phase: "stopped", status: "已停止", tone: "warning" },
+      return changed(state, { session: reducePreviewAutoBuildSession(state.session, { type: "stop" }), phase: "stopped", status: "已停止", tone: "warning" },
         "[编译工具] 已请求停止全部任务");
     }
     case "toggleRun":
       return reducePreviewAutoBuildState(state, { type: state.phase === "running" ? "stop" : "start" }, sample);
     case "setParallel": {
       if (state.phase === "running" || intent.enabled === state.parallelBuild) return unchanged(state);
-      return changed(state, { parallelBuild: intent.enabled },
+      const session = reducePreviewAutoBuildSession(state.session, { type: "edit", change: updatePreviewAutoBuildExecution(state.session.draft, { parallelBuild: intent.enabled, cmakeBuildTypes: state.cmakeBuildTypes }) });
+      return changed(state, { session, parallelBuild: intent.enabled, phase: "idle", status: "执行模式已变更，请重新预检", tone: "idle" },
         `[编译工具] 执行模式：${intent.enabled ? "并行编译" : "顺序编译"}`);
     }
     case "selectRecent": {
       if (state.phase === "running") return unchanged(state);
       const name = intent.name.trim().slice(0, 256);
-      if (!name || !sample.configuration.recentConfigs.includes(name)) return unchanged(state);
-      return changed(state, { currentConfigName: name, phase: "idle", status: "配置已切换", tone: "idle" },
-        `[编译工具] 打开最近配置：${name}（模拟）`);
+      if (!name || !state.session.saved.some((item) => item.name === name)) return unchanged(state);
+      return withSession(state, reducePreviewAutoBuildSession(state.session, { type: "open", name, decision: "discard" }));
     }
     case "setProbeColumnsVisible": {
       if (intent.visible === state.probeColumnsVisible) return unchanged(state);
@@ -192,7 +202,9 @@ export function reducePreviewAutoBuildState(
       const key = intent.target === "root" ? "updateRootDirectory" : "updateThirdParty";
       if (state[key] === intent.enabled) return unchanged(state);
       const label = intent.target === "root" ? "ROOT_DIR" : "3rdParty";
-      return changed(state, { [key]: intent.enabled },
+      const row = state.session.draft.repositories.find((item) => item.kind === (intent.target === "root" ? "Root" : "3rdParty"));
+      const session = row ? reducePreviewAutoBuildSession(state.session, { type: "edit", change: updatePreviewAutoBuildRepository(state.session.draft, row.id, { update: intent.enabled }) }) : state.session;
+      return changed(state, { session, [key]: intent.enabled, phase: "idle" },
         `[编译工具] ${intent.enabled ? "启用" : "停用"}更新 ${label}`);
     }
     case "setRepositoryEnabled": {
@@ -200,7 +212,9 @@ export function reducePreviewAutoBuildState(
       const key = intent.target === "root" ? "rootEnabled" : "thirdPartyEnabled";
       if (state[key] === intent.enabled) return unchanged(state);
       const label = intent.target === "root" ? "ROOT_DIR" : "3rdParty";
-      return changed(state, { [key]: intent.enabled },
+      const row = state.session.draft.repositories.find((item) => item.kind === (intent.target === "root" ? "Root" : "3rdParty"));
+      const session = row ? reducePreviewAutoBuildSession(state.session, { type: "edit", change: updatePreviewAutoBuildRepository(state.session.draft, row.id, { enabled: intent.enabled }) }) : state.session;
+      return changed(state, { session, [key]: intent.enabled, phase: "idle" },
         `[编译工具] ${intent.enabled ? "启用" : "停用"}仓库 ${label}`);
     }
     case "openScript": {
@@ -213,11 +227,7 @@ export function reducePreviewAutoBuildState(
       return unchanged(state, "[编译工具] 打开统一清理对话框（模拟）");
     case "saveConfig":
       if (state.phase === "running") return unchanged(state);
-      return changed(state, {
-        currentConfigName: sample.configuration.recentConfigs[0]
-          ?? sample.configuration.currentConfigName,
-      },
-        "[编译工具] 保存当前配置（模拟，未写盘）");
+      return withSession(state, reducePreviewAutoBuildSession(state.session, { type: "save" }));
     case "syncScript":
       if (state.phase === "running") return unchanged(state);
       return changed(state, { rootScriptStatus: "脚本已同步" },
@@ -248,6 +258,18 @@ export function reducePreviewAutoBuildState(
         ? unchanged(state)
         : changed(state, { maintenanceExpanded: intent.expanded });
   }
+}
+
+function withSession(state: PreviewAutoBuildState, session: PreviewAutoBuildSession): PreviewAutoBuildTransition {
+  if (session === state.session) return unchanged(state);
+  return changed(state, { session, currentConfigName: session.draft.configuration.currentConfigName,
+    parallelBuild: session.draft.execution.parallelBuild, cmakeBuildTypes: session.draft.execution.cmakeBuildTypes,
+    rootEnabled: session.draft.repositories.find((row) => row.kind === "Root")?.enabled !== false,
+    thirdPartyEnabled: session.draft.repositories.find((row) => row.kind === "3rdParty")?.enabled !== false,
+    updateRootDirectory: session.draft.configuration.updateRootDirectory, updateThirdParty: session.draft.configuration.updateThirdParty,
+    phase: session.running ? "running" : session.preflightRevision !== undefined ? "preflightPassed" : "idle",
+    status: session.message, tone: session.running ? "progress" : session.tasks.some((task) => task.status === "failed") ? "warning" : "idle",
+  }, `[编译工具] ${session.message}`);
 }
 
 function changed(

@@ -15,6 +15,14 @@
   --vscode-input-background: #313131;
   --vscode-input-foreground: #cccccc;
   --vscode-input-border: #4b4b4b;
+  /* Shared Wing controls expect these VS Code tokens; do not fall back to light buttons in dark Preview. */
+  --vscode-dropdown-background: var(--vscode-input-background);
+  --vscode-dropdown-foreground: var(--vscode-input-foreground);
+  --vscode-dropdown-border: var(--vscode-input-border);
+  --vscode-button-secondaryBackground: var(--preview-secondary-surface);
+  --vscode-button-secondaryForeground: var(--vscode-foreground);
+  --vscode-button-secondaryHoverBackground: var(--vscode-toolbar-hoverBackground);
+  --vscode-button-border: var(--vscode-panel-border);
   --vscode-button-background: #0e639c;
   --vscode-button-foreground: #ffffff;
   --vscode-button-hoverBackground: #1177bb;

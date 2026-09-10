@@ -21,6 +21,9 @@ import { KtcProjectRenameViewController } from "../tools/projectRename/viewContr
 import type { ToolUiState } from "../tools/types.js";
 import { ktcRunCodegenPersistenceSmoke } from "./codegenPersistenceSmoke.js";
 import { ktcRunPackageIncludesSmoke } from "./packageIncludesSmoke.js";
+import { KtcCodegenDocumentModel } from "../tools/codegen/documentModel.js";
+import { KtcCodegenControlSessionController } from "../tools/codegen/controlSessionController.js";
+import { KtcCodegenEditorViewController } from "../tools/codegen/editorViewController.js";
 
 interface ExtensionApi {
   readonly version: number;
@@ -78,6 +81,39 @@ async function ktcWaitFor(
   while (!predicate()) {
     if (Date.now() >= deadline) throw new Error(failureMessage());
     await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+}
+
+async function ktcRunCodegenTabTitleSmoke(extensionUri: vscode.Uri, workspaceUri: vscode.Uri) {
+  const controls = new KtcCodegenControlSessionController();
+  const views = new KtcCodegenEditorViewController(extensionUri, {
+    onMessage: () => {}, onActive: () => {}, onDispose: () => {},
+  });
+  const fileName = "SharedParam-tab-smoke.json";
+  const changedName = "UpdatedParam-tab-smoke.json";
+  const models = ["one", "two"].map((directory) => {
+    const uri = vscode.Uri.joinPath(workspaceUri, ".phoenix", "tab-smoke", directory, fileName);
+    const session = new KtcCodegenDocumentModel({ uri: uri.toString(), fsPath: uri.fsPath, fileName }, new KtCodegenController());
+    return {
+      uri: uri.toString(), fileName, table: session.getTableData(), controls: controls.viewModel(session),
+      dirty: false, externalConflict: false, externalState: "current" as const,
+    };
+  });
+  const titles = () => vscode.window.tabGroups.all.flatMap((group) => group.tabs)
+    .filter((tab) => tab.input instanceof vscode.TabInputWebview)
+    .map((tab) => tab.label);
+  try {
+    views.show(models[0]!); views.show(models[1]!);
+    await ktcWaitFor(() => titles().filter((label) => label === fileName).length === 2,
+      () => `same-name JSON tabs must both use filename only: ${JSON.stringify(titles())}`);
+    views.show(models[0]!);
+    assert.equal(views.openPanelCount, 2, "reopening the same URI must reuse its Panel");
+    views.setDocumentState(models[0]!.uri, changedName, true, true);
+    await ktcWaitFor(() => titles().filter((label) => label === fileName).length === 1 && titles().includes(changedName),
+      () => `document state update must only rename its own tab: ${JSON.stringify(titles())}`);
+    return { filenameOnly: true, sameNamesNotDisambiguated: true, uriReuse: true, isolatedStateUpdate: true };
+  } finally {
+    views.dispose(); // These disposable probe Views never read or write JSON/source files.
   }
 }
 
@@ -405,6 +441,7 @@ export async function run(): Promise<void> {
     blockKeys,
   });
   const packageIncludes = await ktcRunPackageIncludesSmoke(workspace.uri.fsPath);
+  const codegenDocumentTabs = await ktcRunCodegenTabTitleSmoke(vscode.Uri.file(extension.extensionPath), workspace.uri);
 
   const projectRenameCancel = await ktcRunProjectRenameCancelSmoke(
     workspace,
@@ -438,6 +475,7 @@ export async function run(): Promise<void> {
       sourcePlanInvalidation: true,
       jsonRecreateGuard: true,
       packageIncludesService: true,
+      codegenDocumentTabs: true,
       gitBlock: true,
       gitEmptyState: true,
       runBlock: true,
@@ -450,6 +488,7 @@ export async function run(): Promise<void> {
       changedFileCount: applyWrites.length,
       codegenPersistence,
       packageIncludes,
+      codegenDocumentTabs,
       projectRenameCancel,
       commands: [
         "ktAutoCode.codegen.open",

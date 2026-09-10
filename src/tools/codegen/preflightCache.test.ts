@@ -50,10 +50,10 @@ describe("Codegen preflight cache data model", () => {
     expect(ktcValidCodegenPreflightCache(cache, cache.documentUri, cache.configFingerprint, 5)).toBe(false);
   });
 
-  it.each(["0.3.2", "0.3.3"])("独立规则版本 1.0.0 拒绝旧 %s 计划，强制重新 Analyze", (generatorVersion) => {
+  it.each(["0.3.2", "0.3.3", "1.0.0", "1.0.1"])("规则版本 1.0.2 拒绝旧 %s 计划，强制重新 Analyze", (generatorVersion) => {
     const oldMarkerPlan = { ...cache, generatorVersion };
 
-    expect(KTC_CODEGEN_GENERATOR_VERSION).toBe("1.0.0");
+    expect(KTC_CODEGEN_GENERATOR_VERSION).toBe("1.0.2");
     expect(ktcValidCodegenPreflightCache(
       oldMarkerPlan,
       oldMarkerPlan.documentUri,
@@ -62,22 +62,22 @@ describe("Codegen preflight cache data model", () => {
     )).toBe(false);
   });
 
-  it("规则版本 1.0.0 且输入/索引未变时复用当前计划，不提升 JSON 或 Plan schema", () => {
-    const current = { ...cache, generatorVersion: "1.0.0" };
+  it("规则版本 1.0.2 且输入/索引未变时复用当前计划，不提升 JSON 或 Plan schema", () => {
+    const current = { ...cache, generatorVersion: "1.0.2" };
     expect(ktcValidCodegenPreflightCache(current, current.documentUri, current.configFingerprint, 4)).toBe(true);
     expect(current.schemaVersion).toBe(1);
     expect(current.plan).toBe(cache.plan);
   });
 
   it("实际 runtime 能力区分新规则与未提供导出的 Registry，不伪造已发布支持", () => {
-    expect(ktcCodegenRuntimeIdentity({ KT_CODEGEN_GENERATOR_VERSION: "1.0.0" })).toBe("wing.codegen.rules:1.0.0");
+    expect(ktcCodegenRuntimeIdentity({ KT_CODEGEN_GENERATOR_VERSION: "1.0.2" })).toBe("wing.codegen.rules:1.0.2");
     for (const runtime of [{}, null, { KT_CODEGEN_GENERATOR_VERSION: "" }, { KT_CODEGEN_GENERATOR_VERSION: 1 }]) {
       expect(ktcCodegenRuntimeIdentity(runtime)).toBe("wing.codegen.legacy-unversioned");
     }
   });
 
   it("规则版本相同但 runtime 来源不同仍拒绝缓存，旧缺失字段也拒绝", () => {
-    const versioned = "wing.codegen.rules:1.0.0", legacy = "wing.codegen.legacy-unversioned";
+    const versioned = "wing.codegen.rules:1.0.2", legacy = "wing.codegen.legacy-unversioned";
     const current = { ...cache, runtimeIdentity: versioned };
     const valid = (value: KtcCodegenPreflightCache, identity: string) =>
       ktcValidCodegenPreflightCache(value, value.documentUri, value.configFingerprint, 4, identity);

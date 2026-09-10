@@ -86,9 +86,12 @@ import {
   type PreviewAutoBuildTransition,
 } from "./previewAutoBuildState.js";
 import { PREVIEW_AUTO_BUILD_SAMPLE } from "./previewAutoBuildSample.js";
+import { createPreviewAutoBuildWorkbench } from "./previewAutoBuildWorkbench.js";
+import { isPreviewAutoBuildDirty } from "./previewAutoBuildSession.js";
 import { createPreviewRunSurface } from "./previewRunCleanup.js";
 import { createPreviewAutoBuildCleanupSurface, type PreviewAutoBuildCleanupMode } from "./previewAutoBuildCleanup.js";
 import { createPreviewGitSurface } from "./previewGitSurface.js";
+import { createPreviewGitSquash } from "./previewGitSquash.js";
 import { createPreviewPackageIncludesSurface } from "./previewPackageIncludes.js";
 import { createPreviewCodeAssistantSurfaces } from "./previewCodeAssistantSurface.js";
 import { createPreviewTaskDirectory } from "./previewTaskDirectory.js";
@@ -145,7 +148,6 @@ const editorEmpty = required<HTMLElement>("[data-editor-empty]");
 const systemOutput = required<KtcSystemOutputBlock>("#preview-system-output");
 const ribbonMenu = required<HTMLElement>("[data-ribbon-menu]");
 
-renderAutoBuildSampleRows();
 renderRibbonItems();
 
 document.querySelectorAll<KtcRightViewShell>("ktc-right-view-shell[data-editor-panel]").forEach((shell) => {
@@ -176,6 +178,11 @@ let openItems: PreviewOpenItem[] = initialPreviewState.openToolIds.map(previewIt
 let mruItemIds = [...initialPreviewState.mruItemIds];
 let surfaceMruToolIds = [...initialPreviewState.surfaceMruToolIds];
 let autoBuildState = INITIAL_AUTO_BUILD_STATE;
+const previewAutoBuildWorkbench = createPreviewAutoBuildWorkbench({
+  state: () => autoBuildState,
+  dispatch: (action) => commitAutoBuildTransition(reducePreviewAutoBuildState(autoBuildState, { type: "session", action })),
+  log: recordPreviewOutput,
+});
 const previewAutoBuildCleanupSurface = createPreviewAutoBuildCleanupSurface({
   state: () => autoBuildState,
   updateRules: (value) => {
@@ -193,7 +200,23 @@ const previewAutoBuildCleanupSurface = createPreviewAutoBuildCleanupSurface({
 let outputVisible = initialPreviewState.outputVisible;
 let previewOutputSequence = INITIAL_PREVIEW_OUTPUT_LINES.length;
 let previewOutputLines: readonly string[] = INITIAL_PREVIEW_OUTPUT_LINES;
-const previewGitSurface = createPreviewGitSurface({ log: recordPreviewOutput });
+let previewGitSquashOpen = false;
+const previewGitSurface = createPreviewGitSurface({
+  log: recordPreviewOutput,
+  openSquash: (repository, selectedOids) => previewGitSquash.open(repository, selectedOids),
+});
+const previewGitSquash = createPreviewGitSquash({
+  log: recordPreviewOutput,
+  repositoryChanged: (repository) => previewGitSurface.applyRepositorySnapshot(repository),
+  visibilityChanged: (open) => {
+    previewGitSquashOpen = open;
+    if (open) activeEditorId = "git";
+    else if (activeEditorId === "git") activeEditorId = latestOpenItem("right")?.toolId;
+    renderAll();
+  },
+});
+required<HTMLElement>("[data-git-squash-content]").append(previewGitSquash.element);
+window.addEventListener("pagehide", () => { previewGitSurface.dispose(); previewGitSquash.dispose(); });
 
 let utilitySelections = defaultUtilitySelections();
 
@@ -304,22 +327,9 @@ required<HTMLButtonElement>("[data-action='open-ignore']").addEventListener("cli
 required<HTMLButtonElement>("[data-action='open-settings']").addEventListener("click", () => activateTool("environmentSettings"));
 document.querySelectorAll<HTMLButtonElement>("[data-auto-build-action]").forEach((button) => {
   const actionId = button.dataset.autoBuildAction;
-  if (actionId === "toggleRun" || actionId === "openScript" || actionId === "preflight") {
+  if (actionId === "toggleRun" || actionId === "openScript" || actionId === "preflight" || actionId === "openCleanup") {
     button.addEventListener("click", () => dispatchAutoBuildIntent(actionId));
   }
-});
-document.querySelectorAll<HTMLButtonElement>("[data-auto-build-project-tool]").forEach((button) => {
-  button.addEventListener("click", (event) => {
-    // Header actions must not activate the enclosing <summary> disclosure.
-    event.preventDefault();
-    event.stopPropagation();
-    const label = button.dataset.autoBuildProjectTool?.trim();
-    if (label === "导入…") {
-      openAutoBuildManifestImportDialog();
-      return;
-    }
-    if (label) recordPreviewOutput(`[编译工具] ${label}（模拟）`);
-  });
 });
 document.querySelectorAll<HTMLInputElement>("[data-auto-build-probe-columns]").forEach((input) => {
   input.closest("label")?.addEventListener("click", (event) => event.stopPropagation());
@@ -458,6 +468,7 @@ function endResize(pointerId: number): void {
 function setTheme(theme: PreviewTheme, persist = true): void {
   previewTheme = theme;
   root.dataset.previewTheme = theme;
+  if (previewGitSquashOpen) previewGitSquash.refreshTheme();
   document.querySelectorAll<HTMLButtonElement>("[data-theme-option]").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.themeOption === theme));
   });
@@ -1139,164 +1150,7 @@ function createSearchReplacePrimary(meta: PreviewToolDescriptor): HTMLElement {
 }
 
 function renderAutoBuildSampleRows(): void {
-  const configuration = PREVIEW_AUTO_BUILD_SAMPLE.configuration;
-  document.querySelectorAll<HTMLElement>("[data-auto-build-config-draft]").forEach((element) => {
-    element.textContent = configuration.draftLabel;
-  });
-  document.querySelectorAll<HTMLInputElement>("[data-auto-build-config-field]").forEach((input) => {
-    const key = input.dataset.autoBuildConfigField as keyof typeof configuration | undefined;
-    if (!key) return;
-    const value = configuration[key];
-    if (typeof value === "string") input.value = value;
-  });
-
-  const repositoryRows = document.querySelector<HTMLTableSectionElement>("[data-auto-build-project-rows]");
-  if (repositoryRows) {
-    repositoryRows.replaceChildren(...PREVIEW_AUTO_BUILD_SAMPLE.repositories.map((repository) => {
-      const row = document.createElement("tr");
-
-      const enabledCell = document.createElement("td");
-      const enabled = document.createElement("input");
-      enabled.type = "checkbox";
-      enabled.checked = repository.enabled;
-      enabled.disabled = repository.kind === "项目";
-      enabled.title = repository.kind === "项目" ? "项目行仍由完整样例快照驱动" : `启用或停用 ${repository.kind} 的仓库操作`;
-      enabled.setAttribute("aria-label", `启用 ${repository.name}`);
-      if (repository.kind !== "项目") {
-        const target = repository.kind === "Root" ? "root" : "thirdParty";
-        enabled.dataset.autoBuildRepositoryEnabled = target;
-        enabled.addEventListener("change", () => {
-          commitAutoBuildTransition(reducePreviewAutoBuildState(autoBuildState, {
-            type: "setRepositoryEnabled",
-            target,
-            enabled: enabled.checked,
-          }));
-        });
-      }
-      enabledCell.append(enabled);
-
-      const kindCell = document.createElement("td");
-      const kind = document.createElement("strong");
-      kind.textContent = repository.kind;
-      kindCell.append(kind);
-
-      const branchCell = document.createElement("td");
-      const branch = document.createElement("input");
-      branch.value = repository.branch;
-      branch.readOnly = true;
-      branch.setAttribute("aria-label", `${repository.name} 分支`);
-      branchCell.append(branch);
-
-      const repositoryCell = document.createElement("td");
-      const repositoryName = document.createElement("span");
-      repositoryName.textContent = repository.kind === "项目" ? repository.name : repository.path;
-      repositoryName.title = repository.path;
-      repositoryCell.append(repositoryName);
-
-      const commitCell = document.createElement("td");
-      commitCell.dataset.autoBuildProbeColumn = "";
-      const commit = document.createElement("code");
-      commit.textContent = repository.commit;
-      commitCell.append(commit);
-
-      const originCell = document.createElement("td");
-      originCell.dataset.autoBuildProbeColumn = "";
-      const origin = document.createElement("span");
-      origin.textContent = repository.origin;
-      origin.title = repository.originTitle;
-      originCell.append(origin);
-
-      const statusCell = document.createElement("td");
-      statusCell.dataset.autoBuildProbeColumn = "";
-      statusCell.textContent = repository.status;
-
-      const buildCell = document.createElement("td");
-      const operations = document.createElement("span");
-      operations.className = "preview-build-options";
-      repository.operations.forEach((operation) => {
-        const label = document.createElement("label");
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.checked = operation.enabled;
-        if (operation.id === "update" && repository.kind === "Root") {
-          checkbox.dataset.autoBuildUpdateRoot = "";
-        } else if (operation.id === "update" && repository.kind === "3rdParty") {
-          checkbox.dataset.autoBuildUpdateThirdParty = "";
-        } else {
-          checkbox.disabled = true;
-          checkbox.title = "完整样例快照由 JSON 驱动";
-        }
-        label.append(checkbox, document.createTextNode(operation.label));
-        operations.append(label);
-      });
-      buildCell.append(operations);
-
-      const actionCell = document.createElement("td");
-      const probe = createAutoBuildProjectAction("probe", repository.name);
-      actionCell.append(probe);
-      if (repository.runnable) {
-        const update = createAutoBuildProjectAction("update", repository.name);
-        const run = createAutoBuildProjectAction("run", repository.name);
-        actionCell.append(update, run);
-      }
-
-      row.append(enabledCell, kindCell, branchCell, repositoryCell, commitCell, originCell, statusCell, buildCell, actionCell);
-      return row;
-    }));
-  }
-
-  const taskList = document.querySelector<HTMLElement>("[data-auto-build-task-list]");
-  if (taskList) {
-    taskList.replaceChildren(...PREVIEW_AUTO_BUILD_SAMPLE.tasks.map((task, index) => {
-      const row = document.createElement("div");
-      const sequence = document.createElement("span");
-      sequence.textContent = String(index + 1);
-      const name = document.createElement("strong");
-      name.textContent = task.name;
-      const detail = document.createElement("small");
-      detail.textContent = task.detail;
-      const status = document.createElement("em");
-      status.dataset.autoBuildTaskStatus = "";
-      status.dataset.tone = task.tone;
-      status.textContent = task.status;
-      row.append(sequence, name, detail, status);
-      return row;
-    }));
-  }
-}
-
-function createAutoBuildProjectAction(
-  action: "probe" | "update" | "run",
-  repositoryName: string,
-): HTMLButtonElement {
-  const label = action === "probe" ? "探测" : action === "update" ? "更新" : "运行";
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = `preview-project-action-button${action === "run" ? " is-run" : ""}`;
-  button.title = action === "update" ? "更新 Git（仅此仓库，不编译）" : label;
-  button.setAttribute("aria-label", `${label} ${repositoryName}`);
-  button.dataset.previewOutput = "handled";
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", "0 0 16 16");
-  svg.setAttribute("aria-hidden", "true");
-  if (action === "probe") {
-    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    circle.setAttribute("cx", "7");
-    circle.setAttribute("cy", "7");
-    circle.setAttribute("r", "4");
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", "m10 10 3 3");
-    svg.append(circle, path);
-  } else {
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", action === "update" ? "M13 7a5 5 0 1 0-1 4M13 3v4H9" : "M5 3.5 12 8l-7 4.5z");
-    svg.append(path);
-  }
-  button.append(svg);
-  button.addEventListener("click", () => {
-    recordPreviewOutput(`[编译工具] ${label} ${repositoryName}（模拟）${action === "update" ? "；仅更新 Git，不执行 link / export / build" : ""}`);
-  });
-  return button;
+  previewAutoBuildWorkbench.render();
 }
 
 function createAutoBuildPrimary(meta: PreviewToolDescriptor): HTMLElement {
@@ -1383,15 +1237,17 @@ function createAutoBuildPrimary(meta: PreviewToolDescriptor): HTMLElement {
   configName.textContent = autoBuildState.currentConfigName === "未保存" ? "" : autoBuildState.currentConfigName;
   configName.title = autoBuildState.currentConfigName;
   const configSavedState = document.createElement("small");
-  configSavedState.textContent = autoBuildState.currentConfigName === "未保存" ? "未保存" : "已保存（模拟）";
+  configSavedState.textContent = isPreviewAutoBuildDirty(autoBuildState.session) ? "未保存草稿" : "已保存 checkpoint（模拟）";
   const openConfig = document.createElement("button");
   openConfig.type = "button";
   openConfig.textContent = "打开";
+  openConfig.disabled = viewState.configurationOptionsDisabled;
   openConfig.dataset.previewOutput = "handled";
   openConfig.addEventListener("click", () => dispatchAutoBuildIntent("openConfig"));
   const saveConfig = document.createElement("button");
   saveConfig.type = "button";
   saveConfig.textContent = "保存";
+  saveConfig.disabled = viewState.configurationOptionsDisabled;
   saveConfig.dataset.previewOutput = "handled";
   saveConfig.addEventListener("click", () => dispatchAutoBuildIntent("saveConfig"));
   const saveAsConfig = document.createElement("button");
@@ -1399,13 +1255,13 @@ function createAutoBuildPrimary(meta: PreviewToolDescriptor): HTMLElement {
   saveAsConfig.textContent = "另存";
   saveAsConfig.disabled = viewState.configurationOptionsDisabled;
   saveAsConfig.dataset.previewOutput = "handled";
-  saveAsConfig.addEventListener("click", () => recordPreviewOutput("[编译工具] 选择另存配置位置（模拟，未写盘）"));
+  saveAsConfig.addEventListener("click", () => previewAutoBuildWorkbench.dialogs.config("saveAs"));
   const closeConfig = document.createElement("button");
   closeConfig.type = "button";
   closeConfig.textContent = "关闭";
   closeConfig.disabled = viewState.configurationOptionsDisabled;
   closeConfig.dataset.previewOutput = "handled";
-  closeConfig.addEventListener("click", () => recordPreviewOutput("[编译工具] 关闭配置（模拟，未变更真实会话）"));
+  closeConfig.addEventListener("click", () => previewAutoBuildWorkbench.dialogs.config("close"));
   const reveal = document.createElement("button");
   reveal.type = "button";
   reveal.textContent = "详细配置";
@@ -1436,7 +1292,7 @@ function createAutoBuildPrimary(meta: PreviewToolDescriptor): HTMLElement {
   recentSelect.setAttribute("aria-label", "最近配置");
   recentSelect.disabled = viewState.recentConfigDisabled;
   recentSelect.append(new Option("最近配置…", ""));
-  PREVIEW_AUTO_BUILD_SAMPLE.configuration.recentConfigs.forEach((name) => recentSelect.append(new Option(name, name)));
+  autoBuildState.session.saved.forEach(({ name }) => recentSelect.append(new Option(name, name)));
   recentSelect.addEventListener("change", () => {
     if (!recentSelect.value) return;
     dispatchAutoBuildIntent("selectRecent", recentSelect.value);
@@ -1529,6 +1385,7 @@ function smallText(value: string): HTMLElement {
 type PreviewAutoBuildAction = Exclude<
   PreviewAutoBuildIntent["type"],
   "setCleanupPatternsYaml"
+    | "session"
     | "setEnvironmentExpanded"
     | "setMaintenanceExpanded"
     | "setRepositoryEnabled"
@@ -1543,7 +1400,15 @@ function dispatchAutoBuildIntent(actionId: PreviewAutoBuildAction, value?: strin
     return;
   }
   if (actionId === "openConfig") {
-    recordPreviewOutput("[编译工具] 打开 Auto Build JSON（模拟）");
+    previewAutoBuildWorkbench.dialogs.config("open");
+    return;
+  }
+  if (actionId === "openScript") {
+    previewAutoBuildWorkbench.dialogs.script();
+    return;
+  }
+  if (actionId === "selectRecent") {
+    if (typeof value === "string") previewAutoBuildWorkbench.dialogs.config("open", value);
     return;
   }
   if (actionId === "openCleanup") {
@@ -1559,9 +1424,6 @@ function dispatchAutoBuildIntent(actionId: PreviewAutoBuildAction, value?: strin
   } else if (actionId === "setProbeColumnsVisible") {
     if (typeof value !== "boolean") return;
     transition = reducePreviewAutoBuildState(autoBuildState, { type: "setProbeColumnsVisible", visible: value });
-  } else if (actionId === "selectRecent") {
-    if (typeof value !== "string") return;
-    transition = reducePreviewAutoBuildState(autoBuildState, { type: "selectRecent", name: value });
   } else {
     transition = reducePreviewAutoBuildState(autoBuildState, { type: actionId });
   }
@@ -1573,68 +1435,9 @@ function openAutoBuildCleanupDialog(modeId: PreviewAutoBuildCleanupMode = "rules
   previewAutoBuildCleanupSurface.open(modeId);
 }
 
+// preview-manifest-dialog lives in previewAutoBuildDialogs; the preview-cleanup-dialog remains independent.
 function openAutoBuildManifestImportDialog(): void {
-  document.querySelector(".preview-manifest-dialog")?.remove();
-  const dialog = document.createElement("dialog");
-  dialog.className = "preview-cleanup-dialog preview-manifest-dialog";
-  dialog.setAttribute("aria-label", "导入仓库清单");
-  const shell = document.createElement("section");
-  shell.className = "preview-cleanup-dialog-shell";
-  const header = document.createElement("header");
-  const heading = document.createElement("strong");
-  heading.textContent = "导入仓库";
-  const close = document.createElement("button");
-  close.type = "button";
-  close.textContent = "×";
-  close.setAttribute("aria-label", "关闭导入仓库清单对话框");
-  close.addEventListener("click", () => dialog.close());
-  header.append(heading, close);
-
-  const content = document.createElement("div");
-  content.className = "preview-cleanup-dialog-content";
-  const intro = document.createElement("p");
-  intro.textContent = "选择一个 JSON；只合并仓库来源和构建类型。";
-  const sourceField = document.createElement("section");
-  sourceField.className = "preview-cleanup-field";
-  sourceField.append(strongText("来源 JSON"));
-  const sourceRow = document.createElement("div");
-  sourceRow.className = "preview-manifest-source";
-  const sourceName = document.createElement("span");
-  sourceName.textContent = "BUILD_MANIFEST.json";
-  const choose = document.createElement("button");
-  choose.type = "button";
-  choose.textContent = "选择…";
-  choose.title = "支持 BUILD_MANIFEST.json 与含可验证 Git Origin 的 AutoBuild 配置";
-  sourceRow.append(sourceName, choose);
-  const sourceNote = smallText("支持 BUILD_MANIFEST.json 或含 Git Origin 的 AutoBuild 配置。");
-  sourceField.append(sourceRow, sourceNote);
-  const summary = document.createElement("div");
-  summary.className = "preview-manifest-result";
-  summary.append(
-    strongText("已识别 3 个仓库"),
-    smallText("新增 2 · 更新 1；另有 1 条缺少 Git 地址，将忽略。"),
-  );
-  content.append(intro, sourceField, summary);
-
-  const footer = document.createElement("footer");
-  const cancel = document.createElement("button");
-  cancel.type = "button";
-  cancel.textContent = "取消";
-  cancel.addEventListener("click", () => dialog.close());
-  const confirm = document.createElement("button");
-  confirm.type = "button";
-  confirm.className = "is-primary";
-  confirm.textContent = "导入";
-  confirm.addEventListener("click", () => {
-    recordPreviewOutput("[编译工具] 已模拟导入仓库清单：新增 2、更新 1、忽略 1；尚未检出或更新");
-    dialog.close();
-  });
-  footer.append(cancel, confirm);
-  shell.append(header, content, footer);
-  dialog.append(shell);
-  document.body.append(dialog);
-  choose.addEventListener("click", () => recordPreviewOutput("[编译工具] 选择仓库清单 JSON（模拟）"));
-  dialog.showModal();
+  previewAutoBuildWorkbench.dialogs.openImport();
 }
 
 function dispatchAutoBuildRepositoryUpdate(target: "root" | "thirdParty", enabled: boolean): void {
@@ -1654,46 +1457,21 @@ function commitAutoBuildTransition(transition: PreviewAutoBuildTransition): void
 
 function renderAutoBuildRight(): void {
   const viewState = derivePreviewAutoBuildState(autoBuildState);
+  previewAutoBuildWorkbench.render();
   document.querySelectorAll<HTMLElement>("[data-auto-build-status]").forEach((element) => {
     element.textContent = autoBuildState.status;
     element.dataset.tone = autoBuildState.tone;
   });
-  document.querySelectorAll<HTMLButtonElement>("[data-auto-build-action='toggleRun']").forEach((button) => {
-    button.textContent = viewState.rightRunLabel;
-  });
-  document.querySelectorAll<HTMLButtonElement>("[data-auto-build-action='preflight']").forEach((button) => {
-    button.disabled = autoBuildState.phase === "running";
-  });
-  document.querySelectorAll<HTMLElement>("[data-auto-build-task-status]").forEach((element, index) => {
-    const running = autoBuildState.phase === "running" && index === 0;
-    element.textContent = running
-      ? viewState.rightTaskStatus
-      : (PREVIEW_AUTO_BUILD_SAMPLE.tasks[index]?.status ?? viewState.rightTaskStatus);
-    element.dataset.tone = running ? "progress" : (PREVIEW_AUTO_BUILD_SAMPLE.tasks[index]?.tone ?? "idle");
-  });
-  document.querySelectorAll<HTMLElement>("[data-auto-build-mode]").forEach((element) => {
-    element.textContent = viewState.rightModeLabel;
-  });
-  document.querySelectorAll<HTMLInputElement>("[data-auto-build-probe-columns]").forEach((input) => {
-    input.checked = autoBuildState.probeColumnsVisible;
-  });
-  document.querySelectorAll<HTMLInputElement>("[data-auto-build-update-root]").forEach((input) => {
-    input.checked = autoBuildState.updateRootDirectory;
-    input.disabled = viewState.configurationOptionsDisabled || !autoBuildState.rootEnabled;
-  });
-  document.querySelectorAll<HTMLInputElement>("[data-auto-build-update-third-party]").forEach((input) => {
-    input.checked = autoBuildState.updateThirdParty;
-    input.disabled = viewState.configurationOptionsDisabled || !autoBuildState.thirdPartyEnabled;
-  });
-  document.querySelectorAll<HTMLInputElement>("[data-auto-build-repository-enabled]").forEach((input) => {
-    input.checked = input.dataset.autoBuildRepositoryEnabled === "root"
-      ? autoBuildState.rootEnabled
-      : autoBuildState.thirdPartyEnabled;
-    input.disabled = viewState.configurationOptionsDisabled;
-  });
-  document.querySelectorAll<HTMLElement>("[data-auto-build-project-table]").forEach((table) => {
-    table.dataset.probeColumnsVisible = String(autoBuildState.probeColumnsVisible);
-  });
+  document.querySelectorAll<HTMLButtonElement>("[data-auto-build-action='toggleRun']").forEach((button) => { button.textContent = viewState.rightRunLabel; });
+  document.querySelectorAll<HTMLButtonElement>("[data-auto-build-action='preflight']").forEach((button) => { button.disabled = autoBuildState.phase === "running"; });
+  document.querySelectorAll<HTMLButtonElement>("[data-auto-build-action='openCleanup']").forEach((button) => { button.disabled = autoBuildState.phase === "running"; });
+  document.querySelectorAll<HTMLElement>("[data-auto-build-mode]").forEach((element) => { element.textContent = viewState.rightModeLabel; });
+  document.querySelectorAll<HTMLInputElement>("[data-auto-build-probe-columns]").forEach((input) => { input.checked = autoBuildState.probeColumnsVisible; });
+  for (const [selector, checked, enabled] of [
+    ["[data-auto-build-update-root]", autoBuildState.updateRootDirectory, autoBuildState.rootEnabled],
+    ["[data-auto-build-update-third-party]", autoBuildState.updateThirdParty, autoBuildState.thirdPartyEnabled],
+  ] as const) document.querySelectorAll<HTMLInputElement>(selector).forEach((input) => { input.checked = checked; input.disabled = autoBuildState.phase === "running" || !enabled; });
+  document.querySelectorAll<HTMLElement>("[data-auto-build-project-table]").forEach((table) => { table.dataset.probeColumnsVisible = String(autoBuildState.probeColumnsVisible); });
 }
 
 function recordPreviewOutput(message: string): void {
@@ -1867,6 +1645,12 @@ function renderPrimaryUtility(toolId: UtilityToolId): void {
 }
 
 function openEditor(toolId: string): void {
+  if (toolId === "git" && previewGitSquashOpen) {
+    activeEditorId = "git";
+    // Restoring this Editor does not re-open a closed Primary or run a Git action.
+    renderAll();
+    return;
+  }
   const meta = PREVIEW_TOOL_CATALOG_BY_ID[toolId];
   if (!meta || !resolvePreviewToolRoute(meta).rightPanelId) return;
   activateTool(toolId);
@@ -1987,9 +1771,11 @@ function defaultUtilitySelections(): Record<UtilityToolId, boolean[]> {
 }
 
 function resetVolatilePreviewState(): void {
+  if (previewGitSquashOpen) previewGitSquash.close();
   releasePreviewPackageSurface();
   previewCodeAssistantSurfaces.reset();
   previewAutoBuildCleanupSurface.close();
+  previewAutoBuildWorkbench.reset();
   autoBuildState = createDefaultPreviewAutoBuildState();
   utilitySelections = defaultUtilitySelections();
   previewOutputSequence = INITIAL_PREVIEW_OUTPUT_LINES.length;
@@ -2134,25 +1920,29 @@ function hideRibbonMenu(restoreFocus = false): void {
 function renderEditor(): void {
   if (isOpenTool("packageIncludes")) getPreviewPackageSurface();
   renderRightViewContexts();
-  const editorItems = openItems.filter((item) => item.kind === "right");
+  const editorItems = [
+    ...openItems.filter((item) => item.kind === "right"),
+    ...(previewGitSquashOpen ? [previewItem("git")] : []),
+  ];
   const activeEditorTool = activeEditorId ? PREVIEW_TOOL_CATALOG_BY_ID[activeEditorId] : undefined;
-  const activeRightPanelId = activeEditorTool
+  const activeRightPanelId = activeEditorId === "git" && previewGitSquashOpen ? "gitSquash" : activeEditorTool
     ? resolvePreviewToolRoute(activeEditorTool).rightPanelId
     : null;
   editorTabsHost.replaceChildren();
   editorItems.forEach((item) => {
+    const tabTitle = item.toolId === "codegen" ? previewCodegenSurface.fileName() : item.title;
     const wrapper = document.createElement("div");
     wrapper.className = `preview-editor-tab${item.toolId === activeEditorId ? " is-active" : ""}`;
     const activate = document.createElement("button");
     activate.type = "button";
     activate.className = "preview-editor-tab-activate";
-    activate.setAttribute("aria-label", `打开${item.title}标签`);
+    activate.setAttribute("aria-label", `打开${tabTitle}标签`);
     activate.append(previewIcon(item.icon));
     const label = document.createElement("span");
-    label.textContent = item.title;
+    label.textContent = tabTitle;
     activate.append(label);
     activate.addEventListener("click", () => openEditor(item.toolId));
-    wrapper.append(activate, closeButton(`关闭${item.title}标签`, () => closeItem(item.id)));
+    wrapper.append(activate, closeButton(`关闭${tabTitle}标签`, () => closeEditorItem(item)));
     editorTabsHost.append(wrapper);
   });
   let visible = false;
@@ -2163,6 +1953,12 @@ function renderEditor(): void {
     visible ||= show;
   });
   editorEmpty.hidden = visible;
+}
+
+function closeEditorItem(item: PreviewOpenItem): void {
+  if (item.toolId === "autoBuild") previewAutoBuildCleanupSurface.close();
+  if (item.toolId === "git") previewGitSquash.close();
+  else closeItem(item.id);
 }
 
 /** Context belongs to the shown task/configuration, not the global directory selector. */

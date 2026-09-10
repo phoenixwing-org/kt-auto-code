@@ -27,7 +27,7 @@ export function verifyCodegenGeneratorVersion(runtime, expectedVersion, label = 
 export function verifyCodegenGeneratorBundle(bundle, expectedVersion, label = "Code VSIX Codegen") {
   const file = ts.createSourceFile("extension.js", bundle, ts.ScriptTarget.ESNext, true, ts.ScriptKind.JS);
   if (file.parseDiagnostics.length) throw new Error(`${label} contains invalid JavaScript`);
-  const names = ["ktCodegenRenderCppParameterLines", "ktCodegenRenderLegacyStart", "ktCodegenRenderLegacyEnd", "ktCodegenRenderLegacyNotes"];
+  const names = ["ktCodegenRenderCppParameterLines", "ktCodegenConstructorEndPrefix", "ktCodegenRenderLegacyStart", "ktCodegenRenderLegacyEnd", "ktCodegenRenderLegacyNotes", "ktCodegenRenderCaaUpdateDialogLines", "ktCodegenDialogParamName"];
   const functions = new Map(names.map(name => [name, []]));
   const versions = new Map(["KT_CODEGEN_GENERATOR_VERSION", "KTC_CODEGEN_GENERATOR_VERSION"].map(name => [name, []]));
   const inspect = node => {
@@ -54,19 +54,48 @@ export function verifyCodegenGeneratorBundle(bundle, expectedVersion, label = "C
   const program = [
     `const KT_CODEGEN_GENERATOR_VERSION = ${JSON.stringify(expectedVersion)};`,
     ...names.map(name => functions.get(name)[0].getText(file)),
-    `ktCodegenRenderCppParameterLines({ blockKey: "PARAM DECLARATION", start: { linePrefix: "  ", text: "fixture START" }, end: { text: "fixture END" } }, [{ name: "fixture", dataType: "int", paramString: "_fixture", id: 1, author: "", createDate: "", notes: "" }], () => "0").join("\\n");`,
+    `const region = { blockKey: "PARAM DECLARATION", path: "fixture.cpp", sourceFingerprint: "fixture", replaceEndOffset: 0, start: { linePrefix: "  ", text: "fixture START" }, end: { linePrefix: "", text: "fixture END" } };`,
+    `const items = [{ name: "fixture", dataType: "int", paramString: "_fixture", id: 1, author: "", createDate: "", notes: "" }];`,
+    `const declaration = ktCodegenRenderCppParameterLines(region, items, () => "0").join("\\n");`,
+    `const constructors = ["    , tail(0) {}", "\\n// explanation\\n{\\n}", "\\t/* note */ , tail(0) {}"].map(text => {`,
+    `  const constructor = { ...region, blockKey: "PARAM CONSTRUCTOR" };`,
+    `  const context = { snapshot: { files: [{ path: "fixture.cpp", fingerprint: "fixture", text }] } };`,
+    `  const prefix = ktCodegenConstructorEndPrefix(context, constructor);`,
+    `  return ktCodegenRenderCppParameterLines(constructor, items, () => "0", prefix).join("\\n");`,
+    `});`,
+    `const combos = ["int", "double", "CATUnicodeString"].flatMap(dataType => [false, true].map(isParamDlg => {`,
+    `  const comboItems = [{ id: 5, paramString: "FinishCalc", notes: "", component: "", componentCount: 0 },`,
+    `    { id: 42, paramString: "My_Type", notes: "fixture combo notes", component: "ComboBox", componentCount: 1, dataType, isParamDlg }];`,
+    `  return ktCodegenRenderCaaUpdateDialogLines({}, { ...region, blockKey: "UPDATE DIALOG" }, comboItems, () => false).join("\\n");`,
+    `}));`,
+    `({ declaration, constructors, combos });`,
   ].join("\n");
   let output;
   try {
     output = runInNewContext(program, Object.create(null), { timeout: 1000, filename: "codegen-rules-artifact.js" });
   } catch (error) {
-    throw new Error(`${label} cannot execute the bundled declaration renderer: ${error.message}`);
+    throw new Error(`${label} cannot execute the bundled rules renderers: ${error.message}`);
   }
-  if (typeof output !== "string"
-      || !output.includes(`  // @app Kt Auto Code\n  // @codegen-rules-version ${expectedVersion}\n`)
-      || /@version\b|\(2024\)/u.test(output)
-      || !output.includes("  int _fixture;")) {
+  if (typeof output?.declaration !== "string"
+      || !output.declaration.includes(`  // @app Kt Auto Code\n  // @codegen-rules-version ${expectedVersion}\n`)
+      || /@version\b|\(2024\)/u.test(output.declaration)
+      || !output.declaration.includes("  int _fixture;")) {
     throw new Error(`${label} PARAM DECLARATION must emit @app and @codegen-rules-version ${expectedVersion}, without the old @version/year`);
   }
-  return Object.freeze({ generatorVersion: expectedVersion, declarationAnnotation: true });
+  const prefixes = ["    ", "", "\t"];
+  if (!Array.isArray(output.constructors) || output.constructors.length !== prefixes.length
+      || output.constructors.some((text, index) => typeof text !== "string"
+        || !text.endsWith(`\n${prefixes[index]}// clang-format on\n${prefixes[index]}// fixture END`))) {
+    throw new Error(`${label} PARAM CONSTRUCTOR must align clang-format/END with the next semantic source line`);
+  }
+  const comboNote = "  // 42,My_Type,fixture combo notes";
+  if (!Array.isArray(output.combos) || output.combos.length !== 6
+      || output.combos.some((text, index) => {
+        const assignment = `  ${index % 2 ? "dialogMore->" : ""}_ComboMyType->${index < 2 ? "SetSelect( parameter->My_Type, 0);" : "SetField( parameter->My_Type);"}`;
+        return typeof text !== "string" || text.split(comboNote).length !== 2
+          || !text.includes(`  // 5,FinishCalc,,NO ACTION,,0\n\n${comboNote}\n${assignment}`);
+      })) {
+    throw new Error(`${label} UPDATE DIALOG must emit each supported Combo's own notes once before the unchanged assignment`);
+  }
+  return Object.freeze({ generatorVersion: expectedVersion, declarationAnnotation: true, constructorBoundary: true, comboUpdateNotes: true });
 }

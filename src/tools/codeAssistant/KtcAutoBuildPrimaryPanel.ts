@@ -134,7 +134,7 @@ export class KtcAutoBuildPrimaryPanel extends HTMLElement {
 
     const actions = document.createElement("div");
     actions.className = "actions";
-    for (const id of ["openScript", "preflight", "start", "stop", "openCleanup"]) {
+    for (const id of ["openScript", "preflight", "start", "stop"]) {
       const action = model.actions.find((candidate) => candidate.id === id);
       if (action) actions.append(this.actionButton(action, model.ready));
     }

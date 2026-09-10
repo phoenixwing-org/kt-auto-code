@@ -1,4 +1,5 @@
 import type { KtcCleanupDialogModel } from "./cleanupContracts.js";
+import type { KtcCleanupYamlWorkspaceModel } from "./cleanupYamlContracts.js";
 export type {
   KtcCleanupDialogPreviewState,
   KtcCleanupDialogMode,
@@ -47,6 +48,7 @@ export interface KtcAutoBuildPrimaryViewModel {
   readonly environment: readonly KtcAutoBuildPrimaryFact[];
   readonly maintenance: KtcAutoBuildPrimaryMaintenance;
   readonly cleanup: KtcCleanupDialogModel;
+  readonly cleanupYaml?: KtcCleanupYamlWorkspaceModel;
 }
 
 export interface KtcAutoBuildPrimaryPanelAction {

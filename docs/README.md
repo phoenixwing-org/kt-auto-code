@@ -4,16 +4,18 @@
 
 Owner：KT Auto Code maintainers
 
-适用版本：0.8.x–0.9.1
+适用版本：0.8.x–0.9.2 及后续原型
 
-最后核验：2026-09-09
+最后核验：2026-09-10
 
 本页是当前文档的唯一导航。全部 Markdown 的状态、owner、适用版本和替代关系由 [`document-manifest.json`](document-manifest.json) 记录；运行 `pnpm docs:check` 检查清单漂移和 current 文档断链。
 
 ## 当前路线与架构
 
 - [当前路线](current-roadmap.md)
-- [0.9.1 代码辅助 Primary 整改计划](0.9.1-代码辅助Primary整改计划.md)（当前开发线：五个仅 Primary 工具的内部文字工具栏与 UI Preview）
+- [0.9.2 归档与发布准备](0.9.2-开发计划.md)（压缩归档、同步主库 user、Wing 精确版本表及等待发布后的打包门禁；首批冻结包保留历史）
+- [编译工具与清理后续原型计划](编译工具/后续原型计划.md)（冻结后重新开启：编译草稿/清单导入、多 cleanup.yaml、当前规则交给原生未保存文档、配置/脚本/任务原型；正式支持单列）
+- [0.9.1 代码辅助 Primary 整改计划](0.9.1-代码辅助Primary整改计划.md)（已收尾：五个仅 Primary 工具的内部文字工具栏与 UI Preview）
 - [0.8.3 发布准备](0.8.3发布准备.md)（统一 Ignore、项目改名安全边界、Windows 点检与制品回执）
 - [0.8.3 开发计划](0.8.3开发计划.md)（0.8.3 已归档范围与后续待定项）
 - [0.9.0 Primary 与 Editor View 联动及统一工具运行时计划](0.9.0-Primary与Editor联动讨论稿.md)（四区 Shell、三视图关闭联动及自动代码例外；早期两区方案保留为历史）
@@ -21,7 +23,7 @@ Owner：KT Auto Code maintainers
 - [头文件引用修正 Primary 整改计划](头文件引用修正Primary整改计划.md)（共享 Primary 与正式接线已完成；Ignore 证据、布局及剩余人工点检）
 - [PnwCombo 组件提炼 TODO](PnwCombo组件提炼TODO.md)（菜单内逐行删除、全部清空、当前消费者与下版迁入 Wing 的边界）
 - [0.8.2 编译工具发布归档](0.8.2-本地编译工具归档.md)（Windows CAA/MSVC 构建边界、开发 Host 检查与发布门禁）
-- [编译工具说明](编译工具/README.md)（schema 2 项目表、PowerShell 编排、平台边界与安全规则）
+- [编译工具说明](编译工具/README.md)（已存在的 schema 2 项目表、TS Git/CMake、PS1 兼容、平台边界与后续原型入口）
 - [0.8.1 发布准备](0.8.1发布准备.md)（已发布项目改名版本、Wing 0.7.2 适配与正式门禁归档）
 - [0.8.0 发布准备](0.8.0发布准备.md)（已由 0.8.1 取代的项目改名初始候选）
 - [0.7.4 发布准备](0.7.4发布准备.md)（未单独发布、内容已进入 0.8.1）
@@ -45,8 +47,11 @@ Owner：KT Auto Code maintainers
 
 ## Code 与 Codegen
 
+- [Combo 下拉多主题配色 BUG](bug/自动代码-Combo深色配色问题.md)（含浅色；从 `7e58f09e1f9b` 摘入；本地源码已修、Mac 样式回归通过，Windows 实机待测）
+- [Combo 参数回填缺少注释行 BUG](bug/自动代码-Combo参数回填缺少注释行.md)（同一提交摘入；生成规则 `1.0.2` 已修复，旧预检缓存失效；Windows/CAA 待测）
+- [Windows 导出脚本首行错误](bug/编译工具-Windows导出脚本首行错误.md)（缺少原文件与完整报错，待定位）
 - [CAA Combo 选择通知 BUG](bug/自动代码-CAA-combo的信号问题.md)（0.9.0 收尾；生成通知与索引读写一致性，CAA 运行验收另记）
-- [0.9.0 发布冻结清单](0.9.0-发布冻结清单.md)（最终修改与制品门禁；Wing Registry 前置缺口未解除前仅供内测）
+- [0.9.0 发布取消记录](0.9.0-发布冻结清单.md)（不正式发布；仅保留决定与本地历史归档边界）
 - [Codegen 快速原型与 MVC 边界](Codegen快速原型.md)
 - [Codegen 总 Controller 会话提炼点检](codegen-plan/Codegen总Controller会话提炼点检表.md)
 - [Codegen 编辑器语义命令 Controller 点检](codegen-plan/Codegen编辑器语义命令Controller点检表.md)

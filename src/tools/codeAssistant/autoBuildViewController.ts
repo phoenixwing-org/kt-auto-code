@@ -35,7 +35,9 @@ import {
 import {
   ktcParseAutoBuildCleanupDialogPayload,
   type KtcAutoBuildCleanupDialogRequest,
+  type KtcAutoBuildCleanupDialogPayload,
 } from "./autoBuildCleanupDialogContracts.js";
+import { KtcAutoBuildCleanupYamlWorkspace } from "./autoBuildCleanupYamlWorkspace.js";
 import {
   ktcCreateAutoBuildCleanupViewModel,
   type KtcAutoBuildCleanupProjectionState,
@@ -71,6 +73,11 @@ const STATE_KEY = "ktAutoCode.codeAssistant.autoBuild.configuration", PATH_KEY =
 const execFileAsync = promisify(execFile);
 let nextAutoBuildCompanionSession = 1;
 interface KtcAutoBuildDraftContext { readonly documentId: string; readonly draftRevision: number; }
+interface KtcAutoBuildRightCleanupMessage {
+  readonly type: "autoBuildCleanupAction";
+  readonly contextId: string;
+  readonly token: KtcEditorPrimaryCompanionActionToken;
+}
 type KtcAutoBuildDraftScopedConfigurationMessage = KtcAutoBuildDraftContext & { readonly configuration: KtcAutoBuildConfiguration };
 type Message = KtcAutoBuildDraftReadyMessage | KtcAutoBuildDraftChangedMessage | KtcAutoBuildConfigurationSnapshotMessage | KtcAutoBuildRightExecutionMessage | { type: "stop" | "open" | "save" | "saveAs" | "selectRecent"; path?: string; configuration?: KtcAutoBuildConfiguration } | (KtcAutoBuildDraftScopedConfigurationMessage & { type: "runTask"; taskId?: string }) | (KtcAutoBuildDraftScopedConfigurationMessage & { type: "pickProjectDirectories" | "discoverProjectDirectories" }) | (KtcAutoBuildDraftScopedConfigurationMessage & { type: "probeProject" | "runProject" | "updateProject"; projectId: string }) | { type: "exportLauncher"; configuration: KtcAutoBuildConfiguration } | { type: "writeScript"; configuration: KtcAutoBuildConfiguration; scriptKind: "build" | "checkout" | "manifest"; targetDirectory: string; manifestMode?: KtcBuildManifestMode; manifestTarget?: "root" | "working"; checkoutOptions?: { includeRoots?: boolean; includeBranch?: boolean; includeCommit?: boolean } } | { type: "pickScriptTargetDirectory"; targetDirectory?: string } | { type: "syncRootScript" };
 const defaults = (rootDirectory = "", thirdPartyDirectory = "", workingDirectory = ""): KtcAutoBuildConfiguration => ({ schemaVersion: 2, rootDirectory, thirdPartyDirectory, rootEnabled: true, thirdPartyEnabled: true, updateRoot: false, updateThirdParty: false, workingDirectory, buildExecutionMode: "sequential", rootBranch: "develop", branch: "develop", cmakeBranch: "master", projects: [], clean: false, rootCleanupYaml: KTC_DEFAULT_ROOT_CLEANUP_PATTERNS_YAML });
@@ -150,6 +157,10 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
   private frozenCleanup: KtcAutoBuildFrozenCleanupSession | undefined;
   private cleanupCancelled = false;
   private cleanupActionRevision: number | undefined;
+  private readonly cleanupYamlWorkspace = new KtcAutoBuildCleanupYamlWorkspace();
+  private cleanupYamlNotice = "打开清理后仅探测当前工作目录及其子目录中的 cleanup.yaml；只读取已保存文件。";
+  private cleanupYamlContext = 0;
+  private cleanupYamlConfigurationFingerprint = "";
   private legacyAutomaticCleanupNoticeShown = false;
   private nextConfigurationRequest = 1;
   private nextOperation = 1;
@@ -233,7 +244,7 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
       sessionId: this.companionSessionId,
     };
     panel.webview.html = this.html(panel.webview);
-    panel.webview.onDidReceiveMessage((message: Message) => {
+    panel.webview.onDidReceiveMessage((message: Message | KtcAutoBuildRightCleanupMessage) => {
       if (!this.isLiveSession(context)) return;
       void this.sessionContext.run(context, () => this.handleSafely(message));
     });
@@ -242,6 +253,8 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
     });
     panel.onDidDispose(() => {
       if (!this.isLiveSession(context)) return;
+      this.cleanupYamlWorkspace.invalidate();
+      this.cleanupYamlContext++;
       this.cancelConfigurationRequest();
       this.panel = undefined;
       this.companionReady = false;
@@ -316,6 +329,19 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
         this.stopped = false;
         this.cleanupCancelled = false;
         this.cleanupActionRevision = token.revision;
+        if (payload.kind === "yaml-edit-rules") {
+          const yamlContext = this.cleanupYamlContext;
+          const documentId = this.companionDocumentId;
+          const current = (): boolean => this.isLiveHandler() && !this.cleanupCancelled && !this.stopped
+            && yamlContext === this.cleanupYamlContext && documentId === this.companionDocumentId;
+          const document = await vscode.workspace.openTextDocument({ language: "yaml", content: payload.rulesYaml });
+          if (!current()) return;
+          await vscode.window.showTextDocument(document, { preview: true });
+          if (!current()) return;
+          this.cleanupYamlNotice = "当前规则已交给 VS Code 未保存 YAML；请自行保存，插件未写盘。";
+          this.touchCompanion();
+          return;
+        }
         if (payload.kind === "execute") {
           await this.executeCleanupDialog(payload.request, payload.previewToken);
           return;
@@ -325,7 +351,10 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
           if (this.stopped || this.cleanupCancelled) return;
           throw new Error("无法读取右侧当前配置，请检查详细配置后重试。");
         }
-        await this.previewCleanupDialog(configuration, payload.request);
+        if (payload.kind === "preview") await this.previewCleanupDialog(configuration, payload.request);
+        else if (payload.kind === "yaml-discover" || payload.kind === "yaml-open-source" || payload.kind === "yaml-clean-source") {
+          await this.runCleanupYamlAction(configuration, payload);
+        }
       }));
     }
     if (token.actionId === "preflight" || token.actionId === "start") {
@@ -435,8 +464,16 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
     return false;
   }
   private log(text: string, show = false): void { this.output.appendLine(`[Auto Build] ${text}`); if (show) this.output.show(true); }
-  private async handleSafely(message: Message): Promise<void> {
+  private async handleSafely(message: Message | KtcAutoBuildRightCleanupMessage): Promise<void> {
     if (!this.isLiveHandler()) return;
+    if (message.type === "autoBuildCleanupAction") {
+      const token = message.token;
+      if (!token || typeof token !== "object" || token.actionId !== "cleanupDialog"
+        || message.contextId !== `${this.companionDocumentId}:${this.cleanupYamlContext}`) return;
+      // The Right dialog uses the same Host-owned session/revision, busy and cancel gates.
+      await this.runPrimaryCompanionAction(token);
+      return;
+    }
     if (message.type === "draftChanged") {
       this.acceptDraft(message.documentId, message.draftRevision, message.configuration);
       return;
@@ -673,6 +710,11 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
     }
     const preservesCleanupPreview = !!this.companionConfiguration
       && isDeepStrictEqual(next, this.companionConfiguration);
+    if (!preservesCleanupPreview) {
+      this.cleanupYamlWorkspace.invalidate();
+      this.cleanupYamlContext++;
+      this.cleanupYamlNotice = "配置已变化，请重新打开清理或探测配置。";
+    }
     this.companionDraftRevision = draftRevision;
     this.companionConfiguration = next;
     if (this.frozenCleanup) {
@@ -958,6 +1000,78 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
     this.log(summaryText, true);
     await this.status(this.stopped || failed.length ? "error" : "done", summaryText);
   }
+  private async runCleanupYamlAction(
+    configuration: KtcAutoBuildConfiguration,
+    payload: Extract<KtcAutoBuildCleanupDialogPayload, { kind: "yaml-discover" | "yaml-open-source" | "yaml-clean-source" }>,
+  ): Promise<void> {
+    this.assertWorkingDirectoryContext(configuration);
+    const context = this.cleanupYamlContext;
+    const documentId = this.companionDocumentId;
+    const fingerprint = this.configurationFingerprint(configuration);
+    const shouldContinue = (): boolean => this.isLiveHandler() && !this.stopped && !this.cleanupCancelled
+      && context === this.cleanupYamlContext && documentId === this.companionDocumentId
+      && !!this.companionConfiguration && fingerprint === this.configurationFingerprint(this.companionConfiguration);
+    const assertCurrent = (): void => { if (!shouldContinue()) throw new Error("YAML 清理上下文已变化或已关闭，请重新打开。"); };
+    try {
+      assertCurrent();
+      if (payload.kind === "yaml-discover") {
+        const working = configuration.workingDirectory?.trim();
+        if (!working) throw new Error("请先填写当前工作目录，再探测 cleanup.yaml。");
+        // Discovery belongs to the current work directory, not the build dependencies.
+        // Never expand to ROOT_DIR, third-party roots, external project paths or a fallback.
+        this.cleanupYamlNotice = "正在探测当前工作目录及其子目录中的 cleanup.yaml…";
+        this.log(`[YAML 探测] 范围：${working}（仅当前工作目录及其子目录）`);
+        this.touchCompanion();
+        const sources = await this.cleanupYamlWorkspace.discover([working], { shouldContinue });
+        assertCurrent();
+        this.cleanupYamlConfigurationFingerprint = fingerprint;
+        this.cleanupYamlNotice = `发现 ${sources.length} 份 cleanup.yaml；每份仅清理所在目录的直属项。`
+          + (this.cleanupYamlWorkspace.warnings.length ? " 探测有跳过项，详情见日志。" : "");
+        this.log(this.cleanupYamlNotice);
+        for (const warning of this.cleanupYamlWorkspace.warnings) this.log(`[YAML 探测] ${warning}`);
+      } else if (payload.kind === "yaml-open-source") {
+        if (fingerprint !== this.cleanupYamlConfigurationFingerprint) throw new Error("编译配置已变化，请重新探测清理配置。");
+        const source = await this.cleanupYamlWorkspace.readForOpen(payload.sourceId);
+        assertCurrent();
+        const document = await vscode.workspace.openTextDocument(vscode.Uri.file(source.path));
+        assertCurrent();
+        await vscode.window.showTextDocument(document, { preview: true });
+        assertCurrent();
+        this.cleanupYamlNotice = `已打开 ${source.path}；请在 VS Code 中编辑、保存后重新探测。`;
+      } else {
+        if (fingerprint !== this.cleanupYamlConfigurationFingerprint) throw new Error("编译配置已变化，请重新探测清理配置。");
+        this.frozenCleanup = undefined;
+        this.cleanupState = { ...this.cleanupState, preview: { state: "executing", message: "正在核对已保存 YAML 并清理其直属命中项…", items: [] } };
+        this.touchCompanion();
+        const result = await this.cleanupYamlWorkspace.clean(payload.sourceId, payload.revision, {
+          shouldContinue,
+          isDirty: (path) => vscode.workspace.textDocuments.some((doc) => doc.isDirty
+            && doc.uri.scheme === "file" && (process.platform === "win32"
+              ? doc.uri.fsPath.toLocaleLowerCase() === path.toLocaleLowerCase() : doc.uri.fsPath === path)),
+        });
+        assertCurrent();
+        this.cleanupYamlNotice = `${result.source.path}：${result.status}；已删除内容不会自动恢复。`;
+        this.cleanupState = { ...this.cleanupState, preview: { state: "complete", summary: result.status,
+          message: this.cleanupYamlNotice, items: result.deleted } };
+        for (const path of result.deleted) this.log(`YAML 清理 · 删除 ${path}`);
+        this.log(this.cleanupYamlNotice);
+        this.companionStatus = "done";
+        this.companionMessage = result.status;
+      }
+      this.touchCompanion();
+    } catch (error) {
+      if (!this.isLiveHandler()) return;
+      if (this.cleanupCancelled || this.stopped || context !== this.cleanupYamlContext) return;
+      const message = error instanceof Error ? error.message : String(error);
+      this.cleanupYamlNotice = message;
+      if (payload.kind === "yaml-clean-source") {
+        this.cleanupState = { ...this.cleanupState, preview: { state: "error", message, items: [] } };
+      }
+      this.touchCompanion();
+      throw error;
+    }
+  }
+
   private async previewCleanupDialog(
     configuration: KtcAutoBuildConfiguration,
     request: KtcAutoBuildCleanupDialogRequest,
@@ -1146,6 +1260,8 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
     const pending = this.companionPendingAction === "cleanupDialog";
     const executing = this.cleanupState.preview?.state === "executing";
     this.cleanupCancelled = true;
+    this.cleanupYamlWorkspace.invalidate();
+    this.cleanupYamlContext++;
     this.frozenCleanup = undefined;
     if (pending) this.cancelConfigurationRequest();
     const message = executing
@@ -1643,6 +1759,10 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
     this.tasks = [];
     this.frozenCleanup = undefined;
     this.cleanupState = {};
+    this.cleanupYamlWorkspace.invalidate();
+    this.cleanupYamlContext++;
+    this.cleanupYamlConfigurationFingerprint = "";
+    this.cleanupYamlNotice = "配置已变化，请重新打开清理或探测配置。";
     this.stopped = false;
     this.companionStatus = "idle";
     this.companionMessage = "等待操作。";
@@ -1999,6 +2119,12 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
       cleanupEnabled: executionAvailable,
       cleanupDisabledReason: executionDisabledReason,
       cleanupState: this.cleanupState,
+      cleanupYaml: {
+        sources: this.cleanupYamlWorkspace.sources,
+        busy: !executionAvailable,
+        contextId: `${this.companionDocumentId}:${this.cleanupYamlContext}`,
+        notice: this.cleanupYamlNotice,
+      },
     });
     return {
       panelId: this.companionSessionId,
@@ -2135,8 +2261,10 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
   }
 
   private publishCompanion(lifecycle?: KtcEditorPrimaryCompanionLifecycle): void {
-    if (!this.companion || !this.companionSessionId) return;
-    this.companion.onDidChange(this.companionSnapshot(lifecycle));
+    if (!this.companionSessionId) return;
+    const snapshot = this.companionSnapshot(lifecycle);
+    this.companion?.onDidChange(snapshot);
+    void this.panel?.webview.postMessage({ type: "autoBuildCleanupState", snapshot });
   }
 
   private async updateRootCleanupYaml(value: string): Promise<void> {

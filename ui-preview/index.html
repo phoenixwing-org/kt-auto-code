@@ -117,7 +117,7 @@
         </ktc-right-view-shell>
 
         <ktc-right-view-shell class="preview-editor-panel" data-editor-panel="autoBuild" hidden>
-          <div class="preview-editor-actions" slot="actions"><button type="button" data-auto-build-action="preflight" data-preview-output="handled">预检</button><button class="is-primary" type="button" data-auto-build-action="toggleRun" data-preview-output="handled">运行</button></div>
+          <div class="preview-editor-actions" slot="actions"><button type="button" data-auto-build-action="openCleanup" data-preview-output="handled">清理</button><button type="button" data-auto-build-action="preflight" data-preview-output="handled">预检</button><button class="is-primary" type="button" data-auto-build-action="toggleRun" data-preview-output="handled">运行</button></div>
           <div class="preview-editor-content preview-auto-build-right">
             <details class="preview-editor-section" open>
               <summary class="preview-build-config-header">
@@ -157,10 +157,10 @@
                 <strong>项目与仓库</strong>
                 <small data-auto-build-mode></small>
                 <span class="preview-build-table-tools">
-                  <button type="button" data-auto-build-project-tool="导入…" data-preview-output="handled">导入…</button>
-                  <button type="button" data-auto-build-project-tool="选择目录…" data-preview-output="handled">选择目录…</button>
-                  <button type="button" data-auto-build-project-tool="探测当前目录" data-preview-output="handled">探测当前目录</button>
-                  <button type="button" data-auto-build-project-tool="移除未启用项" data-preview-output="handled">移除未启用项</button>
+                  <button type="button" data-auto-build-project-tool="import" data-preview-output="handled">导入…</button>
+                  <button type="button" data-auto-build-project-tool="selectDirectories" data-preview-output="handled">选择目录…</button>
+                  <button type="button" data-auto-build-project-tool="discover" data-preview-output="handled">探测当前目录</button>
+                  <button type="button" data-auto-build-project-tool="removeDisabled" data-preview-output="handled">移除未启用项</button>
                   <label class="preview-build-probe-toggle"><input type="checkbox" data-auto-build-probe-columns />探测列</label>
                 </span>
               </summary>
@@ -182,6 +182,8 @@
           <div class="preview-editor-actions" slot="actions" data-codegen-right-actions></div>
           <div data-codegen-right-content></div>
         </ktc-right-view-shell>
+
+        <section class="preview-editor-panel" data-editor-panel="gitSquash" data-git-squash-content hidden></section>
 
         <section class="preview-editor-empty" data-editor-empty hidden>
           <svg aria-hidden="true"><use href="#preview-icon-layout"></use></svg>

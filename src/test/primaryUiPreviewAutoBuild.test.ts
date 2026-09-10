@@ -15,9 +15,8 @@ describe("Primary UI preview AutoBuild state", () => {
       { actionId: "preflight", label: "预检配置", primary: false, disabled: false },
       { actionId: "start", label: "启动", primary: true, disabled: false },
       { actionId: "stop", label: "停止", primary: false, disabled: true },
-      { actionId: "openCleanup", label: "清理", primary: false, disabled: false },
     ]);
-    expect(initialView.taskProgress).toBe("0 / 4");
+    expect(initialView.taskProgress).toBe(`0 / ${initial.session.tasks.length}`);
     expect(initial).toMatchObject({ environmentExpanded: true, maintenanceExpanded: true });
 
     const preflight = reducePreviewAutoBuildState(initial, { type: "preflight" });
@@ -27,7 +26,7 @@ describe("Primary UI preview AutoBuild state", () => {
       tone: "success",
     });
     expect(preflight.output).toContain("预检通过：2 个项目");
-    expect(derivePreviewAutoBuildState(preflight.state).taskProgress).toBe("0 / 4");
+    expect(derivePreviewAutoBuildState(preflight.state).taskProgress).toBe(`0 / ${initial.session.tasks.length}`);
   });
 
   it("按当前模式启动、锁定运行期动作，并只允许运行中的任务停止", () => {
@@ -37,8 +36,9 @@ describe("Primary UI preview AutoBuild state", () => {
 
     expect(running.state).toMatchObject({ phase: "running", status: "运行中", tone: "progress" });
     expect(running.output).toContain("CMake → CAA（顺序执行）");
-    expect(runningView.taskProgress).toBe("1 / 4");
-    expect(runningView.executionActions.map(({ disabled }) => disabled)).toEqual([false, true, true, false, true]);
+    expect(runningView.taskProgress).toBe(`0 / ${running.state.session.tasks.length}`);
+    expect(running.state.session.tasks.filter((task) => task.status === "running")).toHaveLength(1);
+    expect(runningView.executionActions.map(({ disabled }) => disabled)).toEqual([false, true, true, false]);
     expect(runningView.parallelDisabled).toBe(true);
     expect(runningView.recentConfigDisabled).toBe(true);
     expect(runningView.maintenanceActionsDisabled).toBe(true);
@@ -101,13 +101,13 @@ describe("Primary UI preview AutoBuild state", () => {
     expect(selected.state).toMatchObject({
       phase: "idle",
       currentConfigName: "auto-build.release.json",
-      status: "配置已切换",
+      status: "已打开 auto-build.release.json（模拟）。",
       tone: "idle",
     });
-    expect(selected.output).toContain("打开最近配置：auto-build.release.json");
+    expect(selected.output).toContain("已打开 auto-build.release.json");
 
     const saved = reducePreviewAutoBuildState(selected.state, { type: "saveConfig" });
-    expect(saved.state.currentConfigName).toBe("auto-build.local.json");
+    expect(saved.state.currentConfigName).toBe("auto-build.release.json");
     expect(saved.output).toContain("未写盘");
   });
 

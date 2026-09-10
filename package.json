@@ -3,7 +3,7 @@
   "displayName": "KT Auto Code",
   "description": "CAA / MSVC C++ 工具：编码修正、Ignore、搜索替换、成员排序与 Codegen 参数表",
   "author": "上海锟钛",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "license": "Apache-2.0",
   "publisher": "kuntai",
   "private": true,
@@ -686,7 +686,7 @@
     "verify:architecture": "node scripts/verify-import-boundaries.mjs",
     "verify:ci": "pnpm docs:check && pnpm verify:architecture && pnpm verify:wing-dependencies && pnpm ext:release-candidate",
     "vscode:prepublish": "pnpm run build",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "node scripts/typecheck.mjs",
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch"
   },

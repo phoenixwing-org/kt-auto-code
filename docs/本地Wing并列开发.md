@@ -26,6 +26,8 @@ phoenix/
 
 ### `worktrees/` 中的并列链接规则
 
+本机开发目录于 2026-09-10 按用户决定固定为 `phoenix/worktrees/phoenix-wing-working`，当前分支 `v0.7.4`。它由原历史工作树整体迁入，保留 Git 暂存与未提交内容；`phoenix/worktrees/phoenix-wing` 是指向它的联调链接。后续切换版本分支时保留固定目录名，不再按版本另建隐藏 `.worktrees`。
+
 当消费者检出位于 `phoenix/worktrees/<repo>` 时，`../phoenix-wing` 会解析为
 `phoenix/worktrees/phoenix-wing`，而不是根目录下的正式 Wing 检出。开始本地联调前必须：
 
@@ -66,6 +68,7 @@ phoenix/
 3. 构建 Auto 使用的 Code/Git/Run/Codegen 六包与 CAD 使用的三包。
 4. 直接加载刚生成的 `kt-codegen/dist`，用隔离的 `PNXBomAnalysisCmd` 反例执行 Marker 自检：两个 Start 缺 End 只能产生两条 `marker.missing-end`，后续五个完整同级块必须恢复，旧 `nested-start/mismatched-end` 必须为 0。任何偏差都会在启动 VS Code 前失败。
 5. 仅受控 wrapper 为本次构建/测试注入成对的 `PHOENIX_WING_ROOT` 和内部模式开关；解析全部 `@phoenix-wing/*` 公共入口，包括 `@phoenix-wing/kt-codegen/table`。`--prepare-only` 在 Wing 构建后运行 Auto 全量测试，真实新控件能力必须在此执行；默认 Registry 测试的条件跳过不能当作本地验收。
+   0.9.2 起 wrapper 同时运行类型检查，声明解析使用同一 Wing 公共 dist 入口，缺失声明立即失败，不回退旧 Registry 类型；不向 tsconfig、manifest 或 lockfile 写入本地路径。普通 `pnpm typecheck` 仍核验当前 Registry 类型，旧包缺少新能力时如实失败，不能以本地类型检查代替正式升级门禁。
 6. 读取 Code esbuild metafile：六个预期包必须来自并列 Wing，consumer `node_modules` 命中为 0。当前 CAD 的 `dev:prepare` 使用它自己的 Registry wrapper/锁；CAD 检查单独记录，不能描述为 CAD 本地 Wing 验收。
 7. 再次运行 Registry 依赖门禁，并逐字核对两个仓库各自的 manifest 与 lockfile 未被构建修改。
 8. 本地模式把已通过来源门禁的 Code/CAD 扩展目录复制到独立临时快照；忽略 `node_modules`、Git 元数据与旧 VSIX。
@@ -80,7 +83,7 @@ Desk Tools 是 Auto CAD 的可选 native provider，不由本命令构建或启�
 
 `pnpm dev` 会重新构建并嵌入并列 Wing，但不会直接删除真实工作区的 `.phoenix/cache/codegen`。生成内容或控制符边界规则变化时，必须同步递增 Wing 公开规则常量与 Auto 的 `KTC_CODEGEN_GENERATOR_VERSION`，拒绝旧 Plan；详见 [生成规则版本](codegen-plan/Codegen生成规则版本.md)。本地运行门禁检查双方版本一致，缓存另核对实际 runtime identity，防止未版本化的旧 Registry 与新 Wing 混用缓存。
 
-当前精确 Registry 依赖以 `package.json` 与 `pnpm-lock.yaml` 为准，不由本地根包版本推断。Codegen 规则独立基线为 `1.0.0`；早期缓存缺少运行时标识或仍带 `marker.nested-start` / `marker.mismatched-end` 旧级联诊断时，也会强制重算。
+当前精确 Registry 依赖以 `package.json` 与 `pnpm-lock.yaml` 为准，不由本地根包版本推断。Codegen 规则独立基线为 `1.0.0`，0.9.2 构造函数结束标记修复为 `1.0.1`，后续 Combo 回填注释修复升级为 `1.0.2`；前一版本计划必须重算。早期缓存缺少运行时标识或仍带 `marker.nested-start` / `marker.mismatched-end` 旧级联诊断时，也会强制重算。
 
 缓存失效只触发重新预检，不会放宽 Apply：缺失 End 的坏块仍不产生可写 region，源码指纹、未保存文件、区域重叠与事务回滚门禁保持不变。
 

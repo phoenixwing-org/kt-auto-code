@@ -74,22 +74,32 @@ describe("KtcGitWingAdapter 本地 Wing 提交图联调", () => {
     async () => {
       const root = await mkdtemp(join(tmpdir(), "ktc-git-graph-"));
       const git = async (...args: readonly string[]) => execFile("git", args, { cwd: root });
+      const gitAt = async (date: string, ...args: readonly string[]) => execFile("git", args, {
+        cwd: root,
+        env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date },
+      });
       try {
         await git("init", "-b", "main");
         await git("config", "user.name", "KT Auto Test");
         await git("config", "user.email", "auto-test@example.invalid");
         await writeFile(join(root, "base.txt"), "base\n");
         await git("add", ".");
-        await git("commit", "-m", "base");
+        await gitAt("2026-01-01T00:00:00Z", "commit", "-m", "base");
         await git("checkout", "-b", "topic");
         await writeFile(join(root, "topic.txt"), "topic\n");
         await git("add", ".");
-        await git("commit", "-m", "topic commit");
+        await gitAt("2026-01-02T00:00:00Z", "commit", "-m", "topic commit");
+        await writeFile(join(root, "topic.txt"), "topic later\n");
+        await git("add", ".");
+        await gitAt("2026-01-04T00:00:00Z", "commit", "-m", "topic later");
         await git("checkout", "main");
         await writeFile(join(root, "main.txt"), "main\n");
         await git("add", ".");
-        await git("commit", "-m", "main commit");
-        await git("merge", "--no-ff", "topic", "-m", "merge topic");
+        await gitAt("2026-01-03T00:00:00Z", "commit", "-m", "main commit");
+        await writeFile(join(root, "main.txt"), "main later\n");
+        await git("add", ".");
+        await gitAt("2026-01-05T00:00:00Z", "commit", "-m", "main later");
+        await gitAt("2026-01-06T00:00:00Z", "merge", "--no-ff", "topic", "-m", "merge topic");
         await git("tag", "v0.1.0");
         await git("update-ref", "refs/remotes/origin/main", "HEAD");
         await git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
@@ -106,6 +116,7 @@ describe("KtcGitWingAdapter 本地 Wing 提交图联调", () => {
         expect(first.commits[0]?.decorations.some((item) => item.kind === "tag")).toBe(true);
         expect(first.commits[0]?.remoteTrackingRefs?.map(ref => ref.name)).toEqual(["refs/remotes/origin/HEAD", "refs/remotes/origin/main"]);
         expect(first.nextBeforeCursor).toEqual(expect.any(String));
+        expect(first.commits.map((item) => item.subject)).toEqual(["merge topic", "main later"]);
 
         const next = await adapter.readCommitGraphPage(root, {
           expectedHeadOid: first.headOid,
@@ -115,6 +126,7 @@ describe("KtcGitWingAdapter 本地 Wing 提交图联调", () => {
         });
         expect(next.commits).toHaveLength(1);
         expect(next.commits[0]?.oid).not.toBe(first.commits[0]?.oid);
+        expect(next.commits[0]?.subject).toBe("topic later");
 
         await writeFile(join(root, "head-changed.txt"), "new head\n");
         await git("add", ".");

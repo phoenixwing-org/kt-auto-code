@@ -400,6 +400,7 @@ export function createPreviewCodegenSurface(options: PreviewCodegenSurfaceOption
 
   return {
     contextDirectory: () => PREVIEW_CODEGEN_DIRECTORY,
+    fileName: () => current().model.identity.fileName,
     createPrimary(): HTMLElement {
       primary = document.createElement("kt-codegen-primary-panel") as KtCodegenPrimaryPanel;
       primary.addEventListener("kt-codegen-primary-action", (event) => handlePrimaryAction((event as CustomEvent<KtCodegenPrimaryActionDetail>).detail));

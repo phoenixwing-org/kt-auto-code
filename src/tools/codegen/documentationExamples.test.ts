@@ -31,7 +31,7 @@ describe("Codegen documentation data examples", () => {
     expect(index.files.some((file) => file.candidate)).toBe(true);
   });
 
-  it("Preflight Cache 样例绑定独立规则1.0.0运行时，不冒称旧 Registry 已有该能力", () => {
+  it("Preflight Cache 样例绑定当前独立规则运行时，不冒称旧 Registry 已有该能力", () => {
     const cache = example<KtcCodegenPreflightCache>("KtCodegenPreflightCache.example.json");
     expect(cache.generatorVersion).toBe(KTC_CODEGEN_GENERATOR_VERSION);
     expect(cache.runtimeIdentity).toBe(`wing.codegen.rules:${KTC_CODEGEN_GENERATOR_VERSION}`);

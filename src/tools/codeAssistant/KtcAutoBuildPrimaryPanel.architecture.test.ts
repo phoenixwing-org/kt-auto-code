@@ -11,7 +11,8 @@ describe("AutoBuild Primary panel architecture", () => {
     expect(source).toContain('"ktc-auto-build-primary-action"');
     expect(source).toContain("detail: { actionId");
     expect(source).toContain('textContent = "执行"');
-    expect(source).toContain('for (const id of ["openScript", "preflight", "start", "stop", "openCleanup"])');
+    expect(source).toContain('for (const id of ["openScript", "preflight", "start", "stop"])');
+    expect(source).not.toContain('"openCleanup"');
     expect(source.indexOf('this.configuration(model)')).toBeLessThan(source.indexOf('this.overview(model)'));
     expect(source.indexOf('this.overview(model)')).toBeLessThan(source.indexOf('this.maintenance(model)'));
     expect(source.indexOf('this.maintenance(model)')).toBeLessThan(source.indexOf('this.environment(model)'));
@@ -33,7 +34,7 @@ describe("AutoBuild Primary panel architecture", () => {
     expect(source).not.toMatch(/from ["'](?:vscode|node:fs|node:fs\/promises)["']/u);
     expect(source).not.toMatch(/\b(?:unlink|rm|rmdir|writeFile|copyFile)\s*\(/u);
     expect(entry).toContain("KtcDefineAutoBuildPrimaryPanel()");
-    expect(entry).toContain("pnwCodeDefineCleanupDialog()");
+    expect(entry).not.toContain("pnwCodeDefineCleanupDialog()");
     expect(build).toContain('entryPoints: ["src/tools/codeAssistant/KtcAutoBuildPrimaryPanelEntry.ts"]');
     expect(build).toContain('outfile: "dist/ktc-auto-build-primary-panel.js"');
     expect(artifactVerifier).toContain('readText(zip, "extension/dist/ktc-auto-build-primary-panel.js")');

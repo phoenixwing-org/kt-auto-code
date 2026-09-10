@@ -196,12 +196,11 @@ describe("AutoBuild Primary panel", () => {
     expect(textOf(panel.shadow)).not.toContain("项目摘要");
 
     const executionActions = findNodes(sections[1]!, (node) => node.attributes.has("data-action-id"));
-    expect(executionActions.slice(0, 5).map((button) => button.attributes.get("data-action-id"))).toEqual([
+    expect(executionActions.slice(0, 4).map((button) => button.attributes.get("data-action-id"))).toEqual([
       "openScript",
       "preflight",
       "start",
       "stop",
-      "openCleanup",
     ]);
     expect(sections[0]!.children.map(({ className }) => className)).toEqual(["config", "config-recent", "config-status"]);
     expect(textOf(sections[0]!.children[0]!)).toBe("打开保存另存关闭详细配置");
@@ -275,7 +274,7 @@ describe("AutoBuild Primary panel", () => {
     document.body.replaceChildren();
   });
 
-  it("执行区清理按钮只发打开统一对话框的语义 actionId", async () => {
+  it("清理入口归属 Right，Primary 即使收到兼容 action 也不再显示按钮", async () => {
     installFakeDom();
     const { KtcAutoBuildPrimaryPanel } = await import("./KtcAutoBuildPrimaryPanel.js");
     const panel = new KtcAutoBuildPrimaryPanel() as unknown as FakeElement & {
@@ -286,17 +285,9 @@ describe("AutoBuild Primary panel", () => {
     const cleanup = findNodes(
       panel.shadow,
       (node) => node.attributes.get("data-action-id") === "openCleanup",
-    )[0]!;
-    cleanup.onclick?.();
-
-    expect(panel.events).toEqual([
-      {
-        type: "ktc-auto-build-primary-action",
-        detail: { actionId: "openCleanup" },
-        bubbles: true,
-        composed: true,
-      },
-    ]);
+    );
+    expect(cleanup).toHaveLength(0);
+    expect(panel.events).toEqual([]);
   });
 
   it("脚本一致只作为状态显示，不禁用同步脚本按钮", async () => {
@@ -322,11 +313,11 @@ describe("AutoBuild Primary panel", () => {
     const panel = new KtcAutoBuildPrimaryPanel() as unknown as FakeElement & {
       model: KtcAutoBuildPrimaryPanelModel;
     };
-    panel.model = model("openCleanup");
+    panel.model = model("preflight");
 
     const button = findNodes(
       panel.shadow,
-      (node) => node.attributes.get("data-action-id") === "openCleanup",
+      (node) => node.attributes.get("data-action-id") === "preflight",
     )[0]!;
     expect(button.disabled).toBe(true);
     expect(button.title).toBe("测试禁用");

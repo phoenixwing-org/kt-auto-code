@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
   showOpenDialog: vi.fn(),
   showSaveDialog: vi.fn(),
   showWarningMessage: vi.fn(),
+  openTextDocument: vi.fn(),
+  showTextDocument: vi.fn(),
+  textDocuments: [] as { isDirty: boolean; uri: { scheme: string; fsPath: string } }[],
   previewCleanupArtifacts: vi.fn(),
   cleanPreviewedArtifacts: vi.fn(),
   previewDirectoryContents: vi.fn(),
@@ -22,6 +25,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("vscode", () => {
   class Uri {
+    readonly scheme = "file";
     static file(fsPath: string) { return new Uri(fsPath); }
     static joinPath(base: Uri, ...segments: string[]) { return new Uri([base.fsPath, ...segments].join("/")); }
     constructor(readonly fsPath: string) {}
@@ -30,7 +34,8 @@ vi.mock("vscode", () => {
   return {
     Uri,
     ViewColumn: { Active: 1 },
-    workspace: { workspaceFolders: undefined },
+    workspace: { workspaceFolders: undefined, openTextDocument: mocks.openTextDocument,
+      get textDocuments() { return mocks.textDocuments; } },
     window: {
       createWebviewPanel: mocks.createWebviewPanel,
       createOutputChannel: vi.fn(() => ({
@@ -41,6 +46,7 @@ vi.mock("vscode", () => {
       showWarningMessage: mocks.showWarningMessage,
       showOpenDialog: mocks.showOpenDialog,
       showSaveDialog: mocks.showSaveDialog,
+      showTextDocument: mocks.showTextDocument,
     },
   };
 });
@@ -62,7 +68,8 @@ import * as vscode from "vscode";
 import type { KtcEditorPrimaryCompanionSnapshot } from "../../core/editorPrimaryCompanionContracts.js";
 import type { KtcAutoBuildConfiguration, KtcAutoBuildTask } from "./autoBuildContracts.js";
 import { ktcPlanAutoBuildTasks } from "./autoBuildContracts.js";
-import type { KtcAutoBuildCleanupDialogRequest } from "./autoBuildCleanupDialogContracts.js";
+import type { KtcAutoBuildCleanupDialogPayload, KtcAutoBuildCleanupDialogRequest } from "./autoBuildCleanupDialogContracts.js";
+import type { KtcAutoBuildCleanupYamlWorkspace } from "./autoBuildCleanupYamlWorkspace.js";
 import { KtcAutoBuildViewController } from "./autoBuildViewController.js";
 
 interface FakePanel extends vscode.WebviewPanel {
@@ -218,6 +225,15 @@ describe("自动编译 Primary companion", () => {
     mocks.showSaveDialog.mockResolvedValue(undefined);
     mocks.showWarningMessage.mockReset();
     mocks.showWarningMessage.mockResolvedValue("放弃修改");
+    mocks.textDocuments = [];
+    mocks.openTextDocument.mockReset();
+    mocks.openTextDocument.mockImplementation(async (input: { fsPath?: string; content?: string }) => ({
+      uri: input.fsPath ? vscode.Uri.file(input.fsPath) : { scheme: "untitled", fsPath: "Untitled-cleanup" },
+      isUntitled: !input.fsPath,
+      getText: () => input.content ?? "",
+    }));
+    mocks.showTextDocument.mockReset();
+    mocks.showTextDocument.mockResolvedValue({});
     mocks.previewCleanupArtifacts.mockReset();
     mocks.previewCleanupArtifacts.mockImplementation(async (root: string) => ({ root, matched: [join(root, "build")] }));
     mocks.cleanPreviewedArtifacts.mockReset();
@@ -1901,5 +1917,270 @@ describe("自动编译 Primary companion", () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
+  });
+  function cleanupYamlWingPreview(root: string) {
+    const target = join(root, "build");
+    return { root, matched: [target], targets: [{ tree: [{ identity: { path: target } }] }] };
+  }
+
+  async function cleanupYamlHostFixture() {
+    const base = await realpath(await mkdtemp(join(tmpdir(), "ktc-yaml-companion-")));
+    const working = join(base, "workspace");
+    const root = join(base, "root");
+    const yaml = "delete:\n  directories:\n    - build\n  files:\n    - '*.obj'\n";
+    for (const directory of [working, root]) {
+      await mkdir(join(directory, "build"), { recursive: true });
+      await writeFile(join(directory, "cleanup.yaml"), yaml);
+    }
+    mocks.previewCleanupArtifacts.mockImplementation(async (directory: string) => cleanupYamlWingPreview(directory));
+    const panel = fakePanel(); mocks.createWebviewPanel.mockReturnValue(panel);
+    const snapshots: KtcEditorPrimaryCompanionSnapshot[] = [];
+    const controller = new KtcAutoBuildViewController(vscode.Uri.file("/extension"), memory(), {
+      onDidChange: (snapshot) => snapshots.push(snapshot),
+    });
+    try {
+    await controller.show(working);
+    const documentId = "yaml-host-document";
+    panel.fireMessage({ type: "ready", documentId });
+    await vi.waitFor(() => expect(snapshots.at(-1)?.ready).toBe(true));
+    let revision = 1;
+    let configuration = draft({ workingDirectory: working, rootDirectory: root,
+      rootEnabled: true, thirdPartyEnabled: false, rootCleanupYaml: yaml });
+    panel.fireMessage({ type: "draftChanged", documentId, draftRevision: revision, configuration });
+    const model = () => {
+      const primary = snapshots.at(-1)?.primary;
+      if (primary?.kind !== "autoBuild") throw new Error("Missing YAML Host Primary projection");
+      return primary.model;
+    };
+    await vi.waitFor(() => expect(model().cleanupYaml?.contextId).toBeDefined());
+    const start = async (payload: KtcAutoBuildCleanupDialogPayload) => {
+      const before = vi.mocked(panel.webview.postMessage).mock.calls.length;
+      const token = actionToken(snapshots.at(-1)!, "cleanupDialog");
+      const pending = controller.runPrimaryCompanionAction({ ...token, payload });
+      if (payload.kind !== "yaml-edit-rules" && payload.kind !== "cancel" && payload.kind !== "execute") {
+        const request = () => vi.mocked(panel.webview.postMessage).mock.calls.slice(before)
+          .map(([message]) => message as { type?: string; requestId?: string })
+          .find(({ type }) => type === "requestConfiguration");
+        await vi.waitFor(() => expect(request()).toBeDefined());
+        panel.fireMessage({ type: "configurationSnapshot", requestId: request()!.requestId,
+          documentId, draftRevision: revision, configuration });
+      }
+      return { pending, token };
+    };
+    const perform = async (payload: KtcAutoBuildCleanupDialogPayload) => (await start(payload)).pending;
+    const changeConfiguration = async (patch: Partial<KtcAutoBuildConfiguration>) => {
+      const before = model().cleanupYaml?.contextId;
+      configuration = { ...configuration, ...patch };
+      panel.fireMessage({ type: "draftChanged", documentId, draftRevision: ++revision, configuration });
+      await vi.waitFor(() => expect(model().cleanupYaml?.contextId).not.toBe(before));
+    };
+    return { base, working, root, yaml, panel, snapshots, controller, model, start, perform, changeConfiguration,
+      workspace: (controller as unknown as { cleanupYamlWorkspace: KtcAutoBuildCleanupYamlWorkspace }).cleanupYamlWorkspace,
+      async dispose() { controller.dispose(); await rm(base, { recursive: true, force: true }); } };
+    } catch (error) {
+      controller.dispose(); await rm(base, { recursive: true, force: true }); throw error;
+    }
+  }
+
+  it("YAML Host 将准确规则文本交给未保存yaml编辑器，不调用保存对话框或写入来源", async () => {
+    const fixture = await cleanupYamlHostFixture();
+    try {
+      const text = "# user draft\r\ndelete:\r\n  files:\r\n    - '*.pdb'\r\n";
+      await expect(fixture.perform({ kind: "yaml-edit-rules", rulesYaml: text })).resolves.toBe(true);
+      expect(mocks.openTextDocument).toHaveBeenCalledExactlyOnceWith({ language: "yaml", content: text });
+      expect(mocks.showTextDocument).toHaveBeenCalledWith(expect.objectContaining({ isUntitled: true }), { preview: true });
+      expect(mocks.showSaveDialog).not.toHaveBeenCalled();
+      expect(mocks.showOpenDialog).not.toHaveBeenCalled();
+      expect(await readFile(join(fixture.working, "cleanup.yaml"), "utf8")).toBe(fixture.yaml);
+      expect(mocks.previewCleanupArtifacts).not.toHaveBeenCalled();
+    } finally { await fixture.dispose(); }
+  });
+
+  it("Right 清理收到 Host 快照，动作仍核对上下文及原 session/revision", async () => {
+    const fixture = await cleanupYamlHostFixture();
+    try {
+      expect(fixture.panel.webview.postMessage).toHaveBeenCalledWith({
+        type: "autoBuildCleanupState", snapshot: fixture.snapshots.at(-1),
+      });
+      const contextId = fixture.model().cleanupYaml!.contextId;
+      const token = { ...actionToken(fixture.snapshots.at(-1)!, "cleanupDialog"),
+        payload: { kind: "yaml-edit-rules", rulesYaml: fixture.yaml } };
+      fixture.panel.fireMessage({ type: "autoBuildCleanupAction", contextId: "old-context", token });
+      fixture.panel.fireMessage({ type: "autoBuildCleanupAction", contextId, token: { ...token, sessionId: "other-session" } });
+      fixture.panel.fireMessage({ type: "autoBuildCleanupAction", contextId, token: { ...token, revision: token.revision - 1 } });
+      fixture.panel.fireMessage({ type: "autoBuildCleanupAction", contextId, token: { ...token, actionId: "start" } });
+      expect(mocks.openTextDocument).not.toHaveBeenCalled();
+      fixture.panel.fireMessage({ type: "autoBuildCleanupAction", contextId, token });
+      await vi.waitFor(() => expect(mocks.openTextDocument).toHaveBeenCalledExactlyOnceWith({ language: "yaml", content: fixture.yaml }));
+      await vi.waitFor(() => expect(fixture.model().cleanupYaml!.busy).toBe(false));
+      expect(mocks.showSaveDialog).not.toHaveBeenCalled();
+      expect(mocks.cleanPreviewedArtifacts).not.toHaveBeenCalled();
+    } finally { await fixture.dispose(); }
+  });
+
+  it("YAML Host 仅发现工作目录及其子目录，排除ROOT/thirdParty/外部项目和同级目录", async () => {
+    const fixture = await cleanupYamlHostFixture();
+    try {
+      const nested = join(fixture.working, "projects", "nested");
+      const thirdParty = join(fixture.base, "third-party");
+      const externalProject = join(fixture.base, "external-project");
+      const sibling = join(fixture.base, "sibling");
+      for (const directory of [nested, thirdParty, externalProject, sibling]) {
+        await mkdir(directory, { recursive: true });
+        await writeFile(join(directory, "cleanup.yaml"), fixture.yaml);
+      }
+      await fixture.changeConfiguration({
+        rootEnabled: true, thirdPartyEnabled: true, thirdPartyDirectory: thirdParty,
+        projects: [{ id: "external", name: "External", enabled: true, path: externalProject,
+          branch: "develop", operations: { update: true, cmake: true, caa: false, linkCaa: false } }],
+      });
+      const discover = vi.spyOn(fixture.workspace, "discover");
+      await expect(fixture.perform({ kind: "yaml-discover" })).resolves.toBe(true);
+      expect(discover).toHaveBeenCalledExactlyOnceWith([fixture.working], { shouldContinue: expect.any(Function) });
+      const sources = fixture.model().cleanupYaml!.sources;
+      expect(sources.map(({ path }) => path).sort()).toEqual([
+        join(nested, "cleanup.yaml"), join(fixture.working, "cleanup.yaml"),
+      ].sort());
+      for (const excluded of [fixture.root, thirdParty, externalProject, sibling]) {
+        expect(sources.some(({ path }) => path === join(excluded, "cleanup.yaml"))).toBe(false);
+      }
+      const source = sources.find(({ root }) => root === nested)!;
+      await expect(fixture.perform({ kind: "yaml-open-source", sourceId: source.id })).resolves.toBe(true);
+      expect(mocks.openTextDocument).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ scheme: "file", fsPath: source.path }));
+      expect(mocks.showTextDocument).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ uri: expect.objectContaining({ fsPath: source.path }) }), { preview: true });
+      expect(mocks.cleanPreviewedArtifacts).not.toHaveBeenCalled();
+    } finally { await fixture.dispose(); }
+  });
+
+  it("YAML Host 单行清理只接受source ID/revision，根和规则来自文件且无需确认", async () => {
+    const fixture = await cleanupYamlHostFixture();
+    try {
+      await fixture.perform({ kind: "yaml-discover" });
+      const source = fixture.model().cleanupYaml!.sources.find(({ root }) => root === fixture.working)!;
+      const clean = vi.spyOn(fixture.workspace, "clean");
+      await fixture.perform({ kind: "yaml-clean-source", sourceId: source.id, revision: source.revision,
+        root: "/forged", path: "/forged/cleanup.yaml", rulesYaml: "- forged*" } as KtcAutoBuildCleanupDialogPayload);
+      expect(clean).toHaveBeenCalledExactlyOnceWith(source.id, source.revision,
+        { shouldContinue: expect.any(Function), isDirty: expect.any(Function) });
+      expect(mocks.previewCleanupArtifacts).toHaveBeenCalledExactlyOnceWith(fixture.working, fixture.yaml);
+      expect(mocks.cleanPreviewedArtifacts).toHaveBeenCalledExactlyOnceWith(
+        cleanupYamlWingPreview(fixture.working), { shouldContinue: expect.any(Function) });
+      expect(fixture.model().cleanup.preview.state).toBe("complete");
+      expect(fixture.model().cleanupYaml!.sources.find(({ id }) => id === source.id)?.revision).toBe(source.revision + 1);
+      expect(mocks.showWarningMessage).not.toHaveBeenCalled();
+      expect(mocks.executeGitForcedCleanup).not.toHaveBeenCalled();
+      // Wing execution is mocked: contract verification never deletes real build contents.
+      await expect(access(join(fixture.working, "build"))).resolves.toBeUndefined();
+    } finally { await fixture.dispose(); }
+  });
+
+  it("YAML Host 将VSCode未保存状态传入dirty守卫并拒绝删除", async () => {
+    const fixture = await cleanupYamlHostFixture();
+    try {
+      await fixture.perform({ kind: "yaml-discover" });
+      const source = fixture.model().cleanupYaml!.sources[0]!;
+      mocks.textDocuments = [{ uri: { scheme: "file", fsPath: source.path }, isDirty: true }];
+      await fixture.perform({ kind: "yaml-clean-source", sourceId: source.id, revision: source.revision });
+      expect(fixture.model().cleanup.preview).toMatchObject({ state: "error", message: expect.stringContaining("未保存") });
+      expect(mocks.previewCleanupArtifacts).not.toHaveBeenCalled();
+      expect(mocks.cleanPreviewedArtifacts).not.toHaveBeenCalled();
+    } finally { await fixture.dispose(); }
+  });
+
+  it("YAML Host 新配置立即清空旧scope，旧source拒绝且重新发现仍仅限工作目录", async () => {
+    const fixture = await cleanupYamlHostFixture();
+    try {
+      await fixture.perform({ kind: "yaml-discover" });
+      const source = fixture.model().cleanupYaml!.sources.find(({ root }) => root === fixture.working)!;
+      await fixture.changeConfiguration({ rootEnabled: false });
+      expect(fixture.model().cleanupYaml!.sources).toHaveLength(0);
+      await fixture.perform({ kind: "yaml-clean-source", sourceId: source.id, revision: source.revision });
+      expect(fixture.model().cleanup.preview.message).toContain("编译配置已变化，请重新探测");
+      expect(mocks.cleanPreviewedArtifacts).not.toHaveBeenCalled();
+      await fixture.perform({ kind: "yaml-discover" });
+      expect(fixture.model().cleanupYaml!.sources.map(({ root }) => root)).toEqual([fixture.working]);
+    } finally { await fixture.dispose(); }
+  });
+
+  it.each(["", "   "])("YAML Host 空工作目录%j拒绝探测，不回退默认目录或ROOT", async (workingDirectory) => {
+    const fixture = await cleanupYamlHostFixture();
+    try {
+      await fixture.perform({ kind: "yaml-discover" });
+      expect(fixture.model().cleanupYaml!.sources).toHaveLength(1);
+      await fixture.changeConfiguration({ workingDirectory });
+      const discover = vi.spyOn(fixture.workspace, "discover");
+      await fixture.perform({ kind: "yaml-discover" });
+      expect(discover).not.toHaveBeenCalled();
+      expect(fixture.model().cleanupYaml!.sources).toHaveLength(0);
+      expect(fixture.model().cleanupYaml!.notice).toContain("请先填写当前工作目录");
+      expect(mocks.outputLines).toContainEqual(expect.stringContaining("请先填写当前工作目录"));
+      expect(fixture.model().cleanup.preview.state).toBe("idle");
+      expect(mocks.previewCleanupArtifacts).not.toHaveBeenCalled();
+      expect(mocks.cleanPreviewedArtifacts).not.toHaveBeenCalled();
+    } finally { await fixture.dispose(); }
+  });
+
+  it("YAML Host 有界探测警告只进入日志，列表notice保留单行摘要而不泄漏跳过路径", async () => {
+    const fixture = await cleanupYamlHostFixture();
+    try {
+      const skipped = join(fixture.working, ...Array.from({ length: 7 }, (_, index) => `nested-${index}`));
+      await mkdir(skipped, { recursive: true });
+      await writeFile(join(skipped, "cleanup.yaml"), fixture.yaml);
+      await fixture.perform({ kind: "yaml-discover" });
+      const warnings = fixture.workspace.warnings;
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain(skipped);
+      const notice = fixture.model().cleanupYaml!.notice!;
+      expect(notice).toContain("发现 1 份");
+      expect(notice).toContain("详情见日志");
+      expect(notice).not.toMatch(/[\r\n]/u);
+      for (const warning of warnings) {
+        expect(mocks.outputLines).toContainEqual(expect.stringContaining(`[YAML 探测] ${warning}`));
+        expect(notice).not.toContain(warning);
+      }
+      expect(JSON.stringify(fixture.snapshots.at(-1))).not.toContain(skipped);
+      expect(mocks.previewCleanupArtifacts).not.toHaveBeenCalled();
+      expect(mocks.cleanPreviewedArtifacts).not.toHaveBeenCalled();
+    } finally { await fixture.dispose(); }
+  });
+
+  it("YAML Host busy拒绝并发，取消后迟到预览不启动删除或覆盖取消状态", async () => {
+    const fixture = await cleanupYamlHostFixture();
+    let release = (): void => undefined;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    try {
+      await fixture.perform({ kind: "yaml-discover" });
+      const source = fixture.model().cleanupYaml!.sources[0]!;
+      mocks.previewCleanupArtifacts.mockImplementation(async (root: string) => { await gate; return cleanupYamlWingPreview(root); });
+      const { pending, token } = await fixture.start({ kind: "yaml-clean-source", sourceId: source.id, revision: source.revision });
+      await vi.waitFor(() => expect(mocks.previewCleanupArtifacts).toHaveBeenCalledOnce());
+      expect(fixture.model().cleanupYaml!.busy).toBe(true);
+      await expect(fixture.controller.runPrimaryCompanionAction({ ...actionToken(fixture.snapshots.at(-1)!, "cleanupDialog"),
+        payload: { kind: "yaml-open-source", sourceId: source.id } })).resolves.toBe(false);
+      await expect(fixture.controller.runPrimaryCompanionAction({ ...token, payload: { kind: "cancel" } })).resolves.toBe(true);
+      release(); await expect(pending).resolves.toBe(true);
+      expect(mocks.cleanPreviewedArtifacts).not.toHaveBeenCalled();
+      expect(fixture.model().cleanup.preview.state).toBe("idle");
+      expect(fixture.snapshots.at(-1)?.status).toBe("idle");
+      expect(mocks.outputLines.some((line) => line.includes("ERROR"))).toBe(false);
+    } finally { release(); await fixture.dispose(); }
+  });
+
+  it("YAML Host 打开来源时取消，迟到openTextDocument不再显示编辑器", async () => {
+    const fixture = await cleanupYamlHostFixture();
+    let release = (): void => undefined;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    try {
+      await fixture.perform({ kind: "yaml-discover" });
+      const source = fixture.model().cleanupYaml!.sources[0]!;
+      mocks.openTextDocument.mockImplementation(async () => { await gate; return { uri: vscode.Uri.file(source.path) }; });
+      const { pending, token } = await fixture.start({ kind: "yaml-open-source", sourceId: source.id });
+      await vi.waitFor(() => expect(mocks.openTextDocument).toHaveBeenCalledOnce());
+      await fixture.controller.runPrimaryCompanionAction({ ...token, payload: { kind: "cancel" } });
+      release(); await expect(pending).resolves.toBe(true);
+      expect(mocks.showTextDocument).not.toHaveBeenCalled();
+      expect(fixture.snapshots.at(-1)?.status).toBe("idle");
+      expect(mocks.outputLines.some((line) => line.includes("ERROR"))).toBe(false);
+    } finally { release(); await fixture.dispose(); }
   });
 });

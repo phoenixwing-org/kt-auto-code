@@ -12,6 +12,10 @@ export interface KtcAutoBuildCleanupDialogRequest {
 
 export type KtcAutoBuildCleanupDialogPayload =
   | { readonly kind: "cancel" }
+  | { readonly kind: "yaml-discover" }
+  | { readonly kind: "yaml-edit-rules"; readonly rulesYaml: string }
+  | { readonly kind: "yaml-open-source"; readonly sourceId: string }
+  | { readonly kind: "yaml-clean-source"; readonly sourceId: string; readonly revision: number }
   | { readonly kind: "preview"; readonly request: KtcAutoBuildCleanupDialogRequest }
   | {
     readonly kind: "execute";
@@ -28,6 +32,17 @@ export function ktcParseAutoBuildCleanupDialogPayload(
 ): KtcAutoBuildCleanupDialogPayload | undefined {
   if (!record(value)) return undefined;
   if (value.kind === "cancel") return Object.freeze({ kind: "cancel" });
+  if (value.kind === "yaml-discover") return Object.freeze({ kind: "yaml-discover" });
+  if (value.kind === "yaml-edit-rules") {
+    return typeof value.rulesYaml === "string" && value.rulesYaml.length <= KTC_ROOT_CLEANUP_PATTERNS_MAX_LENGTH
+      ? Object.freeze({ kind: "yaml-edit-rules", rulesYaml: value.rulesYaml }) : undefined;
+  }
+  if (value.kind === "yaml-open-source" || value.kind === "yaml-clean-source") {
+    if (typeof value.sourceId !== "string" || !value.sourceId || value.sourceId.length > MAX_ID_LENGTH) return undefined;
+    if (value.kind === "yaml-open-source") return Object.freeze({ kind: "yaml-open-source", sourceId: value.sourceId });
+    return Number.isSafeInteger(value.revision) && (value.revision as number) >= 0
+      ? Object.freeze({ kind: "yaml-clean-source", sourceId: value.sourceId, revision: value.revision as number }) : undefined;
+  }
   if (value.kind !== "preview" && value.kind !== "execute") return undefined;
   const request = parseRequest(value.request);
   if (!request) return undefined;

@@ -750,7 +750,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
     </section>
     <ktc-package-includes-primary id="package-includes-primary" hidden></ktc-package-includes-primary>
     <ktc-auto-build-primary-panel id="auto-build-primary-panel" hidden></ktc-auto-build-primary-panel>
-    <pnw-cleanup-dialog id="auto-build-cleanup-dialog"></pnw-cleanup-dialog>
     <pnw-cleanup-dialog id="run-cleanup-dialog"></pnw-cleanup-dialog>
     <p class="meta" id="workspace-meta">
       <span id="workspace-context-label">工作区：</span>
@@ -1024,7 +1023,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       projectRenamePrimarySummary: document.getElementById("project-rename-primary-summary"),
       autoBuildPrimaryPanel: document.getElementById("auto-build-primary-panel"),
       packageIncludesPrimary: document.getElementById("package-includes-primary"),
-      autoBuildCleanupDialog: document.getElementById("auto-build-cleanup-dialog"),
       runCleanupDialog: document.getElementById("run-cleanup-dialog"),
       replaceBlock: document.getElementById("replace-block"),
       codeAssistantNavigator: document.getElementById("code-assistant-navigator"),
@@ -1540,36 +1538,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
             actions: companion.actions || [],
           })
         : undefined;
-      if (projection?.cleanup) els.autoBuildCleanupDialog.model = projection.cleanup;
-    }
-
-    function openAutoBuildCleanup(modeId) {
-      const companion = (state.toolStates.autoBuild || {}).editorCompanion;
-      const cleanup = companion?.primary?.kind === "autoBuild"
-        ? companion.primary.model.cleanup
-        : null;
-      if (!cleanup) return;
-      const selectedModeId = (cleanup.modes || []).some((mode) => mode.id === modeId)
-        ? modeId
-        : cleanup.selectedModeId;
-      els.autoBuildCleanupDialog.model = Object.assign({}, cleanup, {
-        selectedModeId,
-        preview: { state: "idle", items: [] },
-      });
-      els.autoBuildCleanupDialog.showModal(selectedModeId);
-    }
-
-    function postAutoBuildCleanupAction(companion, payload) {
-      if (!companion || !payload) return;
-      vscode.postMessage({
-        type: "editorCompanionAction",
-        panelId: companion.panelId,
-        toolId: companion.toolId,
-        sessionId: companion.sessionId,
-        revision: companion.revision,
-        actionId: "cleanupDialog",
-        payload,
-      });
     }
 
     const editorCompanionStatusText = ${ktcEditorCompanionStatusText.toString()};
@@ -2326,10 +2294,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       const model = (state.toolStates.autoBuild || {}).editorCompanion;
       const actionId = event.detail?.actionId;
       if (!model || !actionId) return;
-      if (actionId === "openCleanup") {
-        openAutoBuildCleanup("rules");
-        return;
-      }
       const value = typeof event.detail?.value === "string"
         ? event.detail.value.slice(0, 4096)
         : undefined;
@@ -2359,11 +2323,6 @@ export function getPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
       } else if (detail.kind === "manage") vscode.postMessage({ type: "selectTool", toolId: "ignoreSettings" });
     }
     els.packageIncludesPrimary.addEventListener("ktc-ignore-policy-action", postIgnorePolicyAction);
-    els.autoBuildCleanupDialog.addEventListener("pnw-cleanup-dialog-action", (event) => {
-      const detail = event.detail || {};
-      if (detail.kind !== "preview" && detail.kind !== "execute" && detail.kind !== "cancel") return;
-      postAutoBuildCleanupAction((state.toolStates.autoBuild || {}).editorCompanion, detail);
-    });
     els.projectRenamePrimaryScheme.addEventListener("pnw-combo-action", (event) => {
       const model = (state.toolStates.projectRename || {}).editorCompanion;
       if (!model) return;

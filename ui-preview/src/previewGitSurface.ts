@@ -77,7 +77,8 @@ const EXTERNAL_REPOSITORY: KtcGitRepositoryInput = {
 /** Shared production Git panel with a preview-only, in-memory Host adapter. */
 export function createPreviewGitSurface(options: {
   readonly log: (line: string) => void;
-}): { createPrimary(): HTMLElement; dispose(): void } {
+  readonly openSquash?: (repository: KtcGitRepositoryInput, selectedOids: readonly string[]) => void;
+}): { createPrimary(): HTMLElement; applyRepositorySnapshot(repository: KtcGitRepositoryInput): void; dispose(): void } {
   let repositories: readonly KtcGitRepositoryInput[] = [];
   let selectedRepositoryId: string | undefined;
   let discovery: KtcGitDiscoveryState = { status: "idle", scannedDirectories: 0, foundRepositories: 0 };
@@ -190,12 +191,27 @@ export function createPreviewGitSurface(options: {
         render();
         return;
       }
+      if (detail.action === "openSquashWithSelection"
+        || detail.action === "openAction" && detail.actionId === "squashLocalCommits") {
+        const repository = repositories.find(({ id }) => id === detail.repositoryId);
+        if (repository && options.openSquash) {
+          options.openSquash(repository, detail.action === "openSquashWithSelection" ? detail.selectedOids : []);
+          return;
+        }
+      }
       options.log(`[Git] ${detail.action}（模拟）；未执行真实 Git 操作`);
     });
     currentRoot.replaceChildren(style, bar, panel);
   };
 
   return {
+    applyRepositorySnapshot(snapshot): void {
+      // Refresh only an already registered repository. Never resurrect a removed
+      // entry, select another repository, or activate a closed Primary Tool.
+      if (!repositories.some(({ id }) => id === snapshot.id)) return;
+      repositories = repositories.map((repository) => repository.id === snapshot.id ? snapshot : repository);
+      render();
+    },
     createPrimary(): HTMLElement {
       currentRoot = document.createElement("section");
       currentRoot.className = "preview-git-primary";

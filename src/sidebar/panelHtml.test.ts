@@ -172,7 +172,7 @@ describe("sidebar panel HTML", () => {
       sessionId: "run-session", revision: 1, payload: { kind: "cancel" } }]);
   });
 
-  it("清理弹窗 cancel 通过正式消息桥到达 Host，局部模式编辑不发送执行请求", () => {
+  it("编译清理由 Right 承载，Primary 不再挂载弹窗或持有其消息桥", () => {
     const extensionUri = {
       path: "/extension",
       with(change: { path: string }) { return { ...this, ...change }; },
@@ -180,17 +180,11 @@ describe("sidebar panel HTML", () => {
     const html = getPanelHtml({ cspSource: "test-webview",
       asWebviewUri(uri: { path: string }) { return `test-webview:${uri.path}`; },
     } as unknown as Parameters<typeof getPanelHtml>[0], extensionUri);
-    const body = html.match(/els\.autoBuildCleanupDialog\.addEventListener\("pnw-cleanup-dialog-action", \(event\) => \{([\s\S]*?)\n    \}\);/)?.[1];
-    expect(body).toBeTruthy();
-    const companion = { toolId: "autoBuild", sessionId: "current" };
-    const sent: unknown[] = [];
-    const listener = new Function("state", "postAutoBuildCleanupAction",
-      `return (event) => {${body!}\n};`,
-    )({ toolStates: { autoBuild: { editorCompanion: companion } } },
-      (owner: unknown, payload: unknown) => sent.push({ owner, payload })) as (event: { detail: unknown }) => void;
-    listener({ detail: { kind: "cancel" } });
-    listener({ detail: { kind: "change-mode", modeId: "git-force" } });
-    expect(sent).toEqual([{ owner: companion, payload: { kind: "cancel" } }]);
+    expect(html).not.toContain('id="auto-build-cleanup-dialog"');
+    expect(html).not.toContain("postAutoBuildCleanupAction");
+    expect(html).not.toContain("autoBuildCleanupContext");
+    // Run's separate cleanup contract is not part of the AutoBuild migration.
+    expect(html).toContain('id="run-cleanup-dialog"');
   });
 
   it("由统一契约判定三个 Editor Primary companion", () => {
@@ -366,18 +360,20 @@ describe("sidebar panel HTML", () => {
     expect(html).toContain('postProjectRenamePrimaryAction(model, "clearSchemes")');
     expect(html).toContain("dist/pnw-combo.js");
     expect(html).toContain('id="auto-build-primary-panel"');
-    expect(html).toContain('<pnw-cleanup-dialog id="auto-build-cleanup-dialog"></pnw-cleanup-dialog>');
+    expect(html).not.toContain('id="auto-build-cleanup-dialog"');
+    expect(html).not.toContain('id="auto-build-cleanup-edit"');
+    expect(html).not.toContain('id="auto-build-cleanup-discover"');
+    expect(html).not.toContain('id="auto-build-cleanup-yaml"');
     expect(html).toContain("ktc-auto-build-primary-panel.js");
     expect(html).toContain('function renderEditorCompanion(ts)');
     expect(html).toContain('function renderAutoBuildPrimary(ts)');
     expect(html).toContain('companion?.primary?.kind === "autoBuild"');
     expect(html).toContain('"ktc-auto-build-primary-action"');
-    expect(html).toContain('actionId === "openCleanup"');
-    expect(html).toContain('actionId: "cleanupDialog"');
+    expect(html).not.toContain('actionId === "openCleanup"');
     expect(html).toContain('"pnw-cleanup-dialog-action"');
     expect(html).toContain('detail.kind !== "preview" && detail.kind !== "execute" && detail.kind !== "cancel"');
     expect(html).toContain('payload,');
-    expect(html).toContain('showModal(selectedModeId)');
+    expect(html).not.toContain('showModal(selectedModeId)');
     expect(html).toContain("event.detail.value.slice(0, 4096)");
     expect(html).toContain('els.editorCompanionStatus.textContent = editorCompanionStatusText(model)');
     expect(html).toContain('type: "editorCompanionAction"');

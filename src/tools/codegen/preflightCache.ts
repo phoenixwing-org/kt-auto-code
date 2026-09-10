@@ -8,11 +8,13 @@ export const KTC_CODEGEN_CACHE_SCHEMA_VERSION = 1 as const;
  * 0.3.2：Marker 边界恢复语义变化，丢弃含旧 nested/mismatched 级联诊断的缓存并重新 Analyze。
  * 0.3.3：正式切换到 Wing 0.4.3，拒绝复用 Registry 0.4.2 生成的计划。
  * 1.0.0：启用独立规则版本，包含 CAA Combo 选择通知修正并拒绝旧 0.3.3 计划。
+ * 1.0.1：构造函数 END/clang-format 结束标记跟随后续语义行缩进，拒绝旧 1.0.0 计划。
+ * 1.0.2：CAA Combo UPDATE DIALOG 补齐自身字段注释，拒绝旧 1.0.1 计划。
  * 与 Wing KT_CODEGEN_GENERATOR_VERSION 保持一致，由本地运行门禁核验；
  * 当前 Registry 尚无该导出，因此不通过声明扩展伪装已发布支持。
  * 缓存失效只负责重算计划；Apply 仍由新 Plan、指纹、dirty 与事务门禁共同决定。
  */
-export const KTC_CODEGEN_GENERATOR_VERSION = "1.0.0";
+export const KTC_CODEGEN_GENERATOR_VERSION = "1.0.2";
 
 /** Optional capability read: a Registry without this export remains explicitly unversioned. */
 export function ktcCodegenRuntimeIdentity(runtime: unknown): string {

@@ -20,6 +20,7 @@ const newFlows = [
   "sourcePlanInvalidation",
   "jsonRecreateGuard",
   "packageIncludesService",
+  "codegenDocumentTabs",
 ] as const;
 
 const packageIncludesEvidence = [
@@ -65,6 +66,7 @@ function createReceipt() {
         fixtureUnchanged: true,
       },
       codegenPersistence: Object.fromEntries(persistenceEvidence.map((field) => [field, true])),
+      codegenDocumentTabs: { filenameOnly: true, sameNamesNotDisambiguated: true, uriReuse: true, isolatedStateUpdate: true },
       packageIncludes: {
         ...Object.fromEntries(packageIncludesEvidence.map((field) => [field, true])),
         previewRowCount: 3,
@@ -78,6 +80,11 @@ function createReceipt() {
 }
 
 describe("Extension Host smoke receipt gate", () => {
+  it.each(["filenameOnly", "sameNamesNotDisambiguated", "uriReuse", "isolatedStateUpdate"])("requires native JSON tab evidence: %s", (field) => {
+    const receipt = createReceipt();
+    Object.assign(receipt.evidence.codegenDocumentTabs, { [field]: false });
+    expect(validateExtensionHostSmokeReceipt(receipt)).toContain(`evidence.codegenDocumentTabs.${field} must be true`);
+  });
   it("accepts a complete schemaVersion 1 Auto receipt", () => {
     expect(validateExtensionHostSmokeReceipt(createReceipt())).toEqual([]);
   });

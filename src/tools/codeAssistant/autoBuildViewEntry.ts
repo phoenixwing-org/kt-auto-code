@@ -3,6 +3,7 @@ import { KTC_DEFAULT_ROOT_CLEANUP_PATTERNS_YAML } from "../../core/rootCleanupPa
 import type { KtcAutoBuildConfiguration } from "./autoBuildContracts.js";
 import type { KtcAutoBuildConfigurationRequest } from "./autoBuildDraftContracts.js";
 import type { KtcAutoBuildProjectRow } from "./autoBuildProjectTable.js";
+import { ktcMountAutoBuildCleanupView } from "./autoBuildCleanupView.js";
 
 declare function acquireVsCodeApi(): { postMessage(message: unknown): void };
 
@@ -418,5 +419,6 @@ window.addEventListener("DOMContentLoaded", () => {
       if (focusedTaskId) rows.querySelector<HTMLElement>(`button[data-task-id="${CSS.escape(focusedTaskId)}"]`)?.focus({ preventScroll: true });
     });
   });
+  ktcMountAutoBuildCleanupView({ postMessage: (message) => autoBuildVsCode.postMessage(message) });
   autoBuildVsCode.postMessage({ type: "ready", documentId: autoBuildDocumentId });
 });

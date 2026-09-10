@@ -36,7 +36,8 @@ describe("Code Assistant formal Primary bridge", () => {
     expect(inlineScript).toBeTruthy();
 
     document.body.innerHTML = html.slice(bodyStart + "<body>".length, scriptStart);
-    for (const id of ["auto-build-cleanup-dialog", "run-cleanup-dialog"]) {
+    expect(document.getElementById("auto-build-cleanup-dialog")).toBeNull();
+    for (const id of ["run-cleanup-dialog"]) {
       const dialog = document.getElementById(id) as HTMLElement & { close(): void; showModal(mode?: unknown): void };
       dialog.close = vi.fn();
       dialog.showModal = vi.fn();

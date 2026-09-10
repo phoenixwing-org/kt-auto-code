@@ -28,6 +28,7 @@ export interface KtcCreateAutoBuildPrimaryViewModelInput {
   readonly cleanupEnabled?: boolean;
   readonly cleanupDisabledReason?: string;
   readonly cleanupState?: KtcAutoBuildCleanupProjectionState;
+  readonly cleanupYaml?: KtcAutoBuildPrimaryViewModel["cleanupYaml"];
 }
 
 function platformLabels(platform: NodeJS.Platform): { short: string; execution: string } {
@@ -76,6 +77,7 @@ export function ktcCreateAutoBuildPrimaryViewModel(
       { label: "任务", value: `${completedTasks} / ${input.tasks.length}` },
       { label: "失败", value: String(failedTasks) },
     ],
+    cleanupYaml: input.cleanupYaml,
     configuration: {
       name: configName,
       fullPath: input.currentPath,

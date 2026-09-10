@@ -81,6 +81,7 @@ describe("Preview Codegen shared component/session surface", () => {
     expect(view.primary.model!.documents).toHaveLength(2);
     expect(view.preflight).toBeUndefined();
     expect(view.surface.contextDirectory()).toBe("/preview-memory/codegen");
+    expect(view.surface.fileName()).toBe(view.active.fileName);
     expect(view.status).toContain("内存");
   });
 
@@ -91,10 +92,12 @@ describe("Preview Codegen shared component/session surface", () => {
     expect(view.active.dirty).toBe(true);
     view.choose(1);
     expect(view.active.fileName).toBe("IssueDialog.json");
+    expect(view.surface.fileName()).toBe("IssueDialog.json");
     expect(view.table.getData().items).toHaveLength(1);
     expect(view.cell().value).toBe("Width");
     view.choose(0);
     expect(view.active.id).toBe(firstUri);
+    expect(view.surface.fileName()).toBe(view.active.fileName);
     expect(view.cell().value).toBe("ChangedId");
     expect(view.active.dirty).toBe(true);
     expect(view.right.dataset.documentId).toBe(firstUri);

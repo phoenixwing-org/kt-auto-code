@@ -1,4 +1,5 @@
 import * as esbuild from "esbuild";
+import { randomBytes } from "node:crypto";
 import { watch, type FSWatcher } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer, type IncomingHttpHeaders, type Server, type ServerResponse } from "node:http";
@@ -201,8 +202,20 @@ export async function startWebviewPreviewServer(
     }
     try {
       const contents = await readFile(asset.filename);
+      // srcdoc inherits the parent policy. A separate child nonce cannot relax
+      // script-src 'self'; share one unguessable nonce with trusted memory UIs.
+      const scriptNonce = /^text\/html(?:;|$)/iu.test(asset.contentType) ? randomBytes(24).toString("base64url") : undefined;
+      let body: string | Buffer = contents;
+      if (scriptNonce) {
+        setPreviewHeaders(response, scriptNonce);
+        const meta = `<meta name="phoenix-preview-script-nonce" content="${scriptNonce}">`;
+        const html = contents.toString("utf8");
+        body = /<head(?:\s[^>]*)?>/iu.test(html)
+          ? html.replace(/<head(?:\s[^>]*)?>/iu, (head) => `${head}${meta}`)
+          : html.replace(/^(\s*<!doctype[^>]*>)?/iu, (doctype) => `${doctype}${meta}`);
+      }
       response.writeHead(200, { "Content-Type": asset.contentType });
-      response.end(request.method === "HEAD" ? undefined : contents);
+      response.end(request.method === "HEAD" ? undefined : body);
     } catch {
       response.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
       response.end("Preview asset unavailable.");
@@ -347,13 +360,13 @@ function readListeningPort(server: Server): number {
   return address.port;
 }
 
-function setPreviewHeaders(response: ServerResponse): void {
+function setPreviewHeaders(response: ServerResponse, scriptNonce?: string): void {
   response.setHeader("Cache-Control", "no-store");
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("Referrer-Policy", "no-referrer");
   response.setHeader(
     "Content-Security-Policy",
-    "default-src 'self'; connect-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    `default-src 'self'; connect-src 'self'; img-src 'self' data:; script-src 'self'${scriptNonce ? ` 'nonce-${scriptNonce}'` : ""}; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
   );
 }
 
