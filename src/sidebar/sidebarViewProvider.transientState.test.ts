@@ -86,6 +86,7 @@ import { registerNavigationDescriptor, registerTool } from "../tools/registry.js
 import { ktcRequireToolRegistration } from "../tools/toolRegistrationCatalog.js";
 import { encodingFixTool } from "../tools/encodingFix/index.js";
 import { reorderMembersTool } from "../tools/reorderMembers/index.js";
+import * as codegenHost from "../tools/codegen/index.js";
 import {
   SidebarViewProvider,
   ktcRunSignalContractError,
@@ -136,6 +137,16 @@ const runClearSession = vi.fn<(ctx: ToolRunContext) => void | Promise<void>>();
 registerTool({ ...testTool, id: "run", clearSession: runClearSession });
 registerTool(encodingFixTool);
 registerTool(reorderMembersTool);
+const codegenRunAction = vi.fn(async () => undefined);
+registerTool({
+  ...testTool,
+  id: "codegen",
+  title: "自动代码",
+  getPanelModel() {
+    return { summary: { id: this.id, title: this.title, description: this.description } };
+  },
+  runAction: codegenRunAction,
+});
 registerNavigationDescriptor({
   id: "codeAssistant",
   title: "代码辅助",
@@ -396,6 +407,7 @@ describe("SidebarViewProvider transient tool state", () => {
     runProjectRenameCompanionAction.mockClear();
     testToolDidShow.mockClear();
     runClearSession.mockReset();
+    codegenRunAction.mockClear();
     nextState = {
       status: "idle",
       message: "请选择要添加的关联规则。",
@@ -1354,6 +1366,71 @@ describe("SidebarViewProvider transient tool state", () => {
     expect(internals.codeAssistantFeatureId).toBeUndefined();
     expect(internals.activeToolId).toBe(TEST_TOOL_ID);
     expect(internals.openToolIds).toEqual([TEST_TOOL_ID]);
+  });
+
+  it("Codegen Right 重激活恢复已关闭的 Primary，保留 JSON 状态且不启动业务或夺取焦点", async () => {
+    const binding = vi.spyOn(codegenHost, "setCodegenRunContextFactory");
+    const { provider, internals, module } = createProvider();
+    const activate = binding.mock.calls.at(-1)![1]!;
+    const savedState: ToolUiState = { status: "done", message: "当前编辑区 JSON B；草稿保留。" };
+    internals.setToolState("codegen", savedState);
+    await provider.showTool(TEST_TOOL_ID);
+    await activate();
+    expect(internals.activeToolId).toBe("codegen");
+    await provider.closeToolBlock("codegen");
+    expect(internals.activeToolId).toBe(TEST_TOOL_ID);
+    Object.assign(module, { visible: false });
+    module.messages.length = 0;
+    vscodeHost.executeCommand.mockClear();
+    testToolDidShow.mockClear();
+    codegenRunAction.mockClear();
+
+    await activate();
+
+    expect(internals.activeToolId).toBe("codegen");
+    expect(internals.openToolIds).toEqual([TEST_TOOL_ID, "codegen"]);
+    expect(internals.toolStates.get("codegen")).toEqual(savedState);
+    expect(module.messages.filter((message) => message.type === "init").at(-1)).toMatchObject({
+      activeToolId: "codegen", openToolIds: [TEST_TOOL_ID, "codegen"],
+    });
+    expect(module.show).toHaveBeenCalledWith(true);
+    expect(module.show).not.toHaveBeenCalledWith(false);
+    expect(vscodeHost.executeCommand).not.toHaveBeenCalledWith("workbench.view.extension.kt-auto-code");
+    expect(vscodeHost.executeCommand).not.toHaveBeenCalledWith(`${SidebarViewProvider.moduleViewType}.focus`);
+    expect(codegenRunAction).not.toHaveBeenCalled();
+    expect(testToolDidShow).not.toHaveBeenCalled();
+    expect(internals.editorCompanionState.companions).toEqual([]);
+  });
+
+  it("Codegen Right 激活可重建未 resolve 的 Primary，焦点命令必须显式 preserveFocus", async () => {
+    const binding = vi.spyOn(codegenHost, "setCodegenRunContextFactory");
+    const { internals } = createProvider();
+    internals.moduleView = undefined;
+
+    await binding.mock.calls.at(-1)![1]!();
+
+    expect(internals.activeToolId).toBe("codegen");
+    expect(vscodeHost.executeCommand).toHaveBeenCalledWith(
+      `${SidebarViewProvider.moduleViewType}.focus`, { preserveFocus: true },
+    );
+    expect(codegenRunAction).not.toHaveBeenCalled();
+  });
+
+  it("Codegen Right 的迟到恢复不会覆盖用户随后手工选择的工具", async () => {
+    const binding = vi.spyOn(codegenHost, "setCodegenRunContextFactory");
+    const { provider, internals, module } = createProvider();
+    const pending = deferred<boolean>();
+    vi.spyOn(provider, "activateModule").mockReturnValueOnce(pending.promise);
+    const activation = binding.mock.calls.at(-1)![1]!();
+    await provider.showTool(TEST_TOOL_ID);
+    module.messages.length = 0;
+    pending.resolve(true);
+    await activation;
+
+    expect(internals.activeToolId).toBe(TEST_TOOL_ID);
+    expect(module.messages.filter((message) => message.type === "init")).toEqual([]);
+    expect(module.show).not.toHaveBeenCalled();
+    expect(codegenRunAction).not.toHaveBeenCalled();
   });
 
   it("packageIncludes 作为真实叶子进入 Current、Open Items、MRU 与 companion", async () => {

@@ -4,9 +4,9 @@
 
 Owner：KT Auto Code maintainers
 
-适用版本：0.6.2+
+适用版本：0.9.1 及后续（旧验收记录单列）
 
-最后核验：2026-08-07
+最后核验：2026-09-10
 
 ## 目标与目录约定
 
@@ -25,6 +25,8 @@ phoenix/
 默认目录名必须是 `phoenix-wing` 与 `kt-auto-cad`。Wing 非标准位置可在运行命令时显式设置 `PHOENIX_WING_ROOT=/absolute/path/to/phoenix-wing`；不能把这个路径写进仓库。CAD 联调固定使用并列 `../kt-auto-cad`，避免把产品仓路径固化到 manifest 或 lockfile。
 
 ### `worktrees/` 中的并列链接规则
+
+本机开发目录于 2026-09-10 按用户决定固定为 `phoenix/worktrees/phoenix-wing-working`，当前分支 `v0.7.4`。它由原历史工作树整体迁入，保留 Git 暂存与未提交内容；`phoenix/worktrees/phoenix-wing` 是指向它的联调链接。后续切换版本分支时保留固定目录名，不再按版本另建隐藏 `.worktrees`。
 
 当消费者检出位于 `phoenix/worktrees/<repo>` 时，`../phoenix-wing` 会解析为
 `phoenix/worktrees/phoenix-wing`，而不是根目录下的正式 Wing 检出。开始本地联调前必须：
@@ -48,9 +50,9 @@ phoenix/
 | 命令 | Wing 来源 | 行为 |
 | --- | --- | --- |
 | `pnpm dev` / `pnpm ext:dev` | 本地 `../phoenix-wing` | 要求 `../kt-auto-cad`，构建 Wing、分别构建两个仓库的扩展并同时启动 |
-| `pnpm ext:dev:prepare` | 本地 `../phoenix-wing` | 完成同样的构建和来源门禁，但不启动 VS Code，适合 AI 或 CI 做集成检查 |
+| `pnpm ext:dev:prepare` | 本地 `../phoenix-wing` | 构建 Wing，运行 Auto 对真实本地 Wing 的回归，再完成构建/来源门禁；不启动 VS Code |
 | `pnpm ext:dev:code` | 本地 `../phoenix-wing` | 只构建并启动 Auto Code，适合只调 Codegen 的短循环 |
-| `pnpm ext:dev:code:prepare` | 本地 `../phoenix-wing` | 只构建 Auto Code 并验证本地 Wing 来源，不要求 CAD，不启动 VS Code |
+| `pnpm ext:dev:code:prepare` | 本地 `../phoenix-wing` | Auto 本地 Wing 回归、构建和来源验证；不要求 CAD，不启动 VS Code |
 | `pnpm ext:dev:check` | 本地 `../phoenix-wing` | 只检查仓库身份、必需包和构建契约，不构建、不启动 |
 | `pnpm dev:registry` | npm Registry / Auto 当前 lockfile | 清除本地环境变量，只构建并启动 Auto Code，作为正式发布对照组 |
 | `pnpm ext:dev:registry:prepare` | npm Registry / Auto 当前 lockfile | 完成 Auto Registry 对照构建但不启动 VS Code |
@@ -65,12 +67,12 @@ phoenix/
 2. 在 Auto 构建前运行 `verify:wing-dependencies`，确认提交态依赖仍是精确 Registry 版本。
 3. 构建 Auto 使用的 Code/Git/Run/Codegen 六包与 CAD 使用的三包。
 4. 直接加载刚生成的 `kt-codegen/dist`，用隔离的 `PNXBomAnalysisCmd` 反例执行 Marker 自检：两个 Start 缺 End 只能产生两条 `marker.missing-end`，后续五个完整同级块必须恢复，旧 `nested-start/mismatched-end` 必须为 0。任何偏差都会在启动 VS Code 前失败。
-5. 在启动 Extension Development Host 前重新打印 Auto、CAD（完整联调时）和 Wing 的绝对路径、包版本、分支关系及未提交项数量，并再次汇总本地 Wing 来源门禁。以最后这段摘要为本轮实际联调目录，避免开头信息被构建日志刷走。
-5. 只为本次 esbuild 注入 `PHOENIX_WING_ROOT` 和内部模式开关；解析全部 `@phoenix-wing/*` 公共入口，包括 `@phoenix-wing/kt-codegen/table`。
-6. 分别读取 Code 与 CAD bundle 的 esbuild metafile：各自预期包必须来自并列 Wing，consumer `node_modules` 命中必须为 0。
+5. 仅受控 wrapper 为本次构建/测试注入成对的 `PHOENIX_WING_ROOT` 和内部模式开关；解析全部 `@phoenix-wing/*` 公共入口，包括 `@phoenix-wing/kt-codegen/table`。`--prepare-only` 在 Wing 构建后运行 Auto 全量测试，真实新控件能力必须在此执行；默认 Registry 测试的条件跳过不能当作本地验收。
+   0.9.2 起 wrapper 同时运行类型检查，声明解析使用同一 Wing 公共 dist 入口，缺失声明立即失败，不回退旧 Registry 类型；不向 tsconfig、manifest 或 lockfile 写入本地路径。普通 `pnpm typecheck` 仍核验当前 Registry 类型，旧包缺少新能力时如实失败，不能以本地类型检查代替正式升级门禁。
+6. 读取 Code esbuild metafile：六个预期包必须来自并列 Wing，consumer `node_modules` 命中为 0。当前 CAD 的 `dev:prepare` 使用它自己的 Registry wrapper/锁；CAD 检查单独记录，不能描述为 CAD 本地 Wing 验收。
 7. 再次运行 Registry 依赖门禁，并逐字核对两个仓库各自的 manifest 与 lockfile 未被构建修改。
 8. 本地模式把已通过来源门禁的 Code/CAD 扩展目录复制到独立临时快照；忽略 `node_modules`、Git 元数据与旧 VSIX。
-9. 以快照目录作为 `--extensionDevelopmentPath`，并用 `--new-window` 启动全新 Extension Development Host。后续普通 Registry 构建即使重写仓库内 `dist`，也不会改变正在验收的本地 Wing 产物。`--new-window` 不会关闭此前遗留的 Development Host，因此只能在刚打开的新窗口验收。
+9. 在启动前重新打印 Auto、CAD（完整联调时）与 Wing 的实际路径、包版本、分支和未提交项数量。以快照目录作为 `--extensionDevelopmentPath`，并用 `--new-window` 启动全新 Extension Development Host。后续普通 Registry 构建即使重写仓库内 `dist`，也不会改变正在验收的本地 Wing 产物。旧 Development Host 不自动关闭，只能在刚打开的新窗口验收。
 10. 扩展激活后在 `KT Auto Code` Output 首行追加运行来源且不抢占当前面板：本地构建显示 `wingMode=local`、`/kt-auto-code-local-host-…/` 快照路径和 `wingRoot`；Registry 构建显示 `wingMode=registry`，且不记录构建机上的 Wing 目录。本地窗口还会常驻显示 `Auto · Wing 本地` 状态栏标识，悬停可查看 Wing 根与扩展快照。没有该标识的普通窗口或旧 Development Host 不得用于本地 Wing 验收。
 
 直接设置 `PHOENIX_WING_ROOT` 后运行普通 `pnpm ext:build` 会被拒绝，以免 shell 中残留变量污染正式构建。请统一走 `pnpm dev` 或 `pnpm ext:dev:prepare`。
@@ -79,9 +81,9 @@ Desk Tools 是 Auto CAD 的可选 native provider，不由本命令构建或启�
 
 ## Codegen 预检缓存
 
-`pnpm dev` 会重新构建并嵌入并列 Wing，但不会直接删除真实工作区的 `.phoenix/cache/codegen`。当 Wing 的 Marker 解析或 Renderer 语义发生变化时，必须同步递增 Auto Code 的 `KTC_CODEGEN_GENERATOR_VERSION`；旧版本 Preflight Plan 才会失效并重新 Analyze。只更新 Wing、却不更新该版本，会让新 bundle 继续复用旧诊断，看起来像本地修复没有生效。
+`pnpm dev` 会重新构建并嵌入并列 Wing，但不会直接删除真实工作区的 `.phoenix/cache/codegen`。生成内容或控制符边界规则变化时，必须同步递增 Wing 公开规则常量与 Auto 的 `KTC_CODEGEN_GENERATOR_VERSION`，拒绝旧 Plan；详见 [生成规则版本](codegen-plan/Codegen生成规则版本.md)。本地运行门禁检查双方版本一致，缓存另核对实际 runtime identity，防止未版本化的旧 Registry 与新 Wing 混用缓存。
 
-当前正式 Registry 依赖是 Wing 0.6.2。Codegen 生成器版本变化后旧计划会强制重新 Analyze；为防止早期本地联调缓存伪装为新版本，只要缓存仍带有旧扫描器特有的 `marker.nested-start` 或 `marker.mismatched-end` 级联诊断，也会强制重算。
+当前精确 Registry 依赖以 `package.json` 与 `pnpm-lock.yaml` 为准，不由本地根包版本推断。Codegen 规则独立基线为 `1.0.0`，0.9.2 构造函数结束标记修复为 `1.0.1`，后续 Combo 回填注释修复升级为 `1.0.2`；前一版本计划必须重算。早期缓存缺少运行时标识或仍带 `marker.nested-start` / `marker.mismatched-end` 旧级联诊断时，也会强制重算。
 
 缓存失效只触发重新预检，不会放宽 Apply：缺失 End 的坏块仍不产生可写 region，源码指纹、未保存文件、区域重叠与事务回滚门禁保持不变。
 
@@ -91,7 +93,7 @@ Desk Tools 是 Auto CAD 的可选 native provider，不由本命令构建或启�
 - [x] 指定不存在的 `PHOENIX_WING_ROOT` 后，本地命令立即失败并提示 `pnpm dev:registry`。
 - [x] `pnpm ext:dev:prepare` 成功构建 Wing、Auto Code 与 Auto CAD。
 - [x] Code 来源门禁命中本地 `code-core`、`kt-codegen`（包括 table），Registry 命中 0。
-- [x] CAD 来源门禁命中本地 `cad-core`、`cad-contracts`、`workspace-schema`，Registry 命中 0。
+- [x] 当前 CAD 的独立 `dev:prepare` 使用其精确 Registry 依赖；历史 CAD 本地来源记录见下方日期化验收，不作为当前声明。
 - [x] 构建前后 Auto 与 CAD 两仓各自 manifest、`pnpm-lock.yaml` 无差异。
 - [x] Extension Host dry-run 同时包含 Code 与 CAD 两个 `--extensionDevelopmentPath`。
 - [x] 本地 Extension Host dry-run 使用临时快照路径和 `--new-window`，不直接消费会被后续构建覆盖的仓库扩展目录。

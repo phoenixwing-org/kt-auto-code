@@ -6,7 +6,7 @@
 
 需要同时配置两个远端时，macOS/Linux 运行 `./addRemote.sh`，PowerShell 运行 `.\addRemote.ps1`。脚本可重复执行且默认保留已有 `origin`；仅显式使用 `--remove-origin` 或 `-RemoveOrigin` 时才删除它。
 
-当前插件提供 **头文件编码修正、文件转码、Ignore 设置、工作区搜索替换、项目改名与受控执行、C++ 成员排序、UUID 替换、CAA UI、工程环境管理与 Codegen 参数表原型**。Primary 的 Ignore 使用“插件内置 / Git / 自定义”三个独立来源：默认启用内置与 Git，自定义非空保存时才创建 `.phoenix/.ignore`。原生 View Header 固定依次提供 Ignore 和 Settings；Webview 内按 Toolbar Strip → 固定单行目录 → Current Tool Block 排列三个一级区域，后二者打开同一个 Current Tool Block 中对应的独立逻辑工具。Ignore 管理单独展示插件内置规则，并以 radio 在最近 Git 根 `.gitignore` 与当前目录 `.phoenix/.ignore` 间选择写入目标：默认读写 Git，只有用户主动切换或 Git 不可用时才使用 Phoenix；来源合并、智能去重和逐条增删会保护注释与无关规则。
+当前插件提供 **头文件编码修正、文件转码、Ignore 设置、工作区搜索替换、项目改名与受控执行、C++ 成员排序、UUID 替换、CAA UI、工程环境管理与 Codegen 参数表原型**。Primary 的 Ignore 使用“插件内置 / Git / 自定义”三个独立来源：默认启用内置与 Git，自定义非空保存时才创建 `.phoenix/.ignore`。原生 View Header 固定依次提供目录显隐、Ignore 和 Settings；Webview 内按目录 → 集成 Toolbar Strip → Current Tool → Open Items 排列四个一级区域。Current Tool 始终展开并独占主纵向滚动，Open Items 固定在底部；Ignore 与 Settings 只切换 Current Tool，不新增一级区域。Ignore 管理单独展示插件内置规则，并以 radio 在最近 Git 根 `.gitignore` 与当前目录 `.phoenix/.ignore` 间选择写入目标：默认读写 Git，只有用户主动切换或 Git 不可用时才使用 Phoenix；来源合并、智能去重和逐条增删会保护注释与无关规则。
 
 Primary 的搜索替换保留精确规则和 Pascal、小写、全大写、空格、kebab、snake 等简单显式变形；Web/CAA/C++ 通用前缀和复杂 Web 多变形使用搜索替换工具内的 **项目改名**按钮打开独立 Editor View。打开时会带入 Primary 当前目录、名称、启用规则和 Ignore 来源；一个 View 固定一个目录任务，重复点击只聚焦当前任务，关闭后才可为另一目录新建任务。该 View 先生成只读报告和冻结计划，写盘前可用 VS Code 原生 Diff 对比计划内容，只有通过冲突、文件指纹、编码、命中数和 Git 状态门禁并再次确认后才执行写盘。成员排序、UUID、CAA 扫描和 Codegen 预检可共用 `.phoenix/worksets.json`；搜索替换当前使用独立目录选择，工作集入口待产品交互明确后再评估。工程环境 Block 直接维护操作系统用户环境变量，不使用 VS Code Settings 伪装系统值；其他插件配置仍使用 VS Code Settings。写盘前会检查冲突和文件快照，结果统一显示在单 Block 中；Codegen Apply 会自动预检、重验源码指纹并保持 UTF-8/BOM/GBK 原编码，批量写入失败时尝试回滚。
 
@@ -49,6 +49,8 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 | --- | --- |
 | [docs/README.md](docs/README.md) | 文档索引 |
 | [当前路线](docs/current-roadmap.md) | 当前优先级、完成基线与 92.5 联合治理接入责任 |
+| [0.9.1 内测收尾](docs/0.9.1-内测收尾.md) | 0.9.1 冻结范围、本地 Wing 来源、制品门禁与人工点检边界 |
+| [0.9.2 Git 合并区间原型计划](docs/0.9.2-Git合并区间原型计划.md) | 从 0.9.1 明确延期的 Git Right 原型对齐项，不影响当前正式 Git 能力 |
 | [Phoenix 三形态产品架构计划](docs/Phoenix三形态产品架构计划.md) | VS Code 双插件、Tauri/Web、共享 core 与统一发布总纲 |
 | [项目调查](docs/项目调查.md) | 项目定位、实际实现、架构、当前状态与行为边界 |
 | [PNXCaaStudy CAA 命名规则调查](docs/PNXCaaStudy-CAA命名规则调查.md) | I/E、TIE、dico 命名证据与完整名称/末词段两种模式 |

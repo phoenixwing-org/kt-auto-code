@@ -1,6 +1,16 @@
 # 发布 VS Code 插件
 
+**0.9.0 不正式发布。** 已取消打包与市场上传，已有本地内测归档保留。
+
 本文记录将 **KT Auto Code** 发布到 [Visual Studio Marketplace](https://marketplace.visualstudio.com/) 的操作流程，以及发布时应保留的版权与许可信息。
+
+## 当前本地内测状态（2026-09-10）
+
+最新进展：Wing 0.7.4 对应包已发布且 Registry 校验值已核验。Auto 已进入精确 Registry 依赖升级及干净工作树打包阶段，见[0.9.2 Registry 发布准备](./0.9.2-发布准备.md)。下方等待说明保留此前归档时点，当前不再被 Wing 未发布阻塞；未授权 Marketplace 上传。
+
+`0.9.1` 的本地冻结作为历史基线保留，见 [0.9.1 内测收尾](./0.9.1-内测收尾.md)。当前整理目标为 **Auto Code 0.9.2**：源码压缩归档后同步主库 `user`，然后等待 Wing 0.7.4 对应 scoped 包发布，再升级精确 Registry 依赖并打包。当前本地验证、依赖版本表及待测项见 [0.9.2 归档与发布准备](./0.9.2-开发计划.md#本轮归档与发布准备2026-09-10)。
+
+用户要求 **Wing 发布完成之前不打新包**。旧本地 Wing VSIX 只供历史内测，不能替代本文后续的 Registry、detached worktree、`release:preflight` 与 `release:receipt` 正式发布链，也不能冒充本轮新增修改已打包。本轮不执行 push、tag、npm 发布或 Marketplace 上传。
 
 ## 项目信息
 
@@ -9,7 +19,7 @@
 - Marketplace 发布者 ID：`kuntai`
 - Marketplace 发布者名称：`Shanghai Kuntai`
 - 当前版本：以 [`package.json`](../package.json) 的 `version` 为准
-- 本仓发布记录中最近已发布的 KT Auto Code 版本为 `0.8.1`，由 `kuntai` 发布；`0.7.4` 未单独发布，`0.8.0` 初始候选也已由 `0.8.1` 取代。下一目标 `0.8.3` 必须先整体合入正式 `0.8.2`，不能把当前开发分支冒充最终候选。CAD 当前版本由 [KT Auto CAD 发布说明](https://gitee.com/PhoenixWing321/kt-auto-cad/blob/master/docs/发布.md)维护。
+- 本仓发布记录中最近已发布的 KT Auto Code 版本为 `0.8.1`，由 `kuntai` 发布；`0.7.4` 未单独发布，`0.8.0` 初始候选也已由 `0.8.1` 取代。当前 `0.9.2` 仅准备发布，不改写早期版本的历史候选与发布记录，也不代表已获公开上传授权。CAD 当前版本由 [KT Auto CAD 发布说明](https://gitee.com/PhoenixWing321/kt-auto-cad/blob/master/docs/发布.md)维护。
 - 开源许可：[Apache License 2.0](../LICENSE)
 
 当前扩展标识由下列清单字段组成：

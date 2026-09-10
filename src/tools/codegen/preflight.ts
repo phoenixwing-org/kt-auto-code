@@ -16,6 +16,7 @@ import {
 } from "../../worksets.js";
 import {
   KTC_CODEGEN_GENERATOR_VERSION,
+  KTC_CODEGEN_RUNTIME_IDENTITY,
   ktcCanReuseCodegenMarkerEntry,
   ktcNextCodegenMarkerIndexRevision,
   ktcValidCodegenMarkerIndex,
@@ -340,6 +341,7 @@ export async function ktcRunCodegenPreflight(options: {
     configFingerprint,
     markerIndexRevision: index.revision,
     generatorVersion: KTC_CODEGEN_GENERATOR_VERSION,
+    runtimeIdentity: KTC_CODEGEN_RUNTIME_IDENTITY,
     plan,
   } satisfies KtcCodegenPreflightCache);
   throwIfCancelled(options.cancellationToken);

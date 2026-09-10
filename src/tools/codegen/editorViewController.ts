@@ -11,10 +11,6 @@ import {
   KTC_CODEGEN_EDITOR_LAYOUT_STATE_KEY,
   ktcNormalizeCodegenEditorLayout,
 } from "./editorLayoutState.js";
-import { ktcRequireToolRegistration } from "../toolRegistrationCatalog.js";
-
-const CODEGEN_TOOL_REGISTRATION = ktcRequireToolRegistration("codegen");
-
 export interface KtcCodegenEditorViewCallbacks {
   readonly onMessage: (uri: string, message: KtcCodegenEditorInboundMessage) => void;
   readonly onActive: (uri: string) => void;
@@ -41,7 +37,7 @@ export class KtcCodegenEditorViewController implements vscode.Disposable {
     }
     const panel = vscode.window.createWebviewPanel(
       "ktAutoCode.codegenEditor",
-      CODEGEN_TOOL_REGISTRATION.title,
+      model.fileName,
       { viewColumn: vscode.ViewColumn.Active, preserveFocus: false },
       {
         enableScripts: true,
@@ -83,9 +79,9 @@ export class KtcCodegenEditorViewController implements vscode.Disposable {
     void this.panels.get(uri)?.webview.postMessage(message);
   }
 
-  setDocumentState(uri: string, _fileName: string, _dirty: boolean, _conflict: boolean): void {
+  setDocumentState(uri: string, fileName: string, _dirty: boolean, _conflict: boolean): void {
     const panel = this.panels.get(uri);
-    if (panel) panel.title = CODEGEN_TOOL_REGISTRATION.title;
+    if (panel) panel.title = fileName;
   }
 
   isOpen(uri: string): boolean {

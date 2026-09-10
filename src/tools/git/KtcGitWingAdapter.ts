@@ -1,3 +1,5 @@
+import { KtcAttachGitRemoteTrackingRefs, KtcReadGitRemoteTrackingRefs, type KtcGitRemoteTrackingRef } from "./KtcGitRemoteTrackingRefs.js";
+
 export interface KtcPnwGitIdentity {
   readonly name: string;
   readonly email: string;
@@ -57,6 +59,8 @@ export interface KtcPnwGitCommitGraphCommit {
   readonly author: KtcPnwGitIdentity;
   readonly committer: KtcPnwGitIdentity;
   readonly decorations: readonly KtcPnwGitCommitGraphDecoration[];
+  /** Auto-only decoration from local refs/remotes; not part of the Wing graph walk or squash authority. */
+  readonly remoteTrackingRefs?: readonly KtcGitRemoteTrackingRef[];
 }
 
 export interface KtcPnwGitCommitGraphParentEdge {
@@ -278,7 +282,7 @@ export class KtcGitWingAdapter {
     });
   }
 
-  readCommitGraphPage(
+  async readCommitGraphPage(
     startPath: string,
     options: {
       readonly expectedHeadOid?: string;
@@ -288,13 +292,15 @@ export class KtcGitWingAdapter {
       readonly signal?: AbortSignal;
     },
   ): Promise<KtcPnwGitCommitGraphPage> {
-    return KtcGitNode.pnwReadGitCommitGraphPage(startPath, {
+    const page = await KtcGitNode.pnwReadGitCommitGraphPage(startPath, {
       ...(options.expectedHeadOid ? { expectedHeadOid: options.expectedHeadOid } : {}),
       ...(options.beforeCursor ? { beforeCursor: options.beforeCursor } : {}),
       limit: options.limit,
       refsScope: options.refsScope,
       ...(options.signal ? { signal: options.signal } : {}),
     });
+    const refs = await KtcReadGitRemoteTrackingRefs(page.root, options.signal);
+    return { ...page, commits: KtcAttachGitRemoteTrackingRefs(page.commits, refs) };
   }
 
   readRepository(startPath: string, maxCommits = 200): Promise<KtcPnwGitRepositorySnapshot> {

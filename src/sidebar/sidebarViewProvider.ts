@@ -266,7 +266,10 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     setCaaDialogRunContextFactory(() => this.createRunContext("caaDialog"));
     setReorderMembersRunContextFactory(() => this.createRunContext("reorderMembers"));
     setIgnoreSettingsCommandRunner((message) => this.enqueueIgnoreMessage(message));
-    setCodegenRunContextFactory(() => this.createRunContext("codegen"));
+    setCodegenRunContextFactory(
+      () => this.createRunContext("codegen"),
+      () => this.activateCodegenEditorPrimary(),
+    );
     setCodeAssistantRunContextFactory((toolId) => this.createRunContext(toolId));
   }
 
@@ -494,6 +497,23 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     });
     this.openToolIds = [...this.editorCompanionState.openToolIds];
     this.activeToolId = this.editorCompanionState.activeToolId ?? toolId;
+  }
+
+  private async activateCodegenEditorPrimary(): Promise<void> {
+    // Codegen has one Right per JSON, but a single Primary. Reactivation only
+    // restores that projection; it must not scan, run onDidShow or close Editors.
+    if (!getTool("codegen")) return;
+    this.activateToolHistory("codegen", "editor");
+    this.codeAssistantFeatureId = undefined;
+    if (!await this.restoreToolBlock("codegen", true)
+      || this.activeToolId !== "codegen" || !this.openToolIds.includes("codegen")) return;
+    if (this.moduleView) {
+      if (!this.moduleView.visible) this.moduleView.show(true);
+    } else {
+      // The contributed view may have been disposed while its JSON Editors
+      // remained open. VS Code's view focus command supports preserveFocus.
+      await vscode.commands.executeCommand(`${SidebarViewProvider.moduleViewType}.focus`, { preserveFocus: true });
+    }
   }
 
   private async applyEditorCompanionSnapshot(

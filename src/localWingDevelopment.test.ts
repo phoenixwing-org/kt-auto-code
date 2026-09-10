@@ -135,6 +135,10 @@ describe("本地 Wing 并列开发解析", () => {
     expect(localLauncher).toContain('run(pnpm, ["--dir", cadRoot, "dev:prepare"]');
     expect(localLauncher).toContain("verify-local-wing-marker-runtime.mjs");
     expect(localLauncher).toContain("verify-local-wing-cleanup-runtime.mjs");
+    const localTests = 'if (prepareOnly) run(pnpm, ["test"], { env: localEnvironment });';
+    expect(localLauncher).toContain(localTests);
+    expect(localLauncher.indexOf(localTests)).toBeGreaterThan(localLauncher.indexOf("const localEnvironment"));
+    expect(localLauncher.indexOf(localTests)).toBeLessThan(localLauncher.indexOf('run(pnpm, ["ext:build"]'));
     expect(localLauncher.indexOf("verify-local-wing-marker-runtime.mjs")).toBeLessThan(
       localLauncher.indexOf("const localEnvironment"),
     );

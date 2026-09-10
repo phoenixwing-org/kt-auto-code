@@ -20,7 +20,6 @@ import type {
   KtcCodegenEditorInboundMessage,
   KtcCodegenEditorModel,
 } from "./editorContracts.js";
-import { ktcRequireToolRegistration } from "../toolRegistrationCatalog.js";
 import { KtcCodegenEditorViewController } from "./editorViewController.js";
 
 interface FakePanel extends vscode.WebviewPanel {
@@ -126,12 +125,12 @@ describe("KtcCodegenEditorViewController", () => {
     views.show(model("file:///workspace/A.json", "A.json"));
     expect(createWebviewPanel).toHaveBeenCalledWith(
       "ktAutoCode.codegenEditor",
-      ktcRequireToolRegistration("codegen").title,
+      "A.json",
       { viewColumn: 1, preserveFocus: false },
       expect.objectContaining({ enableScripts: true, retainContextWhenHidden: true }),
     );
     expect(first.webview.html).toContain("A.json");
-    expect(first.webview.html).toContain('contextPath: "/workspace"');
+    expect(first.webview.html).toContain('contextPath: "/workspace/A.json"');
     expect(views.isOpen("file:///workspace/A.json")).toBe(true);
 
     views.show(model("file:///workspace/A.json", "A.json"));
@@ -141,7 +140,7 @@ describe("KtcCodegenEditorViewController", () => {
     views.show(model("file:///workspace/B.json", "B.json", true));
     expect(createWebviewPanel).toHaveBeenCalledTimes(2);
     expect(createWebviewPanel.mock.calls[1]?.[2]).toEqual({ viewColumn: 1, preserveFocus: false });
-    expect(createWebviewPanel.mock.calls[1]?.[1]).toBe(ktcRequireToolRegistration("codegen").title);
+    expect(createWebviewPanel.mock.calls[1]?.[1]).toBe("B.json");
   });
 
   it("把标签激活、消息和关闭准确路由到对应 JSON，会话总释放不误报关闭", () => {
@@ -177,7 +176,7 @@ describe("KtcCodegenEditorViewController", () => {
       type: "codegenStatus", status: "idle", message: "ok",
     });
     views.setDocumentState("file:///workspace/B.json", "B.json", false, true);
-    expect(second.title).toBe(ktcRequireToolRegistration("codegen").title);
+    expect(second.title).toBe("B.json");
 
     first.fireDispose();
     expect(views.isOpen("file:///workspace/A.json")).toBe(false);
@@ -187,6 +186,37 @@ describe("KtcCodegenEditorViewController", () => {
     views.dispose();
     expect(second.dispose).toHaveBeenCalledTimes(1);
     expect(callbacks.onDispose).not.toHaveBeenCalled();
+  });
+
+  it("同名 JSON 不追加目录，仍按 URI 隔离更新、消息与关闭", () => {
+    const first = fakePanel();
+    const second = fakePanel();
+    createWebviewPanel.mockReturnValueOnce(first).mockReturnValueOnce(second);
+    const callbacks = { onMessage: vi.fn(), onActive: vi.fn(), onDispose: vi.fn() };
+    const views = new KtcCodegenEditorViewController(extensionUri(), callbacks);
+    const firstUri = "file:///workspace/one/参数.json";
+    const secondUri = "file:///workspace/two/参数.json";
+    views.show(model(firstUri, "参数.json"));
+    views.show(model(secondUri, "参数.json"));
+    expect(createWebviewPanel.mock.calls.map((call) => call[1])).toEqual(["参数.json", "参数.json"]);
+    expect(views.openPanelCount).toBe(2);
+    for (const dirty of [false, true]) {
+      for (const conflict of [false, true]) {
+        views.setDocumentState(firstUri, "参数.json", dirty, conflict);
+        expect(first.title).toBe("参数.json");
+      }
+    }
+    views.setDocumentState(secondUri, "新参数.json", true, true);
+    expect(second.title).toBe("新参数.json");
+    expect(first.title).toBe("参数.json");
+    views.show(model(firstUri, "参数.json"));
+    expect(createWebviewPanel).toHaveBeenCalledTimes(2);
+    expect(first.reveal).toHaveBeenCalledOnce();
+    first.fireDispose();
+    views.setDocumentState(firstUri, "已关闭.json", false, false);
+    expect(second.title).toBe("新参数.json");
+    expect(views.isOpen(secondUri)).toBe(true);
+    expect(callbacks.onDispose).toHaveBeenCalledWith(firstUri);
   });
 
   it("把预检结果左右比例下发给 full View 并持久化拖动结果", () => {

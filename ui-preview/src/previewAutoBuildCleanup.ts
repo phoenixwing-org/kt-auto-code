@@ -1,8 +1,10 @@
 import * as PnwCodeCoreUiImport from "@phoenix-wing/code-core/ui";
 import type { KtcCleanupDialogHostAction, KtcCleanupDialogModel, KtcCleanupDialogRequest } from "../../src/core/cleanupContracts.js";
-import { KTC_ROOT_CLEANUP_PATTERNS_MAX_LENGTH } from "../../src/core/rootCleanupPatterns.js";
+import { KTC_ROOT_CLEANUP_PATTERNS_MAX_LENGTH, ktcParseRootCleanupConfigurationYaml } from "../../src/core/rootCleanupPatterns.js";
 import { PREVIEW_AUTO_BUILD_SAMPLE, type PreviewAutoBuildSample } from "./previewAutoBuildSample.js";
 import type { PreviewAutoBuildState } from "./previewAutoBuildState.js";
+import { ktcDefineCleanupYamlWorkspace, type KtcCleanupYamlWorkspace, type KtcCleanupYamlAction } from "../../src/ui/KtcCleanupYamlWorkspace.js";
+import { PreviewCleanupYamlWorkspace, type PreviewCleanupYamlDiscoveryLimits } from "./previewCleanupYamlWorkspace.js";
 
 export type PreviewAutoBuildCleanupMode = "rules" | "git-force" | "cmake";
 
@@ -28,13 +30,16 @@ export function createPreviewAutoBuildCleanupModel(
   });
   return {
     title: "清理",
-    description: "效果预览：目标和清单均为内存样例，不读取或删除真实文件。先预览，再确认执行所选方式。",
+    description: "内存样例：不读取或删除真实文件。每份 YAML 以所在目录为根，仅处理直属项；行内清理直接执行。",
     modes: [
       { id: "rules", label: "规则产物", description: "按 YAML 规则清理 ROOT 或工作目录的直属构建产物（模拟）。", risk: "normal", rulesVisible: true },
       { id: "git-force", label: "Git 强制恢复", description: "reset --hard HEAD + clean -ffdx；真实操作会丢弃未提交、未跟踪及忽略内容。此处仅模拟。", risk: "high", rulesVisible: false },
       { id: "cmake", label: "CMake 产物", description: "项目 build 目录产物清理（模拟）。", risk: "normal", rulesVisible: false },
     ],
     selectedModeId: modeId,
+    modePresentation: "radio",
+    collapsibleSections: true,
+    actionsPlacement: "header",
     targets: [
       target("rules:root", "ROOT_DIR", sample.configuration.rootDirectory, "rules"),
       target("rules:working", "工作目录", sample.configuration.workingDirectory, "rules"),
@@ -59,14 +64,71 @@ export function createPreviewAutoBuildCleanupSurface(options: {
   readonly execute: (mode: PreviewAutoBuildCleanupMode) => void;
   readonly log: (message: string) => void;
   readonly sample?: PreviewAutoBuildSample;
+  readonly discoveryLimits?: PreviewCleanupYamlDiscoveryLimits;
 }): { open(modeId?: PreviewAutoBuildCleanupMode): void; close(): void } {
   let dialog: PreviewAutoBuildCleanupDialog | undefined;
+  let workspaceElement: KtcCleanupYamlWorkspace | undefined;
+  const sample = options.sample ?? PREVIEW_AUTO_BUILD_SAMPLE;
+  const workingDirectory = () => options.state().session.draft.configuration.workingDirectory;
+  let yamlWorkspace = new PreviewCleanupYamlWorkspace(options.state().cleanupPatternsYaml, workingDirectory());
+  let notice = "";
   let sequence = 0;
   let active = false;
   let openedContext = "";
   let frozen: { token: string; request: string; context: string } | undefined;
-  const context = () => JSON.stringify([options.state().cleanupPatternsYaml, options.state().rootEnabled, options.state().thirdPartyEnabled]);
+  const context = () => JSON.stringify([options.state().cleanupPatternsYaml, options.state().rootEnabled, options.state().thirdPartyEnabled, workingDirectory()]);
   const requestKey = (request: KtcCleanupDialogRequest) => JSON.stringify([request.modeId, [...request.targetIds].sort(), request.rulesYaml]);
+  const renderWorkspace = (): void => {
+    const discovery = yamlWorkspace.discover(options.discoveryLimits);
+    notice = `探测到 ${discovery.sources.length} 份 cleanup.yaml（内存样例）${discovery.incomplete ? " · 不完整，详情见日志" : ""}`;
+    dialog?.querySelectorAll<HTMLButtonElement>('[data-cleanup-yaml-action]').forEach((button) => {
+      button.disabled = options.state().phase === "running";
+    });
+    if (workspaceElement) workspaceElement.model = {
+      sources: discovery.sources,
+      busy: options.state().phase === "running", notice,
+    };
+  };
+  const logDiscovery = (): void => {
+    const discovery = yamlWorkspace.discover(options.discoveryLimits);
+    options.log(`[编译工具][YAML 探测][模拟] 仅从当前工作目录向下：${workingDirectory()}；发现 ${discovery.sources.length} 份 cleanup.yaml${discovery.incomplete ? "；探测不完整" : ""}；不扫描真实目录。`);
+    for (const warning of discovery.warnings) options.log(`[编译工具][YAML 探测][跳过/限额][模拟] ${warning}`);
+  };
+  const handleYaml = (event: Event): void => {
+    const action = (event as CustomEvent<KtcCleanupYamlAction>).detail;
+    if (!active || !dialog || !action) return;
+    if (options.state().phase === "running" || openedContext !== context()) {
+      fail("编译配置已变化或任务运行中，请重新打开清理（模拟）。"); return;
+    }
+    try {
+      if ((action.kind === "open-source" || action.kind === "clean-source")
+        && !yamlWorkspace.discover(options.discoveryLimits).sources.some(({ id }) => id === action.sourceId)) {
+        throw new Error("未找到当前探测中的 YAML 样例，请重新探测。");
+      }
+      if (action.kind === "edit-rules") {
+        notice = `编辑请求（模拟）：当前 ${yamlWorkspace.yaml.length} 字符作为未保存的 YAML 文档交给 VS Code，由用户自行保存；没有插件保存对话框。`;
+        options.log(`[编译工具] ${notice}\n[YAML 草稿（模拟）]\n${yamlWorkspace.yaml}`);
+      } else if (action.kind === "discover") {
+        logDiscovery();
+      } else if (action.kind === "open-source") {
+        const file = yamlWorkspace.open(action.sourceId);
+        notice = `打开请求（模拟）：${file.path}。正式接入后交给 VS Code 原生编辑器；清理框不内置文件编辑。`;
+        options.log(`[编译工具] ${notice}`);
+      } else if (action.kind === "clean-source") {
+        // One semantic source ID + revision, never a path/root provided by the View.
+        frozen = undefined;
+        const items = yamlWorkspace.clean(action.sourceId, action.revision);
+        notice = `已直接清理 ${items.length} 个样例项，无额外确认；未删除真实文件。`;
+        dialog.model = { ...dialog.model, executeEnabled: false,
+          preview: { state: "complete", summary: "逐配置模拟清理完成", message: notice, items } };
+        options.log(`[编译工具] ${notice}`);
+      }
+    } catch (error) {
+      notice = error instanceof Error ? error.message : String(error);
+      fail(notice);
+    }
+    renderWorkspace();
+  };
   const cancel = (): void => {
     if (!active) return;
     active = false;
@@ -84,10 +146,15 @@ export function createPreviewAutoBuildCleanupSurface(options: {
     const detail = (event as CustomEvent<PreviewAutoBuildCleanupAction>).detail;
     if (!dialog || !active || !detail) return;
     if (detail.kind === "cancel") { cancel(); return; }
+    // A late edit must not silently adopt a changed build context and revive its old preview.
+    if (options.state().phase === "running") { fail("编译运行中，清理预览已失效（模拟）。"); return; }
+    if (context() !== openedContext) { fail("编译配置已变化，请重新打开清理（模拟）。"); return; }
     if (detail.kind === "change-rules") {
       frozen = undefined;
+      yamlWorkspace.edit(detail.rulesYaml.slice(0, KTC_ROOT_CLEANUP_PATTERNS_MAX_LENGTH));
       options.updateRules(detail.rulesYaml.slice(0, KTC_ROOT_CLEANUP_PATTERNS_MAX_LENGTH));
       openedContext = context();
+      renderWorkspace();
       options.log("[编译工具] 清理规则已缓存到预览会话（模拟）；旧预览失效");
       return;
     }
@@ -115,6 +182,10 @@ export function createPreviewAutoBuildCleanupSurface(options: {
     }
     if (detail.kind === "preview") {
       if (request.modeId === "rules" && !request.rulesYaml.trim()) { fail("请先填写清理 YAML 规则（模拟）。"); return; }
+      if (request.modeId === "rules") {
+        try { ktcParseRootCleanupConfigurationYaml(request.rulesYaml); }
+        catch (error) { fail(error instanceof Error ? error.message : String(error)); return; }
+      }
       const items = request.modeId === "rules"
         ? selected.flatMap(({ path }) => [`${path}/objects（样例）`, `${path}/build（样例）`, `${path}/module.obj（样例）`])
         : request.modeId === "git-force"
@@ -145,13 +216,29 @@ export function createPreviewAutoBuildCleanupSurface(options: {
         dialog = document.createElement("pnw-cleanup-dialog") as PreviewAutoBuildCleanupDialog;
         dialog.id = "preview-auto-build-cleanup-dialog";
         dialog.addEventListener("pnw-cleanup-dialog-action", handle);
+        ktcDefineCleanupYamlWorkspace();
+        workspaceElement = document.createElement("ktc-cleanup-yaml-workspace") as KtcCleanupYamlWorkspace;
+        workspaceElement.slot = "workspace";
+        dialog.addEventListener("ktc-cleanup-yaml-action", handleYaml);
+        dialog.append(workspaceElement);
+        for (const [kind, text] of [["edit-rules", "在 VS Code 中编辑"], ["discover", "探测配置"]] as const) {
+          const button = document.createElement("button");
+          button.type = "button"; button.slot = "header-actions"; button.textContent = text;
+          button.dataset.cleanupYamlAction = kind;
+          button.onclick = () => button.dispatchEvent(new CustomEvent("ktc-cleanup-yaml-action", { detail: { kind }, bubbles: true, composed: true }));
+          dialog.append(button);
+        }
         document.body.append(dialog);
       }
       active = true;
       frozen = undefined;
       openedContext = context();
-      dialog.model = createPreviewAutoBuildCleanupModel(options.state(), modeId, options.sample);
+      if (yamlWorkspace.workingDirectory !== workingDirectory()) yamlWorkspace = new PreviewCleanupYamlWorkspace(options.state().cleanupPatternsYaml, workingDirectory());
+      yamlWorkspace.edit(options.state().cleanupPatternsYaml);
+      dialog.model = createPreviewAutoBuildCleanupModel(options.state(), modeId, sample);
+      renderWorkspace();
       dialog.showModal(modeId);
+      logDiscovery();
       options.log(`[编译工具] 打开 ${modeId} 清理方式（模拟）`);
     },
     close: cancel,

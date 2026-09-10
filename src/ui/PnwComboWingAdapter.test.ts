@@ -6,12 +6,14 @@ const wing = vi.hoisted(() => {
   }
   return {
     Combo,
-    define: vi.fn(),
+    define: vi.fn(() => Combo),
     normalize: vi.fn((value) => Object.freeze({ source: "wing", ...(value ?? {}) })),
   };
 });
 
 vi.mock("@phoenix-wing/code-core/ui", () => ({
+  PNW_COMBO_TAG: "pnw-combo",
+  PNW_COMBO_ACTION: "pnw-combo-action",
   PnwCombo: wing.Combo,
   pnwCodeDefineCombo: wing.define,
   pnwNormalizeComboModel: wing.normalize,
@@ -39,5 +41,9 @@ describe("PnwCombo Wing compatibility adapter", () => {
     expect(combo.pnwDefineCombo("pnw-combo-test")).toBe(wing.Combo);
     expect(wing.define).toHaveBeenCalledWith("pnw-combo-test");
     expect(combo.PnwCombo).toBe(wing.Combo);
+    expect(combo.PNW_COMBO_TAG).toBe("pnw-combo");
+    expect(combo.PNW_COMBO_ACTION).toBe("pnw-combo-action");
+    combo.pnwDefineCombo();
+    expect(wing.define).toHaveBeenLastCalledWith("pnw-combo");
   });
 });

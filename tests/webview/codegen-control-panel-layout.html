@@ -34,39 +34,39 @@
     * { box-sizing: border-box; }
     html { width: 100%; height: 100%; margin: 0; }
     body {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
       width: 100%;
-      min-height: 100%;
+      height: 100%;
       margin: 0;
-      overflow-x: hidden;
-      overflow-y: auto;
-      scrollbar-gutter: stable;
-      padding: 8px;
+      padding: 0;
+      overflow: hidden;
       color: var(--vscode-foreground);
       background: var(--vscode-editor-background);
       font: 13px/1.35 var(--vscode-font-family);
     }
-    .view-toolbar {
+    ktc-right-view-shell { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; }
+    .codegen-main {
       display: flex;
-      flex: 0 0 auto;
-      position: sticky;
-      top: 0;
-      z-index: 20;
-      flex-wrap: wrap;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+      height: 100%;
+      min-width: 0;
+      min-height: 0;
+      margin: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+      padding: 8px;
+    }
+    .document-actions {
+      display: flex;
       align-items: center;
       gap: 6px;
-      min-height: 42px;
-      padding: 6px 8px;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 6px;
-      background: var(--vscode-sideBar-background);
-      box-shadow: 0 2px 0 var(--vscode-panel-border);
+      width: max-content;
+      white-space: nowrap;
     }
-    .document-title { flex: 1 1 180px; min-width: 120px; margin-right: auto; }
-    .document-title strong, .document-title span { display: block; }
-    .view-toolbar button { min-height: 27px; }
+    .document-actions button { min-height: 27px; flex: 0 0 auto; }
     .fake-table {
       flex: 0 0 auto;
       min-height: 0;
@@ -77,51 +77,25 @@
       border-radius: 6px;
     }
     .fake-row { min-width: 900px; height: 34px; border-bottom: 1px solid var(--vscode-panel-border); }
-    .control-drawer {
-      position: relative;
-      flex: 0 0 auto;
-      overflow: visible;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 6px;
-      background: var(--vscode-editor-background);
-    }
-    .control-drawer[open] {
-      display: block;
-      height: auto;
-      min-height: 0;
-    }
-    .control-drawer > summary {
-      display: flex;
-      flex: 0 0 auto;
-      align-items: center;
-      min-height: 34px;
-      padding: 6px 10px;
-      background: var(--vscode-sideBar-background);
-    }
-    .control-drawer > summary output { margin-left: auto; color: var(--vscode-descriptionForeground); }
-    .control-drawer[open] > ktc-codegen-control-panel {
+    #control-panel {
       position: static;
       display: block;
+      flex: 0 0 auto;
       height: auto;
       min-height: 0;
-    }
-    @media (max-width: 800px) {
-      .document-title { flex: 1 0 100%; }
-      .view-toolbar button { flex: 1 1 auto; }
     }
   </style>
 </head>
 <body>
-  <header class="view-toolbar">
-    <div class="document-title">
-      <strong>PNXCombinedCurveParam.json</strong>
-      <span>Codegen JSON 编辑 View · 布局点检夹具</span>
-    </div>
+  <ktc-right-view-shell id="codegen-right-shell">
+  <div class="document-actions" slot="actions" role="group" aria-label="布局点检示例操作">
     <button type="button">预检</button>
-    <button type="button">预检结果</button>
-    <button type="button">Apply</button>
+    <button type="button" id="controls" aria-controls="control-panel" aria-expanded="true">预检结果</button>
+    <button type="button">应用</button>
+    <button type="button">重新加载</button>
     <button type="button">保存 JSON</button>
-  </header>
+  </div>
+  <main class="codegen-main">
   <div class="fake-table" aria-label="参数表占位">
     <div class="fake-row">参数表第 1 行</div>
     <div class="fake-row">参数表第 2 行</div>
@@ -132,12 +106,27 @@
     <div class="fake-row">参数表第 7 行</div>
     <div class="fake-row">参数表第 8 行</div>
   </div>
-  <details class="control-drawer" open>
-    <summary>预检结果 <output id="layout-event">命中与问题</output></summary>
-    <ktc-codegen-control-panel id="control-panel" mode="full"></ktc-codegen-control-panel>
-  </details>
+  <ktc-codegen-control-panel id="control-panel" collapsible></ktc-codegen-control-panel>
+  </main>
+  </ktc-right-view-shell>
+  <script src="../dist/ktc-right-view-shell.js"></script>
   <script src="../dist/codegen-control-catalog.js"></script>
   <script>
+    (() => {
+    document.getElementById("codegen-right-shell").model = {
+      title: "自动代码", contextPath: "/workspace/PNXCombinedCurveParam.json",
+      contextLabel: "PNXCombinedCurveParam.json @ workspace", scrollMode: "none",
+    };
+    const main = document.querySelector(".codegen-main");
+    function syncDetailViewport() {
+      if (!main.clientHeight) return;
+      const top = 8;
+      document.body.style.setProperty("--pnw-codegen-detail-sticky-top", top + "px");
+      document.body.style.setProperty("--pnw-codegen-detail-height", Math.max(240, main.clientHeight - top - 8) + "px");
+    }
+    const resizeObserver = new ResizeObserver(syncDetailViewport);
+    resizeObserver.observe(main);
+    syncDetailViewport();
     const keys = [
       "CATALOG PARAMS", "FACTRY ON TREE", "IMPLEMENTS CPP GET", "IMPLEMENTS CPP SET",
       "IMPLEMENTS HEAD GET", "IMPLEMENTS HEAD SET", "IMPLEMENTS PARAM GET", "IMPLEMENTS PARAM SET",
@@ -172,7 +161,7 @@
       regionId: region.id,
       blockKey: region.blockKey,
       classId: region.classId,
-      content: `// clang-format off\n${"int generated_field_" + index + "; ".repeat(20)}\n// clang-format on`,
+      content: `// clang-format off\n${("int generated_field_" + index + "; ".repeat(20) + "\n").repeat(80)}// clang-format on`,
     }));
     const diagnostics = Array.from({ length: 10 }, (_, index) => ({
       severity: index % 4 === 0 ? "error" : "warning",
@@ -182,6 +171,16 @@
     }));
     customElements.whenDefined("ktc-codegen-control-panel").then(() => {
       const panel = document.getElementById("control-panel");
+      const controls = document.getElementById("controls");
+      panel.collapsible = true;
+      panel.collapsed = false;
+      controls.onclick = () => {
+        panel.collapsed = !panel.collapsed;
+        controls.setAttribute("aria-expanded", String(!panel.collapsed));
+      };
+      panel.addEventListener("kt-codegen-control-collapse-change", () => {
+        controls.setAttribute("aria-expanded", String(!panel.collapsed));
+      });
       panel.model = {
         kind: "kt.codegen.control-view-model",
         schemaVersion: 1,
@@ -202,6 +201,7 @@
       };
       document.body.dataset.ready = "true";
     });
+    })();
   </script>
 </body>
 </html>

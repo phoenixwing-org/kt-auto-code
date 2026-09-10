@@ -29,5 +29,6 @@ AGENTS.md
 **/*.map
 dist/test/**
 dist/vsix/**
+dist/archives/**
 dist/ktc-system-output-block.js
 *.local-wing.json

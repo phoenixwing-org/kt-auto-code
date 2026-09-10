@@ -1,14 +1,74 @@
 {
   "schemaVersion": 1,
   "owner": "KT Auto Code maintainers",
-  "lastVerified": "2026-09-08",
+  "lastVerified": "2026-09-10",
   "appliesTo": "0.8.x",
   "rules": [
+    {
+      "match": "^docs/0\\.9\\.2-发布准备\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.2",
+      "reason": "Wing正式Registry版本、源码归档衔接、制品来源门禁与Windows残余待测"
+    },
+    {
+      "match": "^docs/bug/自动代码-Combo(参数回填缺少注释行|深色配色问题)\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.2 冻结后续",
+      "reason": "摘入7e58f09e1f9b的两个BUG：配色已修源码但Windows待测，回填注释已按规则1.0.2修复并拒绝旧预检缓存"
+    },
+    {
+      "match": "^docs/bug/编译工具-Windows导出脚本首行错误\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.2 冻结后续",
+      "reason": "用户报告Windows导出脚本首行错误，缺少原文件与完整报错，记录待定位而非宣称修复"
+    },
+    {
+      "match": "^docs/编译工具/后续原型计划\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.2 冻结后续",
+      "reason": "新授权的编译工具与多YAML清理Preview-first范围、优先级及正式验收边界"
+    },
+    {
+      "match": "^docs/PnwCombo组件提炼TODO\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.2",
+      "reason": "已有Wing公共Combo的薄适配、焦点与无障碍迁移收尾及人工验收边界"
+    },
+    {
+      "match": "^docs/0\\.9\\.2-开发计划\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.2",
+      "reason": "四项已授权功能、Wing 本地联调、明确排除项及验收边界"
+    },
+    {
+      "match": "^docs/codegen-plan/Codegen生成规则版本\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.1 及后续",
+      "reason": "独立生成规则版本、输出注释及预检缓存来源隔离约定"
+    },
+    {
+      "match": "^docs/bug/自动代码-构造函数结束标记缩进\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.2 / 规则 1.0.1",
+      "reason": "用户授权后的构造函数结束标记修复、最小回归及Windows未验证边界"
+    },
+    {
+      "match": "^docs/0\\.9\\.1-内测收尾\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.1",
+      "reason": "0.9.1 本地内测冻结、来源归档、人工验收边界及正式发布门禁"
+    },
+    {
+      "match": "^docs/0\\.9\\.2-Git合并区间原型计划\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.2",
+      "reason": "已开启的 Git 合并 Right 内存原型、正式展示复用及验收记录"
+    },
     {
       "match": "^docs/0\\.9\\.0-发布冻结清单\\.md$",
       "status": "current",
       "appliesTo": "0.9.0",
-      "reason": "0.9.0 收尾冻结、三视图关闭规则与正式 Registry 发布前置门禁"
+      "reason": "0.9.0 不正式发布，仅保留取消发布决定与本地历史归档边界"
     },
     {
       "match": "^docs/bug/自动代码-CAA-combo的信号问题\\.md$",
@@ -18,9 +78,9 @@
     },
     {
       "match": "^docs/0\\.9\\.1-代码辅助Primary整改计划\\.md$",
-      "status": "draft",
+      "status": "current",
       "appliesTo": "0.9.1",
-      "reason": "用户排期的仅 Primary 代码辅助工具内部文字工具栏与 UI Preview；本轮仅记录，未实施"
+      "reason": "v0.9.1 五项 Primary 与 Git 正式修正完成记录；Git Right 原型已移至0.9.2"
     },
     {
       "match": "^docs/插件开发指导\\.md$",

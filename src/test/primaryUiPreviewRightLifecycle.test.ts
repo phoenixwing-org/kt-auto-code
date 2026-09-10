@@ -58,11 +58,25 @@ function harness(toolIds: string[], activeToolId: string, mru = toolIds) {
 
 describe("Preview approved Right → Primary close coupling", () => {
   it("Right标签×复用既有逻辑关闭处理；本次三个工具都是单实例", () => {
-    expect(functions.get("renderEditor")).toContain('closeButton(`关闭${item.title}标签`, () => closeItem(item.id))');
+    expect(functions.get("renderEditor")).toContain('closeButton(`关闭${tabTitle}标签`, () => closeEditorItem(item))');
+    const runtime = ts.transpileModule(functions.get("closeEditorItem")!, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+    const closeItem = vi.fn(); const closeGit = vi.fn(); const closeCleanup = vi.fn();
+    const close = new Function("closeItem", "previewGitSquash", "previewAutoBuildCleanupSurface", `${runtime}; return closeEditorItem;`)(
+      closeItem, { close: closeGit }, { close: closeCleanup },
+    );
     for (const toolId of coupledToolIds) {
       expect(PREVIEW_TOOL_CATALOG_BY_ID[toolId]!.instancePolicy.kind).toBe("single");
       expect(resolvePreviewToolRoute(PREVIEW_TOOL_CATALOG_BY_ID[toolId]!).rightPanelId).toBe(toolId);
+      close({ id: `tool:${toolId}`, toolId });
+      expect(closeItem).toHaveBeenLastCalledWith(`tool:${toolId}`);
     }
+    expect(closeGit).not.toHaveBeenCalled();
+    expect(closeCleanup).toHaveBeenCalledOnce();
+    closeItem.mockClear();
+    close({ id: "tool:git", toolId: "git" });
+    expect(closeGit).toHaveBeenCalledOnce();
+    expect(closeCleanup).toHaveBeenCalledOnce();
+    expect(closeItem).not.toHaveBeenCalled();
   });
 
   it.each(coupledToolIds)("关闭 %s 当前Right同步移除Primary/OpenItems并按MRU回退，不关闭codegen", (toolId) => {

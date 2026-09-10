@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { KtCodegenPlan } from "@phoenix-wing/kt-codegen";
 import {
   KTC_CODEGEN_GENERATOR_VERSION,
+  KTC_CODEGEN_RUNTIME_IDENTITY,
+  ktcCodegenRuntimeIdentity,
   ktcCanReuseCodegenMarkerEntry,
   ktcNextCodegenMarkerIndexRevision,
   ktcValidCodegenMarkerIndex,
@@ -29,6 +31,7 @@ const cache: KtcCodegenPreflightCache = {
   configFingerprint: "sha256:config",
   markerIndexRevision: 4,
   generatorVersion: KTC_CODEGEN_GENERATOR_VERSION,
+  runtimeIdentity: KTC_CODEGEN_RUNTIME_IDENTITY,
   plan: { kind: "kt.codegen.plan" } as KtCodegenPlan,
 };
 
@@ -47,16 +50,44 @@ describe("Codegen preflight cache data model", () => {
     expect(ktcValidCodegenPreflightCache(cache, cache.documentUri, cache.configFingerprint, 5)).toBe(false);
   });
 
-  it("0.3.3 拒绝 0.3.2 计划，以 Wing 0.4.3 重新 Analyze", () => {
-    const oldMarkerPlan = { ...cache, generatorVersion: "0.3.2" };
+  it.each(["0.3.2", "0.3.3", "1.0.0", "1.0.1"])("规则版本 1.0.2 拒绝旧 %s 计划，强制重新 Analyze", (generatorVersion) => {
+    const oldMarkerPlan = { ...cache, generatorVersion };
 
-    expect(KTC_CODEGEN_GENERATOR_VERSION).toBe("0.3.3");
+    expect(KTC_CODEGEN_GENERATOR_VERSION).toBe("1.0.2");
     expect(ktcValidCodegenPreflightCache(
       oldMarkerPlan,
       oldMarkerPlan.documentUri,
       oldMarkerPlan.configFingerprint,
       oldMarkerPlan.markerIndexRevision,
     )).toBe(false);
+  });
+
+  it("规则版本 1.0.2 且输入/索引未变时复用当前计划，不提升 JSON 或 Plan schema", () => {
+    const current = { ...cache, generatorVersion: "1.0.2" };
+    expect(ktcValidCodegenPreflightCache(current, current.documentUri, current.configFingerprint, 4)).toBe(true);
+    expect(current.schemaVersion).toBe(1);
+    expect(current.plan).toBe(cache.plan);
+  });
+
+  it("实际 runtime 能力区分新规则与未提供导出的 Registry，不伪造已发布支持", () => {
+    expect(ktcCodegenRuntimeIdentity({ KT_CODEGEN_GENERATOR_VERSION: "1.0.2" })).toBe("wing.codegen.rules:1.0.2");
+    for (const runtime of [{}, null, { KT_CODEGEN_GENERATOR_VERSION: "" }, { KT_CODEGEN_GENERATOR_VERSION: 1 }]) {
+      expect(ktcCodegenRuntimeIdentity(runtime)).toBe("wing.codegen.legacy-unversioned");
+    }
+  });
+
+  it("规则版本相同但 runtime 来源不同仍拒绝缓存，旧缺失字段也拒绝", () => {
+    const versioned = "wing.codegen.rules:1.0.2", legacy = "wing.codegen.legacy-unversioned";
+    const current = { ...cache, runtimeIdentity: versioned };
+    const valid = (value: KtcCodegenPreflightCache, identity: string) =>
+      ktcValidCodegenPreflightCache(value, value.documentUri, value.configFingerprint, 4, identity);
+    expect(valid(current, versioned)).toBe(true);
+    expect(valid(current, legacy)).toBe(false);
+    expect(valid({ ...current, runtimeIdentity: legacy }, versioned)).toBe(false);
+    expect(valid({ ...current, runtimeIdentity: "wing.codegen.rules:1.0.1" }, versioned)).toBe(false);
+    const { runtimeIdentity: _omitted, ...withoutRuntime } = current;
+    expect(valid(withoutRuntime as KtcCodegenPreflightCache, versioned)).toBe(false);
+    expect(valid(withoutRuntime as KtcCodegenPreflightCache, legacy)).toBe(false);
   });
 
   it("即使版本标签相同，也拒绝旧扫描器写出的级联诊断计划", () => {

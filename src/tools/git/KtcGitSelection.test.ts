@@ -3,6 +3,7 @@ import {
   KtcAssessGitBranchRange,
   KtcCompactGitCommitMessage,
   KtcCreateGitRangeSelection,
+  KtcLoadedGitFirstParentOids,
   KtcProjectGitRangeSelection,
   KtcSameGitOidSelection,
   KtcUpdateGitRangeSelection,
@@ -62,6 +63,73 @@ describe("Git selection", () => {
       selectableOids: [head, middle, base],
     });
     expect(KtcUpdateGitRangeSelection(commits, anchored, side!, true)).toEqual(anchored);
+  });
+
+  it("projects only the frozen current first-parent line as initially selectable", () => {
+    const [head, middle, base, side] = ["a", "b", "c", "d"].map((value) => value.repeat(40));
+    const commits = [
+      { oid: head!, parentOids: [middle!, side!] },
+      { oid: side!, parentOids: [base!], subject: "相同标题" },
+      { oid: middle!, parentOids: [base!], subject: "相同标题" },
+      { oid: base!, parentOids: [] },
+    ];
+    const firstParentOids = KtcLoadedGitFirstParentOids(commits, head!);
+    expect(firstParentOids).toEqual([head, middle, base]);
+    expect(KtcCreateGitRangeSelection(commits, [], firstParentOids)).toEqual({
+      selectedOids: [],
+      selectableOids: [head, middle, base],
+    });
+    expect(KtcProjectGitRangeSelection(commits, [side!], firstParentOids)).toMatchObject({
+      missingOids: [],
+      ineligibleOids: [side],
+      selection: { selectedOids: [], selectableOids: [head, middle, base] },
+    });
+  });
+
+  it("keeps a middle current-branch interval selectable with side nodes interleaved", () => {
+    const [head, upper, middle, base, side] = ["a", "b", "c", "d", "e"].map((value) => value.repeat(40));
+    const commits = [
+      { oid: head!, parentOids: [upper!, side!] },
+      { oid: side!, parentOids: [base!] },
+      { oid: upper!, parentOids: [middle!] },
+      { oid: middle!, parentOids: [base!] },
+      { oid: base!, parentOids: [] },
+    ];
+    const firstParentOids = KtcLoadedGitFirstParentOids(commits, head!);
+    expect(KtcCreateGitRangeSelection(commits, [upper!, base!], firstParentOids)).toMatchObject({
+      anchorOid: upper,
+      endpointOid: base,
+      selectedOids: [upper, middle, base],
+      selectableOids: [head, upper, middle, base],
+    });
+  });
+
+  it("recomputes first-parent eligibility after a page adds the missing parent", () => {
+    const [head, middle, base, side] = ["a", "b", "c", "d"].map((value) => value.repeat(40));
+    const firstPage = [
+      { oid: head!, parentOids: [middle!, side!] },
+      { oid: side!, parentOids: [base!] },
+    ];
+    expect(KtcLoadedGitFirstParentOids(firstPage, head!)).toEqual([head]);
+    const allPages = [...firstPage, { oid: middle!, parentOids: [base!] }, { oid: base!, parentOids: [] }];
+    expect(KtcCreateGitRangeSelection(
+      allPages,
+      [],
+      KtcLoadedGitFirstParentOids(allPages, head!),
+    ).selectableOids).toEqual([head, middle, base]);
+  });
+
+  it("rejects a forged selection for a loaded non-current first-parent commit", () => {
+    const [head, base, side] = ["a", "b", "c"].map((value) => value.repeat(40));
+    const commits = [
+      { oid: head!, parentOids: [base!, side!] },
+      { oid: side!, parentOids: [base!] },
+      { oid: base!, parentOids: [] },
+    ];
+    const eligible = [head!, base!];
+    const empty = KtcCreateGitRangeSelection(commits, [], eligible);
+    expect(() => KtcUpdateGitRangeSelection(commits, empty, side!, true, undefined, eligible))
+      .toThrow("非当前分支，不能合并");
   });
 
   it("shrinks at an unchecked boundary and clears when the anchor is unchecked", () => {

@@ -15,6 +15,7 @@ const REQUIRED_AUTO_FLOWS = Object.freeze([
   "sourcePlanInvalidation",
   "jsonRecreateGuard",
   "packageIncludesService",
+  "codegenDocumentTabs",
 ]);
 
 const REQUIRED_CODEGEN_PERSISTENCE_EVIDENCE = Object.freeze([
@@ -99,6 +100,11 @@ export function validateExtensionHostSmokeReceipt(receipt, options = {}) {
   }
 
   const packageIncludes = receipt?.evidence?.packageIncludes;
+  for (const field of ["filenameOnly", "sameNamesNotDisambiguated", "uriReuse", "isolatedStateUpdate"]) {
+    if (receipt?.evidence?.codegenDocumentTabs?.[field] !== true) {
+      issues.push(`evidence.codegenDocumentTabs.${field} must be true`);
+    }
+  }
   for (const field of REQUIRED_PACKAGE_INCLUDES_EVIDENCE) {
     if (packageIncludes?.[field] !== true) {
       issues.push(`evidence.packageIncludes.${field} must be true`);

@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 import { verifyCodegenCoreCheckpointRuntime } from "./verify-codegen-checkpoint-runtime.mjs";
+import { readCodegenGeneratorVersion, verifyCodegenGeneratorVersion } from "./verify-codegen-generator-version.mjs";
 
 const RECOVERY_BLOCKS = Object.freeze([
   "CMD ACTION FIA",
@@ -41,6 +42,11 @@ export async function verifyLocalWingMarkerRuntime(wingRoot) {
   );
   const runtimeUrl = `${pathToFileURL(entry).href}?markerBoundaryCheck=${Date.now()}`;
   const runtime = await import(runtimeUrl);
+  const generatorVersion = readCodegenGeneratorVersion(readFileSync(
+    new URL("../src/tools/codegen/preflightCache.ts", import.meta.url), "utf8",
+  ));
+  const generator = verifyCodegenGeneratorVersion(runtime, generatorVersion);
+  console.log(`[local-wing] Codegen 生成规则版本一致：${generator.generatorVersion}；${generator.runtimeIdentity}`);
   verifyCodegenCoreCheckpointRuntime(runtime, "本地 Wing Codegen dist");
   console.log("[local-wing] Codegen 保存快照自检通过：新草稿保留、revision 推进、checkpoint 精确还原");
   const { KtCodegenController } = runtime;

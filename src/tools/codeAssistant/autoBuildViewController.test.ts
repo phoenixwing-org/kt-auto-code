@@ -63,6 +63,8 @@ describe("Auto Build View contract", () => {
     expect(view).not.toContain("写当前构建 PS1");
     expect(view).not.toContain("pnwDefineCollapsibleBlock");
     expect(view).toContain('actions.replaceChildren(preflightButton, runToggle)');
+    expect(view).toContain('from "./autoBuildCleanupView.js"');
+    expect(view).toContain('ktcMountAutoBuildCleanupView({ postMessage: (message) => autoBuildVsCode.postMessage(message) })');
     expect(view).toContain('runToggle.id = "autoBuildRunToggle"');
     expect(view).toContain('setBlockHeader(rootBlock, "构建配置", rootUpdates)');
     expect(view).not.toContain('scriptRow.className = "repo"');

@@ -91,12 +91,22 @@ describe("generic webview preview server", () => {
       expect(server.port).toBeGreaterThan(0);
       const home = await fetch(server.url);
       expect(home.status).toBe(200);
-      expect(home.headers.get("content-security-policy")).toContain("default-src 'self'");
-      expect(await home.text()).toContain("Preview fixture");
+      const policy = home.headers.get("content-security-policy")!;
+      expect(policy).toContain("default-src 'self'");
+      const html = await home.text();
+      expect(html).toContain("Preview fixture");
+      const nonce = html.match(/<meta name="phoenix-preview-script-nonce" content="([A-Za-z0-9_-]{32})">/u)?.[1];
+      expect(nonce).toBeDefined();
+      expect(policy).toContain(`script-src 'self' 'nonce-${nonce}'`);
+      expect(policy.split(";").find((directive) => directive.trim().startsWith("script-src"))).not.toContain("unsafe-inline");
+      const nextHome = await fetch(server.url);
+      expect(nextHome.headers.get("content-security-policy")).not.toContain(`nonce-${nonce}`);
+      expect(home.headers.get("cache-control")).toBe("no-store");
 
       const bundle = await fetch(`${server.url}fixture.js`);
       expect(bundle.status).toBe(200);
       expect(bundle.headers.get("content-type")).toContain("text/javascript");
+      expect(bundle.headers.get("content-security-policy")).not.toContain("nonce-");
       expect(await bundle.text()).toContain("local-wing-source");
       expect((await fetch(`${server.url}package.json`)).status).toBe(404);
       expect(await requestStatus(server.port, "/", "malicious.example")).toBe(403);

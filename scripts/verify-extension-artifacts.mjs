@@ -2,9 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { inflateRawSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 import { verifyLocalWingReceipt } from "./local-wing-artifact-receipt.mjs";
 import { verifyRunCleanupBundleImplementations } from "./verify-local-wing-cleanup-runtime.mjs";
 import { verifyCodegenTableBundleCheckpointRuntime } from "./verify-codegen-checkpoint-runtime.mjs";
+import { readCodegenGeneratorVersion, verifyCodegenGeneratorBundle } from "./verify-codegen-generator-version.mjs";
 import {
   createArtifactVerificationEvidence,
   readBuildProvenance,
@@ -14,6 +16,7 @@ import {
 } from "./release-artifact-provenance.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+function main() {
 const localWing = process.argv.slice(2).includes("--local-wing");
 const codePackage = readPackage(path.join(root, "package.json"));
 const artifacts = [
@@ -93,6 +96,9 @@ for (const artifact of artifacts) {
     if (!bundle.includes("GetComboSelectNotification()") || bundle.includes("GetComboModifyNotification()")) {
       throw new Error("Code VSIX CAA Combo generator must bind the selection notification, not the modify notification");
     }
+    verifyCodegenGeneratorBundle(bundle, readCodegenGeneratorVersion(fs.readFileSync(
+      path.join(root, "src/tools/codegen/preflightCache.ts"), "utf8",
+    )), `${artifact.kind} VSIX Codegen`);
     const tableBundle = readText(zip, "extension/dist/codegen-table.js");
     verifyCodegenTableBundleCheckpointRuntime(tableBundle, `${artifact.kind} VSIX Codegen table`);
     if (!tableBundle.includes("kt-codegen-table")) {
@@ -193,6 +199,7 @@ for (const artifact of artifacts) {
         || uuidResultsPanelBundle.includes("acquireVsCodeApi")) {
       throw new Error("Code VSIX is missing the Host-neutral UUID result panel custom element");
     }
+    verifyCodeAssistantPrimaryBundle(readText(zip, "extension/dist/ktc-code-assistant-primary.js"));
     const renameResultsPanelBundle = readText(zip, "extension/dist/rename-results-panel.js");
     if (!renameResultsPanelBundle.includes("ktc-rename-results-panel")
         || !renameResultsPanelBundle.includes("pnw-code-rename-results-action")
@@ -321,6 +328,60 @@ for (const artifact of artifacts) {
   process.stdout.write(`[verify] ${artifact.kind} VSIX: ${names.length} files, ${bytes} bytes passed\n`);
   process.stdout.write(localWing ? `${JSON.stringify(evidence, null, 2)}\n` : serializeArtifactVerificationEvidence(evidence));
 }
+}
+
+/** Validate the formal shared entry without executing its code or opening an artifact. */
+export function verifyCodeAssistantPrimaryBundle(source, label = "Code VSIX shared Code Assistant Primary") {
+  const required = [
+    "ktcCodeAssistantPrimary",
+    "ktcCreateTextRepairPrimaryModel", "ktcTextRepairPrimaryActionToMessage",
+    "ktcCreateCaaPrimaryModel", "ktcCaaPrimaryMessageForAction",
+    "ktcProjectSelectionPrimary", "ktcSelectionPrimaryMessage",
+    "ktc-primary-action-bar", "ktc-text-repair-primary", "ktc-text-repair-primary-action",
+    "ktc-caa-primary", "ktc-caa-primary-action", "ktc-selection-primary", "ktc-selection-primary-action",
+    "ktc-reorder-members-panel", "pnw-code-reorder-members-action",
+    "ktc-uuid-results-panel", "pnw-code-uuid-results-action",
+  ];
+  const missing = required.filter(marker => !source.includes(marker));
+  if (missing.length) throw new Error(`${label} is missing shared UI/adapter markers: ${missing.join(", ")}`);
+  const parsed = ts.createSourceFile("code-assistant-primary.js", source, ts.ScriptTarget.ESNext, true, ts.ScriptKind.JS);
+  if (parsed.parseDiagnostics.length) throw new Error(`${label} contains invalid JavaScript`);
+  const previewSymbol = /^(?:createPreview(?:HeaderAscii|EncodingFix|TextRepair|Caa|SelectionTools|ReorderMembers|UuidReplace|CodeAssistant)\w*|KtcSystemOutputBlock\w*|HEADER_FIXTURE|ENCODING_FIXTURE)$/u;
+  const forbiddenModule = /(?:^|[\\/\s])(?:ui-preview[\\/](?:src|fixtures)|src[\\/](?:ui[\\/]KtcSystemOutputBlock|core[\\/](?:sourceEncodingWalk|fileEncodingWalk)|tools[\\/](?:headerAscii|encodingFix)[\\/]commands))(?:[\\/.\s]|$)/u;
+  const hostModule = /^(?:vscode|(?:node:)?(?:fs(?:\/promises)?|child_process))$/u;
+  const inspect = node => {
+    // Inspect actual source comments and syntax, not arbitrary status text or valid action:'preview' data.
+    for (const comment of ts.getLeadingCommentRanges(source, node.pos) ?? []) {
+      if (forbiddenModule.test(source.slice(comment.pos, comment.end))) throw new Error(`${label} contains Preview or file-processing module code`);
+    }
+    if ((ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node) || ts.isVariableDeclaration(node))
+        && node.name && ts.isIdentifier(node.name) && previewSymbol.test(node.name.text)) {
+      throw new Error(`${label} contains executable Preview fixture code: ${node.name.text}`);
+    }
+    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier
+        && ts.isStringLiteral(node.moduleSpecifier) && (hostModule.test(node.moduleSpecifier.text) || forbiddenModule.test(node.moduleSpecifier.text))) {
+      throw new Error(`${label} imports a Preview/Host/file-processing dependency`);
+    }
+    if (ts.isCallExpression(node)) {
+      const callee = node.expression;
+      if (ts.isIdentifier(callee) && callee.text === "acquireVsCodeApi"
+          || ts.isPropertyAccessExpression(callee) && callee.name.text === "postMessage") {
+        throw new Error(`${label} must not perform Host messaging`);
+      }
+      if ((callee.kind === ts.SyntaxKind.ImportKeyword || ts.isIdentifier(callee) && /^(?:__)?require\d*$/u.test(callee.text))
+          && node.arguments[0] && ts.isStringLiteral(node.arguments[0]) && hostModule.test(node.arguments[0].text)) {
+        throw new Error(`${label} must not load a Host/filesystem runtime`);
+      }
+    }
+    if (ts.isPropertyAccessExpression(node) && node.name.text === "fs"
+        && (ts.isIdentifier(node.expression) && node.expression.text === "workspace"
+          || ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "workspace")) {
+      throw new Error(`${label} must not access workspace.fs`);
+    }
+    ts.forEachChild(node, inspect);
+  };
+  inspect(parsed);
+}
 
 function readPackage(filename) {
   return JSON.parse(fs.readFileSync(filename, "utf8"));
@@ -369,3 +430,5 @@ function readText(entries, name) {
 function assertEqual(actual, expected, label) {
   if (actual !== expected) throw new Error(`${label} must equal ${expected}, got ${String(actual)}`);
 }
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();

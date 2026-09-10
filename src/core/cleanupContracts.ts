@@ -40,6 +40,10 @@ export interface KtcCleanupDialogModel {
   readonly description?: string;
   readonly modes: readonly KtcCleanupDialogMode[];
   readonly selectedModeId?: string;
+  /** Optional presentation only; mode IDs, risk gates and Host execution stay unchanged. */
+  readonly modePresentation?: "select" | "radio";
+  readonly collapsibleSections?: boolean;
+  readonly actionsPlacement?: "header" | "footer";
   readonly targets: readonly KtcCleanupDialogTarget[];
   readonly rulesVisible: boolean;
   readonly rulesLabel: string;

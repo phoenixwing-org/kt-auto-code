@@ -2,6 +2,9 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import * as esbuild from "esbuild";
 import { describe, expect, it } from "vitest";
+import { localWingBuildContextFromEnvironment } from "../../scripts/local-wing-resolution.mjs";
+
+const localWing = localWingBuildContextFromEnvironment();
 
 const SHARED_UI_BUNDLES = Object.freeze([
   ["src/ui/KtcPrimaryShellEntry.ts", "dist/ktc-primary-shell.js"],
@@ -56,6 +59,8 @@ describe("esbuild shared Web Component bundles", () => {
         absWorkingDir: path.resolve("."),
         entryPoints: [entryPoint],
         bundle: true,
+        plugins: (localWing?.plugins ?? []) as esbuild.Plugin[],
+        metafile: true,
         write: false,
         outfile: "out.js",
         platform: "browser",
@@ -65,6 +70,9 @@ describe("esbuild shared Web Component bundles", () => {
       });
       expect(result.outputFiles).toHaveLength(1);
       expect(result.outputFiles?.[0]?.text.length).toBeGreaterThan(0);
+      if (localWing) {
+        expect(Object.keys(result.metafile?.inputs ?? {}).filter((input) => /node_modules\/.*@phoenix-wing/u.test(normalizePath(input)))).toEqual([]);
+      }
     }));
   });
 

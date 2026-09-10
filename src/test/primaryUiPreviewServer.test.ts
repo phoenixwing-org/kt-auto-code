@@ -256,12 +256,13 @@ describe("Primary UI preview server helpers", () => {
   });
 
   it("AutoBuild Preview 由单一样例驱动，并锁定 Primary/Right 的迁移边界", async () => {
-    const [html, source, stateSource, sampleSource, css] = await Promise.all([
+    const [html, source, stateSource, sampleSource, css, workbenchSource] = await Promise.all([
       readFile(path.resolve("ui-preview/index.html"), "utf8"),
       readFile(path.resolve("ui-preview/src/main.ts"), "utf8"),
       readFile(path.resolve("ui-preview/src/previewAutoBuildState.ts"), "utf8"),
       readFile(path.resolve("ui-preview/src/previewAutoBuildSample.ts"), "utf8"),
       readFile(path.resolve("ui-preview/styles.css"), "utf8"),
+      readFile(path.resolve("ui-preview/src/previewAutoBuildWorkbench.ts"), "utf8"),
     ]);
     const rightStart = html.indexOf('data-editor-panel="autoBuild"');
     const rightEnd = html.indexOf("</ktc-right-view-shell>", rightStart);
@@ -282,7 +283,8 @@ describe("Primary UI preview server helpers", () => {
     expect(source).toContain("section.append(configRegion, heading, actions, executionOptions, statusLine, metrics, maintenance, environment)");
     expect(source).toContain("preview-primary-maintenance");
     expect(source).toContain('sync.textContent = "同步脚本"');
-    expect(stateSource).toContain('actionId: "openCleanup"');
+    expect(stateSource).not.toContain('actionId: "openCleanup"');
+    expect(stateSource).toContain('readonly type: "openCleanup"');
     expect(source).toContain("openAutoBuildCleanupDialog()");
     expect(source).toContain("preview-cleanup-dialog");
     expect(source).not.toContain("preview-primary-repository-cleanup");
@@ -295,6 +297,14 @@ describe("Primary UI preview server helpers", () => {
     expect(stateSource).toContain("PREVIEW_AUTO_BUILD_SAMPLE");
     expect(rightStart).toBeGreaterThan(0);
     expect(rightEnd).toBeGreaterThan(rightStart);
+    const headerActions = autoBuildRight.slice(autoBuildRight.indexOf('slot="actions"'), autoBuildRight.indexOf("</div>"));
+    expect(headerActions.match(/data-auto-build-action="([^"]+)"/gu)).toEqual([
+      'data-auto-build-action="openCleanup"', 'data-auto-build-action="preflight"', 'data-auto-build-action="toggleRun"',
+    ]);
+    expect(html.match(/data-auto-build-action="openCleanup"/gu)).toHaveLength(1);
+    expect(source).toContain('actionId === "preflight" || actionId === "openCleanup"');
+    expect(source).toContain('[data-auto-build-action=\'openCleanup\']');
+    expect(source).toContain('if (item.toolId === "autoBuild") previewAutoBuildCleanupSurface.close()');
     expect(autoBuildRight).not.toContain("preview-build-config-bar");
     expect(autoBuildRight).not.toContain("手动清理 Root");
     expect(autoBuildRight).not.toContain("并行 CMake / CAA");
@@ -310,16 +320,16 @@ describe("Primary UI preview server helpers", () => {
     expect(css).toMatch(/\.preview-build-config-row\s*\{[^}]*grid-template-columns:\s*150px minmax\(220px, 1fr\) 150px/u);
     expect(autoBuildRight).toContain("data-auto-build-update-root");
     expect(autoBuildRight).toContain("data-auto-build-update-third-party");
-    expect(autoBuildRight).toContain("data-auto-build-project-tool=\"选择目录…\"");
-    expect(autoBuildRight).toContain("data-auto-build-project-tool=\"导入…\"");
-    expect(autoBuildRight).toContain("data-auto-build-project-tool=\"探测当前目录\"");
-    expect(autoBuildRight).toContain("data-auto-build-project-tool=\"移除未启用项\"");
+    expect(autoBuildRight).toContain("data-auto-build-project-tool=\"selectDirectories\"");
+    expect(autoBuildRight).toContain("data-auto-build-project-tool=\"import\"");
+    expect(autoBuildRight).toContain("data-auto-build-project-tool=\"discover\"");
+    expect(autoBuildRight).toContain("data-auto-build-project-tool=\"removeDisabled\"");
     expect(autoBuildRight).toContain("data-auto-build-probe-columns");
     expect(autoBuildRight).toContain("data-auto-build-project-rows");
     expect(autoBuildRight).toContain("data-auto-build-mode");
-    expect(source).toContain('path.setAttribute("d", "m10 10 3 3")');
-    expect(source).toContain('"M5 3.5 12 8l-7 4.5z"');
-    expect(source).toContain('createAutoBuildProjectAction("update", repository.name)');
+    expect(workbenchSource).toContain('`probe:${repository.id}`');
+    expect(workbenchSource).toContain('`run:${repository.id}`');
+    expect(workbenchSource).toContain('`update:${repository.id}`');
     expect(source).toContain("openAutoBuildManifestImportDialog()");
     expect(source).toContain("preview-manifest-dialog");
     expect(css).toMatch(/\.preview-build-table\s*\{[^}]*border-collapse:\s*separate/u);

@@ -5,6 +5,8 @@ export type KtcRightViewScrollMode = "vertical" | "both" | "none";
 export interface KtcRightViewShellModel {
   readonly title: string;
   readonly contextPath?: string;
+  /** Optional compact context copy; the full contextPath remains its tooltip. */
+  readonly contextLabel?: string;
   readonly hideContext?: boolean;
   readonly scrollMode?: KtcRightViewScrollMode;
 }
@@ -21,6 +23,7 @@ const UNASSOCIATED_CONTEXT = "未关联目录";
 const EMPTY_MODEL: Readonly<Required<KtcRightViewShellModel>> = Object.freeze({
   title: DEFAULT_TITLE,
   contextPath: "",
+  contextLabel: "",
   hideContext: false,
   scrollMode: DEFAULT_SCROLL_MODE,
 });
@@ -71,6 +74,8 @@ const STYLE = `
   .scroll-both { overflow:auto; }
   .scroll-none { overflow:hidden; }
   slot:not([name]) { display:block; min-width:100%; min-height:100%; }
+  /* Consumers with their own scrollport need a definite height through the slot. */
+  .scroll-none > slot:not([name]) { height:100%; min-height:0; }
   @media (forced-colors:active) {
     .header { border-bottom-color:CanvasText; }
   }
@@ -117,9 +122,11 @@ export class KtcRightViewShell extends HTMLElement {
       const contextDisplay = ktcFormatRightViewContextPath(this.activeModel.contextPath);
       const context = document.createElement("span");
       context.className = "context";
-      context.textContent = contextDisplay.label;
+      context.textContent = this.activeModel.contextLabel || contextDisplay.label;
       context.title = contextDisplay.title;
-      context.setAttribute("aria-label", this.activeModel.contextPath
+      context.setAttribute("aria-label", this.activeModel.contextLabel
+        ? `${this.activeModel.contextLabel}；${contextDisplay.title}`
+        : this.activeModel.contextPath
         ? `关联目录：${contextDisplay.title}`
         : UNASSOCIATED_CONTEXT);
       heading.append(context);
@@ -159,8 +166,9 @@ function normalizeModel(value: KtcRightViewShellModel | null | undefined): Reado
     : DEFAULT_TITLE;
   const scrollMode = isScrollMode(value?.scrollMode) ? value.scrollMode : DEFAULT_SCROLL_MODE;
   const contextPath = typeof value?.contextPath === "string" ? value.contextPath.trim() : "";
+  const contextLabel = typeof value?.contextLabel === "string" ? value.contextLabel.trim() : "";
   const hideContext = value?.hideContext === true;
-  return Object.freeze({ title, contextPath, hideContext, scrollMode });
+  return Object.freeze({ title, contextPath, contextLabel, hideContext, scrollMode });
 }
 
 export function ktcFormatRightViewContextPath(value: string | null | undefined): KtcRightViewContextDisplay {
@@ -209,6 +217,7 @@ function sameModel(
 ): boolean {
   return left.title === right.title
     && left.contextPath === right.contextPath
+    && left.contextLabel === right.contextLabel
     && left.hideContext === right.hideContext
     && left.scrollMode === right.scrollMode;
 }

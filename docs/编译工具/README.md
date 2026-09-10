@@ -1,6 +1,16 @@
-# Auto Build（首版）
+# 编译工具（Auto Build）
 
 状态：试用
+
+## 当前开发范围
+
+schema 2 统一项目表、既有仓库 TS Git 与标准 CMake已经接线，不能继续按“下一阶段统一项目表”重做。用户于 2026-09-10 在 0.9.2 候选冻结后重新授权编译工具与清理后续，并要求正式 YAML 清理接通。按[后续原型计划](后续原型计划.md)分层推进：项目草稿、清单导入、配置/脚本窗口和任务正补可交互 Preview；YAML 发现/原生编辑器/逐行清理已接正式源码，Node 临时夹具 16 项通过，完整 Host 集成、四 Block/Header 新布局与 UI 人工验收继续补记。新源码不覆盖冻结 VSIX，原型不等于正式支持，macOS 测试不等于 Windows 或发布通过。
+
+“项目与仓库”的 **导入…** 从早期占位反馈向内存导入闭环接线中，正式 BUILD_MANIFEST 导入尚未完成，不是正式按钮回归丢失。清理规则则不做导入：简单编辑/使用，“在 VS Code 中编辑”交给原生未保存 YAML 文档，由用户自行保存；已有文件行内“打开”打开原文件。正式源码已接编辑器 API，Preview 仍仅模拟请求，分别验收。清理窗不内置多文件 tabs/独立草稿或保存对话框；逐文件清理只读已保存 YAML，以其 parent 的直属项为范围，点击无需额外确认，不取消其他高风险动作的限制。
+
+清理最新 UI 约定：**目标、规则、配置 YAML 列表、预览结果**四个可折叠 Block；编辑/探测/取消/预览/清理等对话框级按钮统一放在 Header 右侧，去掉 footer；每行打开/清理保留在该行。清理方式是一行 radio，高风险 Git 确认仍为独立 checkbox。新布局人工结果见[三组手工点检](后续原型计划.md#本轮手工点检清单)，不得套用旧固定底栏的截图通过记录。
+
+Combo 参数回填注释修正已纳入本轮授权，生成规则与缓存升至 `1.0.2`，见[专项记录](../bug/自动代码-Combo参数回填缺少注释行.md)；不因清理 UI 修改另升规则。Windows 导出脚本首行报错已[登记待定位](../bug/编译工具-Windows导出脚本首行错误.md)，没有原始文件/完整报错前不声称修复。
 
 插件运行时已采用 **TS 调度 + TS Git / 标准 CMake，Windows link/export/CAA 保留 PS1**。内置脚本 [`scripts/auto-build/Invoke-AutoBuild.ps1`](../../scripts/auto-build/Invoke-AutoBuild.ps1) 继续保留；用户可显式同步到 `ROOT_DIR\tools\Invoke-AutoBuild.ps1`，作为脱离 UI 的命令行入口。插件运行时按
 [《TypeScript 运行时迁移计划》](TypeScript运行时迁移计划.md) 分阶段改走 Wing，脚本导出与兼容入口继续保留。
@@ -10,7 +20,7 @@
 - **标准 CMake 可原生运行**：插件直接调用系统 cmake 与编译器，不依赖 mk.ps1；本轮已验证 macOS Release 实编。Windows CAA 仍依赖 PowerShell 5.1、MSVC/RADE。
 - **macOS/Linux 可用于开发检查**：View 可以正常打开，支持配置编辑、本机 POSIX 目录与 Git 探测、预检、JSON 保存以及 PS1 生成，便于不安装扩展的 Extension Development Host 盲开发。载入 Windows 盘符或 UNC 配置时只保留计划，不访问本机文件系统；Root 不直接同步，“导出 PS1”会要求选择本机保存位置。
 - 非 Windows 点击运行时，Git 与 CMake 走 TS；export.ps1 明确提示未运行，linkCAA/CAA 标记跳过，随后顺序尝试 CMake。跳过不算成功，缺少导出依赖会产生真实编译错误。
-- 日常开发使用 Extension Development Host；用户授权的 0.9.0 内测 VSIX 可交给测试者安装，不等同于市场发布。
+- 日常开发使用 Extension Development Host。0.9.0 发布准备已取消；历史内测制品保留，不包含本轮新增源码，也不代表当前市场发布候选。
 - 所有 Root、3rdParty 和工作目录必须是完整绝对路径且实为目录；相对路径只允许用于项目行，并以绝对工作目录为基准。Windows 实际执行只接受盘符绝对路径或完整 UNC 共享路径。清理入口在任何 Git/CMake 副作用前拒绝盘根、共享根、POSIX 根，以及路径链或待删除树内的 junction/符号链接。
 - “导出 PS1”先执行同一配置校验；生成的独立脚本还会在任何文件或 Git 操作前重新校验 Root、3rdParty 与全部项目路径，用户后续手工改成相对路径也会安全停止。
 
@@ -166,10 +176,13 @@ CAA 项目的 `mk.ps1` 仍在项目目录中无参数运行；若其 Root 代理
 
 ### 手动清理
 
-- 编译工具 Primary 执行区的“清理”打开统一对话框，可选规则清理、CMake 清理和 Git 强制恢复。
+- 编译工具 **Right Header 右侧的“清理”**打开统一对话框，可选规则清理、CMake 清理和 Git 强制恢复；Primary 执行区不再重复提供清理按钮，原 `openCleanup` 后端动作契约保留。清理按钮沿用已有 Header 样式，编译运行中禁用，关闭所属 Right 时收起清理框。
+- 0.9.2 收尾采用临时 Right 归属方案：清理对话框跟随编译工具 Right，不在窄 Primary Webview 内承载。独立浮窗/独立编辑器页仅作为后续隔离实验，不宣称已迁移，也不阻塞本轮归档；归档与发布仍需各自门禁及实际点检。
 - 规则清理可分别选择 ROOT_DIR 或工作目录，规则缓存到当前 AutoBuild JSON；默认只匹配直属
   `objects/build` 与 `*.obj/*.exp/*.pdb/test_*.exe`。
 - CMake 清理删除项目自身 `build`；共享工作目录 `build` 只清空内容并保留目录。
 - Git 强制恢复单独标为高风险，预览并确认后执行 `reset --hard HEAD + clean -ffdx`。
 - 所有方式都先冻结精确命中并在执行前复验；不会在加载或预检时自动执行，也不会顺带删除预览后新增的内容。
-- Run 的既有快捷清理仍待接入同一个 Wing 对话框；在接入完成前不得删除其现有能力。
+- 新增已保存 YAML 来源入口：**仅从当前编译工作目录向下**有界发现 `cleanup.yaml`，不再额外加入 ROOT、3rdParty 或配置项目的其他根；空或无效工作目录不回退到旧目录。跳过 `.git`、`node_modules` 和目录/YAML 链接。来源列表仅显示数量与简短“不完整”状态，深度、限额、跳过和失败详情进入日志区；正式使用原生 Output，Preview 使用已有模拟日志通道。
+- YAML 探测范围与全局规则清理的 ROOT/工作目录目标选择是两件事。每个已发现来源行只发送 source ID/revision，清理根固定为该 YAML 的 parent；文件/祖先身份、规则指纹、dirty、上下文和取消需复验，实际删除仍由 Wing 冻结目标执行。Preview 的两份内存样例为 `工作目录/cleanup.yaml` 与 `工作目录/sample/cleanup.yaml`，没有 ROOT 样例且不扫描真实目录。后端临时夹具结果不替代完整 Host/Windows 人工点检。
+- Run 已按独立方式接入同一 Wing 清理体系，递归产物和非 reset 的 Git 未跟踪语义与 AutoBuild 不同，见[Run 清理记录](../运行模块/README.md#09-包后增量run-统一清理)；不得因本批改造删除其既有能力。多 YAML 来源、原生编辑请求与用户自行保存属于冻结后的新原型范围，不回写为旧版已支持。
