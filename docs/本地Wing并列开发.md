@@ -26,6 +26,8 @@ phoenix/
 
 ### `worktrees/` 中的并列链接规则
 
+Auto Code 日常开发工作树固定为 `phoenix/worktrees/kt-auto-code-working`，跨版本沿用；后续按用户指定切换分支，不再用版本号命名或另建日常开发目录。版本身份以实际检出的分支、提交和包版本核验，不由目录名推断。`phoenix/worktrees/kt-auto-code-release` 仅用于干净 detached 提交的正式打包，可按发布需要复用，与日常开发工作树分开。
+
 本机开发目录于 2026-09-10 按用户决定固定为 `phoenix/worktrees/phoenix-wing-working`，当前分支 `v0.7.4`。它由原历史工作树整体迁入，保留 Git 暂存与未提交内容；`phoenix/worktrees/phoenix-wing` 是指向它的联调链接。后续切换版本分支时保留固定目录名，不再按版本另建隐藏 `.worktrees`。
 
 当消费者检出位于 `phoenix/worktrees/<repo>` 时，`../phoenix-wing` 会解析为

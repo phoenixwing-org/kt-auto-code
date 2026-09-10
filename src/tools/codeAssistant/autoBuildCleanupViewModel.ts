@@ -4,6 +4,7 @@ import type {
   KtcCleanupDialogTarget,
 } from "../../core/autoBuildPrimaryContracts.js";
 import { KTC_DEFAULT_ROOT_CLEANUP_PATTERNS_YAML } from "../../core/rootCleanupPatterns.js";
+import { ktcAutoBuildCleanupDirectory, ktcAutoBuildCleanupTitle, ktcSelectCurrentDirectoryCleanupTargets } from "../../core/autoBuildCleanupScope.js";
 import {
   ktcCanAccessAutoBuildPathOnHost,
   ktcIsAutoBuildFilesystemRoot,
@@ -52,42 +53,39 @@ export function ktcCreateAutoBuildCleanupViewModel(
   const targets = configuration
     ? cleanupTargets(configuration, input.defaultWorkingDirectory, input.platform)
     : [];
-  const selectedTargets = targets.map((target) => ({
-    ...target,
-    selected: selectedTargetIds
-      ? selectedTargetIds.has(target.id)
-      : !target.disabled && target.supportedModeIds?.includes(selectedModeId) === true,
-  }));
+  const selectedTargets = selectedTargetIds
+    ? targets.map((target) => ({ ...target, selected: selectedTargetIds.has(target.id) }))
+    : ktcSelectCurrentDirectoryCleanupTargets(targets, selectedModeId);
   const availableForMode = selectedTargets.some((target) => !target.disabled
     && target.selected
     && target.supportedModeIds?.includes(selectedModeId));
   const preview = input.state?.preview;
   const enabled = input.enabled && !!configuration && availableForMode;
-  const disabledReason = input.disabledReason
+  const disabledReason = (!input.enabled ? input.disabledReason : undefined)
     || (!configuration ? "当前没有可清理的 AutoBuild 配置。" : "当前方式没有可用的清理目标。");
 
   return {
-    title: "清理",
-    description: "先冻结并核对实际命中，再执行所选清理；不会顺带处理预览后新增的内容。",
+    title: ktcAutoBuildCleanupTitle(ktcAutoBuildCleanupDirectory(configuration?.workingDirectory, input.defaultWorkingDirectory)),
+    description: "默认只清理当前目录；ROOT、3rdParty 和其他项目需手动勾选。先预览核对，再执行清理。",
     modes: [
       {
         id: "rules",
         label: "规则清理",
-        description: "按 YAML 规则清理 ROOT 或工作目录的直属构建产物。",
+        description: "按 YAML 规则清理当前目录的直属构建产物，不删除当前目录本身。",
         risk: "normal",
         rulesVisible: true,
       },
       {
         id: "git-force",
         label: "Git 强制恢复",
-        description: "对仓库顶层执行 reset --hard HEAD 与 clean -ffdx；未提交和未跟踪内容会丢失。",
+        description: "仅当当前目录就是 Git 仓库根目录时可用，不自动转到上级仓库；reset --hard HEAD 与 clean -ffdx 会丢弃未提交和未跟踪内容。",
         risk: "high",
         rulesVisible: false,
       },
       {
         id: "cmake",
         label: "CMake 清理",
-        description: "删除项目 build 目录；共享工作目录的 build 只清空内容并保留目录。",
+        description: "默认清空当前目录下的 build 并保留目录；其他项目的 build 需手动勾选。",
         risk: "normal",
         rulesVisible: false,
       },
@@ -127,7 +125,7 @@ function cleanupTargets(
   defaultWorkingDirectory: string,
   platform: NodeJS.Platform,
 ): KtcCleanupDialogTarget[] {
-  const workingDirectory = configuration.workingDirectory?.trim() || defaultWorkingDirectory.trim();
+  const workingDirectory = ktcAutoBuildCleanupDirectory(configuration.workingDirectory, defaultWorkingDirectory);
   const result: KtcCleanupDialogTarget[] = [];
   const seen = new Set<string>();
   const add = (
@@ -157,15 +155,20 @@ function cleanupTargets(
     });
   };
 
-  if (ktcAutoBuildRootEnabled(configuration)) {
-    add("rules:root", "ROOT_DIR", configuration.rootDirectory, ["rules"]);
-    add("git:root", "ROOT_DIR", configuration.rootDirectory, ["git-force"]);
-  }
   if (workingDirectory) {
-    add("rules:working", "工作目录", workingDirectory, ["rules"]);
+    add("rules:working", "当前目录", workingDirectory, ["rules"]);
+    add("git:working", "当前目录", workingDirectory, ["git-force"], "必须是仓库根目录，不扩大到上级仓库");
+    let sharedBuild = "";
+    try { sharedBuild = ktcJoinAutoBuildPath(workingDirectory, "build"); }
+    catch { /* Never substitute the working directory itself for its build child. */ }
+    add("cmake:shared", "当前目录 / build", sharedBuild, ["cmake"], "保留 build 目录，只清空其中内容");
+  }
+  if (ktcAutoBuildRootEnabled(configuration)) {
+    add("rules:root", "ROOT_DIR（附加）", configuration.rootDirectory, ["rules"]);
+    add("git:root", "ROOT_DIR（附加）", configuration.rootDirectory, ["git-force"]);
   }
   if (ktcAutoBuildThirdPartyEnabled(configuration)) {
-    add("git:third-party", "ROOT_DIR_3rdParty", configuration.thirdPartyDirectory, ["git-force"]);
+    add("git:third-party", "ROOT_DIR_3rdParty（附加）", configuration.thirdPartyDirectory, ["git-force"]);
   }
 
   for (const project of configuration.projects.filter(({ enabled }) => enabled)) {
@@ -181,12 +184,6 @@ function cleanupTargets(
       catch { buildPath = projectPath; }
       add(`cmake:project:${project.id}`, `${project.name} / build`, buildPath, ["cmake"], "删除整个 build 目录");
     }
-  }
-  if (workingDirectory) {
-    let sharedBuild = "";
-    try { sharedBuild = ktcJoinAutoBuildPath(workingDirectory, "build"); }
-    catch { sharedBuild = workingDirectory; }
-    add("cmake:shared", "工作目录 / build", sharedBuild, ["cmake"], "保留 build 目录，只清空其中内容");
   }
   return result;
 }

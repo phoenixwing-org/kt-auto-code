@@ -1642,7 +1642,7 @@ describe("自动编译 Primary companion", () => {
       const configuration = vi.mocked(panel.webview.postMessage).mock.calls
         .map(([message]) => message as { type?: string; configuration?: KtcAutoBuildConfiguration })
         .find(({ type }) => type === "configuration")!.configuration!;
-      const request = { modeId: "rules", targetIds: ["rules:root"], rulesYaml: "- XyCore*" } as const;
+      const request = { modeId: "rules", targetIds: ["rules:working"], rulesYaml: "- XyCore*" } as const;
       const previewing = controller.runPrimaryCompanionAction({
         ...actionToken(snapshots.at(-1)!, "cleanupDialog"),
         payload: { kind: "preview", request },
@@ -1876,7 +1876,7 @@ describe("自动编译 Primary companion", () => {
       const configuration = vi.mocked(panel.webview.postMessage).mock.calls
         .map(([message]) => message as { type?: string; configuration?: KtcAutoBuildConfiguration })
         .find(({ type }) => type === "configuration")!.configuration!;
-      const request = { modeId: "rules", targetIds: ["rules:root"], rulesYaml: "- Kt*" } as const;
+      const request = { modeId: "rules", targetIds: ["rules:working"], rulesYaml: "- Kt*" } as const;
       const previewing = controller.runPrimaryCompanionAction({
         ...actionToken(snapshots.at(-1)!, "cleanupDialog"),
         payload: { kind: "preview", request },
@@ -2102,7 +2102,7 @@ describe("自动编译 Primary companion", () => {
     } finally { await fixture.dispose(); }
   });
 
-  it.each(["", "   "])("YAML Host 空工作目录%j拒绝探测，不回退默认目录或ROOT", async (workingDirectory) => {
+  it.each(["", "   "])("YAML Host 配置空目录%j使用传入工作目录，并与清理目标及标题保持一致", async (workingDirectory) => {
     const fixture = await cleanupYamlHostFixture();
     try {
       await fixture.perform({ kind: "yaml-discover" });
@@ -2110,12 +2110,32 @@ describe("自动编译 Primary companion", () => {
       await fixture.changeConfiguration({ workingDirectory });
       const discover = vi.spyOn(fixture.workspace, "discover");
       await fixture.perform({ kind: "yaml-discover" });
-      expect(discover).not.toHaveBeenCalled();
-      expect(fixture.model().cleanupYaml!.sources).toHaveLength(0);
-      expect(fixture.model().cleanupYaml!.notice).toContain("请先填写当前工作目录");
-      expect(mocks.outputLines).toContainEqual(expect.stringContaining("请先填写当前工作目录"));
+      expect(discover).toHaveBeenCalledWith([fixture.working], expect.any(Object));
+      expect(fixture.model().cleanupYaml!.sources.map(({ root }) => root)).toEqual([fixture.working]);
+      expect(fixture.model().cleanupYaml!.workingDirectory).toBe(fixture.working);
+      expect(fixture.model().cleanup.targets.filter(({ selected }) => selected)).toEqual([
+        expect.objectContaining({ id: "rules:working", path: fixture.working }),
+      ]);
       expect(fixture.model().cleanup.preview.state).toBe("idle");
       expect(mocks.previewCleanupArtifacts).not.toHaveBeenCalled();
+      expect(mocks.cleanPreviewedArtifacts).not.toHaveBeenCalled();
+    } finally { await fixture.dispose(); }
+  });
+
+  it("传入目录改变会废弃旧 YAML 和旧清理预览，不扫描 ROOT", async () => {
+    const fixture = await cleanupYamlHostFixture();
+    try {
+      await fixture.changeConfiguration({ workingDirectory: "" });
+      await fixture.perform({ kind: "yaml-discover" });
+      const context = fixture.model().cleanupYaml!.contextId;
+      const next = join(fixture.base, "next");
+      await mkdir(next); await writeFile(join(next, "cleanup.yaml"), fixture.yaml);
+      await fixture.controller.show(next);
+      expect(fixture.model().cleanupYaml!.contextId).not.toBe(context);
+      expect(fixture.model().cleanupYaml!.sources).toHaveLength(0);
+      expect(fixture.model().cleanupYaml!.workingDirectory).toBe(next);
+      await fixture.perform({ kind: "yaml-discover" });
+      expect(fixture.model().cleanupYaml!.sources.map(({ root }) => root)).toEqual([next]);
       expect(mocks.cleanPreviewedArtifacts).not.toHaveBeenCalled();
     } finally { await fixture.dispose(); }
   });

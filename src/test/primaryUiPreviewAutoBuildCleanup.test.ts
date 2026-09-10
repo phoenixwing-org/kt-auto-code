@@ -44,10 +44,11 @@ describe("AutoBuild Preview Wing cleanup Host adapter", () => {
   it("三模式保留 ROOT/工作目录、仓库、CMake 目标及 Git 独有高风险确认", () => {
     const model = createPreviewAutoBuildCleanupModel(createDefaultPreviewAutoBuildState());
     expect(model.modes.map(({ id, risk }) => [id, risk])).toEqual([["rules", "normal"], ["git-force", "high"], ["cmake", "normal"]]);
-    expect(model.targets.filter(({ supportedModeIds }) => supportedModeIds?.includes("rules")).map(({ label }) => label)).toEqual(["ROOT_DIR", "工作目录"]);
-    expect(model.targets.filter(({ supportedModeIds }) => supportedModeIds?.includes("git-force"))).toHaveLength(4);
+    expect(model.targets.filter(({ supportedModeIds }) => supportedModeIds?.includes("rules")).map(({ label }) => label)).toEqual(["当前目录", "ROOT_DIR（附加）"]);
+    expect(model.targets.filter(({ supportedModeIds }) => supportedModeIds?.includes("git-force"))).toHaveLength(5);
     expect(model.targets.filter(({ supportedModeIds }) => supportedModeIds?.includes("cmake")).map(({ path }) => path))
-      .toEqual(["/workspace/Phoenix/projects/KtCore/build"]);
+      .toEqual(["/workspace/Phoenix/projects/build", "/workspace/Phoenix/projects/KtCore/build"]);
+    expect(model.targets.filter(({ selected }) => selected).map(({ id }) => id)).toEqual(["rules:working"]);
     expect(model.requireHighRiskConfirmation).toBe(true);
     expect(model.highRiskConfirmationLabel).toContain("未提交、未跟踪及忽略内容");
     expect(model.description).toContain("不读取或删除真实文件");
@@ -60,13 +61,14 @@ describe("AutoBuild Preview Wing cleanup Host adapter", () => {
     const view = setup();
     for (const mode of ["rules", "cmake", "git-force"] as const) {
       view.surface.open(mode);
-      expect(view.dialog().openedMode).toBe(mode);
+      expect(view.dialog().openedMode).toBe(""); // model already owns mode; avoid Wing's select-all override
       expect(view.dialog().model.selectedModeId).toBe(mode);
       expect(view.dialog().model.executeLabel).toBe(mode === "git-force" ? "强制清理" : "清理");
     }
     expect(document.querySelectorAll("pnw-cleanup-dialog")).toHaveLength(1);
     expect(Array.from(view.dialog().querySelectorAll('[slot="header-actions"]')).map((button) => button.textContent))
-      .toEqual(["在 VS Code 中编辑", "探测配置"]);
+      .toEqual(["探测配置"]);
+    expect(view.dialog().querySelector('[slot="rules-actions"]')?.textContent).toBe("在 VS Code 中编辑");
     expect(view.dialog().querySelectorAll('[slot="workspace"]')).toHaveLength(1);
     expect(document.querySelector("dialog")).toBeNull();
     expect(view.execute).not.toHaveBeenCalled();
