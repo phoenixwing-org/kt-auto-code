@@ -68,8 +68,8 @@ describe("KtcGitWingAdapter commit 简报", () => {
   });
 });
 
-describe("KtcGitWingAdapter 本地 Wing 提交图联调", () => {
-  it.skipIf(process.env.PHOENIX_WING_DEV_MODE !== "1")(
+describe("KtcGitWingAdapter Registry / 本地 Wing 提交图回归", () => {
+  it(
     "以不透明 cursor 分页，显示 merge/tag，并拒绝已变化的 HEAD",
     async () => {
       const root = await mkdtemp(join(tmpdir(), "ktc-git-graph-"));

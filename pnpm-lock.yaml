@@ -9,23 +9,23 @@ importers:
   .:
     dependencies:
       '@phoenix-wing/code-core':
-        specifier: 0.6.4
-        version: 0.6.4
+        specifier: 0.6.6
+        version: 0.6.6
       '@phoenix-wing/git-core':
         specifier: 0.6.4
         version: 0.6.4
       '@phoenix-wing/git-node':
-        specifier: 0.6.4
-        version: 0.6.4
+        specifier: 0.6.5
+        version: 0.6.5
       '@phoenix-wing/kt-codegen':
+        specifier: 0.6.6
+        version: 0.6.6
+      '@phoenix-wing/run-core':
         specifier: 0.6.4
         version: 0.6.4
-      '@phoenix-wing/run-core':
-        specifier: 0.6.3
-        version: 0.6.3
       '@phoenix-wing/run-node':
-        specifier: 0.6.3
-        version: 0.6.3
+        specifier: 0.6.4
+        version: 0.6.4
       iconv-lite:
         specifier: 0.6.3
         version: 0.6.3
@@ -305,23 +305,23 @@ packages:
   '@oxc-project/types@0.139.0':
     resolution: {integrity: sha512-r9gHphtCs+1M7J0pw6Sn/hh/Wpa/iQrOOkrNAlVLF/gHq+/CJmHIWKKUUhdWjcD6CIa8idarspCsASiXCXvFUw==}
 
-  '@phoenix-wing/code-core@0.6.4':
-    resolution: {integrity: sha512-JwR5rB9pfY0CdSsDkT1fskiYj6H7WhrIgx3fWDYtv5+1z4VPgfQlpdIPvBL/SDfQMJxuAspnuCVQB6I2Q/pMPA==}
+  '@phoenix-wing/code-core@0.6.6':
+    resolution: {integrity: sha512-gW4m9nbD67j+mK+e6LYpf/GmCWLsJ812a6MmFtwS+M0Yg8rIdd2hFyWDhGdlNvAobT/prXoLy+7w+sm9uLVauA==}
 
   '@phoenix-wing/git-core@0.6.4':
     resolution: {integrity: sha512-0doHpByoShr7ekvnanTIVjRXlM5dytRHB5sC0GabWBpj2ecn9iE34VNCrCeBiZ8P8LWv88zZYQ9UJTRBbVglNw==}
 
-  '@phoenix-wing/git-node@0.6.4':
-    resolution: {integrity: sha512-6U6B3SxrpvzhwKqsF9251GtuT0xupYdB/GSqXY3I/CSLmERGUUcOm3CEYbxeJurZ2cB1DOU9wzr0SEYVmV3g9Q==}
+  '@phoenix-wing/git-node@0.6.5':
+    resolution: {integrity: sha512-MniPRroEUGjfHXOx8mapoj1GdBp8rZkdQ5KaowUdJ/2Az5AMWP/5S2yVQGmyeUnFK4PwAI4dW233jAa5c4TDTQ==}
 
-  '@phoenix-wing/kt-codegen@0.6.4':
-    resolution: {integrity: sha512-IIUEs8nU0mNoY4iSrgWk8broLZ2vsZ3teh58VRnLtGaSIBxlaYMQQBWVVTmim6Gcwhr8/MVdPChaPbJBYWRYPw==}
+  '@phoenix-wing/kt-codegen@0.6.6':
+    resolution: {integrity: sha512-i3b4edJtoVbaV6arUwghj92TnntDWl9ehupHiYGgURsNjUFE8i1A3+Y/nFpn3USTwYqYPUjpDryU0OEDuNgZAg==}
 
-  '@phoenix-wing/run-core@0.6.3':
-    resolution: {integrity: sha512-4UY2sustiqNsrTIQkZiDLcRojKvKp0vjIb7HWQFBu2z2jNgaXerX9DP2NpBo5/DrqycMdP+uhzOz8RGkHN4kTw==}
+  '@phoenix-wing/run-core@0.6.4':
+    resolution: {integrity: sha512-HhmRbRACTYEiwFBldoEwzEbMvPlNk0BSVyPxABdHp8DlQUUmucCrdy5irPFp9Mt5JfnYVy1d35cbkrpy/sLyfA==}
 
-  '@phoenix-wing/run-node@0.6.3':
-    resolution: {integrity: sha512-IOQOYTggL+4vr9xegKGpvQwf5Npsb9HzBNb7tYU9H4+dwDljtIQXZsiRQxf2BeEznF59fhOztda7ExJy0WSsPA==}
+  '@phoenix-wing/run-node@0.6.4':
+    resolution: {integrity: sha512-uytxTRiCqlrEWGxyTdbn5ji8ZxIrQ7Ai5gIG5J/ScKhnJu9JIKfOI5Q5gQhsLjyCyyed2aIcwloiZ+UPcb3MoQ==}
 
   '@rolldown/binding-android-arm64@1.1.5':
     resolution: {integrity: sha512-lZg8fqIv2v7FF237bwMgzGZEJvGL79/s5knJ/i6FmsGF4XXlzccZ4jb+TrFIxtSSxFtIpdsgrPZeMk1I9AFcyQ==}
@@ -1951,21 +1951,21 @@ snapshots:
 
   '@oxc-project/types@0.139.0': {}
 
-  '@phoenix-wing/code-core@0.6.4': {}
+  '@phoenix-wing/code-core@0.6.6': {}
 
   '@phoenix-wing/git-core@0.6.4': {}
 
-  '@phoenix-wing/git-node@0.6.4':
+  '@phoenix-wing/git-node@0.6.5':
     dependencies:
       '@phoenix-wing/git-core': 0.6.4
 
-  '@phoenix-wing/kt-codegen@0.6.4': {}
+  '@phoenix-wing/kt-codegen@0.6.6': {}
 
-  '@phoenix-wing/run-core@0.6.3': {}
+  '@phoenix-wing/run-core@0.6.4': {}
 
-  '@phoenix-wing/run-node@0.6.3':
+  '@phoenix-wing/run-node@0.6.4':
     dependencies:
-      '@phoenix-wing/run-core': 0.6.3
+      '@phoenix-wing/run-core': 0.6.4
       jsonc-parser: 3.3.1
 
   '@rolldown/binding-android-arm64@1.1.5':

@@ -2,7 +2,9 @@
 
 所有显著变更会记录在本文件中。
 
-## 0.9.2（本地候选，未发布）
+## 0.9.2（Registry 候选，未发布）
+
+- 正式依赖升级到已发布的 Wing：code-core/kt-codegen `0.6.6`、git-node `0.6.5`、run-core/run-node `0.6.4`，git-core 保持 `0.6.4`；锁定真实 Registry integrity。提交图分页和生成规则 `1.0.2` 纳入 Registry 回归，正式包不携带本地 Wing 模式或目录。
 
 - Git 合并区间 Right 原型复用正式展示与消息契约；补齐内存分页、区间预检、分支确认/失败对话框、remote 详情及旧会话保护。切换成功同步 Primary 简报，关闭重开保留该仓库分支但清空选择，不执行真实 Git 写入。Preview 父页面与 sandbox iframe 使用受控随机 nonce，修复提交图可见但事件被 CSP 阻断的问题。
 - 自动代码 Right 标签使用 JSON 文件名；同名文件不追加目录，按 URI 保持独立并复用已有页面。真实 Extension Host 验证创建、复用及状态更新隔离。

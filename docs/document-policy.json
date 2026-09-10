@@ -5,6 +5,12 @@
   "appliesTo": "0.8.x",
   "rules": [
     {
+      "match": "^docs/0\\.9\\.2-发布准备\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.2",
+      "reason": "Wing正式Registry版本、源码归档衔接、制品来源门禁与Windows残余待测"
+    },
+    {
       "match": "^docs/bug/自动代码-Combo(参数回填缺少注释行|深色配色问题)\\.md$",
       "status": "current",
       "appliesTo": "0.9.2 冻结后续",

@@ -6,6 +6,8 @@
 
 ## 当前本地内测状态（2026-09-10）
 
+最新进展：Wing 0.7.4 对应包已发布且 Registry 校验值已核验。Auto 已进入精确 Registry 依赖升级及干净工作树打包阶段，见[0.9.2 Registry 发布准备](./0.9.2-发布准备.md)。下方等待说明保留此前归档时点，当前不再被 Wing 未发布阻塞；未授权 Marketplace 上传。
+
 `0.9.1` 的本地冻结作为历史基线保留，见 [0.9.1 内测收尾](./0.9.1-内测收尾.md)。当前整理目标为 **Auto Code 0.9.2**：源码压缩归档后同步主库 `user`，然后等待 Wing 0.7.4 对应 scoped 包发布，再升级精确 Registry 依赖并打包。当前本地验证、依赖版本表及待测项见 [0.9.2 归档与发布准备](./0.9.2-开发计划.md#本轮归档与发布准备2026-09-10)。
 
 用户要求 **Wing 发布完成之前不打新包**。旧本地 Wing VSIX 只供历史内测，不能替代本文后续的 Registry、detached worktree、`release:preflight` 与 `release:receipt` 正式发布链，也不能冒充本轮新增修改已打包。本轮不执行 push、tag、npm 发布或 Marketplace 上传。

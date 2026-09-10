@@ -1,11 +1,16 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { KT_CODEGEN_GENERATOR_VERSION } from "@phoenix-wing/kt-codegen";
 import { KTC_CODEGEN_GENERATOR_VERSION } from "./tools/codegen/preflightCache.js";
 // @ts-expect-error Repository verification is intentionally implemented as plain ESM.
 import { readCodegenGeneratorVersion, verifyCodegenGeneratorVersion, verifyCodegenGeneratorBundle } from "../scripts/verify-codegen-generator-version.mjs";
 
 describe("local Wing Codegen rules version gate", () => {
   const source = readFileSync(new URL("./tools/codegen/preflightCache.ts", import.meta.url), "utf8");
+
+  it("keeps the actual Registry or controlled local Wing runtime aligned with Auto rules", () => {
+    expect(KT_CODEGEN_GENERATOR_VERSION).toBe(KTC_CODEGEN_GENERATOR_VERSION);
+  });
 
   it("reads the owning Auto source and requires the actual public Wing export to agree", () => {
     const expected = readCodegenGeneratorVersion(source);

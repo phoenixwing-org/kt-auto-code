@@ -224,6 +224,14 @@
       "reason": "0.9.1 本地内测冻结、来源归档、人工验收边界及正式发布门禁"
     },
     {
+      "path": "docs/0.9.2-发布准备.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.9.2",
+      "lastVerified": "2026-09-10",
+      "reason": "Wing正式Registry版本、源码归档衔接、制品来源门禁与Windows残余待测"
+    },
+    {
       "path": "docs/0.9.2-开发计划.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",

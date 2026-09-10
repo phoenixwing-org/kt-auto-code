@@ -13,12 +13,12 @@ const dependencySections = [
   "peerDependencies",
 ];
 const expectedWingVersions = new Map([
-  ["@phoenix-wing/code-core", "0.6.4"],
+  ["@phoenix-wing/code-core", "0.6.6"],
   ["@phoenix-wing/git-core", "0.6.4"],
-  ["@phoenix-wing/git-node", "0.6.4"],
-  ["@phoenix-wing/kt-codegen", "0.6.4"],
-  ["@phoenix-wing/run-core", "0.6.3"],
-  ["@phoenix-wing/run-node", "0.6.3"],
+  ["@phoenix-wing/git-node", "0.6.5"],
+  ["@phoenix-wing/kt-codegen", "0.6.6"],
+  ["@phoenix-wing/run-core", "0.6.4"],
+  ["@phoenix-wing/run-node", "0.6.4"],
 ]);
 const wingDependencies = new Map();
 
