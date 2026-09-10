@@ -7,6 +7,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import * as vscode from "vscode";
 import { getOutputChannel } from "../../output.js";
+import { ktcAutoBuildCleanupDirectory } from "../../core/autoBuildCleanupScope.js";
 import { ktcReadProjectEnvironment } from "../../projectEnvironment.js";
 import { ktcCreateWebviewSecurity } from "../../webviewSupport.js";
 import { ktcCanAccessAutoBuildPathOnHost, ktcCreateAutoBuildProjectRow, ktcDeduplicateAutoBuildProjectsByOrigin, ktcIsAutoBuildFilesystemRoot, ktcJoinAutoBuildPath, ktcResolveAutoBuildPath, ktcStoreAutoBuildPath, type KtcAutoBuildProjectRow } from "./autoBuildProjectTable.js";
@@ -190,6 +191,14 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
         // Revealing an already-open document must never rewrite its directory context.
         // The incoming directory remains only the fallback for a later explicit fresh config.
         if (this.defaultWorkingDirectory !== previousDefaultWorkingDirectory) {
+          if (!this.companionConfiguration?.workingDirectory?.trim()) {
+            // An incoming fallback change also changes cleanup scope. Never let
+            // a discovered YAML or frozen preview survive into the next directory.
+            this.cancelCleanupDialog();
+            this.cleanupState = {};
+            this.cleanupYamlConfigurationFingerprint = "";
+            this.cleanupYamlNotice = "传入目录已变化，请重新探测配置。";
+          }
           this.touchCompanion();
         }
         this.publishCompanion();
@@ -1015,10 +1024,10 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
     try {
       assertCurrent();
       if (payload.kind === "yaml-discover") {
-        const working = configuration.workingDirectory?.trim();
-        if (!working) throw new Error("请先填写当前工作目录，再探测 cleanup.yaml。");
+        const working = ktcAutoBuildCleanupDirectory(configuration.workingDirectory, this.defaultWorkingDirectory);
+        if (!working) throw new Error("未传入工作目录，请先选择目录，再探测 cleanup.yaml。");
         // Discovery belongs to the current work directory, not the build dependencies.
-        // Never expand to ROOT_DIR, third-party roots, external project paths or a fallback.
+        // Never expand to ROOT_DIR, third-party roots or external project paths.
         this.cleanupYamlNotice = "正在探测当前工作目录及其子目录中的 cleanup.yaml…";
         this.log(`[YAML 探测] 范围：${working}（仅当前工作目录及其子目录）`);
         this.touchCompanion();
@@ -2120,6 +2129,7 @@ export class KtcAutoBuildViewController implements vscode.Disposable {
       cleanupDisabledReason: executionDisabledReason,
       cleanupState: this.cleanupState,
       cleanupYaml: {
+        workingDirectory: ktcAutoBuildCleanupDirectory(configuration?.workingDirectory, this.defaultWorkingDirectory),
         sources: this.cleanupYamlWorkspace.sources,
         busy: !executionAvailable,
         contextId: `${this.companionDocumentId}:${this.cleanupYamlContext}`,

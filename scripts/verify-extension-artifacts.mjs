@@ -6,6 +6,7 @@ import ts from "typescript";
 import { verifyLocalWingReceipt } from "./local-wing-artifact-receipt.mjs";
 import { verifyRunCleanupBundleImplementations } from "./verify-local-wing-cleanup-runtime.mjs";
 import { verifyCodegenTableBundleCheckpointRuntime } from "./verify-codegen-checkpoint-runtime.mjs";
+import { verifyPrimaryWebviewRuntime } from "./verify-primary-webview-runtime.mjs";
 import { readCodegenGeneratorVersion, verifyCodegenGeneratorBundle } from "./verify-codegen-generator-version.mjs";
 import {
   createArtifactVerificationEvidence,
@@ -16,7 +17,7 @@ import {
 } from "./release-artifact-provenance.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-function main() {
+async function main() {
 const localWing = process.argv.slice(2).includes("--local-wing");
 const codePackage = readPackage(path.join(root, "package.json"));
 const artifacts = [
@@ -131,6 +132,8 @@ for (const artifact of artifacts) {
         || runPrimaryPanelBundle.includes("acquireVsCodeApi")) {
       throw new Error("Code VSIX is missing the Host-neutral Run Primary panel custom element");
     }
+    const primaryRuntime = await verifyPrimaryWebviewRuntime(bundle, (resource) => readText(zip, resource));
+    console.log(`[artifact] Primary first-load runtime: ${JSON.stringify(primaryRuntime)}`);
     const autoBuildPrimaryPanelBundle = readText(zip, "extension/dist/ktc-auto-build-primary-panel.js");
     if (!autoBuildPrimaryPanelBundle.includes("ktc-auto-build-primary-panel")
         || !autoBuildPrimaryPanelBundle.includes("ktc-auto-build-primary-action")
@@ -431,4 +434,6 @@ function assertEqual(actual, expected, label) {
   if (actual !== expected) throw new Error(`${label} must equal ${expected}, got ${String(actual)}`);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => { console.error(error); process.exitCode = 1; });
+}

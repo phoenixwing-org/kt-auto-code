@@ -1,5 +1,7 @@
 import * as PnwCodeCoreUiImport from "@phoenix-wing/code-core/ui";
 import type { KtcCleanupDialogHostAction, KtcCleanupDialogModel, KtcCleanupDialogRequest } from "../../src/core/cleanupContracts.js";
+import { ktcAutoBuildCleanupTitle, ktcSelectCurrentDirectoryCleanupTargets } from "../../src/core/autoBuildCleanupScope.js";
+import { ktcMountCleanupDialogLayout } from "../../src/ui/ktcCleanupDialogLayout.js";
 import { KTC_ROOT_CLEANUP_PATTERNS_MAX_LENGTH, ktcParseRootCleanupConfigurationYaml } from "../../src/core/rootCleanupPatterns.js";
 import { PREVIEW_AUTO_BUILD_SAMPLE, type PreviewAutoBuildSample } from "./previewAutoBuildSample.js";
 import type { PreviewAutoBuildState } from "./previewAutoBuildState.js";
@@ -25,28 +27,31 @@ export function createPreviewAutoBuildCleanupModel(
   modeId: PreviewAutoBuildCleanupMode = "rules",
   sample: PreviewAutoBuildSample = PREVIEW_AUTO_BUILD_SAMPLE,
 ): KtcCleanupDialogModel {
+  const working = state.session.draft.configuration.workingDirectory.trim();
   const target = (id: string, label: string, path: string, mode: PreviewAutoBuildCleanupMode) => ({
     id, label, path, selected: mode === modeId, supportedModeIds: [mode],
   });
   return {
-    title: "清理",
+    title: ktcAutoBuildCleanupTitle(working),
     description: "内存样例：不读取或删除真实文件。每份 YAML 以所在目录为根，仅处理直属项；行内清理直接执行。",
     modes: [
-      { id: "rules", label: "规则产物", description: "按 YAML 规则清理 ROOT 或工作目录的直属构建产物（模拟）。", risk: "normal", rulesVisible: true },
-      { id: "git-force", label: "Git 强制恢复", description: "reset --hard HEAD + clean -ffdx；真实操作会丢弃未提交、未跟踪及忽略内容。此处仅模拟。", risk: "high", rulesVisible: false },
-      { id: "cmake", label: "CMake 产物", description: "项目 build 目录产物清理（模拟）。", risk: "normal", rulesVisible: false },
+      { id: "rules", label: "规则清理", description: "默认仅清理当前目录的直属构建产物；ROOT 需手动勾选（模拟）。", risk: "normal", rulesVisible: true },
+      { id: "git-force", label: "Git 强制恢复", description: "当前目录必须是仓库根目录，不转到上级；reset --hard HEAD + clean -ffdx 会丢弃未提交、未跟踪及忽略内容。此处仅模拟。", risk: "high", rulesVisible: false },
+      { id: "cmake", label: "CMake 清理", description: "默认清空当前目录下的 build 并保留目录；其他项目需手动勾选（模拟）。", risk: "normal", rulesVisible: false },
     ],
     selectedModeId: modeId,
     modePresentation: "radio",
     collapsibleSections: true,
     actionsPlacement: "header",
-    targets: [
-      target("rules:root", "ROOT_DIR", sample.configuration.rootDirectory, "rules"),
-      target("rules:working", "工作目录", sample.configuration.workingDirectory, "rules"),
+    targets: ktcSelectCurrentDirectoryCleanupTargets([
+      ...(working ? [target("rules:working", "当前目录", working, "rules"),
+        target("git:working", "当前目录", working, "git-force"),
+        target("cmake:shared", "当前目录 / build", `${working.replace(/[\\/]+$/u, "")}/build`, "cmake")] : []),
+      target("rules:root", "ROOT_DIR（附加）", sample.configuration.rootDirectory, "rules"),
       ...sample.repositories.map(({ id, name, path }) => target(`git:${id}`, name, path, "git-force")),
       ...sample.repositories.filter(({ operations }) => operations.some(({ id, enabled }) => id === "cmake" && enabled))
         .map(({ id, name, path }) => target(`cmake:${id}`, name, `${path}/build`, "cmake")),
-    ],
+    ], modeId),
     rulesVisible: modeId === "rules", rulesLabel: "清理规则", rulesYaml: state.cleanupPatternsYaml,
     preview: { state: "idle", message: "先选择清理方式和目标，再预览样例清单。", items: [] },
     previewEnabled: state.phase !== "running", executeEnabled: false,
@@ -85,6 +90,7 @@ export function createPreviewAutoBuildCleanupSurface(options: {
       button.disabled = options.state().phase === "running";
     });
     if (workspaceElement) workspaceElement.model = {
+      workingDirectory: workingDirectory(),
       sources: discovery.sources,
       busy: options.state().phase === "running", notice,
     };
@@ -161,6 +167,8 @@ export function createPreviewAutoBuildCleanupSurface(options: {
     if (detail.kind === "change-mode" || detail.kind === "toggle-target") {
       frozen = undefined;
       dialog.model = { ...dialog.model, executeEnabled: false,
+        ...(detail.kind === "change-mode" ? { selectedModeId: detail.modeId,
+          targets: ktcSelectCurrentDirectoryCleanupTargets(dialog.model.targets, detail.modeId) } : {}),
         executeLabel: dialog.model.selectedModeId === "git-force" ? "强制清理" : "清理" };
       options.log(`[编译工具] ${detail.kind === "change-mode" ? "切换清理方式" : "选择清理目标"}（模拟）；请重新预览`);
       return;
@@ -223,12 +231,14 @@ export function createPreviewAutoBuildCleanupSurface(options: {
         dialog.append(workspaceElement);
         for (const [kind, text] of [["edit-rules", "在 VS Code 中编辑"], ["discover", "探测配置"]] as const) {
           const button = document.createElement("button");
-          button.type = "button"; button.slot = "header-actions"; button.textContent = text;
+          button.type = "button"; button.slot = kind === "edit-rules" ? "rules-actions" : "header-actions"; button.textContent = text;
           button.dataset.cleanupYamlAction = kind;
           button.onclick = () => button.dispatchEvent(new CustomEvent("ktc-cleanup-yaml-action", { detail: { kind }, bubbles: true, composed: true }));
           dialog.append(button);
         }
         document.body.append(dialog);
+        const disposeLayout = ktcMountCleanupDialogLayout(dialog);
+        window.addEventListener("pagehide", disposeLayout, { once: true });
       }
       active = true;
       frozen = undefined;
@@ -237,7 +247,7 @@ export function createPreviewAutoBuildCleanupSurface(options: {
       yamlWorkspace.edit(options.state().cleanupPatternsYaml);
       dialog.model = createPreviewAutoBuildCleanupModel(options.state(), modeId, sample);
       renderWorkspace();
-      dialog.showModal(modeId);
+      dialog.showModal();
       logDiscovery();
       options.log(`[编译工具] 打开 ${modeId} 清理方式（模拟）`);
     },

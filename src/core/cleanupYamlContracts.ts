@@ -8,6 +8,8 @@ export interface KtcCleanupYamlSource {
   readonly disabledReason?: string;
 }
 export interface KtcCleanupYamlWorkspaceModel {
+  /** Exact discovery/current cleanup scope, displayed even when no YAML is found. */
+  readonly workingDirectory?: string;
   readonly sources: readonly KtcCleanupYamlSource[];
   readonly busy: boolean;
   readonly notice?: string;

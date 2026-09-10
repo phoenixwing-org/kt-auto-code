@@ -20,8 +20,9 @@ describe("Run Primary panel", () => {
     expect(source).toContain('document.createElement("pnw-navigation-tree")');
     expect(source).toContain("overflow: visible !important; overscroll-behavior: auto !important");
     expect(source).toContain("把滚动交回 Primary 外层");
-    expect(entrySource).toContain('import { pnwCodeDefineNavigationTree } from "@phoenix-wing/code-core/ui"');
+    expect(entrySource).toContain('import { pnwCodeDefineCleanupDialog, pnwCodeDefineNavigationTree } from "@phoenix-wing/code-core/ui"');
     expect(entrySource).toContain("pnwCodeDefineNavigationTree()");
+    expect(entrySource).toContain("pnwCodeDefineCleanupDialog()");
     expect(source).toContain('ariaLabel: "运行目标树"');
     expect(source).toContain("private readonly expandedNodeIds");
     expect(source).toContain("private readonly groupIdsByProjectNodeId");

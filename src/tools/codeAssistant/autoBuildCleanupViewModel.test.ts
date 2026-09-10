@@ -38,7 +38,7 @@ const configuration: KtcAutoBuildConfiguration = {
 };
 
 describe("AutoBuild cleanup dialog projection", () => {
-  it("默认直达规则清理，并只选择 ROOT 与工作目录", () => {
+  it("默认直达规则清理，只选择当前目录，附加目标需手动勾选", () => {
     const model = ktcCreateAutoBuildCleanupViewModel({
       configuration,
       defaultWorkingDirectory: "",
@@ -49,7 +49,6 @@ describe("AutoBuild cleanup dialog projection", () => {
     expect(model.selectedModeId).toBe("rules");
     expect(model.rulesYaml).toBe("- Kt*");
     expect(model.targets.filter(({ selected }) => selected).map(({ id }) => id)).toEqual([
-      "rules:root",
       "rules:working",
     ]);
     expect(model.targets.map(({ id }) => id)).toEqual(expect.arrayContaining([
@@ -60,6 +59,39 @@ describe("AutoBuild cleanup dialog projection", () => {
       "cmake:shared",
     ]));
     expect(model.targets.some(({ id }) => id.includes("disabled"))).toBe(false);
+  });
+
+  it.each([["rules", "rules:working"], ["git-force", "git:working"], ["cmake", "cmake:shared"]] as const)(
+    "%s 默认只选传入目录，不依赖 ROOT/3rdParty 或项目表", (mode, id) => {
+      const model = ktcCreateAutoBuildCleanupViewModel({
+        configuration: { ...configuration, workingDirectory: " ", rootDirectory: "", thirdPartyDirectory: "", projects: [] },
+        defaultWorkingDirectory: "/workspace/incoming", platform: "darwin", enabled: true,
+        state: { selectedModeId: mode },
+      });
+      expect(model.previewEnabled).toBe(true);
+      expect(model.targets.filter(({ selected }) => selected)).toEqual([
+        expect.objectContaining({ id, path: mode === "cmake" ? "/workspace/incoming/build" : "/workspace/incoming" }),
+      ]);
+    });
+
+  it("当前目录与 ROOT 相同时保留当前目录，不出现重复目标", () => {
+    const model = ktcCreateAutoBuildCleanupViewModel({
+      configuration: { ...configuration, workingDirectory: configuration.rootDirectory },
+      defaultWorkingDirectory: "", platform: "darwin", enabled: true,
+    });
+    expect(model.targets.filter((t) => t.supportedModeIds?.includes("rules"))).toEqual([
+      expect.objectContaining({ id: "rules:working", label: "当前目录", selected: true }),
+    ]);
+  });
+
+  it("没有传入目录时不把 ROOT 或第三方作为默认目标", () => {
+    const model = ktcCreateAutoBuildCleanupViewModel({
+      configuration: { ...configuration, workingDirectory: "" },
+      defaultWorkingDirectory: "", platform: "darwin", enabled: true,
+    });
+    expect(model.targets.some(({ selected }) => selected)).toBe(false);
+    expect(model.targets.some(({ id }) => id === "rules:root")).toBe(true);
+    expect(model.previewEnabled).toBe(false);
   });
 
   it("保留用户选择，并且只有 ready token 可以执行", () => {

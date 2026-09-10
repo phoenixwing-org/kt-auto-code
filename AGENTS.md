@@ -21,6 +21,7 @@ See [docs/本地Wing并列开发.md](docs/本地Wing并列开发.md) for command
 - Trial rule: read the version branch currently checked out in the repository's main working directory as the target release line for that round. `develop` is only the development/test baseline hint; it is not an implicit commit, merge, or release target.
 - Before every commit, merge, package, or release action, re-check the actual branch, package version, working tree, and the user's current release intent. Do not infer the target from an earlier task or another machine's in-progress branch.
 - Put ongoing development worktrees in the shared Phoenix root's `worktrees/` directory, alongside the product repositories. Do not create new hidden `.worktrees` directories. Existing historical worktrees may be inspected or retired separately, but must not be used as the new default.
+- Keep the Auto Code development checkout at `<phoenix-root>/worktrees/kt-auto-code-working` across release lines. Change the checked-out branch when explicitly requested; do not rename this directory or create a new version-numbered development worktree for each release. `kt-auto-code-release` is a separate, reusable detached packaging checkout, not the ongoing development workspace.
 
 ## Locked four-region shell
 

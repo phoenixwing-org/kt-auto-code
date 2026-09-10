@@ -110,7 +110,6 @@ describe("AutoBuild Primary view model", () => {
       executeEnabled: false,
     });
     expect(model.cleanup.targets.filter(({ selected }) => selected).map(({ id }) => id)).toEqual([
-      "rules:root",
       "rules:working",
     ]);
   });
