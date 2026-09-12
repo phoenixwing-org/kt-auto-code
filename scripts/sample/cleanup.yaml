@@ -1,8 +1,12 @@
+# 忽略完整名称或 *、? 模式，文件和文件夹均适用；.git 始终内置保护。
+ignore: []
+
 # 取消指定目录链接；支持 * 和 ?，不会删除链接指向的源目录。
 unlinkDirectories:
   - 'Demo*'
   - SampleLibrary
 
+# 默认递归进入子目录和目录链接的目标；Invoke-Cleanup -Recurse:$false 可限制到当前层。
 delete:
   directories:
     - objects
