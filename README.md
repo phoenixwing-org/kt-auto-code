@@ -19,11 +19,11 @@ Primary 的搜索替换保留精确规则和 Pascal、小写、全大写、空�
 ```bash
 pnpm install
 
-# 完整联调：要求 ../phoenix-wing 与 ../kt-auto-cad
+# npm Registry 精确版本开发
 pnpm dev
 
-# npm Registry 精确版本对照
-pnpm dev:registry
+# Auto Code 本地 Wing 联调：要求 ../phoenix-wing
+pnpm wing
 
 # 内部界面热预览（仅浏览器原型，不启动 Extension Host）
 pnpm ui
@@ -37,11 +37,11 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 
 **基础插件**：`pnpm ext:watch` → 本仓库 **F5** → Host 窗口打开 CAA 工程 → Side Bar **KT Auto Code**。
 
-开发环境使用 Node.js 22 LTS 与 pnpm 10。`pnpm dev` 是默认跨仓双插件联调入口，强制消费并列本地 Wing，并分别在 Auto 与 CAD 所属仓库构建扩展；`pnpm ext:dev:code` 只构建基础插件。完成来源门禁后，启动器把两个仓库的扩展复制到独立临时快照并启动全新 Host 窗口。正式 Auto Registry 对照与发布不要求 CAD 仓库存在，使用 `pnpm dev:registry` 或 `pnpm ext:release-candidate`。详见[本地 Wing 并列开发](docs/本地Wing并列开发.md)、[可选模块接入契约](docs/可选模块接入契约.md)与 [KT Auto CAD 仓库](https://gitee.com/PhoenixWing321/kt-auto-cad)。
+开发环境使用 Node.js 22 LTS 与 pnpm 10。`pnpm dev` 固定使用 Registry 精确版本；`pnpm wing` 强制消费并列 Wing 并启动 Auto Code，不要求可选 CAD 仓库；需要 Code + CAD 全量联调时显式运行 `pnpm ext:dev`。完成来源门禁后，启动器把扩展复制到独立临时快照并启动全新 Host 窗口。正式发布仍使用 `pnpm ext:release-candidate`。详见[本地 Wing 并列开发](docs/本地Wing并列开发.md)、[可选模块接入契约](docs/可选模块接入契约.md)与 [KT Auto CAD 仓库](https://gitee.com/PhoenixWing321/kt-auto-cad)。
 
 ## 发布
 
-正式 VSIX 建议从 `../worktrees/kt-auto-code-release` 的 detached worktree 构建，切到明确 tag 或 commit 后执行 `pnpm install --frozen-lockfile && pnpm verify:ci`；不要把 `pnpm dev` 的本地 Wing 联调产物用于发布。Auto 的完整 worktree 更新、制品位置、人工安装与 Marketplace 点检见[VS Code 插件发布](docs/VS%20Code%20插件发布.md)；CAD 发布由 [KT Auto CAD 仓库](https://gitee.com/PhoenixWing321/kt-auto-cad)独立维护。
+正式 VSIX 建议从 `../worktrees/kt-auto-code-release` 的 detached worktree 构建，切到明确 tag 或 commit 后执行 `pnpm install --frozen-lockfile && pnpm verify:ci`；不要把 `pnpm wing` 的本地 Wing 联调产物用于发布。Auto 的完整 worktree 更新、制品位置、人工安装与 Marketplace 点检见[VS Code 插件发布](docs/VS%20Code%20插件发布.md)；CAD 发布由 [KT Auto CAD 仓库](https://gitee.com/PhoenixWing321/kt-auto-cad)独立维护。
 
 ## 文档
 
@@ -65,18 +65,19 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 | [源文件编码扫描](docs/源文件编码扫描.md) | CLI、扫描范围；**CP1252 / 全角标点映射表** |
 | [编码修正](docs/编码修正.md) | 整文件编码检测与转换（`encodingFix`） |
 | [开发与测试](docs/开发与测试.md) | F5、测试、选项与检查清单 |
-| [本地 Wing 并列开发](docs/本地Wing并列开发.md) | `pnpm dev` 本地双插件联调、AI 构建与 Registry 对照门禁 |
+| [本地 Wing 并列开发](docs/本地Wing并列开发.md) | `pnpm wing` 本地双插件联调、AI 构建与 Registry 对照门禁 |
 | [VS Code 插件发布](docs/VS%20Code%20插件发布.md) | Marketplace 发布流程、上架检查清单与版权说明 |
 
 ## 常用命令
 
 | 命令 | 说明 |
 | --- | --- |
-| `pnpm dev` / `pnpm ext:dev` | 构建并列 `../phoenix-wing`、`../kt-auto-cad`，联调 Code + CAD |
+| `pnpm dev` | 清除本地模式并用 Registry 精确版本构建、启动 Auto Code |
+| `pnpm wing` / `pnpm ext:dev:code` | 构建并列 `../phoenix-wing`，联调 Auto Code |
+| `pnpm ext:dev` | 构建并列 `../phoenix-wing`、`../kt-auto-cad`，联调 Code + CAD |
 | `pnpm ext:dev:prepare` | 使用本地 Wing 构建双插件并验证来源，不启动 GUI |
 | `pnpm ext:dev:code` | 只构建并启动 Auto Code + 本地 Wing |
 | `pnpm ext:dev:code:prepare` | 只构建 Auto Code + 本地 Wing 并验证来源，不启动 GUI |
-| `pnpm dev:registry` | 清除本地模式并用 Registry 精确版本构建、启动 Auto Code |
 | `pnpm ext:dev:registry:prepare` | 使用 Registry 精确版本构建 Auto Code，不启动 GUI |
 | `pnpm ui` / `pnpm ui:dev` | 从默认并列 `../phoenix-wing` 启动 Phoenix Webview Preview；仅验证 Primary / Right View 布局与交互原型，不替代 Extension Host 点检 |
 | `pnpm ext:watch` | 监听编译扩展 |

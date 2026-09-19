@@ -48,10 +48,10 @@ Assert-IgnoreCleanup (Test-Path -LiteralPath (Join-Path $root 'removeLink')) 'Pr
 Assert-IgnoreCleanup (Test-Path -LiteralPath (Join-Path $root 'nested\files\remove.obj')) 'Preview deleted a file.'
 $code = Invoke-Cleanup -Directory $root -ConfigPath $config
 Assert-IgnoreCleanup ($code -eq 0) 'Cleanup with ignore failed.'
-foreach ($relative in @('cache\Objects\keep.obj', 'parent\cache\Objects\keep.obj', 'build\README.md', 'build\other.txt', 'Objects\keep.pdb', 'Objects\other.txt', 'nested\files\README.md', 'nested\files\keep.pdb', 'nested\files\temp1.obj', '.git\objects\keep.obj', 'zKeepLink', 'aAlias\Objects\keep.obj')) {
+foreach ($relative in @('cache\Objects\keep.obj', 'nested\files\README.md', 'nested\files\keep.pdb', 'nested\files\temp1.obj', '.git\objects\keep.obj', 'zKeepLink', 'aAlias\Objects\keep.obj')) {
     Assert-IgnoreCleanup (Test-Path -LiteralPath (Join-Path $root $relative)) "Ignore protection failed: $relative"
 }
-foreach ($relative in @('cacheExtra\Objects', 'nested\files\temp12.obj', 'nested\files\remove.obj', 'removeLink')) {
+foreach ($relative in @('parent', 'build', 'Objects', 'cacheExtra\Objects', 'nested\files\temp12.obj', 'nested\files\remove.obj', 'removeLink')) {
     Assert-IgnoreCleanup (-not (Test-Path -LiteralPath (Join-Path $root $relative))) "Nonignored item was not cleaned: $relative"
 }
 Assert-IgnoreCleanup (Test-Path -LiteralPath (Join-Path $fixture 'outside\Objects\keep.obj')) 'Alternate alias bypassed ignore.'
@@ -69,4 +69,4 @@ Set-Content -LiteralPath (Join-Path $root 'sentinel.obj') -Value 'preserve'
 Set-Content -LiteralPath $config -Value "ignore:`n  - 'bad/path'`nunlinkDirectories: []`ndelete:`n  directories: []`n  files:`n    - '*.obj'"
 $code = Invoke-Cleanup -Directory $root -ConfigPath $config
 Assert-IgnoreCleanup ($code -eq 1 -and (Test-Path -LiteralPath (Join-Path $root 'sentinel.obj'))) 'Invalid ignore caused partial cleanup.'
-Write-Host "PASS: ignore names, globs, directories, parent trees, relative rules, aliases, unlink and compatibility. Fixture: $fixture"
+Write-Host "PASS: current-item ignore, ignored descendants deleted with parent, globs, relative rules, aliases and compatibility. Fixture: $fixture"

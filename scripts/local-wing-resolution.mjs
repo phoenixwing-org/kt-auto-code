@@ -74,7 +74,7 @@ export function resolveLocalWingRoot({ repoRoot, environment = process.env, cwd 
     throw new Error(
       "[local-wing] " + source + " 不可用：" + root + "\n"
       + "请将 kt-auto-code 与 phoenix-wing 并列安装，或设置 PHOENIX_WING_ROOT。\n"
-      + "如需测试 npm Registry 正式包，请改用 pnpm dev:registry。",
+      + "如需测试 npm Registry 正式包，请改用 pnpm dev。",
     );
   }
   const manifest = readJson(manifestPath);
@@ -124,7 +124,7 @@ export function resolveLocalWingImport(specifier, packages) {
   if (!existsSync(resolvedTarget)) {
     throw new Error(
       specifier + " 的本地构建入口不存在：" + resolvedTarget + "\n"
-      + "请先执行 pnpm ext:dev:prepare，或直接执行 pnpm dev。",
+      + "请先执行 pnpm ext:dev:prepare，或直接执行 pnpm wing。",
     );
   }
   return resolvedTarget;
@@ -218,7 +218,7 @@ export function localWingBuildContextFromEnvironment({
   if (configured && !enabled) {
     throw new Error(
       "[local-wing] 检测到 PHOENIX_WING_ROOT，但未处于受控本地开发模式。\n"
-      + "请使用 pnpm dev；正式 npm 包对照请使用 pnpm dev:registry。",
+      + "请使用 pnpm wing；正式 npm 包开发请使用 pnpm dev。",
     );
   }
   if (enabled && !configured) {

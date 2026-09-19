@@ -37,4 +37,21 @@ $result = Remove-CleanupDirectories -Directory $fixture -Names @('build')
 Assert-Protected ($result.Failed.Count -eq 1 -and $result.Removed.Count -eq 0) 'Nested repository deletion was not rejected.'
 Assert-Protected (Test-Path -LiteralPath (Join-Path $fixture 'build\first.txt')) 'Partial deletion before repository check.'
 Assert-Protected (Test-Path -LiteralPath (Join-Path $fixture 'build\repo\.git')) 'Git file was deleted.'
-Write-Host "PASS: hidden Git objects, LFS, nested Git, bare metadata, aliases and whole-tree rejection. Fixture: $fixture"
+# Direct .git directory/file should be reported as skipped with an explicit reason.
+foreach ($repoName in @('directRepo', 'worktreeRepo')) {
+    $repoPath = Join-Path $fixture $repoName
+    New-Item -ItemType Directory -Path $repoPath -Force | Out-Null
+    if ($repoName -eq 'directRepo') {
+        New-Item -ItemType Directory -Path (Join-Path $repoPath '.git') | Out-Null
+    }
+    else { Set-Content -LiteralPath (Join-Path $repoPath '.git') -Value 'gitdir: elsewhere' }
+    Set-Content -LiteralPath (Join-Path $repoPath 'keep.txt') -Value 'preserve'
+    $output = @(Remove-CleanupDirectories -Directory $fixture -Names @($repoName) 6>&1)
+    $result = $output | Where-Object { $_ -isnot [System.Management.Automation.InformationRecord] }
+    Assert-Protected ($result.Skipped.Count -eq 1 -and $result.Removed.Count -eq 0 -and $result.Failed.Count -eq 0) 'Direct .git was not reported as skipped.'
+    $messages = ($output | Where-Object { $_ -is [System.Management.Automation.InformationRecord] } | ForEach-Object { $_.MessageData.ToString() }) -join "`n"
+    $expectedReason = -join ([char[]]@(0x672C, 0x8EAB, 0x5E26, 0x6709))
+    Assert-Protected ($messages.Contains($expectedReason + ' .git')) 'Explicit direct .git reason missing.'
+    Assert-Protected (Test-Path -LiteralPath (Join-Path $repoPath 'keep.txt')) 'Repository contents were deleted.'
+}
+Write-Host "PASS: Git protection, direct .git skip reason, nested repositories and metadata aliases. Fixture: $fixture"

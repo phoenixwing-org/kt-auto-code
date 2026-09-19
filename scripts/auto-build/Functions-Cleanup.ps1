@@ -111,19 +111,6 @@ function Test-CleanupIgnoredPath {
     return $false
 }
 
-# 删除父目录前检查整棵树，避免忽略项随父目录一起删除。
-function Test-CleanupTreeContainsIgnored {
-    param([string]$Path, $Context)
-    if ($null -eq $Context -or -not $Context.Expressions.Count) { return $false }
-    if (Test-CleanupIgnoredPath -Path $Path -Context $Context) { return $true }
-    $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
-    if (-not $item.PSIsContainer -or ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) { return $false }
-    foreach ($child in Get-ChildItem -LiteralPath $Path -Force -ErrorAction Stop) {
-        if (Test-CleanupTreeContainsIgnored -Path $child.FullName -Context $Context) { return $true }
-    }
-    return $false
-}
-
 # 仅匹配直接子项；支持 * 和 ?；重复匹配的链接只处理一次。
 function Remove-ExcludedDirectoryLinks {
     [CmdletBinding(SupportsShouldProcess)]
@@ -219,23 +206,22 @@ function Test-CleanupProtectedPath {
 
 # 删除前检查整个候选树；含嵌套仓库时拒绝整个候选目录。
 function Assert-CleanupDirectoryTreeSafe {
-    param([string]$Path, $IgnoreContext)
-    if (Test-CleanupTreeContainsIgnored -Path $Path -Context $IgnoreContext) { throw "目录包含 ignore 项，拒绝删除：$Path" }
+    param([string]$Path)
     if (Test-CleanupProtectedPath -Path $Path) { throw "禁止删除版本控制元数据：$Path" }
     $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
     if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { return }
     foreach ($child in Get-ChildItem -LiteralPath $Path -Force -ErrorAction Stop) {
         if (Test-CleanupProtectedPath -Path $child.FullName) { throw "目录包含版本控制元数据，拒绝清理：$Path" }
-        if ($child.PSIsContainer) { Assert-CleanupDirectoryTreeSafe -Path $child.FullName -IgnoreContext $IgnoreContext }
+        if ($child.PSIsContainer) { Assert-CleanupDirectoryTreeSafe -Path $child.FullName }
     }
 }
 
 # 仅供已确认且整树检查通过的调用方使用；链接只删除自身。
 function Remove-CleanupDirectoryTree {
-    param([string]$Path, $IgnoreContext)
+    param([string]$Path)
 
     # 底层入口也必须保护，不能依赖调用方或 YAML 排除。
-    Assert-CleanupDirectoryTreeSafe -Path $Path -IgnoreContext $IgnoreContext
+    Assert-CleanupDirectoryTreeSafe -Path $Path
     $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
     if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
         [System.IO.Directory]::Delete($item.FullName, $false)
@@ -243,7 +229,7 @@ function Remove-CleanupDirectoryTree {
     }
     foreach ($child in Get-ChildItem -LiteralPath $Path -Force -ErrorAction Stop) {
         if ($child.PSIsContainer) {
-            Remove-CleanupDirectoryTree -Path $child.FullName -IgnoreContext $IgnoreContext
+            Remove-CleanupDirectoryTree -Path $child.FullName
         }
         else {
             Remove-Item -LiteralPath $child.FullName -Force -Confirm:$false -ErrorAction Stop
@@ -402,14 +388,21 @@ function Remove-CleanupDirectories {
             if ($parentPath -ne $item.ScopeDirectory -or (Resolve-CleanupDirectory -Path $parentPath) -ne $item.ScopeDirectory) {
                 throw "目录超出清理范围：$path"
             }
-            if (Test-CleanupTreeContainsIgnored -Path $path -Context $IgnoreContext) {
+            if (Test-CleanupIgnoredPath -Path $path -Context $IgnoreContext) {
                 $result.Skipped += $path
-                Write-Host "忽略目录（自身或内容命中 ignore）：$path" -ForegroundColor DarkYellow
+                Write-Host "忽略目录（当前项命中 ignore）：$path" -ForegroundColor DarkYellow
                 continue
             }
-            Assert-CleanupDirectoryTreeSafe -Path $path -IgnoreContext $IgnoreContext
+            # 只检查当前待删目录直属的 .git，命中即明确跳过，不为此向下搜索。
+            if (Test-Path -LiteralPath (Join-Path $path '.git')) {
+                $result.Skipped += $path
+                Write-Host "禁止删除：待删除的目录本身带有 .git：$path" -ForegroundColor Yellow
+                continue
+            }
+            # ignore 只判断当前项；整树检查仅用于不可关闭的 Git 等元数据保护。
+            Assert-CleanupDirectoryTreeSafe -Path $path
             if ($PSCmdlet.ShouldProcess($path, '删除目录及其内容（目录链接只删除链接）')) {
-                Remove-CleanupDirectoryTree -Path $path -IgnoreContext $IgnoreContext
+                Remove-CleanupDirectoryTree -Path $path
                 $result.Removed += $path
             }
             else { $result.Skipped += $path }

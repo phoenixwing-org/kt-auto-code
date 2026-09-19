@@ -42,7 +42,8 @@ function createFakeWing() {
 
 describe("本地 Wing 并列开发解析", () => {
   it("缺省固定解析 Auto 同级 phoenix-wing", () => {
-    expect(getDefaultLocalWingRoot("/workspace/kt-auto-code")).toBe("/workspace/phoenix-wing");
+    const repoRoot = resolve(tmpdir(), "workspace", "kt-auto-code");
+    expect(getDefaultLocalWingRoot(repoRoot)).toBe(resolve(repoRoot, "..", "phoenix-wing"));
   });
 
   it("显式根目录有效时发现全部 Code 与 CAD 包", () => {
@@ -105,7 +106,7 @@ describe("本地 Wing 并列开发解析", () => {
     expect(() => resolveLocalWingRoot({
       repoRoot: "/missing/kt-auto-code",
       environment: {},
-    })).toThrow(/pnpm dev:registry/u);
+    })).toThrow(/pnpm dev/u);
   });
 
   it("根命令、并列 CAD 接线和 Registry 清理脚本保持显式", () => {
@@ -123,8 +124,9 @@ describe("本地 Wing 并列开发解析", () => {
       resolve(root, "scripts/verify-local-wing-cleanup-runtime.mjs"),
       "utf8",
     );
-    expect(manifest.scripts.dev).toBe("pnpm ext:dev");
-    expect(manifest.scripts["dev:registry"]).toBe("pnpm ext:dev:registry");
+    expect(manifest.scripts.dev).toBe("pnpm ext:dev:registry");
+    expect(manifest.scripts.wing).toBe("pnpm ext:dev:code");
+    expect(manifest.scripts["dev:registry"]).toBeUndefined();
     expect(manifest.scripts["ext:dev:code:prepare"]).toContain("--code-only --prepare-only");
     expect(manifest.scripts["ext:dev:registry:prepare"]).toContain("--prepare-only");
     expect(codeBuild).toContain("verifyLocalWingBuildResults");

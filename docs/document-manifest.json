@@ -608,6 +608,20 @@
       "reason": "用户报告Windows导出脚本首行错误，缺少原文件与完整报错，记录待定位而非宣称修复"
     },
     {
+      "path": "docs/bug/清理脚本-递归误删Git对象及取消确认失效.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.8.x",
+      "lastVerified": "2026-09-10"
+    },
+    {
+      "path": "docs/bug/清理脚本-Junction目标中的Objects未清理.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.8.x",
+      "lastVerified": "2026-09-10"
+    },
+    {
       "path": "docs/bug/自动代码-构造函数结束标记缩进.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
@@ -907,6 +921,13 @@
     },
     {
       "path": "scripts/auto-build/README.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.8.x",
+      "lastVerified": "2026-09-10"
+    },
+    {
+      "path": "scripts/tests/README.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",
       "appliesTo": "0.8.x",

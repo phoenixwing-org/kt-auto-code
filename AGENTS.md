@@ -3,12 +3,12 @@
 ## Local Phoenix Wing development
 
 - The supported local integration layout is sibling repositories: `kt-auto-code`, `kt-auto-cad`, `phoenix-wing`, and optionally `phoenix-desk-tools`.
-- Use `pnpm dev` or `pnpm ext:dev` for full local Wing development. These commands must resolve `../phoenix-wing` and `../kt-auto-cad`, build required Code/CAD Wing packages, build each extension in its owning repository, and launch both extension development paths.
+- Use `pnpm dev` for the exact Registry versions in the committed manifest/lockfile. Use `pnpm wing` for KT Auto Code with local `../phoenix-wing`; it must not require the optional CAD repository. Use the lower-level `pnpm ext:dev` only when intentionally launching the full Code + CAD integration, which also requires `../kt-auto-cad`.
 - Use `pnpm ext:dev:code` when intentionally developing only KT Auto Code, or `pnpm ext:dev:code:prepare` for its build-only gate. The formal Auto build, Registry comparison and release must never require the CAD repository.
 - For build-only AI verification, use `pnpm ext:dev:prepare`. Use `pnpm ext:dev:check` only for a fast repository contract check.
 - If sibling Wing is absent, local development must fail. Never add a silent Registry fallback.
 - When a consumer checkout lives at `Phoenix/worktrees/<repo>`, preserve the same sibling contract by creating `Phoenix/worktrees/phoenix-wing` as a filesystem symlink to the explicitly selected active Wing checkout before running local integration. Full Code + CAD development likewise uses `Phoenix/worktrees/kt-auto-cad` when the active CAD checkout is outside `worktrees/`. Resolve and report the link target, branch, and package version first; never guess among multiple checkouts, replace an existing non-link path, commit the link, or encode its target in a manifest or lockfile.
-- Use `pnpm dev:registry` when comparing against the exact npm Registry versions in the committed lockfile.
+- Do not add or restore a root `pnpm dev:registry` alias: Registry development is the default `pnpm dev`, while local sibling development is `pnpm wing`.
 - Never write `link:`, `file:`, a workspace override, or a local Wing path into a committed manifest or `pnpm-lock.yaml`.
 - `PHOENIX_WING_ROOT` is accepted only through the controlled local wrapper, paired with `PHOENIX_WING_DEV_MODE=1`. Formal builds must reject a leaked root variable; the Registry wrapper clears both variables.
 - A local build is accepted only after the esbuild metafile gate proves all expected Wing inputs came from the sibling repository and none came from the consumer's `node_modules`.

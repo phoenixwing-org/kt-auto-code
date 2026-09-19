@@ -56,7 +56,7 @@ if (prepareOnly && !codegenFixture) {
 if (!dryRun && !prepareOnly) {
   for (const extension of sourceExtensions) {
     if (!existsSync(resolve(extension.path, "dist/extension.js"))) {
-      const buildCommand = codeOnly ? "pnpm ext:build" : "pnpm dev";
+      const buildCommand = codeOnly ? "pnpm ext:build" : "pnpm wing";
       console.error(`未找到 ${resolve(extension.path, "dist/extension.js")}，请先执行: ${buildCommand}`);
       process.exit(1);
     }
@@ -135,11 +135,11 @@ if (localWingDevelopment && !prepareOnly) {
     ? `  本地快照: ${LOCAL_EXTENSION_SNAPSHOT_PREVIEW_ROOT}（dry-run，启动时创建）`
     : `  本地快照: ${extensionSnapshotRoot}（与仓库后续构建隔离）`);
   console.log("  窗口: --new-window（会新建 Host；旧 Development Host 不会自动关闭，请只在刚打开的窗口测试）");
-  console.log("  更新: 快照不会随仓库重新构建而变化；修改代码后请关闭旧 Host，并重新执行 pnpm dev");
+  console.log("  更新: 快照不会随仓库重新构建而变化；修改代码后请关闭旧 Host，并重新执行 pnpm wing");
 } else {
   console.warn(
     "[extension-host] 当前只加载已有 dist；它可能来自 npm Registry 构建。"
-    + "如需测试并列 phoenix-wing，请停止并改用 pnpm dev。",
+    + "如需测试并列 phoenix-wing，请停止并改用 pnpm wing。",
   );
 }
 console.log(codegenFixture

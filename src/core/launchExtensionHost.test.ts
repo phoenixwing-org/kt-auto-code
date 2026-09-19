@@ -25,7 +25,7 @@ describe("Extension Development Host launcher", () => {
     expect(result.stdout).toContain(`--extensionDevelopmentPath=${root}`);
     expect(result.stdout).toContain(cadRoot);
     expect(result.stderr).toContain("当前只加载已有 dist");
-    expect(result.stderr).toContain("pnpm dev");
+    expect(result.stderr).toContain("pnpm wing");
   });
 
   it("keeps an explicit Code-only mode", () => {
