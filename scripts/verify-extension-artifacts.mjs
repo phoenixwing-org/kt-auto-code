@@ -51,7 +51,7 @@ for (const artifact of artifacts) {
     "extension/scripts/auto-build/Invoke-AutoBuild.ps1",
     "extension/scripts/auto-build/Functions-Cleanup.ps1",
     "extension/scripts/sample/cleanup.ps1",
-    "extension/scripts/sample/cleanup.yaml",
+    "extension/scripts/sample/cleanup.toml",
   ];
   for (const name of requiredAutoBuildScripts) {
     if (!names.includes(name)) {

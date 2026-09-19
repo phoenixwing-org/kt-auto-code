@@ -23,7 +23,7 @@ const AUTO_BUILD_SCRIPT_SYNC_LAYOUT = Object.freeze([
   { source: ["scripts", "auto-build", "Invoke-AutoBuild.ps1"], target: ["tools", "Invoke-AutoBuild.ps1"] },
   { source: ["scripts", "auto-build", "Functions-Cleanup.ps1"], target: ["tools", "Functions-Cleanup.ps1"] },
   { source: ["scripts", "sample", "cleanup.ps1"], target: ["sample", "cleanup.ps1"] },
-  { source: ["scripts", "sample", "cleanup.yaml"], target: ["sample", "cleanup.yaml"] },
+  { source: ["scripts", "sample", "cleanup.toml"], target: ["sample", "cleanup.toml"] },
 ] as const);
 
 export function ktcResolveAutoBuildScriptSyncFiles(

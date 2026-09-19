@@ -20,7 +20,7 @@
 
 待删目录直属存在 `.git` 文件或目录时，快速跳过并提示 `禁止删除：待删除的目录本身带有 .git：<路径>`，计入“跳过”。此判断不向下递归；更深层 Git 元数据仍由底层硬保护兜底。
 
-`Functions-Cleanup.ps1` 是共享实现，保存在本目录并部署到 `ROOT/tools`；`../sample/cleanup.ps1` 是示例入口，与 `../sample/cleanup.yaml` 一起部署到 `ROOT/sample`。进入目标 sample 目录、修改配置后运行：
+`Functions-Cleanup.ps1` 是共享实现，保存在本目录并部署到 `ROOT/tools`；`../sample/cleanup.ps1` 是示例入口，与 `../sample/cleanup.toml` 一起部署到 `ROOT/sample`。进入目标 sample 目录、修改配置后运行：
 
 ```powershell
 .\cleanup.ps1
@@ -30,17 +30,17 @@
 
 ```powershell
 . "$env:ROOT_DIR\tools\Functions-Cleanup.ps1"
-Invoke-Cleanup -Directory .\scripts\sample -ConfigPath .\scripts\sample\cleanup.yaml -WhatIf
+Invoke-Cleanup -Directory .\scripts\sample -ConfigPath .\scripts\sample\cleanup.toml -WhatIf
 ```
 
 也可以指定目标目录和配置文件：
 
 ```powershell
 . "$env:ROOT_DIR\tools\Functions-Cleanup.ps1"
-Invoke-Cleanup -Directory 'D:\DemoWorkspace' -ConfigPath '.\scripts\sample\cleanup.yaml' -WhatIf
+Invoke-Cleanup -Directory 'D:\DemoWorkspace' -ConfigPath '.\scripts\sample\cleanup.toml' -WhatIf
 ```
 
-执行顺序为取消链接、删除目录、删除文件。默认目标为入口脚本所在目录，默认配置为目标目录中的 cleanup.yaml。
+执行顺序为取消链接、删除目录、删除文件。默认目标为入口脚本所在目录，默认配置优先读取目标目录中的 `cleanup.toml`；过渡期在 TOML 不存在时兼容 `cleanup.yaml` / `cleanup.yml` 并输出迁移警告。
 
 - unlinkDirectories：匹配目标目录的直接子项，支持 * 和 ?；仅取消目录链接，重复匹配只处理一次。
 - delete.directories：按精确目录名默认递归搜索，包括进入 Junction 和目录符号链接的实际目标（可以位于入口目录之外）。匹配普通目录后删除目录及内容，不再单独匹配其后代。若链接自身的名称直接命中目录规则，仍只删除该链接；删除已匹配目录树时，其内部链接也只删除链接本身。
@@ -48,7 +48,7 @@ Invoke-Cleanup -Directory 'D:\DemoWorkspace' -ConfigPath '.\scripts\sample\clean
 - 目录遍历按解析后的实际路径去重，重复联接只扫描一次，指回已遍历目录的联接不会无限循环。无法解析、失效或不支持的目录链接会报告失败。
 - 版本控制元数据受保护：不搜索或删除 `.git`（含 LFS）、`.hg`、`.svn`，并识别包含 HEAD、config 及 objects/refs 的 Git 管理目录。链接解析后的实际路径同样检查。待删目录树内含仓库元数据时，整项拒绝删除，避免先删部分文件再发现仓库。
 - `-Confirm` 的确认发生在删除任何子内容之前；取消记为跳过。目录收尾使用非递归空目录删除，非空则报错，不再出现先删内容后询问是否递归的问题；仅成功删除后计入已删除。
-- 空列表可写为 []，也可只保留节点。读取器仅支持示例中的缩进结构、单行字符串、空行和注释，不是通用 YAML 解析器。
+- TOML 读取器支持示例中的表、单行字符串数组、空行和注释，不是通用 TOML 解析器。旧 YAML 读取器在过渡期保留，仅用于已有配置。
 - 绿色为成功，黄色为未找到或跳过，红色为失败，青色为统计标题。单项失败继续处理，共享函数最终返回 1；否则返回 0。简写入口不将返回值转换为进程退出码。
 - -WhatIf 只预览，预览项计入跳过。示例中的 Demo 和 Sample 名称均为通用占位名称。
 
@@ -56,31 +56,25 @@ sample 仅包含配置样本，不附带待删除的构建文件。
 
 ### ignore 忽略规则
 
-```yaml
-ignore:
-  - cache          # 只匹配完整名称 cache，不匹配 cacheExtra
-  - 'README.md'    # 任意层级同名文件或文件夹
-  - '*.log'        # * 匹配零个或多个字符
-  - 'temp?.obj'    # ? 匹配一个字符
+```toml
+# 只匹配完整名称；* 匹配零个或多个字符，? 匹配一个字符。
+ignore = ["cache", "README.md", "*.log", "temp?.obj"]
 ```
 
 - 名称匹配不区分大小写，不做子串匹配；仅 `*`、`?` 为通配符，其他字符按字面匹配。不支持相对路径、绝对路径或反向排除规则。
 - `ignore` 优先于 `unlinkDirectories` 和所有 `delete` 规则，包括精确相对路径。忽略文件夹后不遍历其内容；忽略的链接不会被取消，也不会从其他链接别名清理其实际目标。
 - **ignore 只判断当前待删除项，不检查其下级。** 父目录未被忽略且命中删除规则时，整个目录及其内容一起删除，即使其中的文件或子目录命中 ignore。例如忽略 `README.md` 不会阻止删除 `build/README.md` 所在的 `build` 目录。直接匹配到被忽略目录时仍跳过且不进入；`.git` 等内置元数据保护例外，继续检查整棵树，不可关闭。
-- 省略 `ignore`、写 `ignore: []` 或只写空节点均表示没有额外忽略项，不影响 `.git` 等内置保护。非法 ignore 规则会在任何取消链接或删除操作前报错。
+- 省略 `ignore` 或写 `ignore = []` 均表示没有额外忽略项，不影响 `.git` 等内置保护。非法 ignore 规则会在任何取消链接或删除操作前报错。
 - 直接调用 `Remove-CleanupDirectories`、`Remove-CleanupFiles` 或 `Remove-ExcludedDirectoryLinks` 时，也可传 `-Ignore @('cache', '*.log')`。
 
 `Invoke-Cleanup` 的 `[bool]$Recurse` 默认是 `$true`，同时控制 `delete.directories` 和 `delete.files` 的搜索范围。传 `-Recurse:$false` 时仅匹配目标目录的直接子项；已匹配目录仍删除整棵目录树。`unlinkDirectories` 始终只匹配当前层，不受该参数影响。
 
 `delete` 也支持相对于 `-Directory`（通常为 Root）的路径，接受 `/` 或 `\` 分隔符。带路径的目录规则只删除指定目录；带路径的文件规则只匹配指定父目录当前层，不随 `Recurse` 扩大范围。纯名称规则（如 `Objects`、`*.obj`）仍遵循原有递归设置。
 
-```yaml
-delete:
-  directories:
-    - 'xy/core/include'
-    - 'xy/core/image'
-  files:
-    - 'xy/core/lib/*.lib'
+```toml
+[delete]
+directories = ["xy/core/include", "xy/core/image"]
+files = ["xy/core/lib/*.lib"]
 ```
 
 不支持绝对路径、`.` / `..` 路径段、空路径段或目录部分的通配符；文件名部分可使用通配符。全部 delete 规则先校验，再执行清理，避免无效规则导致部分执行。相对路径经过目录链接时仍检查实际目标及 `.git` 保护；目标不存在则记录为未找到，不在其他位置搜索同名项。
@@ -89,12 +83,12 @@ delete:
 
 ```powershell
 . "$env:ROOT_DIR\tools\Functions-Cleanup.ps1"
-Invoke-Cleanup -Directory $PSScriptRoot -ConfigPath "$PSScriptRoot\cleanup.yaml" -Recurse:$false -WhatIf
+Invoke-Cleanup -Directory $PSScriptRoot -ConfigPath "$PSScriptRoot\cleanup.toml" -Recurse:$false -WhatIf
 ```
 
 ### 插件内手动清理
 
-编译工具 Primary 中的“手动清理 Root”由 Extension Host 的 TypeScript 实现负责预览、确认和删除，不会启动 `cleanup.ps1`。规则文本保存在当前 AutoBuild schema-v2 JSON 的 `rootCleanupYaml` 字段；旧配置没有该字段时使用 `scripts/sample/cleanup.yaml` 同款默认规则，保存配置后再显式写回。
+编译工具 Primary 中的“手动清理 Root”由 Extension Host 的 TypeScript 实现负责预览、确认和删除，不会启动 `cleanup.ps1`。该已发布 UI/Wing 契约仍使用 AutoBuild schema-v2 JSON 的 `rootCleanupYaml` 字段；本次只迁移独立 PowerShell 配置，避免在 Wing 发布版本未升级时破坏插件消费链。
 
 插件内 TypeScript 实现的规则范围由自身的预览和清理实现控制；本次独立 PowerShell 脚本的文件递归修改不代表插件内清理同步变更。插件执行前会冻结 Root、顶层目标和目录树身份，整体复验通过后才删除；PowerShell 文件继续作为独立部署工具保留。
 
@@ -109,14 +103,14 @@ Invoke-Cleanup -Directory $PSScriptRoot -ConfigPath "$PSScriptRoot\cleanup.yaml"
 .\Sync-RootScripts.ps1 -RootDirectory 'E:\XyRoot'
 ```
 
-该命令覆盖 `tools/Invoke-AutoBuild.ps1`、`tools/Functions-Cleanup.ps1` 和 `sample/cleanup.ps1`，并逐个校验 SHA256。`sample/cleanup.yaml` 仅在不存在时复制，已有配置保留。Root 必须已存在；命令只复制文件，不执行构建、清理或仓库恢复，也不修改 Root 根目录的自定义入口和配置。
+该命令覆盖 `tools/Invoke-AutoBuild.ps1`、`tools/Functions-Cleanup.ps1` 和 `sample/cleanup.ps1`，并逐个校验 SHA256。`sample/cleanup.toml` 仅在不存在时复制；已有 TOML 保留，仅存在旧 YAML 时继续保留旧配置并提示迁移。Root 必须已存在；命令只复制文件，不执行构建、清理或仓库恢复，也不修改 Root 根目录的自定义入口和配置。
 
 Primary 的“脚本”动作会直接同步下列文件，不另行询问是否覆盖：
 
 - `scripts/auto-build/Invoke-AutoBuild.ps1` → `ROOT/tools/Invoke-AutoBuild.ps1`
 - `scripts/auto-build/Functions-Cleanup.ps1` → `ROOT/tools/Functions-Cleanup.ps1`
 - `scripts/sample/cleanup.ps1` → `ROOT/sample/cleanup.ps1`
-- `scripts/sample/cleanup.yaml` → `ROOT/sample/cleanup.yaml`
+- `scripts/sample/cleanup.toml` → `ROOT/sample/cleanup.toml`
 
 每个文件在原生 Output 中单独记录一行，格式为 `新建 <目标路径>` 或 `替换 <目标路径>`。VSIX 制品门禁会校验四个源文件均已打包。
 
@@ -128,15 +122,15 @@ Primary 的“脚本”动作会直接同步下列文件，不另行询问是否
 ```powershell
 . "$env:ROOT_DIR\tools\Functions-Cleanup.ps1"
 Invoke-Cleanup -CreateTestCases
-Invoke-Cleanup -Directory . -ConfigPath .\cleanup-test.yaml -WhatIf
-Invoke-Cleanup -Directory . -ConfigPath .\cleanup-test.yaml
+Invoke-Cleanup -Directory . -ConfigPath .\cleanup-test.toml -WhatIf
+Invoke-Cleanup -Directory . -ConfigPath .\cleanup-test.toml
 ```
 
 创建操作默认使用当前工作目录；可用 -Directory 指定其他已存在的目录，或加 -WhatIf 仅预览。
-创建不执行清理，同名测试项已存在时拒绝覆盖；测试配置单独保存为 cleanup-test.yaml，不能同时指定 -ConfigPath。
+创建不执行清理，同名测试项已存在时拒绝覆盖；测试配置单独保存为 cleanup-test.toml，不能同时指定 -ConfigPath。
 生成 objects、build 目录，以及 sample.obj、sample.exp、sample.pdb、test_demo.exe 零字节空文件；不创建目录链接。
 测试配置的 unlinkDirectories 为空，delete 中包含上述目录和文件规则。创建中途出错会报告失败，保留已生成内容。
 ### 共享函数文件
 
-Functions-Cleanup.ps1 统一部署到 $env:ROOT_DIR\tools；cleanup.ps1 与 cleanup.yaml 部署到 $env:ROOT_DIR\sample。cleanup.ps1 是两句调用的简写入口，直接加载 $env:ROOT_DIR\tools\Functions-Cleanup.ps1；运行前必须正确设置 ROOT_DIR 并部署共享实现。
-简写入口固定清理脚本所在目录，并读取同目录的 cleanup.yaml，不接收命令行参数。需要 -WhatIf、指定目录或创建测试用例时，先加载共享实现，再直接调用 Invoke-Cleanup，如上文所示。
+Functions-Cleanup.ps1 统一部署到 $env:ROOT_DIR\tools；cleanup.ps1 与 cleanup.toml 部署到 $env:ROOT_DIR\sample。cleanup.ps1 是两句调用的简写入口，直接加载 $env:ROOT_DIR\tools\Functions-Cleanup.ps1；运行前必须正确设置 ROOT_DIR 并部署共享实现。
+简写入口固定清理脚本所在目录，并优先读取同目录的 cleanup.toml，不接收命令行参数；旧 cleanup.yaml / cleanup.yml 仅作过渡兼容。需要 -WhatIf、指定目录或创建测试用例时，先加载共享实现，再直接调用 Invoke-Cleanup，如上文所示。

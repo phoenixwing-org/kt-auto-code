@@ -122,7 +122,7 @@ describe("esbuild shared Web Component bundles", () => {
       "extension/scripts/auto-build/Invoke-AutoBuild.ps1",
       "extension/scripts/auto-build/Functions-Cleanup.ps1",
       "extension/scripts/sample/cleanup.ps1",
-      "extension/scripts/sample/cleanup.yaml",
+      "extension/scripts/sample/cleanup.toml",
     ]) {
       expect(verifier).toContain(requiredScript);
     }

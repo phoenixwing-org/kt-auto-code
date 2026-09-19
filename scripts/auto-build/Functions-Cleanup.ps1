@@ -1,15 +1,19 @@
 ﻿# license     MIT
 # brief       Read cleanup rules, remove directory links, clean directories and files, and create test cases.
-# 当前配置格式的轻量读取器：支持 ignore、unlinkDirectories、delete、空行和注释。
-function Read-CleanupConfiguration {
-    param([string]$Path)
-
-    $config = [pscustomobject]@{
+# 当前配置格式的轻量读取器：默认 TOML，过渡期继续兼容 YAML。
+function New-CleanupConfiguration {
+    return [pscustomobject]@{
         Ignore = @()
         UnlinkDirectories = @()
         Directories = @()
         Files = @()
     }
+}
+
+function Read-CleanupYamlConfiguration {
+    param([string]$Path)
+
+    $config = New-CleanupConfiguration
     $section = ''
     $list = ''
     foreach ($line in Get-Content -LiteralPath $Path -Encoding utf8 -ErrorAction Stop) {
@@ -43,6 +47,121 @@ function Read-CleanupConfiguration {
         throw "不支持的配置格式：$line"
     }
     return $config
+}
+
+function Remove-CleanupTomlComment {
+    param([string]$Line)
+
+    $quote = [char]0
+    $escaped = $false
+    for ($index = 0; $index -lt $Line.Length; $index++) {
+        $character = $Line[$index]
+        if ($quote -ne [char]0) {
+            if ($quote -eq '"' -and $escaped) { $escaped = $false; continue }
+            if ($quote -eq '"' -and $character -eq '\') { $escaped = $true; continue }
+            if ($character -eq $quote) { $quote = [char]0 }
+            continue
+        }
+        if ($character -eq '"' -or $character -eq "'") { $quote = $character; continue }
+        if ($character -eq '#') { return $Line.Substring(0, $index) }
+    }
+    if ($quote -ne [char]0) { throw "TOML 字符串引号不完整：$Line" }
+    return $Line
+}
+
+function ConvertFrom-CleanupTomlArray {
+    param([string]$Value, [string]$Line)
+
+    $text = $Value.Trim()
+    if ($text.Length -lt 2 -or $text[0] -ne '[' -or $text[$text.Length - 1] -ne ']') {
+        throw "TOML 清理规则只支持字符串数组：$Line"
+    }
+    $items = @()
+    $index = 1
+    $end = $text.Length - 1
+    while ($index -lt $end) {
+        while ($index -lt $end -and [char]::IsWhiteSpace($text[$index])) { $index++ }
+        if ($index -ge $end) { break }
+        $quote = $text[$index]
+        if ($quote -ne '"' -and $quote -ne "'") { throw "TOML 数组项必须使用单引号或双引号：$Line" }
+        $index++
+        $builder = New-Object System.Text.StringBuilder
+        $closed = $false
+        while ($index -lt $end) {
+            $character = $text[$index]
+            $index++
+            if ($character -eq $quote) { $closed = $true; break }
+            if ($quote -eq '"' -and $character -eq '\') {
+                if ($index -ge $end) { throw "TOML 转义不完整：$Line" }
+                $escaped = $text[$index]
+                $index++
+                switch ($escaped) {
+                    '"' { [void]$builder.Append('"') }
+                    '\' { [void]$builder.Append('\') }
+                    'n' { [void]$builder.Append("`n") }
+                    'r' { [void]$builder.Append("`r") }
+                    't' { [void]$builder.Append("`t") }
+                    default { throw "TOML 包含不支持的转义：\$escaped" }
+                }
+            }
+            else { [void]$builder.Append($character) }
+        }
+        if (-not $closed) { throw "TOML 数组项引号不完整：$Line" }
+        $item = $builder.ToString()
+        if ([string]::IsNullOrWhiteSpace($item)) { throw "TOML 数组项不能为空：$Line" }
+        $items += $item
+        while ($index -lt $end -and [char]::IsWhiteSpace($text[$index])) { $index++ }
+        if ($index -lt $end) {
+            if ($text[$index] -ne ',') { throw "TOML 数组项之间必须使用逗号：$Line" }
+            $index++
+        }
+    }
+    return $items
+}
+
+function Read-CleanupTomlConfiguration {
+    param([string]$Path)
+
+    $config = New-CleanupConfiguration
+    $section = ''
+    foreach ($rawLine in Get-Content -LiteralPath $Path -Encoding utf8 -ErrorAction Stop) {
+        $line = (Remove-CleanupTomlComment -Line $rawLine).Trim()
+        if (-not $line) { continue }
+        if ($line -match '^\[([A-Za-z][A-Za-z0-9]*)\]$') {
+            if ($Matches[1] -ne 'delete') { throw "不支持的 TOML 表：$line" }
+            $section = 'delete'
+            continue
+        }
+        if ($line -notmatch '^([A-Za-z][A-Za-z0-9]*)\s*=\s*(.+)$') { throw "不支持的 TOML 配置格式：$line" }
+        $key = $Matches[1]
+        $value = $Matches[2]
+        $property = $null
+        if (-not $section -and $key -eq 'ignore') { $property = 'Ignore' }
+        elseif (-not $section -and $key -eq 'unlinkDirectories') { $property = 'UnlinkDirectories' }
+        elseif ($section -eq 'delete' -and $key -eq 'directories') { $property = 'Directories' }
+        elseif ($section -eq 'delete' -and $key -eq 'files') { $property = 'Files' }
+        else { throw "不支持的 TOML 清理键：$key" }
+        $config.$property = @(ConvertFrom-CleanupTomlArray -Value $value -Line $line)
+    }
+    return $config
+}
+
+function Read-CleanupConfiguration {
+    param([string]$Path)
+
+    $extension = [System.IO.Path]::GetExtension($Path).ToLowerInvariant()
+    switch ($extension) {
+        '.toml' { return Read-CleanupTomlConfiguration -Path $Path }
+        '.yaml' {
+            Write-Warning "兼容读取旧版 YAML 清理配置：$Path；请迁移为 cleanup.toml。"
+            return Read-CleanupYamlConfiguration -Path $Path
+        }
+        '.yml' {
+            Write-Warning "兼容读取旧版 YAML 清理配置：$Path；请迁移为 cleanup.toml。"
+            return Read-CleanupYamlConfiguration -Path $Path
+        }
+        default { throw "清理配置只支持 .toml、.yaml 或 .yml：$Path" }
+    }
 }
 
 # ignore 按完整名称匹配，只有 * 和 ? 是通配符，大小写不敏感。
@@ -511,7 +630,7 @@ function New-CleanupTestCases {
 
     $root = Get-Item -LiteralPath $Directory -Force -ErrorAction Stop
     if (-not $root.PSIsContainer) { throw 'Directory 必须是目录。' }
-    $paths = @('objects', 'build', 'sample.obj', 'sample.exp', 'sample.pdb', 'test_demo.exe', 'cleanup-test.yaml')
+    $paths = @('objects', 'build', 'sample.obj', 'sample.exp', 'sample.pdb', 'test_demo.exe', 'cleanup-test.toml')
     foreach ($name in $paths) {
         if (Get-Item -LiteralPath (Join-Path $root.FullName $name) -Force -ErrorAction SilentlyContinue) {
             throw "同名测试项已存在，未创建或覆盖任何内容：$name"
@@ -524,22 +643,17 @@ function New-CleanupTestCases {
     foreach ($name in @('sample.obj', 'sample.exp', 'sample.pdb', 'test_demo.exe')) {
         New-Item -ItemType File -Path (Join-Path $root.FullName $name) -ErrorAction Stop | Out-Null
     }
-    $yaml = @'
-ignore: []
-unlinkDirectories: []
-delete:
-  directories:
-    - objects
-    - build
-  files:
-    - '*.obj'
-    - '*.exp'
-    - '*.pdb'
-    - 'test_*.exe'
+    $toml = @'
+ignore = []
+unlinkDirectories = []
+
+[delete]
+directories = ["objects", "build"]
+files = ["*.obj", "*.exp", "*.pdb", "test_*.exe"]
 '@
-    Set-Content -LiteralPath (Join-Path $root.FullName 'cleanup-test.yaml') -Value $yaml -Encoding utf8 -ErrorAction Stop
+    Set-Content -LiteralPath (Join-Path $root.FullName 'cleanup-test.toml') -Value $toml -Encoding utf8 -ErrorAction Stop
     Write-Host "测试用例已创建：$($root.FullName)" -ForegroundColor Green
-    Write-Host '已创建 objects、build 和四个文件；配置为 cleanup-test.yaml。未执行清理。' -ForegroundColor Cyan
+    Write-Host '已创建 objects、build 和四个文件；配置为 cleanup-test.toml。未执行清理。' -ForegroundColor Cyan
 }
 
 # 统一执行清理，返回退出码；入口脚本只负责引用和调用。
@@ -554,7 +668,7 @@ function Invoke-Cleanup {
 
     if ($CreateTestCases) {
         try {
-            if ($ConfigPath) { throw '-CreateTestCases 自动生成 cleanup-test.yaml，不能同时指定 -ConfigPath。' }
+            if ($ConfigPath) { throw '-CreateTestCases 自动生成 cleanup-test.toml，不能同时指定 -ConfigPath。' }
             if (-not $Directory) { $Directory = (Get-Location).Path }
             New-CleanupTestCases -Directory $Directory -WhatIf:$WhatIfPreference
             return 0
@@ -570,7 +684,15 @@ function Invoke-Cleanup {
     try {
         $root = Get-Item -LiteralPath $Directory -Force -ErrorAction Stop
         if (-not $root.PSIsContainer) { throw 'Directory 必须是目录。' }
-        if (-not $ConfigPath) { $ConfigPath = Join-Path $root.FullName 'cleanup.yaml' }
+        if (-not $ConfigPath) {
+            $tomlPath = Join-Path $root.FullName 'cleanup.toml'
+            $yamlPath = Join-Path $root.FullName 'cleanup.yaml'
+            $ymlPath = Join-Path $root.FullName 'cleanup.yml'
+            if (Test-Path -LiteralPath $tomlPath -PathType Leaf) { $ConfigPath = $tomlPath }
+            elseif (Test-Path -LiteralPath $yamlPath -PathType Leaf) { $ConfigPath = $yamlPath }
+            elseif (Test-Path -LiteralPath $ymlPath -PathType Leaf) { $ConfigPath = $ymlPath }
+            else { $ConfigPath = $tomlPath }
+        }
         $config = Read-CleanupConfiguration -Path $ConfigPath
         # 先校验全部 delete 规则，再执行取消链接或删除，避免无效规则引发部分清理。
         foreach ($directoryRule in $config.Directories) { [void](ConvertTo-CleanupRule -Rule $directoryRule) }

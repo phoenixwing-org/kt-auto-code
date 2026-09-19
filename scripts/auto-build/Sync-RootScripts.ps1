@@ -1,4 +1,4 @@
-﻿# 默认覆盖脚本；已有 cleanup.yaml 保留，避免覆盖用户清理规则。
+﻿# 默认覆盖脚本；已有 cleanup.toml 保留，仅有旧 YAML 时继续兼容并提示迁移。
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [string]$RootDirectory = $env:ROOT_DIR
@@ -21,7 +21,7 @@ $files = @(
     @{ Source = (Join-Path $PSScriptRoot 'Invoke-AutoBuild.ps1'); Target = 'tools\Invoke-AutoBuild.ps1'; Preserve = $false }
     @{ Source = (Join-Path $PSScriptRoot 'Functions-Cleanup.ps1'); Target = 'tools\Functions-Cleanup.ps1'; Preserve = $false }
     @{ Source = (Join-Path $PSScriptRoot '..\sample\cleanup.ps1'); Target = 'sample\cleanup.ps1'; Preserve = $false }
-    @{ Source = (Join-Path $PSScriptRoot '..\sample\cleanup.yaml'); Target = 'sample\cleanup.yaml'; Preserve = $true }
+    @{ Source = (Join-Path $PSScriptRoot '..\sample\cleanup.toml'); Target = 'sample\cleanup.toml'; Preserve = $true; LegacyTarget = 'sample\cleanup.yaml' }
 )
 
 # 先核对所有源文件，避免因缺失源文件只同步一部分。
@@ -35,6 +35,13 @@ foreach ($file in $files) {
     if ($file.Preserve -and (Test-Path -LiteralPath $destination)) {
         Write-Host "保留配置 $destination"
         continue
+    }
+    if ($file.Preserve -and $file.LegacyTarget) {
+        $legacyDestination = Join-Path $root.FullName $file.LegacyTarget
+        if (Test-Path -LiteralPath $legacyDestination -PathType Leaf) {
+            Write-Warning "保留旧版配置 $legacyDestination；请按需迁移为 $destination。"
+            continue
+        }
     }
     if ($PSCmdlet.ShouldProcess($destination, '复制并覆盖脚本（不执行脚本）')) {
         $parent = Split-Path -Parent $destination

@@ -24,7 +24,7 @@ async function fixture(): Promise<{ extensionRoot: string; root: string }> {
     writeFile(join(extensionRoot, "scripts", "auto-build", "Invoke-AutoBuild.ps1"), "invoke"),
     writeFile(join(extensionRoot, "scripts", "auto-build", "Functions-Cleanup.ps1"), "functions"),
     writeFile(join(extensionRoot, "scripts", "sample", "cleanup.ps1"), "cleanup"),
-    writeFile(join(extensionRoot, "scripts", "sample", "cleanup.yaml"), "delete: {}"),
+    writeFile(join(extensionRoot, "scripts", "sample", "cleanup.toml"), "[delete]\nfiles = []"),
   ]);
   return { extensionRoot, root };
 }
@@ -41,7 +41,7 @@ describe("AutoBuild script synchronization", () => {
       join(root, "tools", "Invoke-AutoBuild.ps1"),
       join(root, "tools", "Functions-Cleanup.ps1"),
       join(root, "sample", "cleanup.ps1"),
-      join(root, "sample", "cleanup.yaml"),
+      join(root, "sample", "cleanup.toml"),
     ]);
     await mkdir(join(root, "tools"), { recursive: true });
     await writeFile(files[0]!.target, "old");
@@ -54,7 +54,7 @@ describe("AutoBuild script synchronization", () => {
     await expect(readFile(files[0]!.target, "utf8")).resolves.toBe("invoke");
     await expect(readFile(files[1]!.target, "utf8")).resolves.toBe("functions");
     await expect(readFile(files[2]!.target, "utf8")).resolves.toBe("cleanup");
-    await expect(readFile(files[3]!.target, "utf8")).resolves.toBe("delete: {}");
+    await expect(readFile(files[3]!.target, "utf8")).resolves.toBe("[delete]\nfiles = []");
     await expect(ktcInspectAutoBuildScriptSync(extensionRoot, root))
       .resolves.toMatchObject({ status: "same" });
 
