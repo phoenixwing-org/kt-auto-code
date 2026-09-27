@@ -7,8 +7,11 @@
 自动构建脚本以 Windows PowerShell 5.1、MSVC 和 Windows 版 CAA 为运行基线；CAA 编译仅支持 Windows。macOS/Linux 可通过编译工具 View 编辑、探测本机路径、预检和生成脚本，非 Windows 上的运行尝试仅用于开发检查，不能替代 Windows 构建验收；Windows/UNC Root 不会被当成本机目标直接写入。Invoke-AutoBuild.ps1 只接受带盘符或完整 UNC 共享根的绝对路径，并拒绝清理文件系统根。
 
 - `Invoke-AutoBuild.ps1`：仓库预检、更新、清理与批量构建的主编排入口。
+- `common.ps1`、`linkFramework.ps1`、`linkWinb64.ps1`、`linkCAA.ps1`：CAA workspace 发现以及 Framework / `win_b64` 聚合。
+- `caaAll.ps1`、`cmakeAll.ps1`、`mkAll.ps1`：CAA、CMake 与混合批量构建。
+- 其余 `common*.ps1`、export、publish、format、环境脚本：从原 KtRoot 工具集中迁入的配套闭包。
 
-项目自己的 `mk.ps1`、`export.ps1` 仍由项目维护；`linkCAA.ps1` 当前仍从 `ROOT_DIR/sample` 获取。本目录也接纳独立拷贝使用的通用脚本，不要求必须由插件直接调用。
+项目自己的转发入口放在 `scripts/sample`；Auto Code 是这些 Root 工具的源码真源。同步到 `ROOT_DIR/tools` 和 `ROOT_DIR/sample` 后，Root 中的文件只作为运行副本，不再反向修改。
 
 ## 清理脚本
 
@@ -105,14 +108,15 @@ Invoke-Cleanup -Directory $PSScriptRoot -ConfigPath "$PSScriptRoot\cleanup.toml"
 
 该命令覆盖 `tools/Invoke-AutoBuild.ps1`、`tools/Functions-Cleanup.ps1` 和 `sample/cleanup.ps1`，并逐个校验 SHA256。`sample/cleanup.toml` 仅在不存在时复制；已有 TOML 保留，仅存在旧 YAML 时继续保留旧配置并提示迁移。Root 必须已存在；命令只复制文件，不执行构建、清理或仓库恢复，也不修改 Root 根目录的自定义入口和配置。
 
-Primary 的“脚本”动作会直接同步下列文件，不另行询问是否覆盖：
+Primary 的“脚本”动作与上述独立同步命令的范围不同：它会直接同步完整的受控清单，不另行询问是否覆盖：
 
-- `scripts/auto-build/Invoke-AutoBuild.ps1` → `ROOT/tools/Invoke-AutoBuild.ps1`
-- `scripts/auto-build/Functions-Cleanup.ps1` → `ROOT/tools/Functions-Cleanup.ps1`
-- `scripts/sample/cleanup.ps1` → `ROOT/sample/cleanup.ps1`
-- `scripts/sample/cleanup.toml` → `ROOT/sample/cleanup.toml`
+- `scripts/auto-build/*` 中登记的 Root 公共实现 → `ROOT/tools/*`；
+- `scripts/sample/*` 中登记的工程转发入口和清理样例 → `ROOT/sample/*`；
+- 清理配置样例使用 `scripts/sample/cleanup.toml` → `ROOT/sample/cleanup.toml`，不再同步旧 YAML 样例；独立清理脚本对已有 YAML 的过渡兼容保持不变；
+- `scripts/sample/linkOut.ps1` 会调用 `ROOT/tools/linkCAA.ps1`，同时聚合当前 CAA workspace 的 Framework 与 `win_b64`；
+- `clang-format/.clang-format` 会同步，平台二进制 `clang-format.exe` 不纳入扩展，仍由机器工具链提供。
 
-每个文件在原生 Output 中单独记录一行，格式为 `新建 <目标路径>` 或 `替换 <目标路径>`。VSIX 制品门禁会校验四个源文件均已打包。
+每个文件在原生 Output 中单独记录一行，格式为 `新建 <目标路径>` 或 `替换 <目标路径>`。同步前后使用完整清单 SHA-256 判断“一致 / 不一致 / 缺失”；VSIX 制品门禁会校验关键 CAA、CMake、清理与 `linkOut` 入口已打包。
 
 
 ### 创建测试用例

@@ -8,7 +8,7 @@
 - For build-only AI verification, use `pnpm ext:dev:prepare`. Use `pnpm ext:dev:check` only for a fast repository contract check.
 - If sibling Wing is absent, local development must fail. Never add a silent Registry fallback.
 - When a consumer checkout lives at `Phoenix/worktrees/<repo>`, preserve the same sibling contract by creating `Phoenix/worktrees/phoenix-wing` as a filesystem symlink to the explicitly selected active Wing checkout before running local integration. Full Code + CAD development likewise uses `Phoenix/worktrees/kt-auto-cad` when the active CAD checkout is outside `worktrees/`. Resolve and report the link target, branch, and package version first; never guess among multiple checkouts, replace an existing non-link path, commit the link, or encode its target in a manifest or lockfile.
-- Do not add or restore a root `pnpm dev:registry` alias: Registry development is the default `pnpm dev`, while local sibling development is `pnpm wing`.
+- Do not add or restore a root `pnpm dev:registry` alias: Registry development is the default `pnpm dev`, while local sibling development is `pnpm wing`. The build-only `pnpm ext:dev:registry:prepare` gate remains available.
 - Never write `link:`, `file:`, a workspace override, or a local Wing path into a committed manifest or `pnpm-lock.yaml`.
 - `PHOENIX_WING_ROOT` is accepted only through the controlled local wrapper, paired with `PHOENIX_WING_DEV_MODE=1`. Formal builds must reject a leaked root variable; the Registry wrapper clears both variables.
 - A local build is accepted only after the esbuild metafile gate proves all expected Wing inputs came from the sibling repository and none came from the consumer's `node_modules`.

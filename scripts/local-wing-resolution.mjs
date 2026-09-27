@@ -218,7 +218,7 @@ export function localWingBuildContextFromEnvironment({
   if (configured && !enabled) {
     throw new Error(
       "[local-wing] 检测到 PHOENIX_WING_ROOT，但未处于受控本地开发模式。\n"
-      + "请使用 pnpm wing；正式 npm 包开发请使用 pnpm dev。",
+      + "请使用 pnpm wing；正式 npm 包开发及对照请使用 pnpm dev。",
     );
   }
   if (enabled && !configured) {

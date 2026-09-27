@@ -19,21 +19,80 @@ export interface KtcAutoBuildScriptSyncInspection {
   readonly targetHash: string;
 }
 
-const AUTO_BUILD_SCRIPT_SYNC_LAYOUT = Object.freeze([
-  { source: ["scripts", "auto-build", "Invoke-AutoBuild.ps1"], target: ["tools", "Invoke-AutoBuild.ps1"] },
-  { source: ["scripts", "auto-build", "Functions-Cleanup.ps1"], target: ["tools", "Functions-Cleanup.ps1"] },
-  { source: ["scripts", "sample", "cleanup.ps1"], target: ["sample", "cleanup.ps1"] },
-  { source: ["scripts", "sample", "cleanup.toml"], target: ["sample", "cleanup.toml"] },
+const ROOT_TOOL_FILES = Object.freeze([
+  ["Invoke-AutoBuild.ps1"],
+  ["Functions-Cleanup.ps1"],
+  ["LinkWinb64Common.ps1"],
+  ["buildErrorSummary.ps1"],
+  ["buildFunction.ps1"],
+  ["buildOutputEncoding.ps1"],
+  ["caaAll.ps1"],
+  ["clangfile.ps1"],
+  ["cloneClangformat.ps1"],
+  ["cmakeAll.ps1"],
+  ["common.ps1"],
+  ["commonCAAExport.ps1"],
+  ["commonCmake.ps1"],
+  ["commonExport.ps1"],
+  ["commonLoad.ps1"],
+  ["envSet-linux.sh"],
+  ["envSet-macos.sh"],
+  ["envSet.ps1"],
+  ["exportAll.ps1"],
+  ["exportCAAFramework.ps1"],
+  ["fetchAll.ps1"],
+  ["fetchPullDevelop.ps1"],
+  ["invokeAll.ps1"],
+  ["linkCAA.ps1"],
+  ["linkFramework.ps1"],
+  ["linkWinb64.ps1"],
+  ["mk.ps1"],
+  ["mkAll.ps1"],
+  ["publish.ps1"],
+  ["pullDevelop.ps1"],
+  ["pullMaster.ps1"],
+  ["rebuildAll.ps1"],
+  ["run.ps1"],
+  ["clang-format", ".clang-format"],
+] as const);
+
+const ROOT_SAMPLE_FILES = Object.freeze([
+  "caaAll.ps1",
+  "cleanup.ps1",
+  "cleanup.toml",
+  "cloneClangformat.ps1",
+  "cmakeAll.ps1",
+  "exportAll.ps1",
+  "exportCAAFramework.ps1",
+  "fetchAll.ps1",
+  "fetchPullDevelop.ps1",
+  "linkCAA.ps1",
+  "linkFramework.ps1",
+  "linkOut.ps1",
+  "linkWinb64.ps1",
+  "mk.ps1",
+  "mkAll.ps1",
+  "publish.ps1",
+  "pullDevelop.ps1",
+  "pullMaster.ps1",
+  "rebuildAll.ps1",
+  "run.ps1",
 ] as const);
 
 export function ktcResolveAutoBuildScriptSyncFiles(
   extensionRoot: string,
   rootDirectory: string,
 ): readonly KtcAutoBuildScriptSyncFile[] {
-  return AUTO_BUILD_SCRIPT_SYNC_LAYOUT.map((entry) => ({
-    source: join(extensionRoot, ...entry.source),
-    target: join(rootDirectory, ...entry.target),
-  }));
+  return [
+    ...ROOT_TOOL_FILES.map((relativePath) => ({
+      source: join(extensionRoot, "scripts", "auto-build", ...relativePath),
+      target: join(rootDirectory, "tools", ...relativePath),
+    })),
+    ...ROOT_SAMPLE_FILES.map((name) => ({
+      source: join(extensionRoot, "scripts", "sample", name),
+      target: join(rootDirectory, "sample", name),
+    })),
+  ];
 }
 
 async function hashSyncFiles(

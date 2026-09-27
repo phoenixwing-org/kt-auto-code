@@ -50,8 +50,15 @@ for (const artifact of artifacts) {
   const requiredAutoBuildScripts = [
     "extension/scripts/auto-build/Invoke-AutoBuild.ps1",
     "extension/scripts/auto-build/Functions-Cleanup.ps1",
+    "extension/scripts/auto-build/common.ps1",
+    "extension/scripts/auto-build/linkFramework.ps1",
+    "extension/scripts/auto-build/linkWinb64.ps1",
+    "extension/scripts/auto-build/linkCAA.ps1",
+    "extension/scripts/auto-build/caaAll.ps1",
+    "extension/scripts/auto-build/cmakeAll.ps1",
     "extension/scripts/sample/cleanup.ps1",
     "extension/scripts/sample/cleanup.toml",
+    "extension/scripts/sample/linkOut.ps1",
   ];
   for (const name of requiredAutoBuildScripts) {
     if (!names.includes(name)) {

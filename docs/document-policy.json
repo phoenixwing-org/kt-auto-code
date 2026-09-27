@@ -5,6 +5,12 @@
   "appliesTo": "0.8.x",
   "rules": [
     {
+      "match": "^docs/编译工具/Root工具/.*\\.md$",
+      "status": "current",
+      "appliesTo": "0.9.4 及后续",
+      "reason": "由 KtRoot 迁入 Auto Code 的 Root 工具与 CAA/CMake 构建契约；Auto Code 为源码真源，Root 仅保留显式同步副本"
+    },
+    {
       "match": "^docs/0\\.9\\.2-发布准备\\.md$",
       "status": "current",
       "appliesTo": "0.9.2",

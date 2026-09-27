@@ -28,7 +28,7 @@ phoenix/
 
 Auto Code 日常开发工作树固定为 `phoenix/worktrees/kt-auto-code-working`，跨版本沿用；后续按用户指定切换分支，不再用版本号命名或另建日常开发目录。版本身份以实际检出的分支、提交和包版本核验，不由目录名推断。`phoenix/worktrees/kt-auto-code-release` 仅用于干净 detached 提交的正式打包，可按发布需要复用，与日常开发工作树分开。
 
-本机开发目录于 2026-09-10 按用户决定固定为 `phoenix/worktrees/phoenix-wing-working`，当前分支 `v0.7.4`。它由原历史工作树整体迁入，保留 Git 暂存与未提交内容；`phoenix/worktrees/phoenix-wing` 是指向它的联调链接。后续切换版本分支时保留固定目录名，不再按版本另建隐藏 `.worktrees`。
+本机未完成的 Wing 修改固定在 `phoenix/worktrees/phoenix-wing-working`；消费者默认通过 `phoenix/worktrees/phoenix-wing` 链接读取已提升的主库 `phoenix-wing/develop`。只有专门验证尚未提升的候选时，才显式把链接临时指向 working worktree，并在验证后恢复。链接目标必须逐次读取并报告，不能由旧版本记录推断。
 
 当消费者检出位于 `phoenix/worktrees/<repo>` 时，`../phoenix-wing` 会解析为
 `phoenix/worktrees/phoenix-wing`，而不是根目录下的正式 Wing 检出。开始本地联调前必须：
@@ -39,7 +39,7 @@ Auto Code 日常开发工作树固定为 `phoenix/worktrees/kt-auto-code-working
    已是链接则先核对真实目标，若是普通文件或目录则停止并请求人工处理，不能覆盖。
 3. 完整 Code + CAD 联调同理检查 `phoenix/worktrees/kt-auto-cad`；仅 Code 联调不要求创建 CAD 链接。
 4. 链接属于共享开发环境，不进入 Git，不写入 `package.json`、`pnpm-lock.yaml` 或任何发布制品。
-5. 切换本轮活动 Wing/CAD 检出时，先显式确认新目标再调整链接；正式 Registry 开发使用
+5. 切换本轮活动 Wing/CAD 检出时，先显式确认新目标再调整链接；正式 Registry 开发及对照使用
    `pnpm dev`，不能借链接绕过依赖门禁。
 
 建立链接后，worktree 内仍直接运行普通 `pnpm ext:dev:*` 命令，不需要长期保留
@@ -51,7 +51,7 @@ Auto Code 日常开发工作树固定为 `phoenix/worktrees/kt-auto-code-working
 
 | 命令 | Wing 来源 | 行为 |
 | --- | --- | --- |
-| `pnpm dev` | npm Registry / Auto 当前 lockfile | 清除本地环境变量，只构建并启动 Auto Code |
+| `pnpm dev` | npm Registry / Auto 当前 lockfile | 清除本地环境变量，只构建并启动 Auto Code，作为正式发布对照组 |
 | `pnpm wing` / `pnpm ext:dev:code` | 本地 `../phoenix-wing` | 构建 Wing 与 Auto Code 并启动，不要求可选 CAD 仓库 |
 | `pnpm ext:dev` | 本地 `../phoenix-wing` | 要求 `../kt-auto-cad`，构建 Wing、分别构建两个仓库的扩展并同时启动 |
 | `pnpm ext:dev:prepare` | 本地 `../phoenix-wing` | 构建 Wing，运行 Auto 对真实本地 Wing 的回归，再完成构建/来源门禁；不启动 VS Code |
@@ -62,7 +62,7 @@ Auto Code 日常开发工作树固定为 `phoenix/worktrees/kt-auto-code-working
 
 本地日志开头明确显示 `[local-wing] 模式：本地并列仓库（非 npm Registry）`；Wing 构建后还必须出现 `控制符边界自检通过：2 个 missing-end；5 个后续区域；nested/mismatched=0`，才会继续构建并启动扩展。Registry 对照日志显示 `[registry-wing] 模式：npm Registry / 当前 pnpm-lock.yaml（非本地 Wing）`。
 
-本地模式找不到 Wing 时必须失败，不允许悄悄回退到 Registry。错误会给出实际查找路径，并提示直接用 `pnpm dev` 启动正式包。
+本地模式找不到 Wing 时必须失败，不允许悄悄回退到 Registry。错误会给出实际查找路径，并提示用 `pnpm dev` 做正式 Registry 版本的开发及对照。
 
 ## 受控构建流程
 

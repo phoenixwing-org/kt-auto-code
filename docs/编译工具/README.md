@@ -12,8 +12,10 @@ schema 2 统一项目表、既有仓库 TS Git 与标准 CMake已经接线，不
 
 Combo 参数回填注释修正已纳入本轮授权，生成规则与缓存升至 `1.0.2`，见[专项记录](../bug/自动代码-Combo参数回填缺少注释行.md)；不因清理 UI 修改另升规则。Windows 导出脚本首行报错已[登记待定位](../bug/编译工具-Windows导出脚本首行错误.md)，没有原始文件/完整报错前不声称修复。
 
-插件运行时已采用 **TS 调度 + TS Git / 标准 CMake，Windows link/export/CAA 保留 PS1**。内置脚本 [`scripts/auto-build/Invoke-AutoBuild.ps1`](../../scripts/auto-build/Invoke-AutoBuild.ps1) 继续保留；用户可显式同步到 `ROOT_DIR\tools\Invoke-AutoBuild.ps1`，作为脱离 UI 的命令行入口。插件运行时按
+插件运行时已采用 **TS 调度 + TS Git / 标准 CMake，Windows link/export/CAA 保留 PS1**。Root 公共工具现已完整迁入 [`scripts/auto-build/`](../../scripts/auto-build/README.md)，工程转发入口位于 [`scripts/sample/`](../../scripts/sample/)；用户可显式把受控清单同步到 `ROOT_DIR\tools` 与 `ROOT_DIR\sample`，作为脱离 UI 的命令行入口。Auto Code 是源码真源，Root 只是运行副本。插件运行时按
 [《TypeScript 运行时迁移计划》](TypeScript运行时迁移计划.md) 分阶段改走 Wing，脚本导出与兼容入口继续保留。
+
+CAA 单工程使用 `sample/linkOut.ps1`：它先把当前目录识别为 workspace，再调用 `linkCAA.ps1`，将 Framework 链到上级 `CAAB<Version>MkWsp`，同时把当前工程的 `win_b64` 链到聚合输出。`caaAll.ps1` 与 `cmakeAll.ps1` 均已进入同一同步清单。完整契约见 [Root 工具迁移文档](Root工具/批量工程脚本设计.md)。
 
 ## 平台边界
 

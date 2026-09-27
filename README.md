@@ -65,7 +65,7 @@ pnpm fix-headers tests/fixtures/multiChar                         # 修复（慎
 | [源文件编码扫描](docs/源文件编码扫描.md) | CLI、扫描范围；**CP1252 / 全角标点映射表** |
 | [编码修正](docs/编码修正.md) | 整文件编码检测与转换（`encodingFix`） |
 | [开发与测试](docs/开发与测试.md) | F5、测试、选项与检查清单 |
-| [本地 Wing 并列开发](docs/本地Wing并列开发.md) | `pnpm wing` 本地双插件联调、AI 构建与 Registry 对照门禁 |
+| [本地 Wing 并列开发](docs/本地Wing并列开发.md) | `pnpm dev` Registry 开发、`pnpm wing` 本地 Code 联调与来源门禁；双插件使用 `pnpm ext:dev` |
 | [VS Code 插件发布](docs/VS%20Code%20插件发布.md) | Marketplace 发布流程、上架检查清单与版权说明 |
 
 ## 常用命令

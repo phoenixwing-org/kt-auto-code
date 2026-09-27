@@ -300,6 +300,62 @@
       "reason": "当前 Wing 控件、自动代码点检与编译工具 TypeScript 迁移目标和验收记录"
     },
     {
+      "path": "docs/编译工具/Root工具/批量工程脚本设计.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.9.4 及后续",
+      "lastVerified": "2026-09-10",
+      "reason": "由 KtRoot 迁入 Auto Code 的 Root 工具与 CAA/CMake 构建契约；Auto Code 为源码真源，Root 仅保留显式同步副本"
+    },
+    {
+      "path": "docs/编译工具/Root工具/CMake 公共模块与项目接入规则.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.9.4 及后续",
+      "lastVerified": "2026-09-10",
+      "reason": "由 KtRoot 迁入 Auto Code 的 Root 工具与 CAA/CMake 构建契约；Auto Code 为源码真源，Root 仅保留显式同步副本"
+    },
+    {
+      "path": "docs/编译工具/Root工具/CMake外部构建与批量编译方案.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.9.4 及后续",
+      "lastVerified": "2026-09-10",
+      "reason": "由 KtRoot 迁入 Auto Code 的 Root 工具与 CAA/CMake 构建契约；Auto Code 为源码真源，Root 仅保留显式同步副本"
+    },
+    {
+      "path": "docs/编译工具/Root工具/Core SDK 与 CMake 目录规则.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.9.4 及后续",
+      "lastVerified": "2026-09-10",
+      "reason": "由 KtRoot 迁入 Auto Code 的 Root 工具与 CAA/CMake 构建契约；Auto Code 为源码真源，Root 仅保留显式同步副本"
+    },
+    {
+      "path": "docs/编译工具/Root工具/mk构建与错误汇总需求.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.9.4 及后续",
+      "lastVerified": "2026-09-10",
+      "reason": "由 KtRoot 迁入 Auto Code 的 Root 工具与 CAA/CMake 构建契约；Auto Code 为源码真源，Root 仅保留显式同步副本"
+    },
+    {
+      "path": "docs/编译工具/Root工具/README.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.9.4 及后续",
+      "lastVerified": "2026-09-10",
+      "reason": "由 KtRoot 迁入 Auto Code 的 Root 工具与 CAA/CMake 构建契约；Auto Code 为源码真源，Root 仅保留显式同步副本"
+    },
+    {
+      "path": "docs/编译工具/Root工具/tools脚本说明.md",
+      "status": "current",
+      "owner": "KT Auto Code maintainers",
+      "appliesTo": "0.9.4 及后续",
+      "lastVerified": "2026-09-10",
+      "reason": "由 KtRoot 迁入 Auto Code 的 Root 工具与 CAA/CMake 构建契约；Auto Code 为源码真源，Root 仅保留显式同步副本"
+    },
+    {
       "path": "docs/编译工具/TypeScript运行时迁移计划.md",
       "status": "current",
       "owner": "KT Auto Code maintainers",

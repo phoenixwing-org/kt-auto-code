@@ -1,0 +1,36 @@
+# Base on LLVM 1.1
+BasedOnStyle: LLVM
+AccessModifierOffset: -4
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: true
+AlignEscapedNewlinesLeft: true
+AlignOperands: true
+AlignTrailingComments: true
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowShortBlocksOnASingleLine : false
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: true
+AllowShortLoopsOnASingleLine: false
+AlwaysBreakAfterDefinitionReturnType: None
+ColumnLimit: 100
+CommentPragmas: '^ IWYU pragma:'
+Language: Cpp
+PointerAlignment: Left
+IndentWidth: 4
+MaxEmptyLinesToKeep: 1
+ObjCSpaceAfterProperty: true
+ObjCBlockIndentWidth: 4
+AllowShortFunctionsOnASingleLine: false
+SpacesInSquareBrackets: true
+SpacesInParentheses : false
+SpaceBeforeAssignmentOperators: true
+SpacesInContainerLiterals: true
+IndentWrappedFunctionNames: true
+KeepEmptyLinesAtTheStartOfBlocks: true
+BreakConstructorInitializersBeforeComma: true
+SpaceAfterCStyleCast: false
+SortIncludes: true
+IndentCaseLabels: false
+TabWidth: 4
+UseTab: Never

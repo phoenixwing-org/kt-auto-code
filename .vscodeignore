@@ -14,8 +14,7 @@ extension/**
 src/**
 scripts/**
 !scripts/auto-build/**
-!scripts/sample/cleanup.ps1
-!scripts/sample/cleanup.yaml
+!scripts/sample/**
 tests/**
 ui-preview/**
 docs/**
